@@ -1,0 +1,57 @@
+name: P1 HWPX lifecycle CI
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  lifecycle:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Compile Python sources
+        run: python -m compileall -q server.py test_client.py test_p1.py
+
+      - name: HWPX unit tests
+        run: python -m unittest -v test_p1.py
+
+      - name: Start Streamable HTTP MCP server
+        env:
+          P1_ACCESS_TOKEN: ci-access-token
+          P1_DOWNLOAD_SECRET: ci-download-secret
+          P1_PUBLIC_BASE_URL: http://127.0.0.1:8000
+        run: |
+          python server.py > /tmp/mcp.log 2>&1 &
+          echo $! > /tmp/mcp.pid
+          for i in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:8000/health >/tmp/health.json; then
+              cat /tmp/health.json
+              exit 0
+            fi
+            sleep 1
+          done
+          cat /tmp/mcp.log || true
+          exit 1
+
+      - name: MCP document lifecycle smoke test
+        env:
+          MCP_URL: http://127.0.0.1:8000/mcp
+          P1_ACCESS_TOKEN: ci-access-token
+          RUN_P1_WRITE_TEST: "1"
+        run: python test_client.py
+
+      - name: Show server log on failure
+        if: failure()
+        run: cat /tmp/mcp.log || true

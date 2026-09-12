@@ -1,4 +1,4 @@
-name: P1.1 OAuth HWPX lifecycle CI
+name: P1.2 Durable OAuth + HWPX ingress CI
 
 on:
   push:
@@ -8,7 +8,28 @@ on:
 jobs:
   lifecycle:
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: hwpx
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d hwpx"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      P1_PUBLIC_BASE_URL: http://127.0.0.1:8000
+      P11_OAUTH_PASSPHRASE: ci-p12-oauth-passphrase
+      P1_DOWNLOAD_SECRET: ci-download-secret
+      P12_AUTH_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/hwpx
+      P12_STATE_SECRET: ci-p12-state-secret-0123456789-abcdefghijklmnopqrstuvwxyz
 
     steps:
       - uses: actions/checkout@v4
@@ -22,26 +43,20 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Compile Python sources
-        run: python -m compileall -q server.py oauth_provider.py test_client.py test_p1.py
+        run: python -m compileall -q server.py oauth_provider.py auth_store.py test_client.py test_p1.py test_auth_store.py
 
-      - name: HWPX unit tests
-        env:
-          P1_PUBLIC_BASE_URL: http://127.0.0.1:8000
-          P11_OAUTH_PASSPHRASE: ci-p11-oauth-passphrase
-          P1_DOWNLOAD_SECRET: ci-download-secret
-        run: python -m unittest -v test_p1.py
+      - name: HWPX admission and durable-state unit tests
+        run: python -m unittest -v test_p1.py test_auth_store.py
 
-      - name: Start OAuth-protected Streamable HTTP MCP server
-        env:
-          P1_PUBLIC_BASE_URL: http://127.0.0.1:8000
-          P11_OAUTH_PASSPHRASE: ci-p11-oauth-passphrase
-          P1_DOWNLOAD_SECRET: ci-download-secret
+      - name: Start durable OAuth-protected Streamable HTTP MCP server
         run: |
           python server.py > /tmp/mcp.log 2>&1 &
           echo $! > /tmp/mcp.pid
-          for i in {1..30}; do
+          for i in {1..40}; do
             if curl --fail --silent http://127.0.0.1:8000/health >/tmp/health.json; then
               cat /tmp/health.json
+              grep -q '"phase":"P1.2"' /tmp/health.json || grep -q '"phase": "P1.2"' /tmp/health.json
+              grep -q 'postgres-encrypted' /tmp/health.json
               exit 0
             fi
             sleep 1
@@ -57,15 +72,15 @@ jobs:
             -H 'accept: application/json, text/event-stream' \
             --data '{"jsonrpc":"2.0","id":1,"method":"ping"}')"
           test "$status" = "401"
-          cat /tmp/unauth.json
           curl --fail --silent http://127.0.0.1:8000/.well-known/oauth-protected-resource/mcp | tee /tmp/prm.json
           grep -q '"hwpx"' /tmp/prm.json
+          curl --fail --silent http://127.0.0.1:8000/.well-known/oauth-authorization-server | tee /tmp/as.json
+          grep -q 'offline_access' /tmp/as.json
 
-      - name: OAuth-native MCP document lifecycle and signed download receipt
+      - name: OAuth-native create, existing-HWPX ingest, inspect, export, and delete
         env:
           MCP_URL: http://127.0.0.1:8000/mcp
-          P11_OAUTH_PASSPHRASE: ci-p11-oauth-passphrase
-          RUN_P11_WRITE_TEST: "1"
+          RUN_P12_WRITE_TEST: "1"
         run: python test_client.py
 
       - name: Show server log on failure

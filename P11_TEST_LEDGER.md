@@ -115,7 +115,50 @@ That remote run independently confirmed:
 
 Deployment secrets are server-side only. `P11_OAUTH_PASSPHRASE` and `P1_DOWNLOAD_SECRET` are configured in Render and are not placed in MCP tool schemas, repository files, or this ledger.
 
-## Current verdict
+## P1.1-R1 native ChatGPT receipt
+
+Formal closure step:
+
+**ChatGPT Web HWPX MCP P1.1-R1 — Native ChatGPT OAuth Reauthorization, Secret-Free HWPX Create–Inspect–Export Receipt & Custody-Boundary Closure**
+
+Native ChatGPT custom-app reauthorization succeeded against the public Render OAuth deployment. The native tool surface then executed the document lifecycle without any `access_token`, passphrase, nonce, API key, or equivalent secret in MCP tool arguments.
+
+Native document created:
+
+- filename: `p1-1-native.hwpx`
+- title: `P1.1 Native OAuth`
+- body: `ChatGPT Web HWPX MCP OAuth-native document lifecycle`
+- native inspect: `valid: true`
+- native inspect size: `7,578 bytes`
+- native SHA-256: `302c909a37cc99c3bae2ff6c4ecb5b708bf94b00452243b0376620807bb39b8f`
+- native export: PASS — short-lived signed artifact URL issued
+
+The downloaded artifact was then independently inspected outside the MCP server:
+
+| Byte-level receipt | Verdict |
+|---|---|
+| File size | PASS — 7,578 bytes |
+| SHA-256 | PASS — `302c909a37cc99c3bae2ff6c4ecb5b708bf94b00452243b0376620807bb39b8f` |
+| ZIP container | PASS |
+| HWPX mimetype | PASS — `application/hwp+zip` |
+| `Contents/section0.xml` title text | PASS |
+| `Contents/section0.xml` body text | PASS |
+| native inspect SHA = downloaded artifact SHA | PASS |
+
+This closes the native OAuth transport-to-byte chain:
+
+```text
+ChatGPT native custom app
+→ OAuth authorization-code + PKCE
+→ bearer-authenticated MCP
+→ secret-free create_document
+→ owner-bound inspect_document
+→ signed export_document
+→ public short-lived artifact receipt
+→ downloaded HWPX byte verification
+```
+
+## Final P1.1 verdict
 
 ```text
 OAUTH_RESOURCE_DISCOVERY_LOCAL = PASS
@@ -135,15 +178,21 @@ RENDER_P11_DEPLOYMENT = PASS
 PUBLIC_OAUTH_RESOURCE_DISCOVERY = PASS
 PUBLIC_OAUTH_AUTHORIZATION_SERVER_DISCOVERY = PASS
 PUBLIC_UNAUTHENTICATED_MCP_REJECTION = PASS
-CHATGPT_NATIVE_OAUTH_REAUTH = PENDING_NATIVE_RECEIPT
-CHATGPT_NATIVE_DOCUMENT_LIFECYCLE = PENDING_NATIVE_RECEIPT
+CHATGPT_NATIVE_OAUTH_REAUTH = PASS
+CHATGPT_NATIVE_SECRET_FREE_CREATE = PASS
+CHATGPT_NATIVE_OWNER_BOUND_INSPECT = PASS
+CHATGPT_NATIVE_SIGNED_EXPORT = PASS
+CHATGPT_NATIVE_DOWNLOADED_BYTE_MATCH = PASS
+CHATGPT_NATIVE_DOCUMENT_LIFECYCLE = PASS
+
+P1_1 = PASS / CLOSED
 
 AUTH_DURABILITY_ACROSS_DEPLOY = HOLD_IN_MEMORY
 EXISTING_DOCUMENT_INGEST = HOLD
 ```
 
-## Deliberate hold
+## Deliberate hold and next architectural frontier
 
-OAuth registrations and tokens are held in memory in P1.1. Render restart/redeploy invalidates them. Durable OAuth state is therefore not yet licensed, and arbitrary existing-document ingestion remains blocked.
+OAuth registrations and tokens are held in memory in P1.1. Render restart/redeploy invalidates them. P1.1 therefore proves correct native OAuth custody semantics but does not yet establish durable authorization state across deployment churn.
 
-The remaining P1.1 world-contact step is native ChatGPT OAuth reauthorization followed by a secret-free native document lifecycle receipt. After that receipt, the next architectural step should make authentication durable across restarts and only then open a tightly validated existing-HWPX ingress path.
+Arbitrary existing-document ingestion also remains blocked. The next architectural step should first make OAuth/client/token state durable across restarts, preserve revocation and expiration semantics, and only then admit a tightly validated existing-HWPX ingress path with ZIP/XML/OPC quarantine and opaque `document_id` custody.

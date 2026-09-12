@@ -1,0 +1,38 @@
+{
+  ".dockerignore": {
+    "bytes": 41,
+    "sha256": "1392dec10584c7cae65688b98d8bcb370aad73d316befa0ceaf145178722e5f9"
+  },
+  "Dockerfile": {
+    "bytes": 279,
+    "sha256": "a1b9c20cd79470329a3fb46e2027d953a03f1c498eac1e13728812de69f8173e"
+  },
+  "P0_TEST_LEDGER.md": {
+    "bytes": 887,
+    "sha256": "268235760de0820a4caecfba7fa9d66c6bfd3bf8098560fdeeede121d769eac6"
+  },
+  "README.md": {
+    "bytes": 5148,
+    "sha256": "3b61ec20df508dd78218404fe860c7c1a6ffed6ea773d76bf6f391f3a3c2be4c"
+  },
+  "pyproject.toml": {
+    "bytes": 241,
+    "sha256": "8d1745c86c857ff4d35c3a1293ec08408a2f208575057fdc8722f00da2eb7f54"
+  },
+  "render.yaml": {
+    "bytes": 191,
+    "sha256": "ca6f180d354efcb0375f889422413ec8c8923ffe5737eedd492a7bdcd7af8033"
+  },
+  "requirements.txt": {
+    "bytes": 17,
+    "sha256": "2578b3364c532817e4674917f910ff22dcdbd98a864cee0e33922b38980fc4ed"
+  },
+  "server.py": {
+    "bytes": 4043,
+    "sha256": "5b8e1821b1afa75593fb6c01cb3239f74e98feb5d0388a16290ae8a4116c617b"
+  },
+  "test_client.py": {
+    "bytes": 643,
+    "sha256": "e42a736932037b2095ed48543e7dac9c0e9e4f471a91f95769873eda16b9e2bf"
+  }
+}

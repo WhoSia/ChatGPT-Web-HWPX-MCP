@@ -198,17 +198,29 @@ class DurableOAuthStore:
 
     def revoke_family(self, client_id: str, subject: str | None) -> int:
         with self._connect() as conn, conn.cursor() as cur:
-            cur.execute(
-                """
-                UPDATE hwpx_oauth_state
-                SET revoked_at = NOW(), updated_at = NOW()
-                WHERE client_id = %s
-                  AND (%s IS NULL OR subject = %s)
-                  AND kind IN ('access', 'refresh')
-                  AND revoked_at IS NULL
-                """,
-                (client_id, subject, subject),
-            )
+            if subject is None:
+                cur.execute(
+                    """
+                    UPDATE hwpx_oauth_state
+                    SET revoked_at = NOW(), updated_at = NOW()
+                    WHERE client_id = %s
+                      AND kind IN ('access', 'refresh')
+                      AND revoked_at IS NULL
+                    """,
+                    (client_id,),
+                )
+            else:
+                cur.execute(
+                    """
+                    UPDATE hwpx_oauth_state
+                    SET revoked_at = NOW(), updated_at = NOW()
+                    WHERE client_id = %s
+                      AND subject = %s
+                      AND kind IN ('access', 'refresh')
+                      AND revoked_at IS NULL
+                    """,
+                    (client_id, subject),
+                )
             return cur.rowcount
 
     def cleanup(self) -> int:

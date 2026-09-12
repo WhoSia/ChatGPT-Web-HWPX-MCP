@@ -1,10 +1,12 @@
 [project]
-name = "chatgpt-web-hwpx-mcp-p0"
-version = "0.1.0"
-description = "Minimal remote Streamable-HTTP MCP probe for ChatGPT Web HWPX MCP P0"
+name = "chatgpt-web-hwpx-mcp"
+version = "0.2.0"
+description = "Remote MCP for safe HWPX document materialization and handoff from ChatGPT Web"
 requires-python = ">=3.11"
 dependencies = [
   "mcp[cli]>=2.0,<3",
+  "python-hwpx>=6.4.0,<7",
+  "lxml>=5.0,<7",
 ]
 
 [tool.uv]

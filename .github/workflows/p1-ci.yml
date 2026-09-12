@@ -1,4 +1,4 @@
-name: P1 HWPX lifecycle CI
+name: P1.1 OAuth HWPX lifecycle CI
 
 on:
   push:
@@ -22,16 +22,20 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Compile Python sources
-        run: python -m compileall -q server.py test_client.py test_p1.py
+        run: python -m compileall -q server.py oauth_provider.py test_client.py test_p1.py
 
       - name: HWPX unit tests
+        env:
+          P1_PUBLIC_BASE_URL: http://127.0.0.1:8000
+          P11_OAUTH_PASSPHRASE: ci-p11-oauth-passphrase
+          P1_DOWNLOAD_SECRET: ci-download-secret
         run: python -m unittest -v test_p1.py
 
-      - name: Start Streamable HTTP MCP server
+      - name: Start OAuth-protected Streamable HTTP MCP server
         env:
-          P1_ACCESS_TOKEN: ci-access-token
-          P1_DOWNLOAD_SECRET: ci-download-secret
           P1_PUBLIC_BASE_URL: http://127.0.0.1:8000
+          P11_OAUTH_PASSPHRASE: ci-p11-oauth-passphrase
+          P1_DOWNLOAD_SECRET: ci-download-secret
         run: |
           python server.py > /tmp/mcp.log 2>&1 &
           echo $! > /tmp/mcp.pid
@@ -45,11 +49,23 @@ jobs:
           cat /tmp/mcp.log || true
           exit 1
 
-      - name: MCP document lifecycle smoke test
+      - name: Verify unauthenticated MCP is rejected and discovery is published
+        run: |
+          status="$(curl --silent --output /tmp/unauth.json --write-out '%{http_code}' \
+            -X POST http://127.0.0.1:8000/mcp \
+            -H 'content-type: application/json' \
+            -H 'accept: application/json, text/event-stream' \
+            --data '{"jsonrpc":"2.0","id":1,"method":"ping"}')"
+          test "$status" = "401"
+          cat /tmp/unauth.json
+          curl --fail --silent http://127.0.0.1:8000/.well-known/oauth-protected-resource/mcp | tee /tmp/prm.json
+          grep -q '"hwpx"' /tmp/prm.json
+
+      - name: OAuth-native MCP document lifecycle and signed download receipt
         env:
           MCP_URL: http://127.0.0.1:8000/mcp
-          P1_ACCESS_TOKEN: ci-access-token
-          RUN_P1_WRITE_TEST: "1"
+          P11_OAUTH_PASSPHRASE: ci-p11-oauth-passphrase
+          RUN_P11_WRITE_TEST: "1"
         run: python test_client.py
 
       - name: Show server log on failure

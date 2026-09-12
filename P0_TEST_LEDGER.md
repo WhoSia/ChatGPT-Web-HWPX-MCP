@@ -39,11 +39,12 @@ Deployment URL: https://chatgpt-web-hwpx-mcp-p0.onrender.com
 | T1 ChatGPT custom-app registration | ☑ PASS | ChatGPT recognizes `ChatGPT Web HWPX MCP` as a registered app |
 | T1b ChatGPT app permission inspection | ☑ PASS | App-specific permission = `Allow all actions`; global = `Allow low-risk actions` |
 | T2 same-chat app selection / @mention accepted | ☑ PASS | The user selected `@ChatGPT Web HWPX MCP` in the original chat |
-| T2b same-chat native tool injection | ☐ INCONCLUSIVE | No tool namespace was exposed in the original chat; this is superseded by the fresh-chat control below and should not be treated as a platform-wide failure |
+| T2b same-chat native tool injection | ☐ INCONCLUSIVE | No tool namespace was exposed in the original chat; superseded by fresh-chat control |
 | T2c fresh-chat native `probe_read` execution | ☑ PASS | Fresh chat + `@ChatGPT Web HWPX MCP` successfully invoked `probe_read` |
 | T2d fresh-chat read receipt | ☑ PASS | `ok=true`, project=`ChatGPT Web HWPX MCP`, version=`0.1.1-p0`, probe=`read`, echo=`ChatGPT Web P0-R3 fresh-chat read test`, server time=`2026-09-12T10:54:05.242464+00:00` |
-| T3 `probe_write` exposed in fresh-chat selected-message tool surface | ☐ PENDING | Must now be tested in the same fresh-chat binding that passed native read |
-| T4 ChatGPT `probe_write` executes | ☐ PASS ☐ PRODUCT-BLOCKED ☐ SERVER-FAIL | Pending write exposure/execution test; server-side `P0_WRITE_NONCE` may additionally gate execution |
+| T3 `probe_write` exposed in fresh-chat selected-message tool surface | ☑ PASS | ChatGPT attempted `probe_write(text="ChatGPT Web P0-R3 write test")` natively |
+| T4 ChatGPT `probe_write` reaches server | ☑ PASS | Native write invocation reached the MCP server and returned an execution error rather than a product-level block |
+| T4b write mutation completes | ☐ PENDING | Current server code rejects write when `P0_WRITE_NONCE` is configured and the supplied `nonce` does not match; the test call omitted `nonce` |
 
 ## Current verdict
 
@@ -56,26 +57,37 @@ CHATGPT-APP-PERMISSION = ALLOW_ALL_ACTIONS
 CHATGPT-FRESH-CHAT-APP-SELECTION = PASS
 CHATGPT-FRESH-CHAT-NATIVE-TOOL-INJECTION = PASS
 CHATGPT-READ-ACTION = PASS
-CHATGPT-WRITE-EXPOSURE = PENDING
-CHATGPT-WRITE-ACTION = PENDING
+CHATGPT-WRITE-EXPOSURE = PASS
+CHATGPT-WRITE-SERVER-REACHABILITY = PASS
+CHATGPT-WRITE-MUTATION = PENDING_NONCE-GATED_RETEST
+PRODUCT-WRITE-BLOCK = NO EVIDENCE
 SERVER-FAULT = NO EVIDENCE
 ```
 
-## P0-R3-R1 adjudication
+## P0-R3-R2 adjudication
 
-The fresh-chat control defeats the earlier provisional hypothesis of a platform-wide native tool-injection failure. The same custom MCP, when selected in a fresh chat, successfully reaches the Render-hosted server and executes `probe_read` end-to-end.
+The native write boundary is now substantially classified. ChatGPT exposed `probe_write` in the fresh-chat tool surface and attempted the call. The invocation reached the remote MCP server, which returned an execution error. This defeats both a native write-tool exposure failure and a ChatGPT product-level write-action block.
 
-The original same-chat failure is therefore best localized as a **conversation-binding / tool-surface refresh anomaly**, not as a failure of the MCP server, Render deployment, ChatGPT custom-app registration, or ChatGPT native custom-MCP execution in general.
+The current `server.py` contains an explicit application-level guard:
 
-P0-R3-R1 is therefore **PASS** for native read connectivity.
+```python
+if WRITE_NONCE and not secrets.compare_digest(nonce, WRITE_NONCE):
+    raise ValueError("Invalid P0 write nonce")
+```
+
+Render generated `P0_WRITE_NONCE` during Blueprint deployment, while the native test call supplied only `text` and omitted `nonce`. Therefore the observed error is consistent with the intended nonce guard. It should be classified as **CALL REACHED / SERVER GUARD BLOCKED**, not as a server transport failure or ChatGPT write-policy failure.
+
+Re-running `probe_read` or `probe_capabilities` is not required to distinguish connectivity: fresh-chat `probe_read` already passed end-to-end, and the write call itself reached server execution. The only remaining P0 question is whether a correctly authorized write mutation can complete.
 
 ## Next decision
 
-In the same fresh chat that passed `probe_read`, test `probe_write` exposure and execution. Because Render generated `P0_WRITE_NONCE`, the first write attempt may fail at the server-side nonce guard even if ChatGPT's native write-action path is fully functional. Distinguish:
+Run one authorized write test using the actual Render `P0_WRITE_NONCE`, or temporarily replace the P0 guard with a controlled one-time test path. Expected successful receipt:
 
-- tool absent → native write exposure problem
-- tool visible but ChatGPT blocks it → product/action policy boundary
-- tool reaches server and returns `Invalid P0 write nonce` → ChatGPT write path works; only server nonce guard blocked the mutation
-- tool executes and returns an `artifact_id` → full P0 write path PASS
+```text
+ok=true
+probe=write
+artifact_id=p0-write-...txt
+bytes>0
+```
 
-Do not begin real HWPX file custody until T3–T4 are classified.
+If that succeeds, P0 closes with full native ChatGPT read/write end-to-end capability confirmed. P1 may then introduce real HWPX custody only after replacing this prototype nonce/no-auth arrangement with proper per-user authentication and document isolation.

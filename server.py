@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import html
 import json
 import os
 import re
@@ -10,30 +11,53 @@ import time
 import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
-from urllib.parse import urlencode
+from urllib.parse import parse_qs, urlencode
 from xml.etree import ElementTree
 
 from hwpx import HwpxDocument
 from mcp.server import MCPServer
+from mcp.server.auth.middleware.auth_context import get_access_token
 from mcp.server.transport_security import TransportSecuritySettings
-from starlette.responses import FileResponse, JSONResponse, PlainTextResponse
+from starlette.responses import FileResponse, HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse
+
+from oauth_provider import HWPX_SCOPE, SUBJECT, SingleUserOAuthProvider, build_auth_settings
 
 PROJECT = "ChatGPT Web HWPX MCP"
-VERSION = "0.2.0-p1"
+VERSION = "0.2.1-p1.1"
+
+
+def _public_base_url() -> str:
+    explicit = os.environ.get("P1_PUBLIC_BASE_URL", "").strip().rstrip("/")
+    if explicit:
+        return explicit
+    host = os.environ.get("RENDER_EXTERNAL_HOSTNAME", "").strip()
+    if host:
+        return f"https://{host}"
+    return "http://127.0.0.1:8000"
+
+
+PUBLIC_BASE_URL = _public_base_url()
+MCP_RESOURCE_URL = f"{PUBLIC_BASE_URL}/mcp"
+OAUTH_PASSPHRASE = os.environ.get("P11_OAUTH_PASSPHRASE", "")
+OAUTH_PROVIDER = SingleUserOAuthProvider(
+    base_url=PUBLIC_BASE_URL,
+    resource_url=MCP_RESOURCE_URL,
+    passphrase=OAUTH_PASSPHRASE,
+)
 
 mcp = MCPServer(
     PROJECT,
     instructions=(
-        "P1 HWPX materialization service for ChatGPT Web. "
-        "Use create_document to create a small HWPX from text, then inspect_document "
-        "and export_document for a short-lived download URL. Existing-document ingest "
-        "is intentionally not enabled in P1."
+        "P1.1 authenticated HWPX materialization service for ChatGPT Web. "
+        "OAuth protects the MCP transport, so tools never accept passwords or bearer tokens as arguments. "
+        "Use create_document, inspect_document, export_document, and delete_document with opaque document IDs."
     ),
+    auth=build_auth_settings(base_url=PUBLIC_BASE_URL, resource_url=MCP_RESOURCE_URL),
+    auth_server_provider=OAUTH_PROVIDER,
 )
 
 OBJECT_DIR = Path(os.environ.get("P1_OBJECT_DIR", "/tmp/chatgpt-web-hwpx-mcp-p1"))
 OBJECT_DIR.mkdir(parents=True, exist_ok=True)
-ACCESS_TOKEN = os.environ.get("P1_ACCESS_TOKEN", "")
 DOWNLOAD_SECRET = os.environ.get("P1_DOWNLOAD_SECRET", "")
 DOC_TTL_SECONDS = max(300, min(int(os.environ.get("P1_DOC_TTL_SECONDS", "1800")), 86400))
 MAX_TEXT_CHARS = max(1000, min(int(os.environ.get("P1_MAX_TEXT_CHARS", "100000")), 500000))
@@ -54,11 +78,22 @@ def _utc_iso(timestamp: float | None = None) -> str:
     return datetime.fromtimestamp(timestamp, tz=timezone.utc).isoformat()
 
 
-def _require_access_token(access_token: str) -> None:
-    if not ACCESS_TOKEN:
-        raise RuntimeError("P1_ACCESS_TOKEN is not configured on the server")
-    if not secrets.compare_digest(access_token, ACCESS_TOKEN):
-        raise ValueError("Invalid P1 access token")
+def _caller_subject() -> str:
+    token = get_access_token()
+    if token is None:
+        raise PermissionError("Authenticated MCP request required")
+    if HWPX_SCOPE not in token.scopes:
+        raise PermissionError("Missing hwpx scope")
+    if token.subject != SUBJECT:
+        raise PermissionError("Unknown resource owner")
+    return token.subject
+
+
+def _require_owner(metadata: dict) -> str:
+    subject = _caller_subject()
+    if metadata.get("owner_subject") != subject:
+        raise PermissionError("Document is not owned by the authenticated principal")
+    return subject
 
 
 def _download_secret() -> bytes:
@@ -184,16 +219,6 @@ def materialize_hwpx(path: Path, text: str, title: str = "") -> dict:
     return validate_hwpx_package(path)
 
 
-def _public_base_url() -> str:
-    explicit = os.environ.get("P1_PUBLIC_BASE_URL", "").strip().rstrip("/")
-    if explicit:
-        return explicit
-    host = os.environ.get("RENDER_EXTERNAL_HOSTNAME", "").strip()
-    if host:
-        return f"https://{host}"
-    return "http://127.0.0.1:8000"
-
-
 def _download_signature(document_id: str, expires_at: int) -> str:
     payload = f"{document_id}:{expires_at}".encode("utf-8")
     return hmac.new(_download_secret(), payload, hashlib.sha256).hexdigest()
@@ -201,24 +226,28 @@ def _download_signature(document_id: str, expires_at: int) -> str:
 
 @mcp.tool()
 def probe_read(message: str = "hello") -> dict:
-    """Side-effect-free connectivity probe."""
+    """Authenticated, side-effect-free connectivity probe."""
+    subject = _caller_subject()
     return {
         "ok": True,
         "project": PROJECT,
         "version": VERSION,
         "probe": "read",
         "message": message[:500],
+        "authenticated_subject": subject,
         "server_time_utc": _utc_iso(),
     }
 
 
 @mcp.tool()
 def probe_capabilities() -> dict:
-    """Describe the current P1 capability boundary."""
+    """Describe the current P1.1 capability and authentication boundary."""
+    subject = _caller_subject()
     return {
         "project": PROJECT,
         "version": VERSION,
-        "transport_target": "MCP Streamable HTTP",
+        "authenticated_subject": subject,
+        "transport_target": "OAuth-protected MCP Streamable HTTP",
         "endpoint": "/mcp",
         "tools": [
             "probe_read",
@@ -228,7 +257,10 @@ def probe_capabilities() -> dict:
             "export_document",
             "delete_document",
         ],
-        "p1_scope": [
+        "p11_scope": [
+            "OAuth 2.1 authorization-code + PKCE/DCR",
+            "secret-free MCP tool schemas",
+            "authenticated document ownership",
             "opaque document_id",
             "bounded ephemeral filesystem object store",
             "minimal HWPX materialization via python-hwpx",
@@ -236,9 +268,9 @@ def probe_capabilities() -> dict:
             "short-lived signed download URL",
         ],
         "not_in_scope_yet": [
+            "durable OAuth registration/token store across deploys",
             "existing HWPX upload/ingest",
             "rich editing/formatting",
-            "OAuth/per-user identity",
             "persistent cloud object storage",
             "Hancom renderer fidelity oracle",
         ],
@@ -250,10 +282,9 @@ def create_document(
     text: str,
     title: str = "",
     filename: str = "document.hwpx",
-    access_token: str = "",
 ) -> dict:
-    """Create an ephemeral HWPX document and return an opaque document_id."""
-    _require_access_token(access_token)
+    """Create an authenticated caller-owned ephemeral HWPX and return an opaque document_id."""
+    owner_subject = _caller_subject()
     _cleanup_expired()
 
     document_id = _new_document_id()
@@ -266,6 +297,7 @@ def create_document(
         "document_id": document_id,
         "filename": safe_filename,
         "title": title[:500],
+        "owner_subject": owner_subject,
         "created_at": _utc_iso(created),
         "created_at_epoch": created,
         "expires_at": _utc_iso(expires),
@@ -285,10 +317,10 @@ def create_document(
 
 
 @mcp.tool()
-def inspect_document(document_id: str, access_token: str = "") -> dict:
-    """Inspect one P1 document by opaque document_id without exposing server paths."""
-    _require_access_token(access_token)
+def inspect_document(document_id: str) -> dict:
+    """Inspect one caller-owned P1.1 document without exposing server paths."""
     metadata = _load_metadata(document_id)
+    _require_owner(metadata)
     hwpx_path, _ = _paths(document_id)
     validation = validate_hwpx_package(hwpx_path)
     return {
@@ -301,12 +333,11 @@ def inspect_document(document_id: str, access_token: str = "") -> dict:
 @mcp.tool()
 def export_document(
     document_id: str,
-    access_token: str = "",
     link_ttl_seconds: int = 300,
 ) -> dict:
-    """Return a short-lived signed HTTPS download URL for an existing P1 document."""
-    _require_access_token(access_token)
+    """Return a short-lived signed HTTPS download URL for one caller-owned document."""
     metadata = _load_metadata(document_id)
+    _require_owner(metadata)
     requested_ttl = max(60, min(int(link_ttl_seconds), 900))
     document_expiry = int(float(metadata["expires_at_epoch"]))
     expires_at = min(int(time.time()) + requested_ttl, document_expiry)
@@ -314,7 +345,7 @@ def export_document(
         raise FileNotFoundError("Document expired")
     signature = _download_signature(document_id, expires_at)
     query = urlencode({"exp": expires_at, "sig": signature})
-    download_url = f"{_public_base_url()}/artifacts/{document_id}?{query}"
+    download_url = f"{PUBLIC_BASE_URL}/artifacts/{document_id}?{query}"
     return {
         "ok": True,
         "document_id": document_id,
@@ -328,12 +359,70 @@ def export_document(
 
 
 @mcp.tool()
-def delete_document(document_id: str, access_token: str = "") -> dict:
-    """Delete one P1 document and its metadata from the ephemeral object store."""
-    _require_access_token(access_token)
-    _load_metadata(document_id, allow_expired=True)
+def delete_document(document_id: str) -> dict:
+    """Delete one caller-owned document and its metadata from ephemeral storage."""
+    metadata = _load_metadata(document_id, allow_expired=True)
+    _require_owner(metadata)
     removed = _delete_document_files(document_id)
     return {"ok": True, "document_id": document_id, "deleted": removed}
+
+
+@mcp.custom_route("/oauth/approve", methods=["GET", "POST"])
+async def oauth_approve(request):
+    headers = {
+        "Cache-Control": "no-store",
+        "Pragma": "no-cache",
+        "Referrer-Policy": "no-referrer",
+        "X-Content-Type-Options": "nosniff",
+    }
+
+    if request.method == "GET":
+        request_id = request.query_params.get("request", "")
+        status = OAUTH_PROVIDER.approval_status(request_id)
+        if status == "missing":
+            return HTMLResponse(
+                "<h1>Authorization request expired</h1><p>Return to ChatGPT and reconnect the app.</p>",
+                status_code=410,
+                headers=headers,
+            )
+        if status == "unconfigured":
+            return HTMLResponse(
+                "<h1>OAuth not configured</h1><p>Set P11_OAUTH_PASSPHRASE on the server, then reconnect.</p>",
+                status_code=503,
+                headers=headers,
+            )
+        safe_request = html.escape(request_id, quote=True)
+        body = f"""<!doctype html>
+<html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Authorize HWPX MCP</title></head>
+<body><main><h1>Authorize ChatGPT Web HWPX MCP</h1>
+<p>This grants the current ChatGPT MCP client permission to create, inspect, export, and delete ephemeral HWPX documents.</p>
+<form method=\"post\" action=\"/oauth/approve\" autocomplete=\"off\">
+<input type=\"hidden\" name=\"request\" value=\"{safe_request}\">
+<label>Authorization passphrase <input type=\"password\" name=\"passphrase\" required minlength=\"12\" autofocus></label>
+<button type=\"submit\" name=\"decision\" value=\"approve\">Authorize</button>
+<button type=\"submit\" name=\"decision\" value=\"deny\">Deny</button>
+</form></main></body></html>"""
+        return HTMLResponse(body, headers=headers)
+
+    body = (await request.body()).decode("utf-8", errors="replace")
+    form = parse_qs(body, keep_blank_values=True)
+    request_id = form.get("request", [""])[0]
+    decision = form.get("decision", ["approve"])[0]
+    if decision == "deny":
+        redirect = OAUTH_PROVIDER.deny(request_id)
+        if redirect is None:
+            return HTMLResponse("<h1>Authorization request expired</h1>", status_code=410, headers=headers)
+        return RedirectResponse(redirect, status_code=303, headers=headers)
+
+    supplied = form.get("passphrase", [""])[0]
+    ok, result = OAUTH_PROVIDER.approve(request_id, supplied)
+    if not ok:
+        return HTMLResponse(
+            f"<h1>Authorization failed</h1><p>{html.escape(result)}</p><p>Return to ChatGPT and retry authorization.</p>",
+            status_code=401,
+            headers=headers,
+        )
+    return RedirectResponse(result, status_code=303, headers=headers)
 
 
 @mcp.custom_route("/artifacts/{document_id}", methods=["GET"])
@@ -375,7 +464,14 @@ async def health(_request):
             "status": "ok",
             "project": PROJECT,
             "version": VERSION,
-            "phase": "P1",
+            "phase": "P1.1",
+            "oauth": {
+                "enabled": True,
+                "configured": OAUTH_PROVIDER.configured,
+                "resource": MCP_RESOURCE_URL,
+                "scope": HWPX_SCOPE,
+                "state_store": "in-memory",
+            },
         }
     )
 

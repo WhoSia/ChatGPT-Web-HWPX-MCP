@@ -101,7 +101,7 @@ An initial confirmatory run localized one PostgreSQL parameter-typing defect in 
 
 ## Render/public deployment receipt
 
-Canonical deployment:
+Canonical deployment before the native continuity replay:
 
 - service: `chatgpt-web-hwpx-mcp-p0`
 - public base: `https://chatgpt-web-hwpx-mcp-p0.onrender.com`
@@ -128,6 +128,34 @@ The public run confirmed:
 | `offline_access` advertised | PASS |
 | unauthenticated MCP blocked before tool execution | PASS — HTTP 401 |
 
+## Native transition and pre-restart receipts
+
+The first native attempt after switching from P1.1 in-memory OAuth state to the P1.2 durable provider produced an expected transition discontinuity:
+
+```text
+LEGACY_P11_CLIENT_ID_PRESENT_IN_CHATGPT = YES
+LEGACY_P11_CLIENT_ID_PRESENT_IN_P12_DATABASE = NO
+AUTHORIZATION_RESULT = invalid_request / Client ID not found
+FRESH_DCR_REQUIRED = YES
+```
+
+This does not test restart continuity because the legacy P1.1 client registration had never been persisted. The custom app was therefore re-created against the same MCP URL, causing a fresh P1.2 DCR registration and authorization.
+
+Native pre-restart authenticated receipt after fresh P1.2 registration:
+
+```text
+NATIVE_PRE_RESTART_PROBE = PASS
+PROJECT = ChatGPT Web HWPX MCP
+VERSION = 0.2.2-p1.2
+PROBE = read
+MESSAGE = P1.2 pre-restart continuity receipt
+AUTHENTICATED_SUBJECT = hwpx-owner
+SERVER_RECEIPT_UTC = 2026-09-12T18:47:58.482110+00:00
+SERVER_RECEIPT_KST = 2026-09-13 03:47:58
+```
+
+This ledger commit intentionally serves as the continuity-test redeploy trigger. OAuth database state and the state-encryption secret are not changed by this commit. A successful post-redeploy call from the same ChatGPT custom app without a new browser authorization closes the remaining P1.2 native continuity requirement.
+
 ## Current verdict
 
 ```text
@@ -144,6 +172,8 @@ OWNER_BOUND_INGRESS_CUSTODY = PASS
 RENDER_P12_DEPLOYMENT = PASS
 PUBLIC_DURABLE_STORE_HEALTH = PASS
 PUBLIC_OAUTH_BOUNDARY = PASS
+LEGACY_EPHEMERAL_CLIENT_MIGRATION = FAIL_EXPECTED / FRESH_DCR_REQUIRED
+CHATGPT_NATIVE_PRE_RESTART_AUTHENTICATED_RECEIPT = PASS
 
 CHATGPT_NATIVE_POST_RESTART_TOKEN_CONTINUITY = PENDING_NATIVE_RECEIPT
 DURABLE_DOCUMENT_OBJECT_STORAGE = HOLD
@@ -154,12 +184,12 @@ HANCOM_RENDERER_FIDELITY_ORACLE = HOLD
 
 ## Promotion rule
 
-P1.2 is **IMPLEMENTATION PASS / PUBLIC PASS**, but not yet globally closed. The remaining world-contact receipt is deliberately narrow:
+P1.2 is **IMPLEMENTATION PASS / PUBLIC PASS / NATIVE PRE-RESTART PASS**, but not yet globally closed. The remaining world-contact receipt is deliberately narrow:
 
-1. authorize/connect the ChatGPT custom MCP under the P1.2 durable provider;
-2. execute one authenticated tool call;
-3. restart/redeploy the Render service without changing OAuth database state or the state-encryption secret;
-4. execute another authenticated tool call from the same ChatGPT app without repeating resource-owner authorization.
+1. fresh-register/authorize the ChatGPT custom MCP under the P1.2 durable provider — **PASS**;
+2. execute one authenticated tool call — **PASS**;
+3. restart/redeploy the Render service without changing OAuth database state or the state-encryption secret — **TRIGGERED BY THIS LEDGER COMMIT**;
+4. execute another authenticated tool call from the same ChatGPT app without repeating resource-owner authorization — **PENDING**.
 
 If step 4 succeeds, native restart-safe client/token authority is certified and P1.2 may close.
 

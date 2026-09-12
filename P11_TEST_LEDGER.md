@@ -26,15 +26,15 @@ The OAuth provider is single-user in P1.1 and uses the authenticated subject `hw
 
 ## Local confirmatory receipt
 
-Canonical GitHub Actions run:
+Latest canonical GitHub Actions run after the Render packaging patch:
 
 - workflow: `P1.1 OAuth HWPX lifecycle CI`
-- run: `34703290086`
-- commit under test: `edfa275e3d9a9ec0a0b4db3a217e4cba26f14c3a`
+- run: `34710225885`
+- commit under test: `3719e27a5970501ab0d607e355b40363642af4f8`
 - conclusion: **SUCCESS**
 - MCP protocol negotiated: `2026-07-28`
 
-The same confirmatory run completed all of the following:
+The confirmatory lifecycle completed all of the following:
 
 | Boundary | Verdict |
 |---|---|
@@ -79,16 +79,41 @@ P1.1 materialized documents store an authenticated owner subject in metadata. `i
 
 The object store remains bounded and ephemeral. Signed artifact URLs remain short-lived and use a server-only `P1_DOWNLOAD_SECRET`.
 
-## Render/public deployment boundary
+## Render/public deployment receipt
 
-Repository configuration has been migrated to P1.1:
+The canonical public service remains at the historical P0-era hostname so the registered MCP URL does not change:
 
-- `P11_OAUTH_PASSPHRASE` is a manually provisioned deployment secret (`sync: false` in `render.yaml`);
-- `P1_DOWNLOAD_SECRET` remains server-generated;
-- the obsolete `P1_ACCESS_TOKEN` tool-level guard is removed from the deployment manifest;
-- remote verification checks OAuth metadata and unauthenticated 401 without receiving the approval passphrase.
+`https://chatgpt-web-hwpx-mcp-p0.onrender.com`
 
-At the time this ledger was first sealed, the existing Render service had **not yet been redeployed to the P1.1 commit**, and the Render connector required an explicit workspace selection before either provisioning `P11_OAUTH_PASSPHRASE` or triggering the deployment. Therefore public/native closure is deliberately not promoted from the local confirmatory result alone.
+The first P1.1 Render attempt exposed a Docker packaging defect: `server.py` imported `oauth_provider`, but the image copied only `server.py`. The defect was localized from the Render traceback and patched directly on `main` by commit:
+
+- `3719e27a5970501ab0d607e355b40363642af4f8` — `P1.1: include OAuth provider in Render image`
+
+The corrected image explicitly copies both `server.py` and `oauth_provider.py`.
+
+Canonical Render receipt:
+
+- deploy: `dep-daip9r15efls73eebujg`
+- commit: `3719e27a5970501ab0d607e355b40363642af4f8`
+- final status: **live**
+- finished: `2026-09-12T18:08:23.641313Z`
+
+Canonical public-boundary GitHub Actions receipt:
+
+- workflow: `P1.1 Render OAuth boundary verification`
+- run: `34710225877`
+- conclusion: **SUCCESS**
+
+That remote run independently confirmed:
+
+| Public boundary | Verdict |
+|---|---|
+| Render P1.1 health endpoint | PASS |
+| Protected Resource Metadata | PASS |
+| Authorization Server Metadata | PASS |
+| unauthenticated MCP blocked before tool execution | PASS — HTTP 401 |
+
+Deployment secrets are server-side only. `P11_OAUTH_PASSPHRASE` and `P1_DOWNLOAD_SECRET` are configured in Render and are not placed in MCP tool schemas, repository files, or this ledger.
 
 ## Current verdict
 
@@ -106,9 +131,14 @@ SIGNED_EXPORT = PASS
 ARTIFACT_DOWNLOAD_HASH_RECEIPT = PASS
 AUTHENTICATED_DELETE = PASS
 
+RENDER_P11_DEPLOYMENT = PASS
+PUBLIC_OAUTH_RESOURCE_DISCOVERY = PASS
+PUBLIC_OAUTH_AUTHORIZATION_SERVER_DISCOVERY = PASS
+PUBLIC_UNAUTHENTICATED_MCP_REJECTION = PASS
+CHATGPT_NATIVE_OAUTH_REAUTH = PENDING_NATIVE_RECEIPT
+CHATGPT_NATIVE_DOCUMENT_LIFECYCLE = PENDING_NATIVE_RECEIPT
+
 AUTH_DURABILITY_ACROSS_DEPLOY = HOLD_IN_MEMORY
-RENDER_P11_DEPLOYMENT = PENDING_WORKSPACE_CONFIRMATION
-CHATGPT_NATIVE_OAUTH_REAUTH = PENDING_RENDER_P11_DEPLOYMENT
 EXISTING_DOCUMENT_INGEST = HOLD
 ```
 
@@ -116,4 +146,4 @@ EXISTING_DOCUMENT_INGEST = HOLD
 
 OAuth registrations and tokens are held in memory in P1.1. Render restart/redeploy invalidates them. Durable OAuth state is therefore not yet licensed, and arbitrary existing-document ingestion remains blocked.
 
-The next architectural step should make authentication durable across restarts and only then open a tightly validated existing-HWPX ingress path.
+The remaining P1.1 world-contact step is native ChatGPT OAuth reauthorization followed by a secret-free native document lifecycle receipt. After that receipt, the next architectural step should make authentication durable across restarts and only then open a tightly validated existing-HWPX ingress path.

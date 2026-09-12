@@ -1,0 +1,11 @@
+[project]
+name = "chatgpt-web-hwpx-mcp-p0"
+version = "0.1.0"
+description = "Minimal remote Streamable-HTTP MCP probe for ChatGPT Web HWPX MCP P0"
+requires-python = ">=3.11"
+dependencies = [
+  "mcp[cli]>=2.0,<3",
+]
+
+[tool.uv]
+package = false

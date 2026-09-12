@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: chatgpt-web-hwpx-mcp-p0
+    runtime: docker
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: P0_WRITE_NONCE
+        generateValue: true

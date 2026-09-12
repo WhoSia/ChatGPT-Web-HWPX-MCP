@@ -19,6 +19,8 @@ ChatGPT Web
 → short-lived signed download URL
 ```
 
+The current P1 evidence and remaining authorization boundary are tracked in [`P1_TEST_LEDGER.md`](./P1_TEST_LEDGER.md).
+
 P1 intentionally does **not** accept arbitrary existing HWPX uploads yet.
 
 ## P1 tools

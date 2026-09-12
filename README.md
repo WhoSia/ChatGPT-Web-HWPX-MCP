@@ -11,6 +11,12 @@ Its only job is to answer four questions:
 3. Does ChatGPT discover the deliberately side-effecting write probe?
 4. On the current ChatGPT plan/account, can that write tool actually be invoked?
 
+## Deploy to Render
+
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/WhoSia/ChatGPT-Web-HWPX-MCP)
+
+The canonical deployment is defined by `render.yaml` and uses the repository's `main` branch, Docker runtime, Singapore region, and `/health` health check.
+
 ## Tools
 
 | Tool | Side effect | Purpose |
@@ -69,16 +75,14 @@ Do **not** expose an unauthenticated write-capable prototype indefinitely on the
 
 ## Remote deployment
 
-Any host that can run a Docker container and expose HTTPS can work. The included `render.yaml` is a minimal Render blueprint.
-
-Expected public endpoints:
+The included `render.yaml` is the canonical Render Blueprint. Expected public endpoints after deployment:
 
 ```text
 https://YOUR-HOST/health
 https://YOUR-HOST/mcp
 ```
 
-TLS should be terminated by the deployment platform/reverse proxy.
+TLS is terminated by Render.
 
 ## ChatGPT Web registration
 

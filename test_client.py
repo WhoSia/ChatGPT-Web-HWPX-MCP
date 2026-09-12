@@ -40,7 +40,7 @@ class InMemoryTokenStorage:
 class HeadlessApprover:
     def __init__(self, passphrase: str) -> None:
         self.passphrase = passphrase
-        self.result = AuthorizationCodeResult(code="", state=None)
+        self.result: AuthorizationCodeResult | None = None
 
     async def redirect_handler(self, authorization_url: str) -> None:
         if not self.passphrase:
@@ -79,6 +79,8 @@ class HeadlessApprover:
             )
 
     async def callback_handler(self) -> AuthorizationCodeResult:
+        if self.result is None:
+            raise RuntimeError("OAuth callback requested before authorization completed")
         return self.result
 
 
@@ -138,7 +140,7 @@ async def main() -> None:
             # P1.1 invariant: auth secrets are transport-level only and must not
             # appear in any MCP tool input schema.
             for tool in tools.tools:
-                schema_text = json.dumps(tool.inputSchema, ensure_ascii=False).lower()
+                schema_text = json.dumps(tool.input_schema, ensure_ascii=False).lower()
                 if "access_token" in schema_text or "passphrase" in schema_text:
                     raise RuntimeError(f"secret-bearing field leaked into tool schema: {tool.name}")
 

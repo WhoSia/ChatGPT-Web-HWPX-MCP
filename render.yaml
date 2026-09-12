@@ -12,6 +12,10 @@ services:
     envVars:
       - key: P11_OAUTH_PASSPHRASE
         sync: false
+      - key: P12_AUTH_DATABASE_URL
+        sync: false
+      - key: P12_STATE_SECRET
+        sync: false
       - key: P1_DOWNLOAD_SECRET
         generateValue: true
       - key: P1_DOC_TTL_SECONDS

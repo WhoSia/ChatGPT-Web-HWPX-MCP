@@ -1,0 +1,41 @@
+name: P1 Render remote MCP verification
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  remote:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      BASE_URL: https://chatgpt-web-hwpx-mcp-p0.onrender.com
+      MCP_URL: https://chatgpt-web-hwpx-mcp-p0.onrender.com/mcp
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Wait for Render P1 health endpoint
+        run: |
+          for i in {1..48}; do
+            body="$(curl --fail --silent --show-error "$BASE_URL/health" || true)"
+            if echo "$body" | grep -q '"phase":"P1"'; then
+              echo "$body"
+              exit 0
+            fi
+            echo "Render P1 not ready yet ($i/48): $body"
+            sleep 5
+          done
+          exit 1
+
+      - name: Verify MCP handshake, P1 tool discovery, and read probe
+        run: python test_client.py

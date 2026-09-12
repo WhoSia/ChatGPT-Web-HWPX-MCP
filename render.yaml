@@ -10,5 +10,11 @@ services:
     healthCheckPath: /health
     autoDeployTrigger: commit
     envVars:
-      - key: P0_WRITE_NONCE
+      - key: P1_ACCESS_TOKEN
         generateValue: true
+      - key: P1_DOWNLOAD_SECRET
+        generateValue: true
+      - key: P1_DOC_TTL_SECONDS
+        value: "1800"
+      - key: P1_MAX_TEXT_CHARS
+        value: "100000"

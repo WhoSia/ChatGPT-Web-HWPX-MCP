@@ -1,215 +1,182 @@
 # ChatGPT Web HWPX MCP
 
-## P0 — Minimal Remote Streamable-HTTP Server, Tool-Scan Compatibility Probe, Read/Write Capability Boundary & First Custom-App Registration Test
+Remote Streamable-HTTP MCP for creating and handing off HWPX documents from ChatGPT Web.
 
-This repository is intentionally small. **P0 does not edit HWPX yet.**
+## Current phase
 
-Its only job is to answer four questions:
+**P0 is closed / PASS.** ChatGPT Web successfully discovered the custom MCP, executed native read and write actions, and created a remote artifact. The full receipt is preserved in [`P0_TEST_LEDGER.md`](./P0_TEST_LEDGER.md).
 
-1. Can ChatGPT Web scan a remote `/mcp` Streamable HTTP endpoint?
-2. Does ChatGPT discover the read-only probe?
-3. Does ChatGPT discover the deliberately side-effecting write probe?
-4. On the current ChatGPT plan/account, can that write tool actually be invoked?
+**P1 is active.** The current server adds an explicit document-custody boundary:
 
-## Deploy to Render
+```text
+ChatGPT Web
+→ remote MCP
+→ create_document
+→ opaque document_id
+→ bounded ephemeral object store
+→ HWPX structural validation
+→ export_document
+→ short-lived signed download URL
+```
 
-[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/WhoSia/ChatGPT-Web-HWPX-MCP)
+P1 intentionally does **not** accept arbitrary existing HWPX uploads yet.
 
-The canonical deployment is defined by `render.yaml` and uses the repository's `main` branch, Docker runtime, Singapore region, and `/health` health check.
-
-## Tools
+## P1 tools
 
 | Tool | Side effect | Purpose |
 |---|---:|---|
-| `probe_read` | No | Connectivity/tool-call probe |
-| `probe_capabilities` | No | P0 metadata |
-| `probe_write` | Yes | Creates one temporary `.txt` file on the remote host |
+| `probe_read` | No | Remote connectivity probe |
+| `probe_capabilities` | No | Current capability boundary |
+| `create_document` | Yes | Materialize a small HWPX and return an opaque `document_id` |
+| `inspect_document` | No | Validate and inspect one stored document |
+| `export_document` | No* | Return a short-lived signed download URL |
+| `delete_document` | Yes | Delete the HWPX and metadata from ephemeral storage |
 
-`probe_write` is optionally guarded by `P0_WRITE_NONCE`.
+`export_document` does not mutate the document itself, but it creates a temporary bearer-style download capability.
+
+## HWPX materialization
+
+P1 uses `python-hwpx >= 6.4` for document creation. Generated files are then checked independently as ZIP/XML packages.
+
+The validator requires at least:
+
+```text
+mimetype
+version.xml
+META-INF/container.xml
+Contents/content.hpf
+Contents/header.xml
+Contents/section0.xml
+```
+
+It also verifies that `mimetype` is the first ZIP entry, is stored without compression, and equals `application/hwp+zip`.
+
+## Storage contract
+
+P1 never exposes server filesystem paths to the model.
+
+Each document receives an opaque ID such as:
+
+```text
+doc_<random>
+```
+
+The default backend is a bounded **ephemeral filesystem object store** under `/tmp`. Metadata is stored separately from the HWPX bytes. Documents expire automatically; the default retention window is 30 minutes.
+
+This backend is intentionally replaceable. A later phase can move the same `document_id` contract to S3-compatible object storage without changing the MCP-facing API.
+
+## Download handoff
+
+`export_document` returns a signed URL of the form:
+
+```text
+https://HOST/artifacts/<document_id>?exp=<unix-time>&sig=<hmac>
+```
+
+The link expires quickly, is capped by the document retention deadline, and responses use `Cache-Control: private, no-store`.
+
+## Security boundary
+
+P1 is still a prototype. The public MCP transport is not yet backed by OAuth/per-user identity.
+
+The document tools therefore require a server-side `P1_ACCESS_TOKEN`, while download URLs use a separate `P1_DOWNLOAD_SECRET`. These are **prototype guards, not final authentication**.
+
+Until proper MCP authentication and per-user isolation are added:
+
+- do not ingest existing personal or confidential HWPX files;
+- do not treat the ephemeral backend as durable storage;
+- do not expose arbitrary filesystem paths;
+- keep document size and retention bounded;
+- use only opaque document IDs and signed export links.
+
+Existing-document upload/ingest is intentionally deferred until that boundary is stronger.
 
 ## Local run
 
-### uv
+Install dependencies:
 
 ```bash
-uv sync
-P0_WRITE_NONCE=test-only uv run python server.py
+pip install -r requirements.txt
 ```
 
-Windows PowerShell:
+Run with temporary local secrets:
+
+```bash
+P1_ACCESS_TOKEN=local-access \
+P1_DOWNLOAD_SECRET=local-download-secret \
+P1_PUBLIC_BASE_URL=http://127.0.0.1:8000 \
+python server.py
+```
+
+PowerShell:
 
 ```powershell
-uv sync
-$env:P0_WRITE_NONCE="test-only"
-uv run python server.py
+$env:P1_ACCESS_TOKEN="local-access"
+$env:P1_DOWNLOAD_SECRET="local-download-secret"
+$env:P1_PUBLIC_BASE_URL="http://127.0.0.1:8000"
+python server.py
 ```
 
-Health check:
+Endpoints:
 
 ```text
 http://127.0.0.1:8000/health
-```
-
-MCP endpoint:
-
-```text
 http://127.0.0.1:8000/mcp
 ```
 
-Optional local MCP client:
+Run the full local P1 lifecycle smoke test:
 
 ```bash
-uv run python test_client.py
+P1_ACCESS_TOKEN=local-access RUN_P1_WRITE_TEST=1 python test_client.py
+```
+
+Unit test:
+
+```bash
+python -m unittest -v test_p1.py
 ```
 
 ## Docker
 
 ```bash
-docker build -t chatgpt-web-hwpx-mcp-p0 .
+docker build -t chatgpt-web-hwpx-mcp .
 docker run --rm -p 8000:8000 \
-  -e P0_WRITE_NONCE='replace-me' \
-  chatgpt-web-hwpx-mcp-p0
+  -e P1_ACCESS_TOKEN='replace-me' \
+  -e P1_DOWNLOAD_SECRET='replace-me-too' \
+  chatgpt-web-hwpx-mcp
 ```
 
-Do **not** expose an unauthenticated write-capable prototype indefinitely on the public Internet.
+## Deployment
 
-## Remote deployment
+The repository keeps `render.yaml` as the canonical deployment description, but there is deliberately **no one-click Deploy to Render button** in this README anymore. P1 has write-capable document custody, so deployment should be deliberate and secrets must be configured correctly.
 
-The included `render.yaml` is the canonical Render Blueprint. Expected public endpoints after deployment:
+The existing canonical Render service still has the historical P0-era service slug:
 
 ```text
-https://YOUR-HOST/health
-https://YOUR-HOST/mcp
+https://chatgpt-web-hwpx-mcp-p0.onrender.com
 ```
 
-TLS is terminated by Render.
+Renaming or migrating that service is deferred until P1 is stable so the already-registered ChatGPT MCP URL is not broken unnecessarily.
 
-## ChatGPT Web registration
+## CI
 
-Use the custom MCP/server registration screen.
+Two workflows are active:
 
-**Name**
+- `P1 HWPX lifecycle CI`: dependency install, compile, unit validation, local MCP lifecycle (`create → inspect → export → delete`).
+- `P1 Render remote MCP verification`: public `/health`, MCP handshake, tool discovery, and read probe against the deployed service.
+
+Remote CI intentionally does not receive the P1 write secret.
+
+## Next phases
+
+The current direction is:
 
 ```text
-ChatGPT Web HWPX MCP
+P1   minimal valid HWPX + document_id + signed export
+P1.x authenticated ingest + ZIP/XML safety + per-user isolation
+P2   structured edits and formatting
+P3   tables / images / equations
+P4   renderer-oracle and Hancom fidelity validation
 ```
 
-**Description**
-
-```text
-Experimental HWPX document MCP. P0 tests remote Streamable-HTTP connectivity and ChatGPT read/write action boundaries; real HWPX editing is added in later phases.
-```
-
-**MCP server URL**
-
-```text
-https://YOUR-HOST/mcp
-```
-
-**Authentication**
-
-For the shortest P0 experiment, use `No authentication` only while the server is temporary and protected from abuse. `P0_WRITE_NONCE` guards the write probe at the tool level, but it is **not a substitute for real MCP authentication**.
-
-A later phase should add OAuth or another supported MCP authentication scheme before real documents are accepted.
-
-## Exact P0 test sequence
-
-### T0 — health
-
-Open:
-
-```text
-https://YOUR-HOST/health
-```
-
-Expected:
-
-```json
-{"status":"ok","project":"ChatGPT Web HWPX MCP","version":"0.1.0-p0"}
-```
-
-### T1 — Scan Tools
-
-Register `https://YOUR-HOST/mcp`.
-
-PASS if ChatGPT discovers:
-
-```text
-probe_read
-probe_capabilities
-probe_write
-```
-
-If tool scan fails, record the HTTP status/error before changing the server.
-
-### T2 — read boundary
-
-Ask ChatGPT:
-
-```text
-Call probe_read with message "ChatGPT Web P0 read test".
-```
-
-PASS if the tool returns `ok=true`.
-
-### T3 — write discovery
-
-Check whether `probe_write` is visible/eligible as an action.
-
-This is separate from whether the account is permitted to execute it.
-
-### T4 — write execution
-
-Ask explicitly:
-
-```text
-Use probe_write to create a P0 test artifact containing "ChatGPT Web write boundary test".
-```
-
-If `P0_WRITE_NONCE` is configured, provide the nonce when prompted/required.
-
-Interpretation:
-
-- **Tool absent**: client/plan/tool-scan boundary.
-- **Tool visible but blocked by ChatGPT**: account/product write-action boundary.
-- **Tool executes and returns artifact_id**: write action path is working.
-- **Tool reaches server but errors**: server/tool bug.
-
-## P0 PASS matrix
-
-| Check | Required for transport PASS? | Required for full P0 PASS? |
-|---|---:|---:|
-| `/health` reachable over HTTPS | Yes | Yes |
-| ChatGPT tool scan succeeds | Yes | Yes |
-| `probe_read` executes | Yes | Yes |
-| `probe_write` is discovered | No | Yes |
-| `probe_write` executes | No | Account-dependent |
-
-Because ChatGPT plan capabilities can differ, record the final state as two independent verdicts:
-
-```text
-TRANSPORT = PASS / FAIL
-WRITE-ACTION = PASS / PRODUCT-BLOCKED / SERVER-FAIL
-```
-
-## Why P0 does not accept HWPX files
-
-A file uploaded to ChatGPT and a file path on a remote MCP host are not the same filesystem. P1 therefore needs an explicit file-transfer/document-store contract instead of pretending a local path such as `/mnt/data/foo.hwpx` exists remotely.
-
-P1 should introduce:
-
-```text
-ingest_document
-inspect_document
-export_document
-```
-
-with a `document_id`, temporary object storage, validation, and a safe download/attachment handoff.
-
-## Security notes
-
-- Never put secrets into tool descriptions or return values.
-- Keep `/health` non-sensitive.
-- Do not expose `probe_write` without at least the nonce for a public P0.
-- Delete the temporary deployment after the test if authentication is disabled.
-- Before real HWPX documents are supported, add proper auth, per-user isolation, size limits, content-type checks, retention limits, and audit logging.
+A production-grade system should add OAuth or equivalent MCP authentication, user/session isolation, persistent object storage, quotas, audit logging, and a real Hancom rendering/fidelity oracle before accepting sensitive documents.

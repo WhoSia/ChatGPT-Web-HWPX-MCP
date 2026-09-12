@@ -6,10 +6,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from mcp.server import MCPServer
+from mcp.server.transport_security import TransportSecuritySettings
 from starlette.responses import JSONResponse
 
 PROJECT = "ChatGPT Web HWPX MCP"
-VERSION = "0.1.0-p0"
+VERSION = "0.1.1-p0"
 
 # P0 intentionally does NOT include the real HWPX engine.
 # The objective is to test ChatGPT Web <-> remote MCP transport and
@@ -112,13 +113,46 @@ async def health(_request):
     )
 
 
+def _transport_security() -> TransportSecuritySettings:
+    """Build an explicit Host allowlist for local or Render deployment.
+
+    The MCP Python SDK intentionally rejects unknown public Host headers unless
+    transport security is configured. Render injects RENDER_EXTERNAL_HOSTNAME,
+    so the deployed service can configure itself without hard-coding a domain.
+    """
+    public_host = (
+        os.environ.get("MCP_PUBLIC_HOST")
+        or os.environ.get("RENDER_EXTERNAL_HOSTNAME")
+        or ""
+    ).strip()
+
+    if public_host:
+        return TransportSecuritySettings(
+            enable_dns_rebinding_protection=True,
+            allowed_hosts=[public_host, f"{public_host}:*"],
+            # Origin is usually absent for server-to-server MCP calls. This
+            # entry also permits a same-origin browser/inspector probe.
+            allowed_origins=[f"https://{public_host}"],
+        )
+
+    return TransportSecuritySettings(
+        enable_dns_rebinding_protection=True,
+        allowed_hosts=["127.0.0.1:*", "localhost:*", "[::1]:*"],
+        allowed_origins=[
+            "http://127.0.0.1:*",
+            "http://localhost:*",
+            "http://[::1]:*",
+        ],
+    )
+
+
 if __name__ == "__main__":
     host = os.environ.get("MCP_HOST", "0.0.0.0")
     port = int(os.environ.get("PORT", os.environ.get("MCP_PORT", "8000")))
     path = os.environ.get("MCP_PATH", "/mcp")
 
-    # Official SDK v2 Streamable HTTP server.
-    # For public deployment, put TLS at the hosting platform/reverse proxy layer.
+    # TLS is terminated by the hosting platform/reverse proxy. The MCP SDK
+    # still validates Host/Origin headers explicitly to prevent DNS rebinding.
     mcp.run(
         "streamable-http",
         host=host,
@@ -126,4 +160,5 @@ if __name__ == "__main__":
         streamable_http_path=path,
         stateless_http=True,
         json_response=True,
+        transport_security=_transport_security(),
     )

@@ -39,9 +39,11 @@ Deployment URL: https://chatgpt-web-hwpx-mcp-p0.onrender.com
 | T0 `/health` | ☑ PASS | External GitHub Runner received version `0.1.1-p0` from Render |
 | T1 ChatGPT custom-app registration | ☑ PASS | ChatGPT recognizes `ChatGPT Web HWPX MCP` as a registered app |
 | T1b ChatGPT app permission inspection | ☑ PASS | App-specific permission = `Allow all actions`; global = `Allow low-risk actions` |
-| T2 ChatGPT `probe_read` | ☐ PASS ☐ FAIL | Requires selecting or @mentioning the app on the message that performs the call |
-| T3 `probe_write` exposed in selected-message tool surface | ☐ PASS ☐ FAIL | Remote MCP advertises it; native ChatGPT message-scoped exposure pending |
-| T4 ChatGPT `probe_write` executes | ☐ PASS ☐ PRODUCT-BLOCKED ☐ SERVER-FAIL | Pending native selected-message test; server-side `P0_WRITE_NONCE` may additionally gate execution |
+| T2 app selection / @mention accepted | ☑ PASS | The user selected `@ChatGPT Web HWPX MCP` in the message |
+| T2b native MCP tool namespace injected | ☒ FAIL | Despite message-scoped app selection, no `ChatGPT Web HWPX MCP` tool namespace was exposed to the assistant runtime in that turn |
+| T2c ChatGPT `probe_read` native execution | ☐ PASS ☑ BLOCKED-BEFORE-CALL | The tool itself was unavailable in the native turn, so no server call could be made |
+| T3 `probe_write` exposed in selected-message tool surface | ☒ FAIL | Same native tool-injection boundary; remote MCP advertises the tool successfully but ChatGPT did not surface it to the assistant runtime |
+| T4 ChatGPT `probe_write` executes | ☐ PASS ☑ PRODUCT/INTEGRATION-BLOCKED ☐ SERVER-FAIL | Not a server failure; native ChatGPT tool injection did not occur |
 
 ## Current verdict
 
@@ -51,21 +53,27 @@ REMOTE-MCP-TRANSPORT = PASS
 REMOTE-TOOL-DISCOVERY = PASS
 CHATGPT-REGISTRATION = PASS
 CHATGPT-APP-PERMISSION = ALLOW_ALL_ACTIONS
-CHATGPT-READ-ACTION = PENDING_MESSAGE_APP_SELECTION
-CHATGPT-WRITE-EXPOSURE = PENDING_MESSAGE_APP_SELECTION
-CHATGPT-WRITE-ACTION = PENDING
+CHATGPT-APP-SELECTION = PASS
+CHATGPT-NATIVE-TOOL-INJECTION = FAIL
+CHATGPT-READ-ACTION = BLOCKED_BEFORE_CALL
+CHATGPT-WRITE-EXPOSURE = FAIL
+CHATGPT-WRITE-ACTION = PRODUCT_OR_INTEGRATION_BLOCKED
+SERVER-FAULT = NO EVIDENCE
 ```
 
-## P0-R3 product-boundary note
+## P0-R3 adjudication
 
-OpenAI's current custom-app guidance states that app selection is message-scoped: a user selects one or more apps for the message that needs fresh data or an action, and should @mention/select the app again on later messages that require another app call. Therefore successful registration does not by itself inject the custom MCP tool namespace into every subsequent assistant turn.
+The failure boundary is now localized. The same Render endpoint completes health checks, MCP protocol negotiation, tool discovery, and remote `probe_read` execution from an independent GitHub Runner. ChatGPT also recognizes the custom app and accepts an app-specific `Allow all actions` permission setting. However, even when the user explicitly selects/@mentions the app in the message, the assistant runtime does not receive the custom MCP tool namespace.
+
+Therefore P0-R3 must not classify this as an MCP server, Render, transport, or tool-schema failure. It is currently a **ChatGPT custom-app native tool-injection / product integration boundary**.
 
 ## Next decision
 
-For the next ChatGPT message, explicitly select or @mention **ChatGPT Web HWPX MCP** and request:
+Do not add real HWPX file custody yet. First run a product-side rebind/reload check:
 
-```text
-Call probe_read with message "ChatGPT Web P0-R3 native read test".
-```
+1. Open ChatGPT Settings → Plugins / custom apps and confirm `ChatGPT Web HWPX MCP` is enabled.
+2. Start a fresh chat.
+3. Select `@ChatGPT Web HWPX MCP` on the exact message requesting `probe_read`.
+4. If the tool still does not surface, remove and re-add the custom MCP app once, then repeat in a new chat.
 
-If that succeeds, immediately test whether `probe_write` is exposed. Only after native read/write exposure is classified should P1 introduce real HWPX file custody.
+If native tool injection remains absent after a fresh-chat/rebind test, treat P0-R3 as a platform/product limitation and proceed with development using independent MCP clients while preserving this boundary as an explicit HOLD for ChatGPT-Web-native execution.

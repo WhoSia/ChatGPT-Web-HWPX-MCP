@@ -2,8 +2,13 @@ services:
   - type: web
     name: chatgpt-web-hwpx-mcp-p0
     runtime: docker
+    repo: https://github.com/WhoSia/ChatGPT-Web-HWPX-MCP
+    branch: main
+    region: singapore
     plan: free
+    dockerfilePath: ./Dockerfile
     healthCheckPath: /health
+    autoDeployTrigger: commit
     envVars:
       - key: P0_WRITE_NONCE
         generateValue: true

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from pathlib import Path
 
 import server as core
 from p2_document import apply_text_edits_atomic, build_document_map
@@ -22,7 +23,7 @@ def _p2_metadata(*args, **kwargs) -> dict:
 core._metadata = _p2_metadata
 
 
-def _owned_document(document_id: str) -> tuple[dict, object]:
+def _owned_document(document_id: str) -> tuple[dict, Path]:
     metadata = core._load_metadata(document_id)
     core._require_owner(metadata)
     path, _ = core._paths(document_id)
@@ -102,23 +103,16 @@ def apply_edits(document_id: str, expected_revision: int, operations: list[dict]
     """Apply one atomic text-edit transaction guarded by an exact revision precondition."""
     metadata, path = _owned_document(document_id)
     current_revision = int(metadata["revision"])
+    ingress = metadata.get("source") == "existing-ingress"
     transaction = apply_text_edits_atomic(
         path,
         operations,
         expected_revision=int(expected_revision),
         current_revision=current_revision,
+        validator=lambda candidate: core.validate_hwpx_package(candidate, ingress=ingress),
     )
-    try:
-        validation = core.validate_hwpx_package(
-            path,
-            ingress=metadata.get("source") == "existing-ingress",
-        )
-        after_map = build_document_map(path)
-    except Exception:
-        # The edit engine itself writes atomically; validation failures are surfaced
-        # and the caller must not treat this revision as committed.
-        raise
-
+    validation = transaction["validation"]
+    after_map = build_document_map(path)
     metadata["revision"] = current_revision + 1
     metadata["last_edit_at"] = core._utc_iso()
     _refresh_metadata(document_id, metadata, validation, after_map)
@@ -171,7 +165,7 @@ def p2_capabilities() -> dict:
             "compare_document",
         ],
         "addressing": "intrinsic paragraph ids when present; revision-bound ordinal fallback otherwise",
-        "edit_transaction": "exact expected_revision + atomic package replacement + post-edit validation",
+        "edit_transaction": "exact expected_revision + candidate-package validation + atomic package replacement",
         "semantic_diff": True,
         "structural_edits": False,
         "formatting": False,

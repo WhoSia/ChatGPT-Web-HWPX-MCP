@@ -72,8 +72,6 @@ Canonical implementation run:
 - commit under test: `93afbd13ed2c905e4f572a9cfc2caaa98a3db54a`
 - conclusion: **SUCCESS**
 
-The same latest-main confirmatory run completed:
-
 | Boundary | Verdict |
 |---|---|
 | Python compilation | PASS |
@@ -99,9 +97,9 @@ The same latest-main confirmatory run completed:
 
 An initial confirmatory run localized one PostgreSQL parameter-typing defect in the revocation query. The query was corrected by splitting subject-bound and subject-agnostic revocation into explicit SQL branches. The latest canonical run above is green after that correction.
 
-## Render/public deployment receipt
+## Render/public deployment receipts
 
-Canonical deployment before the native continuity replay:
+Canonical P1.2 deployment before the native continuity replay:
 
 - service: `chatgpt-web-hwpx-mcp-p0`
 - public base: `https://chatgpt-web-hwpx-mcp-p0.onrender.com`
@@ -116,19 +114,20 @@ Canonical public-boundary run:
 - run: `34711423707`
 - conclusion: **SUCCESS**
 
-The public run confirmed:
+The native continuity redeploy was triggered by commit:
 
-| Public boundary | Verdict |
-|---|---|
-| Render P1.2 health endpoint | PASS |
-| durable state mode = `postgres-encrypted` | PASS |
-| durable store reachable | PASS |
-| protected-resource metadata | PASS |
-| authorization-server metadata | PASS |
-| `offline_access` advertised | PASS |
-| unauthenticated MCP blocked before tool execution | PASS — HTTP 401 |
+- `b8439f58b42aa227d82c037cb82849a03cd6b810`
+- message: `P1.2-R1: seal pre-restart native receipt and trigger continuity redeploy`
 
-## Native transition and pre-restart receipts
+Post-redeploy public-boundary verification:
+
+- workflow: `P1.2 Render durable OAuth boundary verification`
+- run: `34712332770`
+- conclusion: **SUCCESS**
+
+The post-redeploy public run confirmed durable health, protected-resource metadata, authorization-server metadata with `offline_access`, and unauthenticated `/mcp` rejection with HTTP 401.
+
+## Native transition and continuity receipts
 
 The first native attempt after switching from P1.1 in-memory OAuth state to the P1.2 durable provider produced an expected transition discontinuity:
 
@@ -139,7 +138,7 @@ AUTHORIZATION_RESULT = invalid_request / Client ID not found
 FRESH_DCR_REQUIRED = YES
 ```
 
-This does not test restart continuity because the legacy P1.1 client registration had never been persisted. The custom app was therefore re-created against the same MCP URL, causing a fresh P1.2 DCR registration and authorization.
+This was not a restart-continuity failure: the legacy P1.1 client registration had never been persisted. The custom app was therefore re-created against the same MCP URL, causing a fresh P1.2 DCR registration and authorization.
 
 Native pre-restart authenticated receipt after fresh P1.2 registration:
 
@@ -154,9 +153,35 @@ SERVER_RECEIPT_UTC = 2026-09-12T18:47:58.482110+00:00
 SERVER_RECEIPT_KST = 2026-09-13 03:47:58
 ```
 
-This ledger commit intentionally serves as the continuity-test redeploy trigger. OAuth database state and the state-encryption secret are not changed by this commit. A successful post-redeploy call from the same ChatGPT custom app without a new browser authorization closes the remaining P1.2 native continuity requirement.
+After the forced Render redeploy, the same ChatGPT custom app executed the post-restart probe without another browser/resource-owner authorization.
 
-## Current verdict
+Native post-restart authenticated receipt:
+
+```text
+NATIVE_POST_RESTART_PROBE = PASS
+PROJECT = ChatGPT Web HWPX MCP
+VERSION = 0.2.2-p1.2
+PROBE = read
+MESSAGE = P1.2 post-restart continuity receipt
+AUTHENTICATED_SUBJECT = hwpx-owner
+SERVER_RECEIPT_UTC = 2026-09-13T10:49:39.284028+00:00
+SERVER_RECEIPT_KST = 2026-09-13 19:49:39
+RESOURCE_OWNER_REAUTHORIZATION_REQUIRED = NO
+```
+
+This closes the native restart-safe authority claim:
+
+```text
+fresh durable DCR
+→ authenticated pre-restart tool call
+→ Render process replacement / redeploy
+→ durable OAuth state retained outside process memory
+→ same ChatGPT custom app
+→ no new browser approval
+→ authenticated post-restart tool call succeeds
+```
+
+## Final verdict
 
 ```text
 DURABLE_OAUTH_STORE_IMPLEMENTATION = PASS
@@ -174,25 +199,19 @@ PUBLIC_DURABLE_STORE_HEALTH = PASS
 PUBLIC_OAUTH_BOUNDARY = PASS
 LEGACY_EPHEMERAL_CLIENT_MIGRATION = FAIL_EXPECTED / FRESH_DCR_REQUIRED
 CHATGPT_NATIVE_PRE_RESTART_AUTHENTICATED_RECEIPT = PASS
+CHATGPT_NATIVE_POST_RESTART_TOKEN_CONTINUITY = PASS
+RESOURCE_OWNER_REAUTHORIZATION_AFTER_RESTART = NOT_REQUIRED
 
-CHATGPT_NATIVE_POST_RESTART_TOKEN_CONTINUITY = PENDING_NATIVE_RECEIPT
+P1.2 = CLOSED / PASS
+
 DURABLE_DOCUMENT_OBJECT_STORAGE = HOLD
 LARGE_FILE_STREAMING_INGRESS = HOLD
 RICH_HWPX_MUTATION = HOLD
 HANCOM_RENDERER_FIDELITY_ORACLE = HOLD
 ```
 
-## Promotion rule
+## Closure statement
 
-P1.2 is **IMPLEMENTATION PASS / PUBLIC PASS / NATIVE PRE-RESTART PASS**, but not yet globally closed. The remaining world-contact receipt is deliberately narrow:
+P1.2 establishes that OAuth client/token authority is no longer process-memory-bound: a freshly registered ChatGPT client survives a real Render redeploy and resumes authenticated MCP access without repeating browser authorization. Existing HWPX ingress is admitted only through the bounded hostile-package gate described above.
 
-1. fresh-register/authorize the ChatGPT custom MCP under the P1.2 durable provider — **PASS**;
-2. execute one authenticated tool call — **PASS**;
-3. restart/redeploy the Render service without changing OAuth database state or the state-encryption secret — **TRIGGERED BY THIS LEDGER COMMIT**;
-4. execute another authenticated tool call from the same ChatGPT app without repeating resource-owner authorization — **PENDING**.
-
-If step 4 succeeds, native restart-safe client/token authority is certified and P1.2 may close.
-
-## Deliberate holds
-
-P1.2 does not make document bytes durable across Render restarts. It also does not admit arbitrary large files, fetch remote document URLs, expose filesystem paths, or claim fidelity against the native Hancom renderer.
+P1.2 deliberately does **not** claim durable document-byte custody across restarts. Document-object durability remains a separate future phase so authentication authority and file-retention semantics are not conflated.

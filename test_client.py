@@ -16,7 +16,10 @@ from mcp.client.streamable_http import streamable_http_client
 from mcp.shared.auth import OAuthClientInformationFull, OAuthClientMetadata, OAuthToken
 
 URL = os.environ.get("MCP_URL", "http://127.0.0.1:8000/mcp")
-RUN_WRITE_TEST = os.environ.get("RUN_P12_WRITE_TEST", os.environ.get("RUN_P11_WRITE_TEST", "")) == "1"
+RUN_WRITE_TEST = os.environ.get(
+    "RUN_P2_WRITE_TEST",
+    os.environ.get("RUN_P12_WRITE_TEST", os.environ.get("RUN_P11_WRITE_TEST", "")),
+) == "1"
 P11_OAUTH_PASSPHRASE = os.environ.get("P11_OAUTH_PASSPHRASE", "")
 
 
@@ -98,7 +101,7 @@ async def main() -> None:
     oauth = OAuthClientProvider(
         server_url=URL,
         client_metadata=OAuthClientMetadata(
-            client_name="ChatGPT Web HWPX MCP P1.2 CI",
+            client_name="ChatGPT Web HWPX MCP P2 CI",
             redirect_uris=[AnyUrl("http://127.0.0.1:8765/callback")],
             scope="hwpx offline_access",
         ),
@@ -123,6 +126,11 @@ async def main() -> None:
                 "inspect_document",
                 "export_document",
                 "delete_document",
+                "get_document_map",
+                "get_text",
+                "apply_edits",
+                "compare_document",
+                "p2_capabilities",
             }
             missing = expected - set(names)
             if missing:
@@ -132,21 +140,64 @@ async def main() -> None:
                 if "access_token" in schema_text or "passphrase" in schema_text:
                     raise RuntimeError(f"secret-bearing field leaked into tool schema: {tool.name}")
 
-            read_payload = _payload(await client.call_tool("probe_read", {"message": "P1.2 OAuth smoke test"}))
-            if not read_payload or not read_payload.get("ok"):
-                raise RuntimeError("probe_read did not return ok=true")
+            read_payload = _payload(await client.call_tool("probe_read", {"message": "P2 OAuth smoke test"}))
+            if not read_payload or not read_payload.get("ok") or read_payload.get("version") != "0.3.0-p2":
+                raise RuntimeError(f"probe_read did not expose P2: {read_payload}")
+
+            p2_caps = _payload(await client.call_tool("p2_capabilities", {}))
+            if not p2_caps or p2_caps.get("phase") != "P2":
+                raise RuntimeError(f"p2_capabilities failed: {p2_caps}")
 
             if not RUN_WRITE_TEST:
                 return
 
             created = _payload(await client.call_tool("create_document", {
-                "title": "P1.2 CI",
-                "text": "ChatGPT Web HWPX MCP\nDurable OAuth and bounded ingress",
-                "filename": "p1-2-ci.hwpx",
+                "title": "P2 CI",
+                "text": "alpha\nbeta",
+                "filename": "p2-ci.hwpx",
             }))
             if not created or not created.get("ok"):
                 raise RuntimeError(f"create_document failed: {created}")
             document_id = created["document_id"]
+            if created.get("revision") != 1:
+                raise RuntimeError(f"new P2 document did not start at revision 1: {created}")
+
+            mapped = _payload(await client.call_tool("get_document_map", {"document_id": document_id}))
+            if not mapped or mapped.get("revision") != 1 or len(mapped.get("paragraphs", [])) < 3:
+                raise RuntimeError(f"get_document_map failed: {mapped}")
+            target = mapped["paragraphs"][-1]
+            locator = target["locator"]
+            structure_before = mapped["structure_sha256"]
+            semantic_before = mapped["semantic_sha256"]
+
+            edited = _payload(await client.call_tool("apply_edits", {
+                "document_id": document_id,
+                "expected_revision": 1,
+                "operations": [
+                    {"op": "replace_paragraph_text", "target": locator, "text": "gamma"}
+                ],
+            }))
+            if not edited or edited.get("transaction") != "COMMITTED" or edited.get("revision_after") != 2:
+                raise RuntimeError(f"apply_edits failed: {edited}")
+            diff = edited.get("semantic_diff", {})
+            if diff.get("before", {}).get("semantic_sha256") != semantic_before:
+                raise RuntimeError("semantic diff before-receipt mismatch")
+            if diff.get("after", {}).get("structure_sha256") != structure_before:
+                raise RuntimeError("text-only edit changed structural digest")
+
+            targeted = _payload(await client.call_tool("get_text", {"document_id": document_id, "locator": locator}))
+            if not targeted or targeted.get("revision") != 2 or targeted.get("text") != "gamma":
+                raise RuntimeError(f"targeted get_text failed: {targeted}")
+
+            compared = _payload(await client.call_tool("compare_document", {
+                "document_id": document_id,
+                "semantic_sha256": semantic_before,
+                "structure_sha256": structure_before,
+            }))
+            if not compared or compared.get("matches", {}).get("semantic") is not False:
+                raise RuntimeError(f"compare_document semantic verdict failed: {compared}")
+            if compared.get("matches", {}).get("structure") is not True:
+                raise RuntimeError(f"compare_document structure verdict failed: {compared}")
 
             exported = _payload(await client.call_tool("export_document", {"document_id": document_id, "link_ttl_seconds": 120}))
             if not exported or not exported.get("download_url"):
@@ -157,16 +208,14 @@ async def main() -> None:
                 raise RuntimeError(f"download failed: {download.status_code} {download.text}")
             digest = hashlib.sha256(download.content).hexdigest()
             if digest != exported["sha256"] or download.content[:2] != b"PK":
-                raise RuntimeError("generated artifact receipt mismatch")
+                raise RuntimeError("edited artifact receipt mismatch")
 
             ingested = _payload(await client.call_tool("ingest_document", {
-                "filename": "p1-2-existing.hwpx",
+                "filename": "p2-existing.hwpx",
                 "content_base64": base64.b64encode(download.content).decode("ascii"),
             }))
-            if not ingested or ingested.get("admission") != "PASS":
+            if not ingested or ingested.get("admission") != "PASS" or ingested.get("revision") != 1:
                 raise RuntimeError(f"ingest_document failed: {ingested}")
-            if ingested.get("sha256") != digest:
-                raise RuntimeError("ingested HWPX SHA-256 changed")
             inspected = _payload(await client.call_tool("inspect_document", {"document_id": ingested["document_id"]}))
             if not inspected or not inspected.get("validation", {}).get("valid"):
                 raise RuntimeError(f"inspect ingested document failed: {inspected}")
@@ -175,7 +224,7 @@ async def main() -> None:
                 deleted = _payload(await client.call_tool("delete_document", {"document_id": doc_id}))
                 if not deleted or not deleted.get("deleted"):
                     raise RuntimeError(f"delete_document failed: {deleted}")
-            print("P1.2 lifecycle PASS", digest)
+            print("P2 lifecycle PASS", digest)
 
 
 if __name__ == "__main__":

@@ -5,8 +5,8 @@ import json
 import os
 import tempfile
 import zipfile
-from dataclasses import dataclass
 from pathlib import Path
+from typing import Callable
 from xml.etree import ElementTree
 
 SECTION_PREFIX = "Contents/section"
@@ -140,6 +140,7 @@ def apply_text_edits_atomic(
     *,
     expected_revision: int,
     current_revision: int,
+    validator: Callable[[Path], dict] | None = None,
 ) -> dict:
     if expected_revision != current_revision:
         raise ValueError(f"Stale revision: expected {expected_revision}, current {current_revision}")
@@ -180,6 +181,7 @@ def apply_text_edits_atomic(
     os.close(fd)
     tmp_path = Path(tmp_name)
     semantic_changes: list[dict] = []
+    validation: dict | None = None
     try:
         with zipfile.ZipFile(path, "r") as source, zipfile.ZipFile(tmp_path, "w") as target_zip:
             for info in source.infolist():
@@ -203,6 +205,8 @@ def apply_text_edits_atomic(
                 target_zip.writestr(info, payload)
 
         after_map = build_document_map(tmp_path)
+        if validator is not None:
+            validation = validator(tmp_path)
         os.replace(tmp_path, path)
     except Exception:
         try:
@@ -212,7 +216,7 @@ def apply_text_edits_atomic(
         raise
 
     no_op = before_map["semantic_sha256"] == after_map["semantic_sha256"]
-    return {
+    result = {
         "before": {
             "semantic_sha256": before_map["semantic_sha256"],
             "structure_sha256": before_map["structure_sha256"],
@@ -227,3 +231,6 @@ def apply_text_edits_atomic(
         "operation_count": len(normalized_ops),
         "no_op": no_op,
     }
+    if validation is not None:
+        result["validation"] = validation
+    return result

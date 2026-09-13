@@ -1,4 +1,4 @@
-name: P1.2 Render durable OAuth boundary verification
+name: P2 Render public boundary verification
 
 on:
   push:
@@ -16,17 +16,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Wait for Render P1.2 durable health endpoint
+      - name: Wait for Render P2 extended server
         run: |
           for i in {1..48}; do
             body="$(curl --fail --silent --show-error "$BASE_URL/health" || true)"
-            if echo "$body" | grep -q '"phase":"P1.2"' && \
+            if echo "$body" | grep -q '0.3.0-p2' && \
                echo "$body" | grep -q 'postgres-encrypted' && \
                echo "$body" | grep -q '"durable_store_reachable":true'; then
               echo "$body"
               exit 0
             fi
-            echo "Render P1.2 not ready yet ($i/48): $body"
+            echo "Render P2 not ready yet ($i/48): $body"
             sleep 5
           done
           exit 1

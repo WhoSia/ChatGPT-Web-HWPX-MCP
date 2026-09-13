@@ -5,7 +5,7 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY server.py oauth_provider.py auth_store.py ./
+COPY server.py server_p2.py p2_document.py oauth_provider.py auth_store.py ./
 
 ENV MCP_HOST=0.0.0.0
 ENV MCP_PORT=8000
@@ -16,4 +16,4 @@ ENV P1_MAX_TEXT_CHARS=100000
 
 EXPOSE 8000
 
-CMD ["python", "server.py"]
+CMD ["python", "server_p2.py"]

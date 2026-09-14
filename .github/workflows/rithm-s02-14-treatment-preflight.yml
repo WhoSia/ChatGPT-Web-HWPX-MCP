@@ -1,0 +1,132 @@
+name: RITHM S02.14 exact treatment-config preflight
+
+on:
+  push:
+    branches: [rithm-s02-14-preseal]
+    paths: ['.github/workflows/rithm-s02-14-treatment-preflight.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  treatment-preflight:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    steps:
+      - name: Download frozen S02.14 frame and cohorts
+        uses: actions/download-artifact@v4
+        with:
+          name: s02-14-preseal-receipts
+          path: seal
+          repository: WhoSia/ChatGPT-Web-HWPX-MCP
+          run-id: 34809391214
+          github-token: ${{ github.token }}
+
+      - name: Install exact Eclipse SUMO 1.14.0
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install --no-cache-dir 'eclipse-sumo==1.14.0'
+          SUMO_HOME="$(python - <<'PY'
+          import sumo
+          print(sumo.SUMO_HOME)
+          PY
+          )"
+          echo "$SUMO_HOME/bin" >> "$GITHUB_PATH"
+          mkdir -p receipt
+          "$SUMO_HOME/bin/sumo" --version | tee receipt/sumo-version.txt
+          grep -Eiq 'Version[[:space:]]+1\.14\.0([^0-9]|$)' receipt/sumo-version.txt
+
+      - name: Checkout exact MoST commit and verify canonical config
+        run: |
+          git clone --no-checkout https://github.com/lcodeca/MoSTScenario.git most
+          cd most
+          git checkout --detach b29b2f65f1096a9c69a601ec62a724815cb4a43f
+          test "$(git rev-parse HEAD)" = "b29b2f65f1096a9c69a601ec62a724815cb4a43f"
+          test "$(git hash-object scenario/most.sumocfg)" = "03dbc535acd7057731a1de8924115a9276842426"
+          printf '%s\n' "MOST=$(git rev-parse HEAD)" "CONFIG_BLOB=$(git hash-object scenario/most.sumocfg)" > ../receipt/most-receipt.txt
+
+      - name: Inject longest explicit cohort into config without running target simulation
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import xml.etree.ElementTree as ET, hashlib, json
+          cohort=Path('seal/s02-14-p100-explicit.txt').read_text().splitlines()
+          assert len(cohort)==45822 and len(set(cohort))==45822
+          src=Path('most/scenario/most.sumocfg')
+          tree=ET.parse(src); root=tree.getroot(); routing=root.find('routing'); assert routing is not None
+          prob=routing.find('device.rerouting.probability'); assert prob is not None; prob.set('value','0')
+          period=routing.find('device.rerouting.period'); assert period is not None; period.set('value','300')
+          pre=routing.find('device.rerouting.pre-period'); assert pre is not None; pre.set('value','300')
+          old=routing.find('device.rerouting.explicit')
+          if old is not None: routing.remove(old)
+          explicit=ET.SubElement(routing,'device.rerouting.explicit'); explicit.set('value',','.join(cohort))
+          out=Path('most/scenario/s02-14-p100.sumocfg')
+          tree.write(out,encoding='utf-8',xml_declaration=True)
+          info={
+            'explicit_n':len(cohort),
+            'explicit_file_sha256':hashlib.sha256(Path('seal/s02-14-p100-explicit.txt').read_bytes()).hexdigest(),
+            'generated_config_sha256':hashlib.sha256(out.read_bytes()).hexdigest(),
+            'generated_config_bytes':out.stat().st_size,
+            'probability':'0','period':'300','pre_period':'300'
+          }
+          Path('receipt/generated-config.json').write_text(json.dumps(info,indent=2,sort_keys=True))
+          print(json.dumps(info,indent=2,sort_keys=True))
+          PY
+
+      - name: Exact SUMO parser round-trip only
+        working-directory: most/scenario
+        run: |
+          set -euo pipefail
+          # -C/--save-configuration is configuration serialization, not a target simulation.
+          sumo -c s02-14-p100.sumocfg -C s02-14-p100.roundtrip.sumocfg
+          test -s s02-14-p100.roundtrip.sumocfg
+          python - <<'PY'
+          import xml.etree.ElementTree as ET, hashlib, json
+          from pathlib import Path
+          expected=Path('../../seal/s02-14-p100-explicit.txt').read_text().splitlines()
+          tree=ET.parse('s02-14-p100.roundtrip.sumocfg'); root=tree.getroot(); routing=root.find('routing'); assert routing is not None
+          def value(name):
+              e=routing.find(name); assert e is not None, name; return e.attrib['value']
+          got=[x for x in value('device.rerouting.explicit').split(',') if x]
+          assert got==expected, (len(got),len(expected))
+          assert float(value('device.rerouting.probability'))==0.0
+          assert float(value('device.rerouting.period'))==300.0
+          assert float(value('device.rerouting.pre-period'))==300.0
+          out={
+            'roundtrip_explicit_n':len(got),
+            'exact_order_preserved':got==expected,
+            'probability':value('device.rerouting.probability'),
+            'period':value('device.rerouting.period'),
+            'pre_period':value('device.rerouting.pre-period'),
+            'roundtrip_config_sha256':hashlib.sha256(Path('s02-14-p100.roundtrip.sumocfg').read_bytes()).hexdigest(),
+            'target_simulation_executed':False,
+            'target_outcome_read':False,
+          }
+          Path('../../receipt/parser-roundtrip.json').write_text(json.dumps(out,indent=2,sort_keys=True))
+          print(json.dumps(out,indent=2,sort_keys=True))
+          PY
+
+      - name: Seal treatment preflight receipt
+        run: |
+          printf '%s\n' \
+            'S02.14-TREATMENT-PREFLIGHT=PASS' \
+            'SUMO=1.14.0' \
+            'MOST=b29b2f65f1096a9c69a601ec62a724815cb4a43f' \
+            'GLOBAL-REROUTING-PROBABILITY=0' \
+            'EXPLICIT-P100-N=45822' \
+            'REROUTING-PERIOD=300' \
+            'REROUTING-PRE-PERIOD=300' \
+            'TARGET-SIMULATION=0' \
+            'TARGET-OUTCOME-READ=0' \
+            > receipt/preflight-seal.txt
+          cat receipt/preflight-seal.txt
+
+      - name: Upload immutable treatment-preflight receipt
+        uses: actions/upload-artifact@v4
+        with:
+          name: s02-14-treatment-preflight
+          path: receipt/
+          if-no-files-found: error
+          retention-days: 90

@@ -30,52 +30,29 @@ jobs:
           import xml.etree.ElementTree as ET
           import hashlib, json, math, collections
 
-          BEGIN=14400.0
-          END=50400.0
-          FILES=[
-            ('bus','most.buses.flows.xml',False),
-            ('commercial','most.commercial.rou.xml',True),
-            ('highway','most.highway.flows.xml',True),
-            ('pedestrian','most.pedestrian.rou.xml',True),
-            ('special','most.special.rou.xml',True),
-            ('train','most.trains.flows.xml',False),
-          ]
-
-          report={
-            'seal':'S02.14 OUTCOME-BLIND SOURCE-DEMAND PRESEAL',
-            'most_commit':'b29b2f65f1096a9c69a601ec62a724815cb4a43f',
-            'window':[BEGIN,END],
-            'target_outcome_read':False,
-            'source_files':{},
-            'frame':{},
-          }
-          all_entries=[]
-          unsupported=[]
-
-          def in_window(x):
-              return x is not None and BEGIN <= x < END
-
+          BEGIN=14400.0; END=50400.0
+          FILES=[('bus','most.buses.flows.xml',False),('commercial','most.commercial.rou.xml',True),('highway','most.highway.flows.xml',True),('pedestrian','most.pedestrian.rou.xml',True),('special','most.special.rou.xml',True),('train','most.trains.flows.xml',False)]
+          report={'seal':'S02.14 OUTCOME-BLIND SOURCE-DEMAND PRESEAL','most_commit':'b29b2f65f1096a9c69a601ec62a724815cb4a43f','window':[BEGIN,END],'target_outcome_read':False,'source_files':{},'frame':{}}
+          all_entries=[]; unsupported=[]
           def ffloat(v):
-              try: return float(v)
-              except: return None
+              try:return float(v)
+              except:return None
+          def in_window(x): return x is not None and BEGIN <= x < END
 
           for family,fn,eligible in FILES:
-              p=Path('demand')/fn
-              counts=collections.Counter()
-              flow_attrsets=collections.Counter()
-              flows=[]; explicit=[]
-              for ev,e in ET.iterparse(p,events=('end',)):
+              p=Path('demand')/fn; counts=collections.Counter(); flow_attrsets=collections.Counter(); flows=[]; explicit=[]; samples=[]; depart_tokens=collections.Counter()
+              for _,e in ET.iterparse(p,events=('end',)):
                   tag=e.tag.split('}')[-1]
-                  if tag in {'vehicle','trip','flow','person','personFlow'}:
-                      counts[tag]+=1
+                  if tag in {'vehicle','trip','flow','person','personFlow'}: counts[tag]+=1
                   if tag in {'vehicle','trip'}:
-                      dep=ffloat(e.attrib.get('depart'))
-                      if in_window(dep):
-                          explicit.append((e.attrib.get('id',''),dep,e.attrib.get('type',''),tag))
+                      rawdep=e.attrib.get('depart'); depart_tokens[str(rawdep)]+=1
+                      if len(samples)<12: samples.append({'tag':tag,**dict(e.attrib)})
+                      dep=ffloat(rawdep)
+                      if in_window(dep): explicit.append((e.attrib.get('id',''),dep,e.attrib.get('type',''),tag))
+                  elif tag=='person':
+                      if len(samples)<12: samples.append({'tag':tag,**dict(e.attrib)})
                   elif tag=='flow':
-                      a=dict(e.attrib)
-                      flow_attrsets[tuple(sorted(a.keys()))]+=1
-                      flows.append(a)
+                      a=dict(e.attrib); flow_attrsets[tuple(sorted(a.keys()))]+=1; flows.append(a)
                   e.clear()
 
               entries=[]
@@ -85,77 +62,38 @@ jobs:
 
               flow_summary=[]
               for a in flows:
-                  fid=a.get('id','')
-                  begin=ffloat(a.get('begin'))
-                  end=ffloat(a.get('end'))
-                  period=ffloat(a.get('period'))
-                  number=a.get('number')
-                  probability=a.get('probability')
-                  vehsph=a.get('vehsPerHour')
+                  fid=a.get('id',''); begin=ffloat(a.get('begin')); end=ffloat(a.get('end')); period=ffloat(a.get('period')); number=a.get('number'); probability=a.get('probability'); vehsph=a.get('vehsPerHour')
                   flow_summary.append({'id':fid,'begin':begin,'end':end,'period':period,'number':number,'probability':probability,'vehsPerHour':vehsph,'type':a.get('type','')})
-                  # Only deterministic period flows are admitted by this compiler.
                   if period is None or begin is None or end is None or number is not None or probability is not None or vehsph is not None:
-                      unsupported.append([fn,'flow',fid,{'begin':begin,'end':end,'period':period,'number':number,'probability':probability,'vehsPerHour':vehsph}])
-                      continue
-                  k=0
-                  dep=begin
-                  # SUMO flow end is treated prospectively as exclusive; compiler seal records this rule.
+                      unsupported.append([fn,'flow',fid,{'begin':begin,'end':end,'period':period,'number':number,'probability':probability,'vehsPerHour':vehsph}]); continue
+                  k=0; dep=begin
                   while dep < end and dep < END:
-                      if dep >= BEGIN:
-                          entries.append({'id':f'{fid}.{k}','scheduled_depart':dep,'family':family,'source_kind':'flow-period','vtype':a.get('type','')})
-                      k+=1
-                      dep=begin+k*period
+                      if dep >= BEGIN: entries.append({'id':f'{fid}.{k}','scheduled_depart':dep,'family':family,'source_kind':'flow-period','vtype':a.get('type','')})
+                      k+=1; dep=begin+k*period
 
-              ids=[x['id'] for x in entries]
-              dup=[x for x,c in collections.Counter(ids).items() if c>1]
+              ids=[x['id'] for x in entries]; dup=[x for x,c in collections.Counter(ids).items() if c>1]
               if dup: unsupported.append([fn,'duplicate-ids',dup[:20],len(dup)])
-              report['source_files'][fn]={
-                  'family':family,'eligible_for_treatment':eligible,'tag_counts':dict(counts),
-                  'flow_attribute_sets':{','.join(k):v for k,v in flow_attrsets.items()},
-                  'flow_summaries':flow_summary,'compiled_n':len(entries),
-                  'explicit_n':len(explicit),'duplicate_id_n':len(dup),
-              }
+              report['source_files'][fn]={'family':family,'eligible_for_treatment':eligible,'tag_counts':dict(counts),'flow_attribute_sets':{','.join(k):v for k,v in flow_attrsets.items()},'flow_summaries':flow_summary,'compiled_n':len(entries),'explicit_n':len(explicit),'duplicate_id_n':len(dup),'sample_vehicle_person_attrs':samples,'depart_token_top':depart_tokens.most_common(12)}
               all_entries.extend(entries)
 
-          eligible_entries=[x for x in all_entries if x['family'] in {'commercial','highway','pedestrian','special'}]
-          background_entries=[x for x in all_entries if x['family'] in {'bus','train'}]
-          elig_ids=sorted(x['id'] for x in eligible_entries)
-          all_ids=sorted(x['id'] for x in all_entries)
+          eligible_entries=[x for x in all_entries if x['family'] in {'commercial','highway','pedestrian','special'}]; background_entries=[x for x in all_entries if x['family'] in {'bus','train'}]
+          elig_ids=sorted(x['id'] for x in eligible_entries); all_ids=sorted(x['id'] for x in all_entries)
           if len(elig_ids)!=len(set(elig_ids)): unsupported.append(['eligible','duplicate-id'])
           if len(all_ids)!=len(set(all_ids)): unsupported.append(['all','duplicate-id'])
+          # Pedestrian-linked vehicle semantics must be resolved before frame admission.
+          ped=report['source_files']['most.pedestrian.rou.xml']
+          if ped['tag_counts'].get('vehicle',0)>0 and ped['compiled_n']==0: unsupported.append(['most.pedestrian.rou.xml','vehicle-depart-semantics-unresolved'])
 
-          # Explicit nested cohorts: stable SHA-256 ranking over the ex-ante eligible frame.
-          ranked=sorted(elig_ids,key=lambda v:(hashlib.sha256(('RITHM-S02.14|'+v).encode()).hexdigest(),v))
-          n=len(ranked)
-          n30=math.floor(0.30*n)
-          n70=math.floor(0.70*n)
-          cohorts={'p000':[], 'p030':ranked[:n30], 'p070':ranked[:n70], 'p100':ranked}
-          assert set(cohorts['p030']) <= set(cohorts['p070']) <= set(cohorts['p100'])
-
+          ranked=sorted(elig_ids,key=lambda v:(hashlib.sha256(('RITHM-S02.14|'+v).encode()).hexdigest(),v)); n=len(ranked); n30=math.floor(.30*n); n70=math.floor(.70*n)
+          cohorts={'p000':[],'p030':ranked[:n30],'p070':ranked[:n70],'p100':ranked}; assert set(cohorts['p030'])<=set(cohorts['p070'])<=set(cohorts['p100'])
           frame_lines=[f"{x['id']}\t{x['scheduled_depart']:.3f}\t{x['family']}\t{x['source_kind']}\t{x['vtype']}" for x in sorted(all_entries,key=lambda z:(z['scheduled_depart'],z['id']))]
           elig_lines=[f"{x['id']}\t{x['scheduled_depart']:.3f}\t{x['family']}\t{x['source_kind']}\t{x['vtype']}" for x in sorted(eligible_entries,key=lambda z:(z['scheduled_depart'],z['id']))]
-          Path('s02-14-demand-frame.tsv').write_text('id\tscheduled_depart\tfamily\tsource_kind\tvtype\n'+'\n'.join(frame_lines)+'\n')
-          Path('s02-14-eligible-frame.tsv').write_text('id\tscheduled_depart\tfamily\tsource_kind\tvtype\n'+'\n'.join(elig_lines)+'\n')
-          for k,v in cohorts.items():
-              Path(f's02-14-{k}-explicit.txt').write_text('\n'.join(v)+'\n')
-
+          Path('s02-14-demand-frame.tsv').write_text('id\tscheduled_depart\tfamily\tsource_kind\tvtype\n'+'\n'.join(frame_lines)+'\n'); Path('s02-14-eligible-frame.tsv').write_text('id\tscheduled_depart\tfamily\tsource_kind\tvtype\n'+'\n'.join(elig_lines)+'\n')
+          for k,v in cohorts.items(): Path(f's02-14-{k}-explicit.txt').write_text('\n'.join(v)+'\n')
           def sha(path): return hashlib.sha256(Path(path).read_bytes()).hexdigest()
-          report['frame']={
-              'all_n':len(all_entries),'eligible_n':len(eligible_entries),'background_n':len(background_entries),
-              'family_counts':dict(collections.Counter(x['family'] for x in all_entries)),
-              'compiler_rule':'explicit vehicle/trip with 14400<=depart<50400; deterministic period flow expanded as id.k while begin+k*period<min(flow.end,50400)',
-              'eligibility_rule':'source family in commercial|highway|pedestrian|special; bus|train background-only',
-              'unsupported_constructs':unsupported,
-              'frame_sha256':sha('s02-14-demand-frame.tsv'),
-              'eligible_frame_sha256':sha('s02-14-eligible-frame.tsv'),
-              'cohort_sizes':{k:len(v) for k,v in cohorts.items()},
-              'cohort_sha256':{k:sha(f's02-14-{k}-explicit.txt') for k in cohorts},
-              'nested_exact':True,
-              'ranking_rule':'ascending SHA256("RITHM-S02.14|" + vehicleID), tie by vehicleID; floor(.30N), floor(.70N), N',
-          }
+          report['frame']={'all_n':len(all_entries),'eligible_n':len(eligible_entries),'background_n':len(background_entries),'family_counts':dict(collections.Counter(x['family'] for x in all_entries)),'compiler_rule':'explicit numeric-depart vehicle/trip + deterministic period-flow expansion; pedestrian-triggered semantics unresolved until separately identified','eligibility_rule':'source family commercial|highway|pedestrian|special; bus|train background-only','unsupported_constructs':unsupported,'frame_sha256':sha('s02-14-demand-frame.tsv'),'eligible_frame_sha256':sha('s02-14-eligible-frame.tsv'),'cohort_sizes':{k:len(v) for k,v in cohorts.items()},'cohort_sha256':{k:sha(f's02-14-{k}-explicit.txt') for k in cohorts},'nested_exact':True,'ranking_rule':'ascending SHA256("RITHM-S02.14|"+vehicleID), tie vehicleID; floor(.30N), floor(.70N), N'}
           report['admission']='PASS-STATIC-COMPILER' if not unsupported else 'HOLD-UNSUPPORTED-SOURCE-CONSTRUCT'
-          Path('s02-14-preseal-audit.json').write_text(json.dumps(report,indent=2,sort_keys=True))
-          print(json.dumps(report,indent=2,sort_keys=True))
+          Path('s02-14-preseal-audit.json').write_text(json.dumps(report,indent=2,sort_keys=True)); print(json.dumps(report,indent=2,sort_keys=True))
           PY
 
       - name: Upload preseal receipts

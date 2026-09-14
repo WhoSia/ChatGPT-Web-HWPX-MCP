@@ -1,0 +1,144 @@
+name: RITHM S02.13-R1 outcome-blind admission-meter audit
+
+on:
+  push:
+    branches: [rithm-s02-13-r1]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Download sealed T120 raw artifacts from original S02.13 run
+        uses: actions/download-artifact@v4
+        with:
+          pattern: s02-13-T120-p*
+          path: cells
+          repository: WhoSia/ChatGPT-Web-HWPX-MCP
+          run-id: 34798945958
+          github-token: ${{ github.token }}
+
+      - name: Parse instrumentation only — duration forbidden
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import xml.etree.ElementTree as ET
+          import json
+
+          ps=['000','030','070','100']
+          rows={}
+
+          def load(p):
+              f=Path('cells')/f's02-13-T120-p{p}'/'tripinfo.xml'
+              assert f.exists(), f'MISSING {f}'
+              all_ids=set(); elig=set(); equip=set(); excluded=set()
+              vtypes={}; departed=set(); raw_devices={}
+              for _,e in ET.iterparse(f,events=('end',)):
+                  if e.tag!='tripinfo':
+                      e.clear(); continue
+                  # OUTCOME FIREWALL: do not access duration, waitingTime, timeLoss, routeLength, rerouteNo.
+                  vid=e.attrib.get('id','')
+                  vt=e.attrib.get('vType',e.attrib.get('vtype',''))
+                  devices=e.attrib.get('devices','')
+                  depart=e.attrib.get('depart','-1')
+                  all_ids.add(vid); vtypes[vid]=vt; raw_devices[vid]=devices
+                  try:
+                      if float(depart)>=0: departed.add(vid)
+                  except ValueError:
+                      pass
+                  if vt in {'bus','train'}:
+                      excluded.add(vid)
+                  else:
+                      elig.add(vid)
+                      # Exact SUMO 1.14.0 source constructs MSDevice_Routing id as routing_<vehicleID>.
+                      if f'routing_{vid}' in devices:
+                          equip.add(vid)
+                  e.clear()
+              return dict(all_ids=all_ids,eligible=elig,equip=equip,excluded=excluded,
+                          vtypes=vtypes,departed=departed,devices=raw_devices)
+
+          d={p:load(p) for p in ps}
+          common_all=set.intersection(*(d[p]['all_ids'] for p in ps))
+          common_elig=set.intersection(*(d[p]['eligible'] for p in ps))
+
+          report={
+            'seal':'S02.13-R1 OUTCOME-BLIND INSTRUMENTATION ONLY',
+            'source_run':34798945958,
+            'duration_read':False,
+            'routing_device_detector':'exact substring routing_<vehicleID>',
+            'cells':{},
+            'universe':{}
+          }
+
+          for p in ps:
+              x=d[p]
+              report['cells'][p]={
+                'all_tripinfo_n':len(x['all_ids']),
+                'eligible_n':len(x['eligible']),
+                'excluded_bus_train_n':len(x['excluded']),
+                'equipped_n':len(x['equip']),
+                'equipped_fraction_eligible':len(x['equip'])/max(1,len(x['eligible'])),
+                'departed_n':len(x['departed']),
+                'undeparted_n':len(x['all_ids']-x['departed']),
+                'device_string_examples':sorted({x['devices'][v] for v in sorted(x['all_ids']) if x['devices'][v]})[:8]
+              }
+
+          base=d['000']
+          report['universe']['all_id_sets_stable']=all(d[p]['all_ids']==base['all_ids'] for p in ps)
+          report['universe']['eligible_id_sets_stable']=all(d[p]['eligible']==base['eligible'] for p in ps)
+          report['universe']['common_all_n']=len(common_all)
+          report['universe']['common_eligible_n']=len(common_elig)
+          report['universe']['all_id_symmetric_difference_vs_p000']={
+              p:len(d[p]['all_ids'] ^ base['all_ids']) for p in ps[1:]
+          }
+          report['universe']['eligible_symmetric_difference_vs_p000']={
+              p:len(d[p]['eligible'] ^ base['eligible']) for p in ps[1:]
+          }
+          report['universe']['vtype_changes_on_common_all_vs_p000']={
+              p:sum(base['vtypes'][v]!=d[p]['vtypes'][v] for v in (base['all_ids'] & d[p]['all_ids']))
+              for p in ps[1:]
+          }
+          report['universe']['excluded_bus_train_counts']={p:len(d[p]['excluded']) for p in ps}
+          report['universe']['all_id_only_in_cell_samples']={
+              p:sorted(d[p]['all_ids'] - common_all)[:30] for p in ps
+          }
+
+          # Cohort diagnostics are restricted to the common eligible universe so drift cannot fake nesting.
+          E={p:(d[p]['equip'] & common_elig) for p in ps}
+          report['cohort_common_eligible']={
+              'n':len(common_elig),
+              'equipped_n':{p:len(E[p]) for p in ps},
+              'fractions':{p:len(E[p])/max(1,len(common_elig)) for p in ps},
+              'p0_empty':len(E['000'])==0,
+              'nested_30_70_100':E['030'] <= E['070'] <= E['100'],
+              'p100_full':E['100']==common_elig,
+              'p30_not_in_p70_n':len(E['030']-E['070']),
+              'p70_not_in_p100_n':len(E['070']-E['100'])
+          }
+
+          # Classify the meter failure without changing the frozen scientific gate.
+          meter_fixed=(report['cells']['100']['equipped_n']>0 and
+                       0.29 <= report['cells']['030']['equipped_fraction_eligible'] <= 0.31 and
+                       0.69 <= report['cells']['070']['equipped_fraction_eligible'] <= 0.71)
+          report['classification']={
+              'old_zero_equipment_was_parser_false_negative':meter_fixed,
+              'stable_universe_issue_remains_independent':not report['universe']['eligible_id_sets_stable'],
+              'scientific_target_scoring_authorized':False,
+              'required_next_action':'resolve stable-universe semantics prospectively; do not score duration from source run'
+          }
+
+          Path('s02-13-r1-audit.json').write_text(json.dumps(report,indent=2,sort_keys=True))
+          print(json.dumps(report,indent=2,sort_keys=True))
+          PY
+
+      - name: Upload immutable R1 audit receipt
+        uses: actions/upload-artifact@v4
+        with:
+          name: s02-13-r1-outcome-blind-audit
+          path: s02-13-r1-audit.json
+          if-no-files-found: error
+          retention-days: 30

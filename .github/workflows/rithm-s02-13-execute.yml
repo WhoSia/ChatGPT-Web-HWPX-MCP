@@ -1,0 +1,299 @@
+name: RITHM S02.13 Monaco sealed execution
+
+on:
+  push:
+    branches: [rithm-s02-13-executor]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rithm-s02-13-monaco
+  cancel-in-progress: false
+
+jobs:
+  simulate:
+    name: simulate-${{ matrix.regime }}-p${{ matrix.plabel }}
+    runs-on: ubuntu-22.04
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      max-parallel: 8
+      matrix:
+        include:
+          - regime: T120
+            teleport: "120"
+            p: "0"
+            plabel: "000"
+          - regime: T120
+            teleport: "120"
+            p: "0.30"
+            plabel: "030"
+          - regime: T120
+            teleport: "120"
+            p: "0.70"
+            plabel: "070"
+          - regime: T120
+            teleport: "120"
+            p: "1.00"
+            plabel: "100"
+          - regime: TNEG
+            teleport: "-1"
+            p: "0"
+            plabel: "000"
+          - regime: TNEG
+            teleport: "-1"
+            p: "0.30"
+            plabel: "030"
+          - regime: TNEG
+            teleport: "-1"
+            p: "0.70"
+            plabel: "070"
+          - regime: TNEG
+            teleport: "-1"
+            p: "1.00"
+            plabel: "100"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install exact SUMO and verify engine
+        run: |
+          python -m pip install --no-cache-dir 'eclipse-sumo==1.14.0'
+          SUMO_HOME="$(python - <<'PY'
+          import sumo
+          print(sumo.SUMO_HOME)
+          PY
+          )"
+          echo "SUMO_HOME=$SUMO_HOME" >> "$GITHUB_ENV"
+          "$SUMO_HOME/bin/sumo" --version > sumo-version.txt
+          grep -Eiq 'Version[[:space:]]+1\.14\.0([^0-9]|$)' sumo-version.txt
+
+      - name: Materialize exact MoST witness and verify anchor bytes
+        run: |
+          git clone --no-checkout https://github.com/lcodeca/MoSTScenario.git most
+          cd most
+          git checkout --detach b29b2f65f1096a9c69a601ec62a724815cb4a43f
+          test "$(git rev-parse HEAD)" = "b29b2f65f1096a9c69a601ec62a724815cb4a43f"
+          test "$(git hash-object scenario/most.sumocfg)" = "03dbc535acd7057731a1de8924115a9276842426"
+          test "$(git hash-object scenario/in/most.net.xml)" = "6ffae75cfe63992c04a6395fbbe86cc39166140c"
+          test "$(git hash-object scenario/in/add/basic.vType.xml)" = "d9aebbde5cfeb8dbee6203d6c5fdf3b1f4666a21"
+
+      - name: Execute sealed cell without target aggregation
+        env:
+          P: ${{ matrix.p }}
+          TELEPORT: ${{ matrix.teleport }}
+          REGIME: ${{ matrix.regime }}
+          PLABEL: ${{ matrix.plabel }}
+        run: |
+          cd most/scenario
+          mkdir -p ../../raw
+          printf '%s\n' \
+            "regime=$REGIME" \
+            "p=$P" \
+            "teleport=$TELEPORT" \
+            'sumo=1.14.0' \
+            'most_commit=b29b2f65f1096a9c69a601ec62a724815cb4a43f' \
+            'target_aggregation=PROHIBITED-IN-SIMULATION-JOB' \
+            > ../../raw/cell-receipt.txt
+          "$SUMO_HOME/bin/sumo" -c most.sumocfg \
+            --device.rerouting.probability "$P" \
+            --device.rerouting.deterministic false \
+            --time-to-teleport "$TELEPORT" \
+            --tripinfo-output tripinfo.xml \
+            --tripinfo-output.write-unfinished true \
+            --duration-log.statistics false \
+            --verbose false \
+            --no-step-log true
+          test -s most.tripinfo.xml
+          mv most.tripinfo.xml ../../raw/tripinfo.xml
+          if [ -f most.sim.log ]; then mv most.sim.log ../../raw/sim.log; fi
+          cd ../..
+          cp sumo-version.txt raw/sumo-version.txt
+          sha256sum raw/tripinfo.xml > raw/tripinfo.sha256
+
+      - name: Upload raw sealed cell
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: s02-13-${{ matrix.regime }}-p${{ matrix.plabel }}
+          path: raw/
+          if-no-files-found: warn
+          retention-days: 30
+
+  admission:
+    name: cohort-and-completion-admission
+    runs-on: ubuntu-22.04
+    needs: simulate
+    if: ${{ always() }}
+    outputs:
+      t120_admitted: ${{ steps.audit.outputs.t120_admitted }}
+      tneg_admitted: ${{ steps.audit.outputs.tneg_admitted }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: s02-13-*
+          path: cells
+
+      - name: Audit equipment nesting and completion without reading duration
+        id: audit
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import xml.etree.ElementTree as ET
+          import json, os
+
+          ps = ['000','030','070','100']
+          regimes = ['T120','TNEG']
+          report = {}
+
+          def load(regime, p):
+              f = Path('cells') / f's02-13-{regime}-p{p}' / 'tripinfo.xml'
+              if not f.exists():
+                  return None
+              ids=set(); equip=set(); finished=set(); types={}
+              for ev, elem in ET.iterparse(f, events=('end',)):
+                  if elem.tag != 'tripinfo':
+                      elem.clear(); continue
+                  vid=elem.attrib.get('id','')
+                  vt=elem.attrib.get('vType', elem.attrib.get('vtype',''))
+                  if vt in {'bus','train'}:
+                      elem.clear(); continue
+                  ids.add(vid); types[vid]=vt
+                  if 'rerouting' in elem.attrib.get('devices',''):
+                      equip.add(vid)
+                  try:
+                      if float(elem.attrib.get('arrival','-1')) >= 0:
+                          finished.add(vid)
+                  except ValueError:
+                      pass
+                  elem.clear()
+              return {'ids':ids,'equip':equip,'finished':finished}
+
+          admitted={}
+          for regime in regimes:
+              d={p:load(regime,p) for p in ps}
+              missing=[p for p,v in d.items() if v is None]
+              if missing:
+                  report[regime]={'admitted':False,'reason':'MISSING_CELL','missing':missing}
+                  admitted[regime]=False
+                  continue
+              stable = all(d[p]['ids'] == d['000']['ids'] for p in ps)
+              nested = d['030']['equip'] <= d['070']['equip'] <= d['100']['equip']
+              zero = len(d['000']['equip']) == 0
+              full = d['100']['equip'] == d['100']['ids']
+              n30 = len(d['030']['equip'])/max(1,len(d['030']['ids']))
+              n70 = len(d['070']['equip'])/max(1,len(d['070']['ids']))
+              fraction_ok = abs(n30-.30) <= .01 and abs(n70-.70) <= .01
+              completion={p:len(d[p]['finished'])/max(1,len(d[p]['ids'])) for p in ps}
+              completion_ok=all(v >= .995 for v in completion.values())
+              ok=stable and nested and zero and full and fraction_ok and completion_ok
+              admitted[regime]=ok
+              report[regime]={
+                  'admitted':ok,
+                  'stable_universe':stable,
+                  'nested_30_70_100':nested,
+                  'p0_empty':zero,
+                  'p100_full':full,
+                  'fraction30':n30,
+                  'fraction70':n70,
+                  'fraction_gate':fraction_ok,
+                  'completion':completion,
+                  'completion_gate':completion_ok,
+                  'eligible_n':{p:len(d[p]['ids']) for p in ps},
+                  'equipped_n':{p:len(d[p]['equip']) for p in ps}
+              }
+          Path('admission.json').write_text(json.dumps(report,indent=2,sort_keys=True))
+          print(json.dumps(report,indent=2,sort_keys=True))
+          with open(os.environ['GITHUB_OUTPUT'],'a') as g:
+              g.write(f"t120_admitted={'true' if admitted.get('T120') else 'false'}\n")
+              g.write(f"tneg_admitted={'true' if admitted.get('TNEG') else 'false'}\n")
+          if not admitted.get('T120'):
+              raise SystemExit('T120 HOLD-COHORT/COMPLETION: TARGET-SCORING-PROHIBITED')
+          PY
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: s02-13-admission-receipt
+          path: admission.json
+          if-no-files-found: warn
+          retention-days: 30
+
+  score:
+    name: score-presealed-curvature
+    runs-on: ubuntu-22.04
+    needs: admission
+    if: ${{ needs.admission.outputs.t120_admitted == 'true' }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: s02-13-*
+          path: cells
+
+      - name: Parse duration only after admission PASS and apply frozen rule
+        env:
+          TNEG_ADMITTED: ${{ needs.admission.outputs.tneg_admitted }}
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import xml.etree.ElementTree as ET
+          import json, os
+
+          ps=['000','030','070','100']
+          pval={'000':0.0,'030':0.30,'070':0.70,'100':1.0}
+          eps=.005
+
+          def mean_duration(regime,p):
+              f=Path('cells')/f's02-13-{regime}-p{p}'/'tripinfo.xml'
+              vals=[]
+              for ev,elem in ET.iterparse(f,events=('end',)):
+                  if elem.tag!='tripinfo':
+                      elem.clear(); continue
+                  vt=elem.attrib.get('vType',elem.attrib.get('vtype',''))
+                  if vt not in {'bus','train'}:
+                      vals.append(float(elem.attrib['duration']))
+                  elem.clear()
+              return sum(vals)/len(vals),len(vals)
+
+          result={'epsilon':eps,'primary':'C_T120','endpoint_non_gating':True}
+          for regime in ['T120'] + (['TNEG'] if os.environ.get('TNEG_ADMITTED')=='true' else []):
+              D={p:mean_duration(regime,p)[0] for p in ps}
+              R={p:D[p]/D['000']-1 for p in ps}
+              C=(R['100']-R['070'])-(R['030']-R['000'])
+              if C>eps: verdict='PASS-CURVATURE'
+              elif C<-eps: verdict='REVERSE-CURVATURE'
+              else: verdict='UNRESOLVED-NUMERICAL'
+              result[regime]={'D':D,'R':R,'C':C,'verdict':verdict}
+          c=result['T120']['C']
+          if c>eps:
+              primary='PASS-FRESH-MODEL-CURVATURE-TRANSPORT'
+          elif c<-eps:
+              primary='DEFEAT-FRESH-MODEL-CURVATURE-TRANSPORT'
+          else:
+              primary='UNRESOLVED-FRESH-MODEL-CURVATURE'
+          result['primary_verdict']=primary
+          if 'TNEG' not in result:
+              result['teleport_verdict']='GRIDLOCK-BOUNDARY / HOLD-TELEPORT-FALSIFICATION'
+          elif result['T120']['verdict']=='PASS-CURVATURE' and result['TNEG']['verdict']=='PASS-CURVATURE':
+              result['teleport_verdict']='PASS-TELEPORT-ROBUST'
+          elif result['T120']['verdict']=='PASS-CURVATURE':
+              result['teleport_verdict']='REGULARIZATION-SENSITIVE'
+          elif result['T120']['verdict']=='REVERSE-CURVATURE':
+              result['teleport_verdict']='PRIMARY-DEFEAT-REGARDLESS-OF-TNEG'
+          else:
+              result['teleport_verdict']='UNRESOLVED'
+          Path('score.json').write_text(json.dumps(result,indent=2,sort_keys=True))
+          print(json.dumps(result,indent=2,sort_keys=True))
+          PY
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: s02-13-score-receipt
+          path: score.json
+          if-no-files-found: error
+          retention-days: 30

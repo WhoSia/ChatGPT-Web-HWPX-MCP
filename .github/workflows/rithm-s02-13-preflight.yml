@@ -1,0 +1,88 @@
+name: RITHM S02.13 Monaco exact preflight
+
+on:
+  push:
+    branches: [rithm-s02-13-executor]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  exact-preflight:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout runner repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install exact Eclipse SUMO 1.14.0
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install --no-cache-dir 'eclipse-sumo==1.14.0'
+          mkdir -p receipt
+          python - <<'PY' | tee receipt/python-sumo-receipt.txt
+          import importlib.metadata, sumo
+          print('eclipse-sumo-package=' + importlib.metadata.version('eclipse-sumo'))
+          print('SUMO_HOME=' + sumo.SUMO_HOME)
+          PY
+          SUMO_HOME="$(python - <<'PY'
+          import sumo
+          print(sumo.SUMO_HOME)
+          PY
+          )"
+          echo "$SUMO_HOME/bin" >> "$GITHUB_PATH"
+          "$SUMO_HOME/bin/sumo" --version | tee receipt/sumo-version.txt
+          grep -Eiq 'Version[[:space:]]+1\.14\.0([^0-9]|$)' receipt/sumo-version.txt
+
+      - name: Checkout exact MoST witness
+        run: |
+          git clone --no-checkout https://github.com/lcodeca/MoSTScenario.git most
+          cd most
+          git checkout --detach b29b2f65f1096a9c69a601ec62a724815cb4a43f
+          test "$(git rev-parse HEAD)" = "b29b2f65f1096a9c69a601ec62a724815cb4a43f"
+          git rev-parse HEAD | tee ../receipt/most-commit.txt
+
+      - name: Verify sealed MoST Git blobs
+        run: |
+          cd most
+          check_blob() {
+            path="$1"; expected="$2"
+            actual="$(git hash-object "$path")"
+            printf '%s  %s  %s\n' "$expected" "$actual" "$path" >> ../receipt/blob-manifest.txt
+            test "$actual" = "$expected"
+          }
+          check_blob scenario/most.sumocfg 03dbc535acd7057731a1de8924115a9276842426
+          check_blob scenario/in/most.net.xml 6ffae75cfe63992c04a6395fbbe86cc39166140c
+          check_blob scenario/in/add/basic.vType.xml d9aebbde5cfeb8dbee6203d6c5fdf3b1f4666a21
+          check_blob scenario/in/route/most.buses.flows.xml d40c61978b3905d26fba2fc34ad589e22372d255
+          check_blob scenario/in/route/most.commercial.rou.xml 8395d7c3b4239b1d0c0ab7fb53ee1d1e6f5627a1
+          check_blob scenario/in/route/most.highway.flows.xml 4de691732a3422125789c5de465af26e76a8247d
+          check_blob scenario/in/route/most.pedestrian.rou.xml 8207662a58ceccd932fd11715ffdae7df39dec25
+          check_blob scenario/in/route/most.special.rou.xml 4cc76e02bb462551f191c0ad4c325a28d17bdf50
+          check_blob scenario/in/route/most.trains.flows.xml 9888bea419cd8c78350380786df0c1dcbeb2062c
+          cat ../receipt/blob-manifest.txt
+
+      - name: Record preflight seal
+        run: |
+          printf '%s\n' \
+            'S02.13-PREFLIGHT=PASS-CANDIDATE' \
+            'TARGET-OUTCOME-EXECUTION=0' \
+            'TARGET-DURATION-PARSED=0' \
+            'SUMO=1.14.0' \
+            'MOST=b29b2f65f1096a9c69a601ec62a724815cb4a43f' \
+            > receipt/preflight-seal.txt
+          cat receipt/preflight-seal.txt
+
+      - name: Upload immutable preflight receipt
+        uses: actions/upload-artifact@v4
+        with:
+          name: rithm-s02-13-preflight-receipt
+          path: receipt/
+          if-no-files-found: error
+          retention-days: 30

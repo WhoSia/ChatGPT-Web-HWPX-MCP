@@ -24,7 +24,7 @@ jobs:
           git clone --depth 1 --branch v1_14_0 https://github.com/eclipse-sumo/sumo.git sumo-src
           cmake -S sumo-src -B sumo-build -DCMAKE_BUILD_TYPE=Release
           cmake --build sumo-build --target sumo -j2
-          sumo-build/bin/sumo --version | tee sumo-source-version.txt
+          sumo-src/bin/sumo --version | tee sumo-source-version.txt
           grep -Eiq 'Version[[:space:]]+1\.14\.0([^0-9]|$)' sumo-source-version.txt
           grep -Eq 'GDAL' sumo-source-version.txt
 
@@ -41,7 +41,7 @@ jobs:
         working-directory: most/scenario
         run: |
           set -euo pipefail
-          ../../sumo-build/bin/sumo -c most.sumocfg --end 14400.25 --no-step-log true > smoke.stdout.txt 2> smoke.stderr.txt
+          ../../sumo-src/bin/sumo -c most.sumocfg --end 14400.25 --no-step-log true > smoke.stdout.txt 2> smoke.stderr.txt
           cat smoke.stderr.txt
           cat smoke.stdout.txt
 

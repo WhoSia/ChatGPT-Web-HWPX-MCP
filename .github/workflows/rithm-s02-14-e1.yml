@@ -1,0 +1,265 @@
+name: RITHM S02.14-E1 frozen T120 execution
+
+on:
+  push:
+    branches: [rithm-s02-14-e1]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  cell:
+    name: T120-p${{ matrix.label }}
+    runs-on: ubuntu-22.04
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: '000'
+            cohort_file: s02-14-p000-explicit.txt
+          - label: '030'
+            cohort_file: s02-14-p030-explicit.txt
+          - label: '070'
+            cohort_file: s02-14-p070-explicit.txt
+          - label: '100'
+            cohort_file: s02-14-p100-explicit.txt
+    steps:
+      - name: Download immutable S02.14 preseal receipts
+        uses: actions/download-artifact@v4
+        with:
+          name: s02-14-preseal-receipts
+          path: seal
+          repository: WhoSia/ChatGPT-Web-HWPX-MCP
+          run-id: 34809646166
+          github-token: ${{ github.token }}
+
+      - name: Verify frozen frame and cohort hashes
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(sha256sum seal/s02-14-demand-frame.tsv | cut -d' ' -f1)" = 'ad718af789d1402b2d809bbf0c0fa2b5786c71675a4c81ebf91bcd03a957022d'
+          test "$(sha256sum seal/s02-14-eligible-frame.tsv | cut -d' ' -f1)" = 'e62c94e400e4e868c8ec2d3f734801c56dd0ba03fa2c050f32e223e876c43293'
+          case '${{ matrix.label }}' in
+            000) want='e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855' ;;
+            030) want='1b9fba0675825b770afe24159fc39c4ba12b6f78fa05e432d77ad8e7556f83f5' ;;
+            070) want='f4855d4965e9d7268f97a2d0c90f11b4d9632cd6cd8d22ff2d15ed4804cd9270' ;;
+            100) want='21d0db278e7c39d9403520b10ab471470a03c30cd908c587677a1d5249f8f634' ;;
+          esac
+          got="$(sha256sum seal/${{ matrix.cohort_file }} | cut -d' ' -f1)"
+          test "$got" = "$want"
+
+      - name: Install exact Eclipse SUMO 1.14.0
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --no-cache-dir 'eclipse-sumo==1.14.0'
+          SUMO_HOME="$(python - <<'PY'
+          import sumo
+          print(sumo.SUMO_HOME)
+          PY
+          )"
+          echo "$SUMO_HOME/bin" >> "$GITHUB_PATH"
+          "$SUMO_HOME/bin/sumo" --version | tee sumo-version.txt
+          grep -Eiq 'Version[[:space:]]+1\.14\.0([^0-9]|$)' sumo-version.txt
+
+      - name: Checkout exact MoST commit and verify canonical bytes
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone --no-checkout https://github.com/lcodeca/MoSTScenario.git most
+          cd most
+          git checkout --detach b29b2f65f1096a9c69a601ec62a724815cb4a43f
+          test "$(git rev-parse HEAD)" = 'b29b2f65f1096a9c69a601ec62a724815cb4a43f'
+          test "$(git hash-object scenario/most.sumocfg)" = '03dbc535acd7057731a1de8924115a9276842426'
+
+      - name: Materialize frozen treatment config
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          import xml.etree.ElementTree as ET, hashlib, json
+          label='${{ matrix.label }}'
+          cohort_path=Path('seal/${{ matrix.cohort_file }}')
+          cohort=[x for x in cohort_path.read_text().splitlines() if x]
+          expected_n={'000':0,'030':13746,'070':32075,'100':45822}[label]
+          assert len(cohort)==expected_n and len(set(cohort))==expected_n
+          src=Path('most/scenario/most.sumocfg')
+          tree=ET.parse(src); root=tree.getroot(); routing=root.find('routing'); out=root.find('output'); proc=root.find('processing')
+          assert routing is not None and out is not None and proc is not None
+          def setv(parent,name,value):
+              e=parent.find(name)
+              if e is None: e=ET.SubElement(parent,name)
+              e.set('value',str(value))
+          setv(routing,'device.rerouting.probability','0')
+          setv(routing,'device.rerouting.period','300')
+          setv(routing,'device.rerouting.pre-period','300')
+          old=routing.find('device.rerouting.explicit')
+          if old is not None: routing.remove(old)
+          if cohort:
+              e=ET.SubElement(routing,'device.rerouting.explicit'); e.set('value',','.join(cohort))
+          setv(proc,'time-to-teleport','120')
+          setv(out,'tripinfo-output',f'e1-p{label}-tripinfo.xml')
+          setv(out,'tripinfo-output.write-unfinished','true')
+          cfg=Path(f'most/scenario/e1-p{label}.sumocfg')
+          tree.write(cfg,encoding='utf-8',xml_declaration=True)
+          receipt={
+            'label':label,'cohort_n':len(cohort),'global_probability':0,'period':300,'pre_period':300,
+            'time_to_teleport':120,'max_depart_delay':900,'tripinfo_write_unfinished':True,
+            'config_sha256':hashlib.sha256(cfg.read_bytes()).hexdigest(),
+            'target_outcome_read':False
+          }
+          Path(f'e1-p{label}-config-receipt.json').write_text(json.dumps(receipt,indent=2,sort_keys=True))
+          PY
+
+      - name: Parser round-trip before simulation
+        shell: bash
+        working-directory: most/scenario
+        run: |
+          set -euo pipefail
+          sumo -c e1-p${{ matrix.label }}.sumocfg -C e1-p${{ matrix.label }}.roundtrip.sumocfg
+          test -s e1-p${{ matrix.label }}.roundtrip.sumocfg
+
+      - name: Execute frozen T120 cell
+        shell: bash
+        working-directory: most/scenario
+        run: |
+          set -euo pipefail
+          /usr/bin/time -v sumo -c e1-p${{ matrix.label }}.sumocfg --no-step-log true > e1-p${{ matrix.label }}.stdout.txt 2> e1-p${{ matrix.label }}.stderr.txt
+          test -s e1-p${{ matrix.label }}-tripinfo.xml
+
+      - name: Materialize frame-complete per-ID burden receipt
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          import csv, json, math, hashlib, xml.etree.ElementTree as ET
+          label='${{ matrix.label }}'; H=50400.0
+          frame={}
+          with open('seal/s02-14-eligible-frame.tsv',newline='') as f:
+              r=csv.DictReader(f,delimiter='\t')
+              for row in r:
+                  frame[row['id']]=float(row['activation_time'])
+          assert len(frame)==45822
+          trip=Path(f'most/scenario/e1-p{label}-tripinfo.xml')
+          arrivals={}; duplicate=[]
+          materialized=0; completed=0; unfinished=0
+          for _,e in ET.iterparse(trip,events=('end',)):
+              if e.tag.split('}')[-1] != 'tripinfo':
+                  e.clear(); continue
+              vid=e.attrib.get('id')
+              if vid not in frame:
+                  e.clear(); continue
+              if vid in arrivals: duplicate.append(vid)
+              materialized += 1
+              raw=e.attrib.get('arrival','-1')
+              try: a=float(raw)
+              except: a=-1.0
+              if math.isfinite(a) and a >= 0 and a <= H:
+                  arrivals[vid]=a; completed += 1
+              else:
+                  arrivals[vid]=H; unfinished += 1
+              e.clear()
+          assert not duplicate, duplicate[:20]
+          total=0.0; absent=0; negative_guard=0
+          rows=[]
+          for vid,s in frame.items():
+              if vid in arrivals: A=arrivals[vid]; status='observed'
+              else: A=H; status='absent'; absent+=1
+              b=A-s
+              if b < -1e-9: negative_guard += 1
+              total += b
+              rows.append((vid,s,A,b,status))
+          assert negative_guard==0
+          B=total/len(frame)
+          out={
+            'label':label,'frame_n':len(frame),'materialized_n':materialized,'completed_n':completed,
+            'unfinished_n':unfinished,'absent_n':absent,'B':B,'H':H,'negative_guard_n':negative_guard,
+            'tripinfo_sha256':hashlib.sha256(trip.read_bytes()).hexdigest(),
+            'frame_sha256':hashlib.sha256(Path('seal/s02-14-eligible-frame.tsv').read_bytes()).hexdigest()
+          }
+          Path(f'e1-p{label}-score.json').write_text(json.dumps(out,indent=2,sort_keys=True))
+          with open(f'e1-p{label}-framecomplete.tsv','w',newline='') as f:
+              w=csv.writer(f,delimiter='\t'); w.writerow(['id','activation_time','completion_clock','burden','status']); w.writerows(rows)
+          print(json.dumps(out,indent=2,sort_keys=True))
+          PY
+
+      - name: Upload cell receipt
+        uses: actions/upload-artifact@v4
+        with:
+          name: s02-14-e1-p${{ matrix.label }}
+          path: |
+            sumo-version.txt
+            e1-p${{ matrix.label }}-config-receipt.json
+            e1-p${{ matrix.label }}-score.json
+            e1-p${{ matrix.label }}-framecomplete.tsv
+            most/scenario/e1-p${{ matrix.label }}.roundtrip.sumocfg
+            most/scenario/e1-p${{ matrix.label }}.stdout.txt
+            most/scenario/e1-p${{ matrix.label }}.stderr.txt
+            most/scenario/e1-p${{ matrix.label }}-tripinfo.xml
+          if-no-files-found: error
+          retention-days: 90
+
+  score:
+    name: Frozen curvature score
+    needs: cell
+    if: ${{ always() && needs.cell.result == 'success' }}
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Download all four cell receipts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: s02-14-e1-p*
+          path: cells
+          merge-multiple: false
+
+      - name: Apply frozen S02.14 decision rule
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          import json, hashlib
+          scores={}
+          for label in ['000','030','070','100']:
+              p=Path('cells')/f's02-14-e1-p{label}'/f'e1-p{label}-score.json'
+              d=json.loads(p.read_text()); assert d['frame_n']==45822; scores[label]=d
+          B0=scores['000']['B']
+          assert B0>0
+          R={k:scores[k]['B']/B0-1 for k in scores}
+          C=(R['100']-R['070'])-(R['030']-R['000'])
+          eps=.005
+          if C>eps: verdict='PASS-FRESH-FRAME-COMPLETE-CURVATURE-RECOURT'
+          elif C<-eps: verdict='DEFEAT-FRESH-FRAME-COMPLETE-CURVATURE-RECOURT'
+          else: verdict='UNRESOLVED-FRAME-COMPLETE-CURVATURE'
+          out={
+            'B':{k:scores[k]['B'] for k in scores},'R_B':R,'C_B':C,'epsilon':eps,'verdict':verdict,
+            'diagnostics':{k:{x:scores[k][x] for x in ['materialized_n','completed_n','unfinished_n','absent_n']} for k in scores},
+            'tneg_authorized': verdict=='PASS-FRESH-FRAME-COMPLETE-CURVATURE-RECOURT',
+            'authority':'fresh censoring-aware model-mediated transport within SUMO/MoST family only'
+          }
+          Path('s02-14-e1-final-score.json').write_text(json.dumps(out,indent=2,sort_keys=True))
+          seal=(
+            f"S02.14-E1={verdict}\n"
+            f"C_B={C:.12g}\n"
+            f"EPS={eps}\n"
+            f"TNEG_AUTHORIZED={'YES' if out['tneg_authorized'] else 'NO'}\n"
+            "NO_POST_REVEAL_RETUNING=TRUE\n"
+          )
+          Path('s02-14-e1-seal.txt').write_text(seal)
+          print(json.dumps(out,indent=2,sort_keys=True)); print(seal)
+          PY
+
+      - name: Upload final E1 score receipt
+        uses: actions/upload-artifact@v4
+        with:
+          name: s02-14-e1-final
+          path: |
+            s02-14-e1-final-score.json
+            s02-14-e1-seal.txt
+          if-no-files-found: error
+          retention-days: 90

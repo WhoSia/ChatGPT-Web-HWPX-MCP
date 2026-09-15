@@ -1,0 +1,57 @@
+name: RITHM S02.14-E1 exact SUMO1.14 GDAL smoke
+
+on:
+  push:
+    branches: [rithm-s02-14-e1-gdal]
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+    steps:
+      - name: Install build dependencies
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends cmake g++ git libxerces-c-dev libgdal-dev libproj-dev libgl2ps-dev zlib1g-dev
+
+      - name: Build exact SUMO v1_14_0 from source
+        run: |
+          set -euo pipefail
+          git clone --depth 1 --branch v1_14_0 https://github.com/eclipse-sumo/sumo.git sumo-src
+          cmake -S sumo-src -B sumo-build -DCMAKE_BUILD_TYPE=Release
+          cmake --build sumo-build --target sumo -j2
+          sumo-build/bin/sumo --version | tee sumo-source-version.txt
+          grep -Eiq 'Version[[:space:]]+1\.14\.0([^0-9]|$)' sumo-source-version.txt
+          grep -Eq 'GDAL' sumo-source-version.txt
+
+      - name: Checkout exact MoST and verify canonical config
+        run: |
+          set -euo pipefail
+          git clone --no-checkout https://github.com/lcodeca/MoSTScenario.git most
+          cd most
+          git checkout --detach b29b2f65f1096a9c69a601ec62a724815cb4a43f
+          test "$(git rev-parse HEAD)" = 'b29b2f65f1096a9c69a601ec62a724815cb4a43f'
+          test "$(git hash-object scenario/most.sumocfg)" = '03dbc535acd7057731a1de8924115a9276842426'
+
+      - name: Canonical input load-only smoke
+        working-directory: most/scenario
+        run: |
+          set -euo pipefail
+          ../../sumo-build/bin/sumo -c most.sumocfg --end 14400.25 --no-step-log true > smoke.stdout.txt 2> smoke.stderr.txt
+          cat smoke.stderr.txt
+          cat smoke.stdout.txt
+
+      - name: Upload smoke receipt
+        uses: actions/upload-artifact@v4
+        with:
+          name: s02-14-e1-sumo114-gdal-smoke
+          path: |
+            sumo-source-version.txt
+            most/scenario/smoke.stdout.txt
+            most/scenario/smoke.stderr.txt
+          if-no-files-found: error
+          retention-days: 90

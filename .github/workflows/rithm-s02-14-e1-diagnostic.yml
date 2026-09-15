@@ -1,0 +1,91 @@
+name: RITHM S02.14-E1 p100 runtime diagnostic
+
+on:
+  push:
+    branches: [rithm-s02-14-e1-diagnostic]
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    steps:
+      - name: Download immutable S02.14 preseal receipts
+        uses: actions/download-artifact@v4
+        with:
+          name: s02-14-preseal-receipts
+          path: seal
+          repository: WhoSia/ChatGPT-Web-HWPX-MCP
+          run-id: 34809646166
+          github-token: ${{ github.token }}
+
+      - name: Install exact Eclipse SUMO 1.14.0
+        run: |
+          set -euo pipefail
+          python -m pip install --no-cache-dir 'eclipse-sumo==1.14.0'
+          SUMO_HOME="$(python - <<'PY'
+          import sumo
+          print(sumo.SUMO_HOME)
+          PY
+          )"
+          echo "$SUMO_HOME/bin" >> "$GITHUB_PATH"
+          "$SUMO_HOME/bin/sumo" --version
+
+      - name: Checkout exact MoST and materialize identical p100 config
+        run: |
+          set -euo pipefail
+          git clone --no-checkout https://github.com/lcodeca/MoSTScenario.git most
+          cd most
+          git checkout --detach b29b2f65f1096a9c69a601ec62a724815cb4a43f
+          cd ..
+          python - <<'PY'
+          from pathlib import Path
+          import xml.etree.ElementTree as ET
+          cohort=[x for x in Path('seal/s02-14-p100-explicit.txt').read_text().splitlines() if x]
+          assert len(cohort)==45822
+          src=Path('most/scenario/most.sumocfg'); tree=ET.parse(src); root=tree.getroot()
+          routing=root.find('routing'); out=root.find('output'); proc=root.find('processing')
+          def setv(parent,name,value):
+              e=parent.find(name)
+              if e is None: e=ET.SubElement(parent,name)
+              e.set('value',str(value))
+          setv(routing,'device.rerouting.probability','0')
+          setv(routing,'device.rerouting.period','300')
+          setv(routing,'device.rerouting.pre-period','300')
+          old=routing.find('device.rerouting.explicit')
+          if old is not None: routing.remove(old)
+          e=ET.SubElement(routing,'device.rerouting.explicit'); e.set('value',','.join(cohort))
+          setv(proc,'time-to-teleport','120')
+          setv(out,'tripinfo-output','diag-tripinfo.xml')
+          setv(out,'tripinfo-output.write-unfinished','true')
+          tree.write('most/scenario/diag.sumocfg',encoding='utf-8',xml_declaration=True)
+          PY
+
+      - name: Run and preserve stderr/stdout regardless of exit
+        working-directory: most/scenario
+        run: |
+          set +e
+          sumo -c diag.sumocfg --no-step-log true > diag.stdout.txt 2> diag.stderr.txt
+          rc=$?
+          echo "$rc" > diag.exitcode.txt
+          echo '--- STDERR ---'
+          cat diag.stderr.txt || true
+          echo '--- STDOUT ---'
+          cat diag.stdout.txt || true
+          exit 0
+
+      - name: Upload diagnostic receipt
+        uses: actions/upload-artifact@v4
+        with:
+          name: s02-14-e1-p100-diagnostic
+          path: |
+            most/scenario/diag.stderr.txt
+            most/scenario/diag.stdout.txt
+            most/scenario/diag.exitcode.txt
+            most/scenario/diag.sumocfg
+            most/scenario/diag-tripinfo.xml
+          if-no-files-found: warn
+          retention-days: 90

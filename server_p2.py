@@ -5,9 +5,10 @@ from pathlib import Path
 
 import server as core
 from p2_document import apply_edits_atomic, build_document_map
-from p22_formatting import apply_formatting_atomic, build_formatting_map
+from p22_formatting import build_formatting_map
+from p23_richtext import apply_rich_formatting_atomic
 
-P2_VERSION = "0.3.2-p2.2"
+P2_VERSION = "0.3.3-p2.3"
 core.VERSION = P2_VERSION
 
 _original_metadata = core._metadata
@@ -143,7 +144,7 @@ def apply_formatting(document_id: str, expected_revision: int, operations: list[
     metadata, path = _owned_document(document_id)
     current_revision = int(metadata["revision"])
     ingress = metadata.get("source") == "existing-ingress"
-    transaction = apply_formatting_atomic(
+    transaction = apply_rich_formatting_atomic(
         path,
         operations,
         expected_revision=int(expected_revision),
@@ -254,7 +255,7 @@ def p2_capabilities() -> dict:
     return {
         "project": core.PROJECT,
         "version": core.VERSION,
-        "phase": "P2.2",
+        "phase": "P2.3",
         "authenticated_subject": subject,
         "tools_added": [
             "get_document_map",
@@ -274,7 +275,11 @@ def p2_capabilities() -> dict:
         ],
         "formatting_operations": [
             "set_run_format",
+            "set_range_format",
+            "copy_run_format",
             "set_paragraph_format",
+            "copy_paragraph_format",
+            "normalize_formatting",
         ],
         "addressing": "intrinsic paragraph ids when present; revision-bound ordinal fallback otherwise",
         "edit_transaction": "exact expected_revision + candidate-package validation + atomic package replacement",
@@ -285,7 +290,11 @@ def p2_capabilities() -> dict:
         "formatting": {
             "introspection": "paragraph/run refs + resolved summaries",
             "run_mutation": "all text runs or selected run_index",
-            "paragraph_mutation": "direct section-body paragraphs",
+            "range_selection": "[start,end) over paragraph direct_text",
+            "run_mutation": "whole run(s) or split-safe character range",
+            "paragraph_mutation": "section-body and nested paragraphs",
+            "style_copy_reuse": "exact same-document charPr/paraPr reference reuse",
+            "normalization": "coalesce adjacent split-safe runs with identical run attributes",
             "diff": "formatting_sha256",
             "semantic_structure_preservation": "fail-closed",
         },

@@ -280,6 +280,41 @@ Two early P2.5 CI attempts failed at Python compilation because generated source
 
 The public receipt confirms P2.5 health/version availability, durable OAuth metadata, `offline_access`, and unauthenticated MCP rejection.
 
+## P2.6 partial-span hyperlink, typed-field, bookmark/reference and rebinding receipt
+
+Current extended server version: `0.3.6-p2.6`.
+
+P2.6 extends the P2.5 control transaction without weakening its exact-revision, candidate-validation, paragraph-structure-invariance, and atomic-replace gates.
+
+Confirmed surfaces:
+
+- partial-span `create_hyperlink` with safe run splitting around the selected ordinary-text range;
+- typed DATE/PATH/MAILMERGE property mutation restricted to confirmed semantic lanes rather than arbitrary XML attributes;
+- bookmark create/rename/remove lifecycle;
+- internal bookmark-reference create/retarget lifecycle;
+- control identity rebinding receipts after mutation, using intrinsic field identity where available and revision-scoped bookmark rebinding otherwise.
+
+### Canonical P2.6 lifecycle receipt
+
+- workflow: `P2.6 Bookmark and typed-control HWPX lifecycle CI`
+- run: `35308426183`
+- commit: `0e70871a8a22b7f5d0378cead7ef23e58d4672d9`
+- conclusion: **SUCCESS**
+
+An earlier focused regression run failed during development; the subsequent OAuth-native partial-hyperlink roundtrip and final full lifecycle both passed on the canonical implementation.
+
+### Canonical P2.6 Render/public receipt
+
+- service: `chatgpt-web-hwpx-mcp-p0`
+- deploy: `dep-damc5q2d0e5s73esgq10`
+- commit: `0e70871a8a22b7f5d0378cead7ef23e58d4672d9`
+- deploy status: **live**
+- public workflow: `P2.6 Render public boundary verification`
+- run: `35308425996`
+- conclusion: **SUCCESS**
+
+The public receipt confirms the final P2.6 head is live behind the existing OAuth/public boundary.
+
 ## Current verdict
 
 ```text
@@ -305,14 +340,21 @@ P2_5_CONTROL_STRUCTURE_TRANSACTION = PASS
 P2_5_OAUTH_NATIVE_LIFECYCLE = PASS
 P2_5_RENDER_DEPLOYMENT = PASS
 P2_5_PUBLIC_BOUNDARY = PASS
+P2_6_PARTIAL_SPAN_HYPERLINK_WRAPPING = PASS
+P2_6_TYPED_FIELD_PROPERTY_MUTATION = PASS
+P2_6_BOOKMARK_LIFECYCLE = PASS
+P2_6_BOOKMARK_REFERENCE_LIFECYCLE = PASS
+P2_6_CONTROL_IDENTITY_REBINDING = PASS
+P2_6_OAUTH_NATIVE_LIFECYCLE = PASS
+P2_6_RENDER_DEPLOYMENT = PASS
+P2_6_PUBLIC_BOUNDARY = PASS
 
-FIELD_TYPE_MUTATION = HOLD
-PARTIAL_SPAN_HYPERLINK_WRAPPING = HOLD
-BOOKMARK_SHAPE_OBJECT_SEMANTIC_MUTATION = HOLD
+ARBITRARY_FIELD_TYPE_MUTATION = HOLD
+BOOKMARK_SHAPE_OBJECT_CROSS_SEMANTIC_MUTATION = HOLD
 CROSS_CONTAINER_PARAGRAPH_MOVES = HOLD
 TABLE_IMAGE_EQUATION_OPERATIONS = HOLD
 DURABLE_DOCUMENT_OBJECT_STORAGE = HOLD
 HANCOM_RENDERER_FIDELITY_ORACLE = HOLD
 ```
 
-P2.5 is **IMPLEMENTATION PASS / NATIVE-CI PASS / PUBLIC PASS**. The remaining control gap is narrower: partial-span field wrapping, typed field-command/property mutation beyond `name`, bookmark/object semantics, and richer container-level editing.
+P2.6 is **IMPLEMENTATION PASS / NATIVE-CI PASS / PUBLIC PASS**. The remaining control gap is now beyond the confirmed hyperlink/typed-field/bookmark lanes: arbitrary field-type reinterpretation, richer object/shape reference semantics, cross-container editing, tables/images/equations, durable document-byte storage, and native Hancom fidelity.

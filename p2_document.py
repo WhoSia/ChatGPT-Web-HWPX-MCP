@@ -73,18 +73,31 @@ def build_document_map(path: Path) -> dict:
             root = ElementTree.fromstring(archive.read(section_name))
             section_paragraphs: list[str] = []
             para_index = 0
+            direct_index = 0
+            parents = _parent_map(root)
+            direct_indexes: dict[int, int] = {}
+            for child in list(root):
+                if _local(child.tag) == "p":
+                    direct_indexes[id(child)] = direct_index
+                    direct_index += 1
             for node in root.iter():
                 if _local(node.tag) != "p":
                     continue
                 text = _paragraph_text(node)
                 locator, stability = _stable_locator(section_name, para_index, node)
                 intrinsic_id = _paragraph_intrinsic_id(node)
+                parent = parents.get(node)
+                body_index = direct_indexes.get(id(node))
                 paragraph = {
                     "locator": locator,
                     "kind": "paragraph",
                     "section": section_name,
                     "section_index": section_index,
                     "paragraph_index": para_index,
+                    "body_paragraph_index": body_index,
+                    "container": "section-body" if body_index is not None else (
+                        _local(parent.tag) if parent is not None else "unknown"
+                    ),
                     "intrinsic_id": intrinsic_id,
                     "address_stability": stability,
                     "text": text,

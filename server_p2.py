@@ -9,9 +9,9 @@ from p22_formatting import build_formatting_map
 from p23_richtext import apply_rich_formatting_atomic
 from p24_inline import apply_inline_edits_atomic, build_inline_map
 from p26_controls import apply_control_edits_atomic
-from p27_tables import apply_table_edits_atomic, build_table_map
+from p28_tables import apply_table_edits_atomic, build_table_map
 
-P2_VERSION = "0.3.7-p2.7"
+P2_VERSION = "0.3.8-p2.8"
 core.VERSION = P2_VERSION
 
 _original_metadata = core._metadata
@@ -59,6 +59,8 @@ def _refresh_metadata(
     if table_map is not None:
         metadata["table_structure_sha256"] = table_map["table_structure_sha256"]
         metadata["table_format_sha256"] = table_map["table_format_sha256"]
+        if "table_object_sha256" in table_map:
+            metadata["table_object_sha256"] = table_map["table_object_sha256"]
     core._write_metadata(document_id, metadata)
     return metadata
 
@@ -114,6 +116,7 @@ def get_table_map(document_id: str, table_locator: str = "") -> dict:
             "revision": int(metadata["revision"]),
             "table_structure_sha256": table_map["table_structure_sha256"],
             "table_format_sha256": table_map["table_format_sha256"],
+            "table_object_sha256": table_map.get("table_object_sha256"),
             "table": table,
         }
     return {
@@ -432,6 +435,9 @@ def compare_document(
     structure_sha256: str = "",
     formatting_sha256: str = "",
     inline_structure_sha256: str = "",
+    table_structure_sha256: str = "",
+    table_format_sha256: str = "",
+    table_object_sha256: str = "",
 ) -> dict:
     """Compare semantic/structure/formatting/inline-structure receipts."""
     metadata, path = _owned_document(document_id)
@@ -442,6 +448,10 @@ def compare_document(
     current_structure = document_map["structure_sha256"]
     current_formatting = formatting_map["formatting_sha256"]
     current_inline_structure = inline_map["inline_structure_sha256"]
+    table_map = build_table_map(path)
+    current_table_structure = table_map["table_structure_sha256"]
+    current_table_format = table_map["table_format_sha256"]
+    current_table_object = table_map.get("table_object_sha256", "")
     return {
         "ok": True,
         "document_id": document_id,
@@ -451,6 +461,9 @@ def compare_document(
             "structure_sha256": current_structure,
             "formatting_sha256": current_formatting,
             "inline_structure_sha256": current_inline_structure,
+            "table_structure_sha256": current_table_structure,
+            "table_format_sha256": current_table_format,
+            "table_object_sha256": current_table_object,
         },
         "matches": {
             "semantic": None if not semantic_sha256 else semantic_sha256 == current_semantic,
@@ -460,6 +473,15 @@ def compare_document(
                 None
                 if not inline_structure_sha256
                 else inline_structure_sha256 == current_inline_structure
+            ),
+            "table_structure": (
+                None if not table_structure_sha256 else table_structure_sha256 == current_table_structure
+            ),
+            "table_format": (
+                None if not table_format_sha256 else table_format_sha256 == current_table_format
+            ),
+            "table_object": (
+                None if not table_object_sha256 else table_object_sha256 == current_table_object
             ),
         },
     }
@@ -471,7 +493,7 @@ def p2_capabilities() -> dict:
     return {
         "project": core.PROJECT,
         "version": core.VERSION,
-        "phase": "P2.7",
+        "phase": "P2.8",
         "authenticated_subject": subject,
         "tools_added": [
             "get_document_map",
@@ -557,16 +579,17 @@ def p2_capabilities() -> dict:
             "diff": "inline_structure_sha256 + control_rebinding",
         },
         "table_editing": {
-            "introspection": "table/cell semantic map + merge geometry + structure/format receipts",
+            "introspection": "table/cell semantic map + merge geometry + structure/format/object receipts",
             "table_address": "intrinsic hp:tbl id when present; revision-bound ordinal fallback",
             "cell_address": "revision-bound grid-anchor locator with rebinding receipts",
+            "object_lifecycle": "create_table + delete_table",
             "row_structure": "insert_row_by_clone + delete_row",
-            "column_structure": "delete_column + width/autofit operations",
+            "column_structure": "delete_column + width/autofit; insert_column evidence gate closed",
             "merge_split": "rectangular merge + merged-cell split",
-            "cell_content_format": "text, shading, borders, row/column equalization",
-            "diff": "table_structure_sha256 + table_format_sha256",
+            "cell_content_format": "text, shading, borders, gradient, margins, size, header/protect/editable/name",
+            "diff": "table_structure_sha256 + table_format_sha256 + table_object_sha256",
         },
-        "tables_images_equations": "tables=P2.7 active; images/equations=False",
+        "tables_images_equations": "tables=P2.8 lifecycle active; images/equations=False",
     }
 
 

@@ -192,9 +192,10 @@ def apply_edits(document_id: str, expected_revision: int, operations: list[dict]
     )
     validation = transaction["validation"]
     after_map = build_document_map(path)
+    after_formatting = build_formatting_map(path)
     metadata["revision"] = current_revision + 1
     metadata["last_edit_at"] = core._utc_iso()
-    _refresh_metadata(document_id, metadata, validation, after_map)
+    _refresh_metadata(document_id, metadata, validation, after_map, after_formatting)
     return {
         "ok": True,
         "document_id": document_id,
@@ -270,6 +271,10 @@ def p2_capabilities() -> dict:
             "delete_paragraph",
             "move_paragraph_before",
             "move_paragraph_after",
+        ],
+        "formatting_operations": [
+            "set_run_format",
+            "set_paragraph_format",
         ],
         "addressing": "intrinsic paragraph ids when present; revision-bound ordinal fallback otherwise",
         "edit_transaction": "exact expected_revision + candidate-package validation + atomic package replacement",

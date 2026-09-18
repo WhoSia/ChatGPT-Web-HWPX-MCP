@@ -6,7 +6,7 @@ Remote Streamable-HTTP MCP for authenticated HWPX document creation, custody, va
 
 **P0 / P1 / P1.1 / P1.2 are closed / PASS.** The project has established native ChatGPT MCP discovery and actions, opaque document custody, signed HWPX delivery, OAuth-native secret-free invocation, durable restart-safe OAuth authority, and bounded existing-HWPX ingress. See the corresponding test ledgers.
 
-**P2 is CLOSED / PASS. P2.1 and P2.2 are implemented. P2.3 is active.** P2.3 adds direct-text character ranges, safe run splitting, nested paragraph-property mutation, exact same-document style reuse, and run normalization on top of the existing formatting transaction layer.
+**P2 is CLOSED / PASS. P2.1–P2.3 are implemented. P2.4 is active.** P2.4 adds a control-aware inline atom map, hyperlink/field-safe text selection, cross-run character replacement, and an independent inline-structure digest.
 
 ```text
 ChatGPT Web
@@ -34,9 +34,11 @@ ChatGPT Web
 | `get_document_map` | No | Return sections, paragraph locators, and semantic/structure/formatting receipts |
 | `get_text` | No | Return whole-document or locator-targeted paragraph text |
 | `get_formatting` | No | Resolve paragraph/run formatting refs and property summaries |
+| `get_inline_map` | No | Return direct inline text spans, special atoms, field/control boundaries, and inline-structure receipts |
 | `apply_edits` | Yes | Apply one revision-guarded atomic text/paragraph-structure transaction |
 | `apply_formatting` | Yes | Apply one revision-guarded formatting-only transaction |
-| `compare_document` | No | Compare semantic/structure/formatting receipts with the current revision |
+| `apply_inline_edits` | Yes | Apply one control-aware cross-run inline text transaction |
+| `compare_document` | No | Compare semantic/structure/formatting/inline-structure receipts with the current revision |
 | `export_document` | No* | Return a short-lived signed download URL |
 | `delete_document` | Yes | Delete the caller-owned HWPX and metadata |
 
@@ -155,6 +157,55 @@ Paragraph-property mutation now works for both section-body and nested paragraph
 
 Normalization always runs after other formatting mutations in the same transaction, regardless of operation-array order. It is an inline run-coalescing layer; it does not garbage-collect unrelated historical `charPr`/`paraPr` definitions.
 
+## P2.4 control-aware inline surgery
+
+`get_inline_map` exposes a second, control-aware coordinate surface for each paragraph:
+
+- `inline_text`: direct visible inline text only; nested table/shape text is not folded into its host paragraph;
+- text spans with `[start,end)`, run index, active field stack, and mixed-markup context;
+- visible one-character atoms for tab, line break, no-break space, full-width space, and soft hyphen;
+- zero-width boundaries for field begin/end, bookmarks/other controls, mixed markup, and inline objects;
+- resolved field spans such as HYPERLINK/DATE/PATH;
+- document-level `inline_text_sha256` and `inline_structure_sha256`.
+
+The inline-structure digest deliberately hashes the ordered control/field/markup/special-atom skeleton rather than ordinary text lengths or plain-run fragmentation. Text can therefore change without falsely reporting that a hyperlink or field wrapper was structurally rewritten.
+
+`apply_inline_edits` currently admits:
+
+```text
+replace_inline_text
+  target + [start,end) + text
+  + optional expected_text
+```
+
+The selection may cross ordinary run boundaries, including different character styles. Replacement text is stored in the start span/run, while untouched suffix text remains in its original runs.
+
+Safety rules are fail-closed:
+
+- every selected visible atom must be ordinary text; tab/lineBreak/nbSpace/fwSpace/soft-hyphen must be split around rather than deleted implicitly;
+- all selected text spans must share the same active field and mixed-markup context;
+- field begin/end, bookmark/control, object, or markup boundaries may not occur strictly inside the selected range;
+- HYPERLINK display text and DATE/PATH cached text are editable when the selection stays inside the field wrapper;
+- selections that cross into/out of a field are rejected before byte mutation;
+- replacement text may not introduce new special atoms in P2.4.
+
+The transaction contract is:
+
+```text
+expected_revision == current_revision
+→ resolve offsets against one pre-edit inline map
+→ reject overlap / context crossing / special-atom surgery
+→ edit text storage slots across one or more runs
+→ require paragraph structure digest unchanged
+→ require inline_structure_sha256 unchanged
+→ validate candidate HWPX
+→ atomic replace
+→ revision + 1
+→ inline text/structure diff receipt
+```
+
+This layer is intended to preserve fields and controls, not to rewrite their semantics. Hyperlink targets, field commands, bookmarks, shapes, and special inline atoms remain separate future mutation surfaces.
+
 
 ## Durable OAuth boundary
 
@@ -226,14 +277,14 @@ Server-side secrets remain deployment-only and are not stored in this repository
 
 P2 currently uses two confirmatory workflows:
 
-- `P2.3 Rich-text HWPX lifecycle CI` — ingress/auth regressions plus range splitting, style reuse, nested formatting, normalization, and OAuth-native map→edit→range-format→export→re-ingest lifecycle.
-- `P2.3 Render public boundary verification` — public P2.3 version/health, durable OAuth metadata, `offline_access`, and unauthenticated MCP rejection. The workflow uses HTTP/1.1 and retry-on-transport-error because one GitHub-runner↔Render edge reset was observed while Render itself remained healthy.
+- `P2.4 Control-aware inline HWPX lifecycle CI` — legacy regressions plus cross-run text surgery, hyperlink/date-field wrapper preservation, mixed-inline/special-atom rejection, and OAuth-native map→format→inline-edit→export→re-ingest lifecycle.
+- `P2.4 Render public boundary verification` — public P2.4 version/health, durable OAuth metadata, `offline_access`, and unauthenticated MCP rejection. The workflow uses HTTP/1.1 and retry-on-transport-error because one GitHub-runner↔Render edge reset was observed while Render itself remained healthy.
 
 See [`P2_TEST_LEDGER.md`](./P2_TEST_LEDGER.md) for canonical run/deploy receipts and the initial transport-failure classification.
 
 ## Security boundary
 
-P2.3 is still deliberately narrow. It does not yet claim arbitrary range splitting through fields/controls/mixed inline markup, durable document bytes, cross-container structural moves, tables/images/equations, or native Hancom visual fidelity.
+P2.4 is still deliberately narrow. It does not yet mutate field/control semantics or special inline atoms, create/delete hyperlinks through range surgery, persist document bytes durably, move paragraphs across containers, mutate tables/images/equations, or claim native Hancom visual fidelity.
 
 ## Phase lineage
 
@@ -245,7 +296,8 @@ P2     structured introspection + paragraph addressing + revision-safe text tran
 P2.1   paragraph insert/delete/reorder + locator rebinding
 P2.2   paragraph/run formatting introspection + formatting mutation + formatting diff
 P2.3   range selection + run splitting + nested formatting + style reuse + normalization
-P2.x   richer control-aware inline and container-aware operations
+P2.4   control-aware inline map + field-safe cross-run text surgery + inline-structure diff
+P2.x   field/control semantic mutation and richer container-aware operations
 P3     tables / images / equations
 P4     renderer oracle and Hancom fidelity validation
 ```

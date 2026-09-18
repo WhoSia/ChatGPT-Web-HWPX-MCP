@@ -8,9 +8,9 @@ from p2_document import apply_edits_atomic, build_document_map
 from p22_formatting import build_formatting_map
 from p23_richtext import apply_rich_formatting_atomic
 from p24_inline import apply_inline_edits_atomic, build_inline_map
-from p25_controls import apply_control_edits_atomic
+from p26_controls import apply_control_edits_atomic
 
-P2_VERSION = "0.3.5-p2.5"
+P2_VERSION = "0.3.6-p2.6"
 core.VERSION = P2_VERSION
 
 _original_metadata = core._metadata
@@ -394,7 +394,7 @@ def p2_capabilities() -> dict:
     return {
         "project": core.PROJECT,
         "version": core.VERSION,
-        "phase": "P2.5",
+        "phase": "P2.6",
         "authenticated_subject": subject,
         "tools_added": [
             "get_document_map",
@@ -425,6 +425,14 @@ def p2_capabilities() -> dict:
             "set_field_name",
             "insert_special_atom",
             "delete_special_atom",
+            "create_bookmark",
+            "rename_bookmark",
+            "remove_bookmark",
+            "create_bookmark_reference",
+            "retarget_bookmark_reference",
+            "set_date_field_properties",
+            "set_path_field_properties",
+            "set_mail_merge_field_properties",
         ],
         "formatting_operations": [
             "set_run_format",
@@ -461,11 +469,13 @@ def p2_capabilities() -> dict:
             "diff": "inline_structure_sha256",
         },
         "control_editing": {
-            "hyperlink": "create/retarget/remove; create requires complete plain text spans",
-            "field_semantics": "set field name while preserving field type and wrapper identity",
+            "hyperlink": "partial-span create + retarget/remove",
+            "typed_fields": "DATE/PATH/MAILMERGE confirmed property lanes only",
+            "bookmarks": "create/rename/remove + internal hyperlink reference lifecycle",
             "special_atoms": "insert/delete tab/lineBreak/nbSpace/fwSpace/soft-hyphen",
-            "transaction": "paragraph structure invariant; inline structure may change intentionally",
-            "diff": "inline_structure_sha256",
+            "identity_rebinding": "intrinsic field ids where available; revision-scoped bookmark rebinding otherwise",
+            "transaction": "paragraph structure invariant; inline/control structure may change intentionally",
+            "diff": "inline_structure_sha256 + control_rebinding",
         },
         "tables_images_equations": False,
     }

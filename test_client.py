@@ -101,7 +101,7 @@ async def main() -> None:
     oauth = OAuthClientProvider(
         server_url=URL,
         client_metadata=OAuthClientMetadata(
-            client_name="ChatGPT Web HWPX MCP P2.4 CI",
+            client_name="ChatGPT Web HWPX MCP P2.5 CI",
             redirect_uris=[AnyUrl("http://127.0.0.1:8765/callback")],
             scope="hwpx offline_access",
         ),
@@ -135,6 +135,7 @@ async def main() -> None:
                 "apply_formatting",
                 "get_inline_map",
                 "apply_inline_edits",
+                "apply_control_edits",
             }
             missing = expected - set(names)
             if missing:
@@ -145,11 +146,11 @@ async def main() -> None:
                     raise RuntimeError(f"secret-bearing field leaked into tool schema: {tool.name}")
 
             read_payload = _payload(await client.call_tool("probe_read", {"message": "P2 OAuth smoke test"}))
-            if not read_payload or not read_payload.get("ok") or read_payload.get("version") != "0.3.4-p2.4":
+            if not read_payload or not read_payload.get("ok") or read_payload.get("version") != "0.3.5-p2.5":
                 raise RuntimeError(f"probe_read did not expose P2: {read_payload}")
 
             p2_caps = _payload(await client.call_tool("p2_capabilities", {}))
-            if not p2_caps or p2_caps.get("phase") != "P2.4":
+            if not p2_caps or p2_caps.get("phase") != "P2.5":
                 raise RuntimeError(f"p2_capabilities failed: {p2_caps}")
 
             if not RUN_WRITE_TEST:
@@ -278,8 +279,49 @@ async def main() -> None:
             if inline_after.get("inline_structure_sha256") != inline_structure_before:
                 raise RuntimeError("cross-run inline edit changed inline structure receipt")
 
+            special_inserted = _payload(await client.call_tool("apply_control_edits", {
+                "document_id": document_id,
+                "expected_revision": 4,
+                "operations": [{
+                    "op": "insert_special_atom",
+                    "target": locator,
+                    "offset": 2,
+                    "kind": "lineBreak",
+                }],
+            }))
+            if (
+                not special_inserted
+                or special_inserted.get("transaction") != "COMMITTED"
+                or special_inserted.get("revision_after") != 5
+                or special_inserted.get("inline_structure_changed") is not True
+            ):
+                raise RuntimeError(f"apply_control_edits insert special failed: {special_inserted}")
+
+            inline_special = _payload(await client.call_tool("get_inline_map", {
+                "document_id": document_id,
+                "locator": locator,
+            }))
+            if inline_special.get("paragraph", {}).get("inline_text") != "gX\nYZa":
+                raise RuntimeError(f"special atom insertion mismatch: {inline_special}")
+
+            special_deleted = _payload(await client.call_tool("apply_control_edits", {
+                "document_id": document_id,
+                "expected_revision": 5,
+                "operations": [{
+                    "op": "delete_special_atom",
+                    "target": locator,
+                    "offset": 2,
+                }],
+            }))
+            if (
+                not special_deleted
+                or special_deleted.get("transaction") != "COMMITTED"
+                or special_deleted.get("revision_after") != 6
+            ):
+                raise RuntimeError(f"apply_control_edits delete special failed: {special_deleted}")
+
             targeted = _payload(await client.call_tool("get_text", {"document_id": document_id, "locator": locator}))
-            if not targeted or targeted.get("revision") != 4 or targeted.get("text") != "gXYZa":
+            if not targeted or targeted.get("revision") != 6 or targeted.get("text") != "gXYZa":
                 raise RuntimeError(f"targeted get_text failed: {targeted}")
 
             compared = _payload(await client.call_tool("compare_document", {
@@ -320,7 +362,7 @@ async def main() -> None:
                 deleted = _payload(await client.call_tool("delete_document", {"document_id": doc_id}))
                 if not deleted or not deleted.get("deleted"):
                     raise RuntimeError(f"delete_document failed: {deleted}")
-            print("P2.4 lifecycle PASS", digest)
+            print("P2.5 lifecycle PASS", digest)
 
 
 if __name__ == "__main__":

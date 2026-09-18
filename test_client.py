@@ -101,7 +101,7 @@ async def main() -> None:
     oauth = OAuthClientProvider(
         server_url=URL,
         client_metadata=OAuthClientMetadata(
-            client_name="ChatGPT Web HWPX MCP P2 CI",
+            client_name="ChatGPT Web HWPX MCP P2.2 CI",
             redirect_uris=[AnyUrl("http://127.0.0.1:8765/callback")],
             scope="hwpx offline_access",
         ),
@@ -131,6 +131,8 @@ async def main() -> None:
                 "apply_edits",
                 "compare_document",
                 "p2_capabilities",
+                "get_formatting",
+                "apply_formatting",
             }
             missing = expected - set(names)
             if missing:
@@ -141,11 +143,11 @@ async def main() -> None:
                     raise RuntimeError(f"secret-bearing field leaked into tool schema: {tool.name}")
 
             read_payload = _payload(await client.call_tool("probe_read", {"message": "P2 OAuth smoke test"}))
-            if not read_payload or not read_payload.get("ok") or read_payload.get("version") != "0.3.0-p2":
+            if not read_payload or not read_payload.get("ok") or read_payload.get("version") != "0.3.2-p2.2":
                 raise RuntimeError(f"probe_read did not expose P2: {read_payload}")
 
             p2_caps = _payload(await client.call_tool("p2_capabilities", {}))
-            if not p2_caps or p2_caps.get("phase") != "P2":
+            if not p2_caps or p2_caps.get("phase") != "P2.2":
                 raise RuntimeError(f"p2_capabilities failed: {p2_caps}")
 
             if not RUN_WRITE_TEST:
@@ -224,7 +226,7 @@ async def main() -> None:
                 deleted = _payload(await client.call_tool("delete_document", {"document_id": doc_id}))
                 if not deleted or not deleted.get("deleted"):
                     raise RuntimeError(f"delete_document failed: {deleted}")
-            print("P2 lifecycle PASS", digest)
+            print("P2.2 lifecycle PASS", digest)
 
 
 if __name__ == "__main__":

@@ -9,6 +9,7 @@ import server
 from p2_document import apply_edits_atomic, apply_text_edits_atomic, build_document_map
 from p22_formatting import apply_formatting_atomic, build_formatting_map
 from p23_richtext import apply_rich_formatting_atomic
+from p24_inline import apply_inline_edits_atomic, build_inline_map
 
 
 class P2DocumentTests(unittest.TestCase):
@@ -300,6 +301,208 @@ class P2DocumentTests(unittest.TestCase):
             self.assertEqual([run["text"] for run in text_runs], ["beta"])
             self.assertEqual(text_runs[0]["char_pr_id_ref"], base_ref)
             self.assertGreaterEqual(result["normalization"]["merged_adjacent_runs"], 2)
+
+    def test_p24_cross_run_inline_replacement_preserves_run_structure(self) -> None:
+        from hwpx import HwpxDocument
+
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "cross-run.hwpx"
+            doc = HwpxDocument.new()
+            paragraph = doc.add_paragraph("")
+            paragraph.add_run("ab")
+            paragraph.add_run("cd", bold=True)
+            path.write_bytes(doc.to_bytes())
+            doc.close()
+
+            before_doc = build_document_map(path)
+            target = next(p for p in before_doc["paragraphs"] if p["text"] == "abcd")
+            before_inline = build_inline_map(path)
+            receipt = before_inline["inline_structure_sha256"]
+            result = apply_inline_edits_atomic(
+                path,
+                [{
+                    "op": "replace_inline_text",
+                    "target": target["locator"],
+                    "start": 1,
+                    "end": 3,
+                    "text": "XY",
+                    "expected_text": "bc",
+                }],
+                expected_revision=1,
+                current_revision=1,
+                validator=lambda candidate: server.validate_hwpx_package(candidate),
+            )
+            after_inline = build_inline_map(path)
+            paragraph_after = next(
+                p for p in after_inline["paragraphs"] if p["locator"] == target["locator"]
+            )
+            self.assertEqual(paragraph_after["inline_text"], "aXYd")
+            self.assertEqual(after_inline["inline_structure_sha256"], receipt)
+            self.assertTrue(result["inline_text_changed"])
+            self.assertFalse(result["inline_structure_changed"])
+            self.assertFalse(result["structure_changed"])
+
+    def test_p24_hyperlink_display_text_edit_preserves_field_wrapper(self) -> None:
+        from hwpx import HwpxDocument
+
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "hyperlink.hwpx"
+            doc = HwpxDocument.new()
+            paragraph = doc.add_paragraph("before ")
+            paragraph.add_hyperlink("https://example.com", "linked")
+            paragraph.add_run(" after")
+            path.write_bytes(doc.to_bytes())
+            doc.close()
+
+            before_doc = build_document_map(path)
+            target = next(p for p in before_doc["paragraphs"] if "linked" in p["text"])
+            inline = build_inline_map(path)
+            mapped = next(p for p in inline["paragraphs"] if p["locator"] == target["locator"])
+            field = next(item for item in mapped["fields"] if item["type"] == "HYPERLINK")
+            self.assertEqual(mapped["inline_text"][field["start"]:field["end"]], "linked")
+            structure_receipt = inline["inline_structure_sha256"]
+
+            result = apply_inline_edits_atomic(
+                path,
+                [{
+                    "op": "replace_inline_text",
+                    "target": target["locator"],
+                    "start": field["start"] + 1,
+                    "end": field["end"] - 1,
+                    "text": "INK",
+                    "expected_text": "inke",
+                }],
+                expected_revision=1,
+                current_revision=1,
+                validator=lambda candidate: server.validate_hwpx_package(candidate),
+            )
+            after = build_inline_map(path)
+            mapped_after = next(p for p in after["paragraphs"] if p["locator"] == target["locator"])
+            after_field = next(item for item in mapped_after["fields"] if item["type"] == "HYPERLINK")
+            self.assertEqual(mapped_after["inline_text"][after_field["start"]:after_field["end"]], "lINKd")
+            self.assertEqual(after["inline_structure_sha256"], structure_receipt)
+            self.assertFalse(result["inline_structure_changed"])
+
+    def test_p24_single_run_date_field_cached_text_is_editable(self) -> None:
+        from hwpx import HwpxDocument
+
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "date-field.hwpx"
+            doc = HwpxDocument.new()
+            paragraph = doc.add_paragraph("date: ")
+            paragraph.add_date_field("2026년 9월 18일")
+            path.write_bytes(doc.to_bytes())
+            doc.close()
+
+            doc_map = build_document_map(path)
+            target = next(p for p in doc_map["paragraphs"] if "2026년" in p["text"])
+            inline = build_inline_map(path)
+            mapped = next(p for p in inline["paragraphs"] if p["locator"] == target["locator"])
+            field = next(item for item in mapped["fields"] if item["type"] == "DATE")
+            selected = mapped["inline_text"][field["start"]:field["end"]]
+            self.assertEqual(selected, "2026년 9월 18일")
+
+            apply_inline_edits_atomic(
+                path,
+                [{
+                    "op": "replace_inline_text",
+                    "target": target["locator"],
+                    "start": field["start"],
+                    "end": field["end"],
+                    "text": "2026년 9월 19일",
+                    "expected_text": selected,
+                }],
+                expected_revision=1,
+                current_revision=1,
+                validator=lambda candidate: server.validate_hwpx_package(candidate),
+            )
+            after = build_inline_map(path)
+            mapped_after = next(p for p in after["paragraphs"] if p["locator"] == target["locator"])
+            after_field = next(item for item in mapped_after["fields"] if item["type"] == "DATE")
+            self.assertEqual(
+                mapped_after["inline_text"][after_field["start"]:after_field["end"]],
+                "2026년 9월 19일",
+            )
+
+    def test_p24_field_boundary_crossing_is_rejected_atomically(self) -> None:
+        from hwpx import HwpxDocument
+
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "field-boundary.hwpx"
+            doc = HwpxDocument.new()
+            paragraph = doc.add_paragraph("A")
+            paragraph.add_hyperlink("https://example.com", "BC")
+            paragraph.add_run("D")
+            path.write_bytes(doc.to_bytes())
+            doc.close()
+
+            target = next(p for p in build_document_map(path)["paragraphs"] if p["text"] == "ABCD")
+            before_sha = self._sha(path)
+            with self.assertRaisesRegex(ValueError, "field|inline structure|context"):
+                apply_inline_edits_atomic(
+                    path,
+                    [{
+                        "op": "replace_inline_text",
+                        "target": target["locator"],
+                        "start": 0,
+                        "end": 2,
+                        "text": "X",
+                    }],
+                    expected_revision=1,
+                    current_revision=1,
+                    validator=lambda candidate: server.validate_hwpx_package(candidate),
+                )
+            self.assertEqual(self._sha(path), before_sha)
+
+    def test_p24_mixed_text_marker_is_preserved_and_special_atom_blocks_surgery(self) -> None:
+        from hwpx import HwpxDocument
+
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "mixed-inline.hwpx"
+            doc = HwpxDocument.new()
+            paragraph = doc.add_paragraph("abcd")
+            paragraph.add_title_mark(in_toc=True)
+            paragraph.add_run("x\ny", expand_special_characters=True)
+            path.write_bytes(doc.to_bytes())
+            doc.close()
+
+            target = next(p for p in build_document_map(path)["paragraphs"] if p["text"].startswith("abcd"))
+            before = build_inline_map(path)
+            mapped = next(p for p in before["paragraphs"] if p["locator"] == target["locator"])
+            self.assertIn("\n", mapped["inline_text"])
+
+            apply_inline_edits_atomic(
+                path,
+                [{
+                    "op": "replace_inline_text",
+                    "target": target["locator"],
+                    "start": 0,
+                    "end": 2,
+                    "text": "AB",
+                    "expected_text": "ab",
+                }],
+                expected_revision=1,
+                current_revision=1,
+                validator=lambda candidate: server.validate_hwpx_package(candidate),
+            )
+            after = build_inline_map(path)
+            self.assertEqual(before["inline_structure_sha256"], after["inline_structure_sha256"])
+
+            mapped_after = next(p for p in after["paragraphs"] if p["locator"] == target["locator"])
+            newline = mapped_after["inline_text"].index("\n")
+            with self.assertRaisesRegex(ValueError, "structural/special"):
+                apply_inline_edits_atomic(
+                    path,
+                    [{
+                        "op": "replace_inline_text",
+                        "target": target["locator"],
+                        "start": newline - 1,
+                        "end": newline + 1,
+                        "text": "Q",
+                    }],
+                    expected_revision=2,
+                    current_revision=2,
+                )
 
     def test_stale_revision_rejects_without_byte_mutation(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

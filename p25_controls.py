@@ -114,8 +114,7 @@ def _validate_hyperlink_url(url: object) -> str:
     value = url.strip()
     if len(value) > 8192:
         raise ValueError("hyperlink url is too long")
-    if any(ch in value for ch in ("\x00", "", "
-")):
+    if any(ord(ch) in {0, 10, 13} for ch in value):
         raise ValueError("hyperlink url contains forbidden control characters")
     return value
 

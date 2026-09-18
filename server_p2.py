@@ -8,8 +8,9 @@ from p2_document import apply_edits_atomic, build_document_map
 from p22_formatting import build_formatting_map
 from p23_richtext import apply_rich_formatting_atomic
 from p24_inline import apply_inline_edits_atomic, build_inline_map
+from p25_controls import apply_control_edits_atomic
 
-P2_VERSION = "0.3.4-p2.4"
+P2_VERSION = "0.3.5-p2.5"
 core.VERSION = P2_VERSION
 
 _original_metadata = core._metadata
@@ -220,6 +221,49 @@ def apply_inline_edits(document_id: str, expected_revision: int, operations: lis
 
 
 @core.mcp.tool()
+def apply_control_edits(document_id: str, expected_revision: int, operations: list[dict]) -> dict:
+    """Apply one revision-guarded field/hyperlink/special-atom transaction."""
+    metadata, path = _owned_document(document_id)
+    current_revision = int(metadata["revision"])
+    ingress = metadata.get("source") == "existing-ingress"
+    transaction = apply_control_edits_atomic(
+        path,
+        operations,
+        expected_revision=int(expected_revision),
+        current_revision=current_revision,
+        validator=lambda candidate: core.validate_hwpx_package(candidate, ingress=ingress),
+    )
+    validation = transaction["validation"]
+    after_document = build_document_map(path)
+    after_formatting = build_formatting_map(path)
+    after_inline = build_inline_map(path)
+    metadata["revision"] = current_revision + 1
+    metadata["last_edit_at"] = core._utc_iso()
+    _refresh_metadata(
+        document_id,
+        metadata,
+        validation,
+        after_document,
+        after_formatting,
+        after_inline,
+    )
+    return {
+        "ok": True,
+        "document_id": document_id,
+        "revision_before": current_revision,
+        "revision_after": int(metadata["revision"]),
+        "sha256": validation["sha256"],
+        "control_diff": transaction,
+        "semantic_changed": transaction["semantic_changed"],
+        "structure_changed": transaction["structure_changed"],
+        "inline_text_changed": transaction["inline_text_changed"],
+        "inline_structure_changed": transaction["inline_structure_changed"],
+        "validation": validation,
+        "transaction": "COMMITTED",
+    }
+
+
+@core.mcp.tool()
 def apply_formatting(document_id: str, expected_revision: int, operations: list[dict]) -> dict:
     """Apply one revision-guarded formatting-only transaction."""
     metadata, path = _owned_document(document_id)
@@ -350,7 +394,7 @@ def p2_capabilities() -> dict:
     return {
         "project": core.PROJECT,
         "version": core.VERSION,
-        "phase": "P2.4",
+        "phase": "P2.5",
         "authenticated_subject": subject,
         "tools_added": [
             "get_document_map",
@@ -361,6 +405,7 @@ def p2_capabilities() -> dict:
             "apply_formatting",
             "get_inline_map",
             "apply_inline_edits",
+            "apply_control_edits",
         ],
         "operations": [
             "replace_paragraph_text",
@@ -372,6 +417,14 @@ def p2_capabilities() -> dict:
         ],
         "inline_operations": [
             "replace_inline_text",
+        ],
+        "control_operations": [
+            "create_hyperlink",
+            "retarget_hyperlink",
+            "remove_hyperlink",
+            "set_field_name",
+            "insert_special_atom",
+            "delete_special_atom",
         ],
         "formatting_operations": [
             "set_run_format",
@@ -405,6 +458,13 @@ def p2_capabilities() -> dict:
             "mixed_markup": "context-aware; preserved markers are hard internal boundaries",
             "special_atoms": "tab/lineBreak/nbSpace/fwSpace/soft-hyphen are visible but non-replaceable in P2.4",
             "replacement_style": "storage/run style at range start",
+            "diff": "inline_structure_sha256",
+        },
+        "control_editing": {
+            "hyperlink": "create/retarget/remove; create requires complete plain text spans",
+            "field_semantics": "set field name while preserving field type and wrapper identity",
+            "special_atoms": "insert/delete tab/lineBreak/nbSpace/fwSpace/soft-hyphen",
+            "transaction": "paragraph structure invariant; inline structure may change intentionally",
             "diff": "inline_structure_sha256",
         },
         "tables_images_equations": False,

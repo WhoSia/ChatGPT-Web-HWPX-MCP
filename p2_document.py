@@ -69,6 +69,7 @@ def build_document_map(path: Path) -> dict:
     sections: list[dict] = []
     text_parts: list[str] = []
     with zipfile.ZipFile(path, "r") as archive:
+        body_global_offset = 0
         for section_index, section_name in enumerate(_section_names(archive)):
             root = ElementTree.fromstring(archive.read(section_name))
             section_paragraphs: list[str] = []
@@ -95,6 +96,7 @@ def build_document_map(path: Path) -> dict:
                     "section_index": section_index,
                     "paragraph_index": para_index,
                     "body_paragraph_index": body_index,
+                    "body_global_index": None if body_index is None else body_global_offset + body_index,
                     "container": "section-body" if body_index is not None else (
                         _local(parent.tag) if parent is not None else "unknown"
                     ),
@@ -112,9 +114,11 @@ def build_document_map(path: Path) -> dict:
                     "section": section_name,
                     "section_index": section_index,
                     "paragraph_count": para_index,
+                    "body_paragraph_count": direct_index,
                     "paragraph_locators": section_paragraphs,
                 }
             )
+            body_global_offset += direct_index
     joined = "\n".join(text_parts)
     semantic_digest = hashlib.sha256(joined.encode("utf-8")).hexdigest()
     structure_seed = json.dumps(

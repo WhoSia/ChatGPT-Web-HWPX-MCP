@@ -502,6 +502,11 @@ def _patch_package(path: Path, prepared: list[dict]) -> dict:
             for info in source.infolist():
                 payload = source.read(info.filename)
                 section_ops = by_section.get(info.filename, [])
+                if section_ops:
+                    section_ops = sorted(
+                        section_ops,
+                        key=lambda item: 1 if item["op"] == "normalize_formatting" else 0,
+                    )
                 if section_ops or (normalize_all and info.filename.startswith("Contents/section")):
                     root = ElementTree.fromstring(payload)
                     paragraphs = _paragraph_nodes(root)

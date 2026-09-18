@@ -6,7 +6,7 @@ Remote Streamable-HTTP MCP for authenticated HWPX document creation, custody, va
 
 **P0 / P1 / P1.1 / P1.2 are closed / PASS.** The project has established native ChatGPT MCP discovery and actions, opaque document custody, signed HWPX delivery, OAuth-native secret-free invocation, durable restart-safe OAuth authority, and bounded existing-HWPX ingress. See the corresponding test ledgers.
 
-**P2 is CLOSED / PASS. P2.1 structural editing is implemented. P2.2 is active.** P2.2 adds paragraph/run formatting introspection, formatting-only atomic transactions, character-property mutation, direct-body paragraph-property mutation, and an independent formatting digest.
+**P2 is CLOSED / PASS. P2.1 and P2.2 are implemented. P2.3 is active.** P2.3 adds direct-text character ranges, safe run splitting, nested paragraph-property mutation, exact same-document style reuse, and run normalization on top of the existing formatting transaction layer.
 
 ```text
 ChatGPT Web
@@ -80,7 +80,7 @@ Stale revisions, invalid operation sets, unknown locators, and candidate-validat
 
 ## P2.2 formatting layer
 
-`get_formatting` resolves the formatting surface independently from text and structure:
+`get_formatting` resolves the formatting surface independently from text and structure. P2.3 additionally exposes `direct_text`, `direct_text_length`, and each run's `[start,end)` offsets plus `range_safe` classification:
 
 - paragraph `paraPrIDRef`, `styleIDRef`, page/column break attrs;
 - direct run indexes and `charPrIDRef`;
@@ -123,6 +123,38 @@ expected_revision == current_revision
 ```
 
 If a formatting request changes document text or paragraph structure, the candidate is rejected before commit.
+
+## P2.3 rich-text range and normalization layer
+
+P2.3 extends `apply_formatting` without changing the MCP tool name:
+
+```text
+set_range_format
+  target + start + end + format
+  → offsets are [start,end) over target.direct_text
+  → only boundary/intersected plain runs are split
+
+copy_run_format
+  source (+ source_run_index) → target
+  → exact existing charPrIDRef reuse
+  → target can be run_index, all text runs, or [start,end)
+
+copy_paragraph_format
+  source → target
+  → exact existing paraPrIDRef reuse
+  → copy_named_style=true optionally reuses styleIDRef too
+
+normalize_formatting
+  target paragraph or whole document
+  → coalesce adjacent split-safe runs with identical run attributes
+```
+
+Range mutation is intentionally fail-closed for runs containing fields, shapes, mixed inline markup, tabs/controls, or other structures that cannot be split without guessing. Whole-run formatting remains available for those cases when the run itself can be addressed safely.
+
+Paragraph-property mutation now works for both section-body and nested paragraphs. The engine mints or reuses a `paraPr` from the target's current `paraPrIDRef`, saves the header definition, then binds that reference back to the addressed nested paragraph. This avoids positional body-only APIs while preserving the same property-table semantics.
+
+Normalization always runs after other formatting mutations in the same transaction, regardless of operation-array order. It is an inline run-coalescing layer; it does not garbage-collect unrelated historical `charPr`/`paraPr` definitions.
+
 
 ## Durable OAuth boundary
 
@@ -194,14 +226,14 @@ Server-side secrets remain deployment-only and are not stored in this repository
 
 P2 currently uses two confirmatory workflows:
 
-- `P2 Structured HWPX edit lifecycle CI` — ingress/auth regressions plus locator, revision, rollback, OAuth-native map→edit→targeted-read→compare→export→re-ingest lifecycle.
-- `P2 Render public boundary verification` — public P2 version/health, durable OAuth metadata, `offline_access`, and unauthenticated MCP rejection. The workflow uses HTTP/1.1 and retry-on-transport-error because one GitHub-runner↔Render edge reset was observed while Render itself remained healthy.
+- `P2.3 Rich-text HWPX lifecycle CI` — ingress/auth regressions plus range splitting, style reuse, nested formatting, normalization, and OAuth-native map→edit→range-format→export→re-ingest lifecycle.
+- `P2.3 Render public boundary verification` — public P2.3 version/health, durable OAuth metadata, `offline_access`, and unauthenticated MCP rejection. The workflow uses HTTP/1.1 and retry-on-transport-error because one GitHub-runner↔Render edge reset was observed while Render itself remained healthy.
 
 See [`P2_TEST_LEDGER.md`](./P2_TEST_LEDGER.md) for canonical run/deploy receipts and the initial transport-failure classification.
 
 ## Security boundary
 
-P2.2 is still deliberately narrow. It does not yet claim durable document bytes, nested paragraph-property mutation, cross-container structural moves, tables/images/equations, or native Hancom visual fidelity.
+P2.3 is still deliberately narrow. It does not yet claim arbitrary range splitting through fields/controls/mixed inline markup, durable document bytes, cross-container structural moves, tables/images/equations, or native Hancom visual fidelity.
 
 ## Phase lineage
 
@@ -212,7 +244,8 @@ P1.2   durable OAuth authority + bounded existing-HWPX ingress
 P2     structured introspection + paragraph addressing + revision-safe text transactions
 P2.1   paragraph insert/delete/reorder + locator rebinding
 P2.2   paragraph/run formatting introspection + formatting mutation + formatting diff
-P2.x   richer nested/container-aware structural and formatting operations
+P2.3   range selection + run splitting + nested formatting + style reuse + normalization
+P2.x   richer control-aware inline and container-aware operations
 P3     tables / images / equations
 P4     renderer oracle and Hancom fidelity validation
 ```

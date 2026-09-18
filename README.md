@@ -6,7 +6,7 @@ Remote Streamable-HTTP MCP for authenticated HWPX document creation, custody, va
 
 **P0 / P1 / P1.1 / P1.2 are closed / PASS.** The project has established native ChatGPT MCP discovery and actions, opaque document custody, signed HWPX delivery, OAuth-native secret-free invocation, durable restart-safe OAuth authority, and bounded existing-HWPX ingress. See the corresponding test ledgers.
 
-**P2 is implementation/public PASS and awaits one native ChatGPT edit receipt.** P2 adds structured paragraph maps, explicit locator stability semantics, exact document revisions, candidate-validated atomic text-edit transactions, and semantic/structure diff receipts. See [`P2_TEST_LEDGER.md`](./P2_TEST_LEDGER.md).
+**P2 is CLOSED / PASS. P2.1 is active.** P2 established native structured paragraph maps, stable/revision-bound locators, exact revision guards, atomic text edits, and semantic/structure diff receipts. P2.1 extends the same transaction engine to paragraph insertion, deletion, and same-container reordering with locator-rebinding receipts.
 
 ```text
 ChatGPT Web
@@ -33,7 +33,7 @@ ChatGPT Web
 | `inspect_document` | No | Validate and inspect one caller-owned document |
 | `get_document_map` | No | Return sections, paragraph locators, and semantic/structure receipts |
 | `get_text` | No | Return whole-document or locator-targeted paragraph text |
-| `apply_edits` | Yes | Apply one revision-guarded atomic text-edit transaction |
+| `apply_edits` | Yes | Apply one revision-guarded atomic text/paragraph-structure transaction |
 | `compare_document` | No | Compare prior semantic/structure receipts with the current revision |
 | `export_document` | No* | Return a short-lived signed download URL |
 | `delete_document` | Yes | Delete the caller-owned HWPX and metadata |
@@ -49,9 +49,18 @@ Paragraph locators use the form `p_<hash>`.
 
 `get_document_map` also returns whole-document `semantic_sha256`, `structure_sha256`, per-paragraph text digests, section identity, paragraph index, and locator stability classification.
 
-## P2 transaction contract
+## P2/P2.1 transaction contract
 
-`apply_edits` currently admits `replace_paragraph_text` only.
+`apply_edits` admits:
+
+- `replace_paragraph_text`
+- `insert_paragraph_before`
+- `insert_paragraph_after`
+- `delete_paragraph`
+- `move_paragraph_before`
+- `move_paragraph_after` (same container in P2.1)
+
+Inserted paragraphs inherit the anchor paragraph's paragraph/run formatting shell, receive a fresh paragraph intrinsic id, and deliberately do not duplicate rich inline controls. Structural transactions return structure-diff and locator-rebinding receipts.
 
 ```text
 expected_revision == current_revision
@@ -65,7 +74,7 @@ expected_revision == current_revision
 → update package/semantic/structure receipts
 ```
 
-Stale revisions, invalid operation sets, unknown locators, and candidate-validator failures leave the original document bytes unchanged. Formatting and structural edits remain out of scope until this text-addressing boundary is closed natively.
+Stale revisions, invalid operation sets, unknown locators, and candidate-validator failures leave the original document bytes unchanged. Formatting, cross-container paragraph moves, and table/image/equation mutation remain outside the P2.1 boundary.
 
 ## Durable OAuth boundary
 
@@ -144,7 +153,7 @@ See [`P2_TEST_LEDGER.md`](./P2_TEST_LEDGER.md) for canonical run/deploy receipts
 
 ## Security boundary
 
-P2 is still deliberately narrow. It does not yet claim durable document bytes, structural editing, formatting, tables/images/equations, or native Hancom visual fidelity.
+P2.1 is still deliberately narrow. It does not yet claim durable document bytes, formatting, cross-container structural moves, tables/images/equations, or native Hancom visual fidelity.
 
 ## Phase lineage
 
@@ -153,7 +162,7 @@ P1     minimal valid HWPX + document_id + signed export
 P1.1   OAuth-native secret-free lifecycle + authenticated ownership
 P1.2   durable OAuth authority + bounded existing-HWPX ingress
 P2     structured introspection + paragraph addressing + revision-safe text transactions
-P2.x   structural/formatting operations after native P2 closure
+P2.1   paragraph insert/delete/reorder + locator rebinding\nP2.x   formatting and richer structural operations
 P3     tables / images / equations
 P4     renderer oracle and Hancom fidelity validation
 ```

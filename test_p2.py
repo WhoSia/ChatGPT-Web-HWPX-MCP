@@ -790,6 +790,131 @@ class P2DocumentTests(unittest.TestCase):
             self.assertTrue(any(item["before"]["kind"] == "field" and item["status"] == "stable" for item in bindings))
             self.assertTrue(any(item["before"]["kind"] == "bookmark" and item["status"] == "rebound" for item in bindings))
 
+    def test_p27_table_map_exposes_stable_table_and_grid_cell_addresses(self) -> None:
+        from hwpx import HwpxDocument
+
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "table-map.hwpx"
+            doc = HwpxDocument.new()
+            table = doc.add_table(rows=2, cols=3)
+            table.set_cell_text(0, 0, "A")
+            table.set_cell_text(1, 2, "Z")
+            path.write_bytes(doc.to_bytes())
+            doc.close()
+
+            mapped = build_table_map(path)
+            self.assertEqual(mapped["table_count"], 1)
+            table_info = mapped["tables"][0]
+            self.assertEqual((table_info["rows"], table_info["cols"]), (2, 3))
+            self.assertTrue(table_info["locator"].startswith("tbl_"))
+            self.assertEqual(len(table_info["cells"]), 6)
+            self.assertTrue(all(cell["locator"].startswith("cell_") for cell in table_info["cells"]))
+            self.assertEqual(len(mapped["table_structure_sha256"]), 64)
+            self.assertEqual(len(mapped["table_format_sha256"]), 64)
+
+    def test_p27_row_insert_delete_and_column_delete_are_atomic(self) -> None:
+        from hwpx import HwpxDocument
+
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "table-structure.hwpx"
+            doc = HwpxDocument.new()
+            table = doc.add_table(rows=3, cols=3)
+            for r in range(3):
+                for col in range(3):
+                    table.set_cell_text(r, col, f"{r},{col}")
+            path.write_bytes(doc.to_bytes())
+            doc.close()
+
+            before = build_table_map(path)
+            locator = before["tables"][0]["locator"]
+            result = apply_table_edits_atomic(
+                path,
+                [
+                    {"op": "insert_row_by_clone", "table": locator, "ref_row": 1, "count": 1},
+                    {"op": "delete_row", "table": locator, "row": 0},
+                    {"op": "delete_column", "table": locator, "col": 2},
+                ],
+                expected_revision=1,
+                current_revision=1,
+                validator=lambda candidate: server.validate_hwpx_package(candidate),
+            )
+            after = build_table_map(path)
+            self.assertTrue(result["table_structure_changed"])
+            self.assertEqual((after["tables"][0]["rows"], after["tables"][0]["cols"]), (3, 2))
+            self.assertEqual(after["tables"][0]["locator"], locator)
+
+    def test_p27_merge_then_split_restores_grid_geometry(self) -> None:
+        from hwpx import HwpxDocument
+
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "table-merge.hwpx"
+            doc = HwpxDocument.new()
+            table = doc.add_table(rows=2, cols=2)
+            table.set_cell_text(0, 0, "anchor")
+            path.write_bytes(doc.to_bytes())
+            doc.close()
+
+            before = build_table_map(path)
+            t = before["tables"][0]
+            start = next(cell for cell in t["cells"] if cell["row"] == 0 and cell["col"] == 0)
+            end = next(cell for cell in t["cells"] if cell["row"] == 0 and cell["col"] == 1)
+            apply_table_edits_atomic(
+                path,
+                [{"op": "merge_cells", "table": t["locator"], "start_cell": start["locator"], "end_cell": end["locator"]}],
+                expected_revision=1,
+                current_revision=1,
+                validator=lambda candidate: server.validate_hwpx_package(candidate),
+            )
+            merged = build_table_map(path)
+            mt = merged["tables"][0]
+            anchor = next(cell for cell in mt["cells"] if cell["row"] == 0 and cell["col"] == 0)
+            self.assertEqual((anchor["row_span"], anchor["col_span"]), (1, 2))
+
+            apply_table_edits_atomic(
+                path,
+                [{"op": "split_merged_cell", "table": mt["locator"], "cell": anchor["locator"]}],
+                expected_revision=2,
+                current_revision=2,
+                validator=lambda candidate: server.validate_hwpx_package(candidate),
+            )
+            split = build_table_map(path)
+            self.assertEqual(len(split["tables"][0]["cells"]), 4)
+            restored = next(cell for cell in split["tables"][0]["cells"] if cell["row"] == 0 and cell["col"] == 0)
+            self.assertEqual((restored["row_span"], restored["col_span"]), (1, 1))
+
+    def test_p27_cell_text_shading_and_borders_preserve_table_geometry(self) -> None:
+        from hwpx import HwpxDocument
+
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "table-format.hwpx"
+            doc = HwpxDocument.new()
+            table = doc.add_table(rows=1, cols=2)
+            table.set_cell_text(0, 0, "old")
+            path.write_bytes(doc.to_bytes())
+            doc.close()
+
+            before = build_table_map(path)
+            t = before["tables"][0]
+            cell = next(item for item in t["cells"] if item["row"] == 0 and item["col"] == 0)
+            result = apply_table_edits_atomic(
+                path,
+                [
+                    {"op": "set_cell_text", "table": t["locator"], "cell": cell["locator"], "text": "new"},
+                    {"op": "set_cell_shading", "table": t["locator"], "cell": cell["locator"], "color": "#E6E6E6"},
+                    {"op": "set_cell_borders", "table": t["locator"], "cell": cell["locator"], "color": "#333333", "line_type": "SOLID"},
+                ],
+                expected_revision=1,
+                current_revision=1,
+                validator=lambda candidate: server.validate_hwpx_package(candidate),
+            )
+            after = build_table_map(path)
+            at = after["tables"][0]
+            acell = next(item for item in at["cells"] if item["row"] == 0 and item["col"] == 0)
+            self.assertEqual(acell["text"], "new")
+            self.assertFalse(result["table_structure_changed"])
+            self.assertTrue(result["table_format_changed"])
+            self.assertEqual((at["rows"], at["cols"]), (1, 2))
+
     def test_stale_revision_rejects_without_byte_mutation(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             path = self._document(tmp)

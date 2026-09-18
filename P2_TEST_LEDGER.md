@@ -415,6 +415,53 @@ Confirmed boundaries include legacy P2.1–P2.7 regressions, table create → ma
 
 The public receipt confirms the final P2.8 version is live behind the existing OAuth/public boundary.
 
+## P2.9 image/object semantics, media custody and geometry transaction receipt
+
+Current extended server version: `0.3.9-p2.9`.
+
+P2.9 promotes embedded pictures to first-class semantic objects and keeps their package media assets as a separate custody layer.
+
+Confirmed positive lanes:
+
+- `get_object_map` — picture identity, owning paragraph, inline/floating placement, BinData reference, geometry and package-media inventory;
+- `insert_picture` — PNG/JPEG package custody plus inline or floating picture insertion;
+- `replace_picture` — asset replacement while preserving the existing picture object/geometry, with optional orphan cleanup;
+- `remove_picture` — picture-object removal with optional unreferenced-media garbage collection;
+- `resize_picture` — coherent picture size update across `sz/orgSz/curSz`, rotation center, `imgRect`, `imgClip`, and `imgDim`;
+- `set_picture_position` — offset mutation for existing floating pictures only.
+
+Media custody is bounded to decoded PNG/JPEG payloads of at most 8 MiB. Signature mismatch, unsupported formats, stale revisions, invalid locators, and candidate-validation failures refuse before commit.
+
+Independent receipts:
+
+- `object_structure_sha256`;
+- `object_geometry_sha256`;
+- `media_custody_sha256`;
+- picture create/delete/stable rebinding.
+
+The upstream evidence basis is stronger than structural inference alone: `python-hwpx` documents `add_picture`, `add_image`, and `doc.media.replace_picture` as real-Hancom render-verified picture authoring/replacement lanes. P2.9 reuses those primitives rather than reconstructing the package media contract independently.
+
+### Canonical P2.9 lifecycle receipt
+
+- workflow: `P2.9 Image-object lifecycle HWPX CI`
+- run: `35317728218`
+- commit: `5ac0696c870b9eed70f7a0073a7e3c5da9e4b2cd`
+- conclusion: **SUCCESS**
+
+The same head passed focused picture lifecycle/geometry/custody regressions and the OAuth-native `insert_picture → get_object_map → remove_picture → get_object_map` round trip, while retaining legacy P2.1–P2.8 coverage.
+
+### Canonical P2.9 Render/public receipt
+
+- service: `chatgpt-web-hwpx-mcp-p0`
+- deploy: `dep-dame5bad0e5s73f3l5m0`
+- commit: `5ac0696c870b9eed70f7a0073a7e3c5da9e4b2cd`
+- deploy status: **live**
+- public workflow: `P2.9 Render public boundary verification`
+- run: `35317728254`
+- conclusion: **SUCCESS**
+
+The public receipt confirms P2.9 is live behind the existing durable OAuth/public boundary.
+
 ## Current verdict
 
 ```text
@@ -467,14 +514,24 @@ P2_8_COLUMN_INSERTION_EVIDENCE_GATE = CLOSED_NEGATIVE
 P2_8_OAUTH_NATIVE_LIFECYCLE = PASS
 P2_8_RENDER_DEPLOYMENT = PASS
 P2_8_PUBLIC_BOUNDARY = PASS
+P2_9_IMAGE_OBJECT_INTROSPECTION = PASS
+P2_9_MEDIA_ITEM_CUSTODY = PASS
+P2_9_INLINE_FLOATING_INSERTION = PASS
+P2_9_PICTURE_REPLACEMENT_REMOVAL = PASS
+P2_9_OBJECT_GEOMETRY_TRANSACTION = PASS
+P2_9_OBJECT_REBINDING = PASS
+P2_9_OAUTH_NATIVE_LIFECYCLE = PASS
+P2_9_RENDER_DEPLOYMENT = PASS
+P2_9_PUBLIC_BOUNDARY = PASS
 
 COLUMN_INSERTION = EVIDENCE_GATE_CLOSED
 ARBITRARY_FIELD_TYPE_MUTATION = HOLD
 BOOKMARK_SHAPE_OBJECT_CROSS_SEMANTIC_MUTATION = HOLD
 CROSS_CONTAINER_PARAGRAPH_MOVES = HOLD
-IMAGE_EQUATION_OPERATIONS = HOLD
+PICTURE_EFFECT_CROP_GROUP_OPERATIONS = HOLD
+EQUATION_OPERATIONS = HOLD
 DURABLE_DOCUMENT_OBJECT_STORAGE = HOLD
 HANCOM_RENDERER_FIDELITY_ORACLE = HOLD
 ```
 
-P2.8 is **IMPLEMENTATION PASS / NATIVE-CI PASS / PUBLIC PASS**. Column insertion remains **CLOSED_NEGATIVE** pending an evidence-backed primitive. The remaining control gap is now beyond the confirmed hyperlink/typed-field/bookmark lanes: arbitrary field-type reinterpretation, richer object/shape reference semantics, cross-container editing, tables/images/equations, durable document-byte storage, and native Hancom fidelity.
+P2.9 is **IMPLEMENTATION PASS / NATIVE-CI PASS / PUBLIC PASS**. Column insertion remains **CLOSED_NEGATIVE** pending an evidence-backed primitive. The remaining control gap is now beyond the confirmed hyperlink/typed-field/bookmark lanes: arbitrary field-type reinterpretation, richer object/shape reference semantics, cross-container editing, tables/images/equations, durable document-byte storage, and native Hancom fidelity.

@@ -183,6 +183,53 @@ Confirmed P2.3 boundaries include Python compilation, legacy ingress/auth regres
 
 The public receipt confirms P2.3 health/version availability, durable OAuth metadata, `offline_access`, and unauthenticated MCP rejection.
 
+## P2.4 control-aware inline extension receipt
+
+Current extended server version: `0.3.4-p2.4`.
+
+P2.4 adds a direct inline atom map and a new revision-guarded `apply_inline_edits` lane. The admitted mutation is `replace_inline_text` over `[start,end)` offsets in paragraph `inline_text`.
+
+The inline map distinguishes:
+
+- ordinary text spans with run, field-stack, and mixed-markup context;
+- visible one-character special atoms: tab, lineBreak, nbSpace, fwSpace, soft hyphen;
+- zero-width field begin/end, markup, control, bookmark/object boundaries;
+- field spans such as HYPERLINK and DATE;
+- `inline_text_sha256` and an offset-insensitive `inline_structure_sha256` over the preserved control/field/markup/special-atom skeleton.
+
+P2.4 permits cross-run ordinary-text replacement when all selected spans share one field/markup context. Hyperlink display text and DATE/PATH cached text can therefore be edited without rewriting their wrappers. Requests that cross a field/control/markup boundary or consume a special atom fail before candidate commit. Candidate validation, paragraph-structure invariance, and inline-structure invariance are hard commit gates.
+
+### Canonical P2.4 lifecycle receipt
+
+- workflow: `P2.4 Control-aware inline HWPX lifecycle CI`
+- run: `35306521565`
+- commit: `663a0b0e0801f4e2caebbab635a5c3e2da3fdd18`
+- conclusion: **SUCCESS**
+
+Confirmed P2.4 boundaries include:
+
+- plain cross-run replacement while preserving run topology;
+- HYPERLINK display-text mutation with field wrapper preserved;
+- single-run DATE cached-text mutation with field wrapper preserved;
+- atomic rejection of selection crossing a field boundary;
+- preservation of mixed `hp:t` markup;
+- rejection of surgery through lineBreak/special atoms;
+- OAuth-native `get_inline_map → apply_inline_edits → get_inline_map → compare_document` lifecycle;
+- inline-structure match after cross-run text mutation;
+- signed export, re-ingest, validation, and cleanup.
+
+### Canonical P2.4 Render/public receipt
+
+- service: `chatgpt-web-hwpx-mcp-p0`
+- deploy: `dep-dambnq8u01pc73f31sn0`
+- commit: `663a0b0e0801f4e2caebbab635a5c3e2da3fdd18`
+- deploy status: **live**
+- public workflow: `P2.4 Render public boundary verification`
+- run: `35306521538`
+- conclusion: **SUCCESS**
+
+The public receipt confirms P2.4 health/version availability, durable OAuth metadata, `offline_access`, and unauthenticated MCP rejection.
+
 ## Current verdict
 
 ```text
@@ -195,15 +242,23 @@ P2_3_RUN_SPLITTING_SAFE_LANE = PASS
 P2_3_NESTED_PARAGRAPH_FORMATTING = PASS
 P2_3_STYLE_COPY_REUSE = PASS
 P2_3_FORMAT_NORMALIZATION = PASS
-P2_3_OAUTH_NATIVE_LIFECYCLE = PASS
-P2_3_RENDER_DEPLOYMENT = PASS
-P2_3_PUBLIC_BOUNDARY = PASS
+P2_4_INLINE_ATOM_MAP = PASS
+P2_4_CROSS_RUN_CHARACTER_EDITING = PASS
+P2_4_HYPERLINK_FIELD_SAFE_SELECTION = PASS
+P2_4_DATE_FIELD_CACHED_TEXT_EDITING = PASS
+P2_4_MIXED_MARKUP_BOUNDARY_PRESERVATION = PASS
+P2_4_INLINE_STRUCTURE_DIFF = PASS
+P2_4_OAUTH_NATIVE_LIFECYCLE = PASS
+P2_4_RENDER_DEPLOYMENT = PASS
+P2_4_PUBLIC_BOUNDARY = PASS
 
-MIXED_INLINE_CONTROL_RANGE_SURGERY = HOLD
+FIELD_CONTROL_SEMANTIC_MUTATION = HOLD
+SPECIAL_INLINE_ATOM_MUTATION = HOLD
+HYPERLINK_CREATE_DELETE_RETARGET = HOLD
 CROSS_CONTAINER_PARAGRAPH_MOVES = HOLD
 TABLE_IMAGE_EQUATION_OPERATIONS = HOLD
 DURABLE_DOCUMENT_OBJECT_STORAGE = HOLD
 HANCOM_RENDERER_FIDELITY_ORACLE = HOLD
 ```
 
-P2.3 is therefore **IMPLEMENTATION PASS / NATIVE-CI PASS / PUBLIC PASS**. The remaining inline-formatting boundary is no longer ordinary run or nested-paragraph formatting; it is control-aware range surgery through fields, hyperlinks, mixed markup, tabs, shapes, and other non-plain inline structures.
+P2.4 is **IMPLEMENTATION PASS / NATIVE-CI PASS / PUBLIC PASS**. The remaining inline gap is no longer safe text surgery around controls; it is deliberate mutation of control semantics themselves: field commands/targets, hyperlink creation-retargeting/removal, and special inline atoms.

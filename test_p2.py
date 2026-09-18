@@ -12,7 +12,7 @@ from p23_richtext import apply_rich_formatting_atomic
 from p24_inline import apply_inline_edits_atomic, build_inline_map
 from p25_controls import apply_control_edits_atomic as apply_control_edits_p25_atomic
 from p26_controls import apply_control_edits_atomic
-from p27_tables import apply_table_edits_atomic, build_table_map
+from p28_tables import apply_table_edits_atomic, build_table_map
 
 
 class P2DocumentTests(unittest.TestCase):
@@ -915,6 +915,112 @@ class P2DocumentTests(unittest.TestCase):
             self.assertFalse(result["table_structure_changed"])
             self.assertTrue(result["table_format_changed"])
             self.assertEqual((at["rows"], at["cols"]), (1, 2))
+
+    def test_p28_table_create_advanced_properties_delete_lifecycle(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = self._document(tmp)
+
+            created = apply_table_edits_atomic(
+                path,
+                [{
+                    "op": "create_table",
+                    "rows": 2,
+                    "cols": 2,
+                    "cells": [["H1", "H2"], ["v1", "v2"]],
+                }],
+                expected_revision=1,
+                current_revision=1,
+                validator=lambda candidate: server.validate_hwpx_package(candidate),
+            )
+            after_create = build_table_map(path)
+            self.assertEqual(after_create["table_count"], 1)
+            table = after_create["tables"][0]
+            self.assertTrue(created["table_structure_changed"])
+            self.assertTrue(created["table_object_rebinding"]["created_tables"])
+
+            cell = next(item for item in table["cells"] if item["row"] == 0 and item["col"] == 0)
+            advanced = apply_table_edits_atomic(
+                path,
+                [
+                    {
+                        "op": "set_cell_properties",
+                        "table": table["locator"],
+                        "cell": cell["locator"],
+                        "header": True,
+                        "protect": True,
+                        "editable": False,
+                        "name": "header-left",
+                    },
+                    {
+                        "op": "set_cell_margin",
+                        "table": table["locator"],
+                        "cell": cell["locator"],
+                        "left": 320,
+                        "right": 330,
+                        "top": 140,
+                        "bottom": 150,
+                    },
+                    {
+                        "op": "set_cell_size",
+                        "table": table["locator"],
+                        "cell": cell["locator"],
+                        "width": 12000,
+                        "height": 4200,
+                    },
+                ],
+                expected_revision=2,
+                current_revision=2,
+                validator=lambda candidate: server.validate_hwpx_package(candidate),
+            )
+            mapped = build_table_map(path)
+            target = next(item for item in mapped["tables"][0]["cells"] if item["row"] == 0 and item["col"] == 0)
+            self.assertEqual(target["header"], "1")
+            self.assertEqual(target["protect"], "1")
+            self.assertEqual(target["editable"], "0")
+            self.assertEqual(target["name"], "header-left")
+            self.assertEqual(target["margin"], {"left": 320, "right": 330, "top": 140, "bottom": 150})
+            self.assertEqual(target["width"], 12000)
+            self.assertEqual(target["height"], 4200)
+            self.assertTrue(advanced["table_object_changed"])
+
+            deleted = apply_table_edits_atomic(
+                path,
+                [{"op": "delete_table", "table": mapped["tables"][0]["locator"]}],
+                expected_revision=3,
+                current_revision=3,
+                validator=lambda candidate: server.validate_hwpx_package(candidate),
+            )
+            after_delete = build_table_map(path)
+            self.assertEqual(after_delete["table_count"], 0)
+            self.assertTrue(deleted["table_object_rebinding"]["deleted_tables"])
+
+    def test_p28_column_insert_evidence_gate_is_fail_closed(self) -> None:
+        from hwpx import HwpxDocument
+
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "p28-column-gate.hwpx"
+            doc = HwpxDocument.new()
+            doc.add_table(rows=2, cols=2)
+            path.write_bytes(doc.to_bytes())
+            doc.close()
+
+            before_bytes = path.read_bytes()
+            mapped = build_table_map(path)
+            table = mapped["tables"][0]
+            with self.assertRaisesRegex(ValueError, "evidence gate remains closed"):
+                apply_table_edits_atomic(
+                    path,
+                    [{
+                        "op": "insert_column_by_clone",
+                        "table": table["locator"],
+                        "ref_col": 0,
+                        "count": 1,
+                    }],
+                    expected_revision=1,
+                    current_revision=1,
+                    validator=lambda candidate: server.validate_hwpx_package(candidate),
+                )
+            self.assertEqual(path.read_bytes(), before_bytes)
 
     def test_stale_revision_rejects_without_byte_mutation(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

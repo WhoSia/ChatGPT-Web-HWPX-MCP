@@ -7,8 +7,9 @@ import server as core
 from p2_document import apply_edits_atomic, build_document_map
 from p22_formatting import build_formatting_map
 from p23_richtext import apply_rich_formatting_atomic
+from p24_inline import apply_inline_edits_atomic, build_inline_map
 
-P2_VERSION = "0.3.3-p2.3"
+P2_VERSION = "0.3.4-p2.4"
 core.VERSION = P2_VERSION
 
 _original_metadata = core._metadata
@@ -41,6 +42,7 @@ def _refresh_metadata(
     validation: dict,
     document_map: dict,
     formatting_map: dict | None = None,
+    inline_map: dict | None = None,
 ) -> dict:
     metadata["sha256"] = validation["sha256"]
     metadata["bytes"] = validation["bytes"]
@@ -48,6 +50,9 @@ def _refresh_metadata(
     metadata["structure_sha256"] = document_map["structure_sha256"]
     if formatting_map is not None:
         metadata["formatting_sha256"] = formatting_map["formatting_sha256"]
+    if inline_map is not None:
+        metadata["inline_text_sha256"] = inline_map["inline_text_sha256"]
+        metadata["inline_structure_sha256"] = inline_map["inline_structure_sha256"]
     core._write_metadata(document_id, metadata)
     return metadata
 
@@ -58,11 +63,14 @@ def get_document_map(document_id: str) -> dict:
     metadata, path = _owned_document(document_id)
     document_map = build_document_map(path)
     formatting_map = build_formatting_map(path)
+    inline_map = build_inline_map(path)
     validation = core.validate_hwpx_package(
         path,
         ingress=metadata.get("source") == "existing-ingress",
     )
-    _refresh_metadata(document_id, metadata, validation, document_map, formatting_map)
+    _refresh_metadata(
+        document_id, metadata, validation, document_map, formatting_map, inline_map
+    )
     return {
         "ok": True,
         "document_id": document_id,
@@ -71,6 +79,8 @@ def get_document_map(document_id: str) -> dict:
         "semantic_sha256": document_map["semantic_sha256"],
         "structure_sha256": document_map["structure_sha256"],
         "formatting_sha256": formatting_map["formatting_sha256"],
+        "inline_text_sha256": inline_map["inline_text_sha256"],
+        "inline_structure_sha256": inline_map["inline_structure_sha256"],
         "sections": document_map["sections"],
         "paragraphs": document_map["paragraphs"],
         "address_contract": {
@@ -111,6 +121,34 @@ def get_text(document_id: str, locator: str = "") -> dict:
 
 
 @core.mcp.tool()
+def get_inline_map(document_id: str, locator: str = "") -> dict:
+    """Return direct inline text spans, controls, fields and structure receipts."""
+    metadata, path = _owned_document(document_id)
+    inline_map = build_inline_map(path)
+    if locator:
+        paragraph = next(
+            (item for item in inline_map["paragraphs"] if item["locator"] == locator),
+            None,
+        )
+        if paragraph is None:
+            raise ValueError("Unknown paragraph locator")
+        return {
+            "ok": True,
+            "document_id": document_id,
+            "revision": int(metadata["revision"]),
+            "inline_text_sha256": inline_map["inline_text_sha256"],
+            "inline_structure_sha256": inline_map["inline_structure_sha256"],
+            "paragraph": paragraph,
+        }
+    return {
+        "ok": True,
+        "document_id": document_id,
+        "revision": int(metadata["revision"]),
+        **inline_map,
+    }
+
+
+@core.mcp.tool()
 def get_formatting(document_id: str, locator: str = "") -> dict:
     """Inspect paragraph/run formatting refs and resolved property summaries."""
     metadata, path = _owned_document(document_id)
@@ -139,6 +177,49 @@ def get_formatting(document_id: str, locator: str = "") -> dict:
 
 
 @core.mcp.tool()
+def apply_inline_edits(document_id: str, expected_revision: int, operations: list[dict]) -> dict:
+    """Apply one revision-guarded control-aware inline text transaction."""
+    metadata, path = _owned_document(document_id)
+    current_revision = int(metadata["revision"])
+    ingress = metadata.get("source") == "existing-ingress"
+    transaction = apply_inline_edits_atomic(
+        path,
+        operations,
+        expected_revision=int(expected_revision),
+        current_revision=current_revision,
+        validator=lambda candidate: core.validate_hwpx_package(candidate, ingress=ingress),
+    )
+    validation = transaction["validation"]
+    after_document = build_document_map(path)
+    after_formatting = build_formatting_map(path)
+    after_inline = build_inline_map(path)
+    metadata["revision"] = current_revision + 1
+    metadata["last_edit_at"] = core._utc_iso()
+    _refresh_metadata(
+        document_id,
+        metadata,
+        validation,
+        after_document,
+        after_formatting,
+        after_inline,
+    )
+    return {
+        "ok": True,
+        "document_id": document_id,
+        "revision_before": current_revision,
+        "revision_after": int(metadata["revision"]),
+        "sha256": validation["sha256"],
+        "inline_diff": transaction,
+        "semantic_changed": transaction["semantic_changed"],
+        "structure_changed": transaction["structure_changed"],
+        "inline_text_changed": transaction["inline_text_changed"],
+        "inline_structure_changed": transaction["inline_structure_changed"],
+        "validation": validation,
+        "transaction": "COMMITTED",
+    }
+
+
+@core.mcp.tool()
 def apply_formatting(document_id: str, expected_revision: int, operations: list[dict]) -> dict:
     """Apply one revision-guarded formatting-only transaction."""
     metadata, path = _owned_document(document_id)
@@ -154,6 +235,7 @@ def apply_formatting(document_id: str, expected_revision: int, operations: list[
     validation = transaction["validation"]
     after_document = build_document_map(path)
     after_formatting = build_formatting_map(path)
+    after_inline = build_inline_map(path)
     metadata["revision"] = current_revision + 1
     metadata["last_edit_at"] = core._utc_iso()
     _refresh_metadata(
@@ -162,6 +244,7 @@ def apply_formatting(document_id: str, expected_revision: int, operations: list[
         validation,
         after_document,
         after_formatting,
+        after_inline,
     )
     return {
         "ok": True,
@@ -194,9 +277,12 @@ def apply_edits(document_id: str, expected_revision: int, operations: list[dict]
     validation = transaction["validation"]
     after_map = build_document_map(path)
     after_formatting = build_formatting_map(path)
+    after_inline = build_inline_map(path)
     metadata["revision"] = current_revision + 1
     metadata["last_edit_at"] = core._utc_iso()
-    _refresh_metadata(document_id, metadata, validation, after_map, after_formatting)
+    _refresh_metadata(
+        document_id, metadata, validation, after_map, after_formatting, after_inline
+    )
     return {
         "ok": True,
         "document_id": document_id,
@@ -224,14 +310,17 @@ def compare_document(
     semantic_sha256: str = "",
     structure_sha256: str = "",
     formatting_sha256: str = "",
+    inline_structure_sha256: str = "",
 ) -> dict:
-    """Compare supplied semantic/structure/formatting receipts with the current revision."""
+    """Compare semantic/structure/formatting/inline-structure receipts."""
     metadata, path = _owned_document(document_id)
     document_map = build_document_map(path)
     formatting_map = build_formatting_map(path)
+    inline_map = build_inline_map(path)
     current_semantic = document_map["semantic_sha256"]
     current_structure = document_map["structure_sha256"]
     current_formatting = formatting_map["formatting_sha256"]
+    current_inline_structure = inline_map["inline_structure_sha256"]
     return {
         "ok": True,
         "document_id": document_id,
@@ -240,11 +329,17 @@ def compare_document(
             "semantic_sha256": current_semantic,
             "structure_sha256": current_structure,
             "formatting_sha256": current_formatting,
+            "inline_structure_sha256": current_inline_structure,
         },
         "matches": {
             "semantic": None if not semantic_sha256 else semantic_sha256 == current_semantic,
             "structure": None if not structure_sha256 else structure_sha256 == current_structure,
             "formatting": None if not formatting_sha256 else formatting_sha256 == current_formatting,
+            "inline_structure": (
+                None
+                if not inline_structure_sha256
+                else inline_structure_sha256 == current_inline_structure
+            ),
         },
     }
 
@@ -255,7 +350,7 @@ def p2_capabilities() -> dict:
     return {
         "project": core.PROJECT,
         "version": core.VERSION,
-        "phase": "P2.3",
+        "phase": "P2.4",
         "authenticated_subject": subject,
         "tools_added": [
             "get_document_map",
@@ -264,6 +359,8 @@ def p2_capabilities() -> dict:
             "compare_document",
             "get_formatting",
             "apply_formatting",
+            "get_inline_map",
+            "apply_inline_edits",
         ],
         "operations": [
             "replace_paragraph_text",
@@ -272,6 +369,9 @@ def p2_capabilities() -> dict:
             "delete_paragraph",
             "move_paragraph_before",
             "move_paragraph_after",
+        ],
+        "inline_operations": [
+            "replace_inline_text",
         ],
         "formatting_operations": [
             "set_run_format",
@@ -296,6 +396,16 @@ def p2_capabilities() -> dict:
             "normalization": "coalesce adjacent split-safe runs with identical run attributes",
             "diff": "formatting_sha256",
             "semantic_structure_preservation": "fail-closed",
+        },
+        "inline_editing": {
+            "coordinate": "[start,end) over direct inline_text",
+            "cross_run": True,
+            "hyperlink_field_cached_text": True,
+            "field_wrapper_preservation": "required",
+            "mixed_markup": "context-aware; preserved markers are hard internal boundaries",
+            "special_atoms": "tab/lineBreak/nbSpace/fwSpace/soft-hyphen are visible but non-replaceable in P2.4",
+            "replacement_style": "storage/run style at range start",
+            "diff": "inline_structure_sha256",
         },
         "tables_images_equations": False,
     }

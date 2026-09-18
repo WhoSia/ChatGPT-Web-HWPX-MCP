@@ -6,7 +6,7 @@ Remote Streamable-HTTP MCP for authenticated HWPX document creation, custody, va
 
 **P0 / P1 / P1.1 / P1.2 are closed / PASS.** The project has established native ChatGPT MCP discovery and actions, opaque document custody, signed HWPX delivery, OAuth-native secret-free invocation, durable restart-safe OAuth authority, and bounded existing-HWPX ingress. See the corresponding test ledgers.
 
-**P2 is CLOSED / PASS. P2.1–P2.6 are implemented. P2.7 is active.** P2.6 adds partial-span hyperlink wrapping, typed DATE/PATH/MAILMERGE property mutation, bookmark/reference lifecycle operations, and explicit control-identity rebinding receipts.
+**P2 is CLOSED / PASS. P2.1–P2.7 are implemented. P2.8 is active.** P2.8 closes the basic table-object lifecycle with creation/deletion, advanced cell properties, and an explicit evidence gate for unsupported column insertion.
 
 ```text
 ChatGPT Web
@@ -41,7 +41,7 @@ ChatGPT Web
 | `apply_control_edits` | Yes | Mutate hyperlink/field semantics or insert/delete special inline atoms |
 | `get_table_map` | No | Return table/cell semantic addresses, merge geometry, and table receipts |
 | `apply_table_edits` | Yes | Apply one revision-guarded table structure/geometry/cell-format transaction |
-| `compare_document` | No | Compare semantic/structure/formatting/inline-structure receipts with the current revision |
+| `compare_document` | No | Compare semantic/structure/formatting/inline/table receipts with the current revision |
 | `export_document` | No* | Return a short-lived signed download URL |
 | `delete_document` | Yes | Delete the caller-owned HWPX and metadata |
 

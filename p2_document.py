@@ -162,9 +162,32 @@ def _fresh_paragraph_id(root: ElementTree.Element) -> str:
 
 
 def _clone_paragraph(anchor: ElementTree.Element, text: str, root: ElementTree.Element) -> ElementTree.Element:
+    """Clone paragraph formatting without duplicating controls or rich inline content."""
     node = copy.deepcopy(anchor)
     _set_intrinsic_id(node, _fresh_paragraph_id(root))
-    _replace_paragraph_text(node, text)
+
+    direct_runs = [child for child in list(node) if _local(child.tag) == "run"]
+    if not direct_runs:
+        raise ValueError("Paragraph template has no direct editable run")
+    run = direct_runs[0]
+    text_template = next((elem for elem in run.iter() if _local(elem.tag) == "t"), None)
+    if text_template is None:
+        raise ValueError("Paragraph template has no editable text node")
+
+    for child in list(node):
+        if _local(child.tag) == "run" and child is not run:
+            node.remove(child)
+        elif _local(child.tag).lower() == "linesegarray":
+            node.remove(child)
+
+    new_text = copy.deepcopy(text_template)
+    for child in list(new_text):
+        new_text.remove(child)
+    new_text.text = text
+    new_text.tail = None
+    for child in list(run):
+        run.remove(child)
+    run.append(new_text)
     return node
 
 

@@ -148,41 +148,62 @@ Confirmed public boundaries:
 
 The initial public failure is therefore classified as a transient GitHub-runner ↔ Render edge transport failure, not a P2 application failure.
 
+## P2.1–P2.3 extension receipt
+
+Current extended server version: `0.3.3-p2.3`.
+
+P2.1 added paragraph insertion/deletion/same-container reordering with locator rebinding. P2.2 added paragraph/run formatting introspection, formatting-only atomic transactions, resolved property summaries, and `formatting_sha256`. P2.3 adds direct-text range addressing and the following admitted operations:
+
+- `set_range_format` — `[start,end)` selection over paragraph `direct_text`, splitting only plain/split-safe runs;
+- `copy_run_format` — exact same-document `charPrIDRef` reuse to a run set or character range;
+- `copy_paragraph_format` — exact same-document `paraPrIDRef` reuse, with optional named `styleIDRef` reuse;
+- nested paragraph-property mutation by minting/reusing a `paraPr` from the target's current property and rebinding the addressed paragraph;
+- `normalize_formatting` — merge adjacent split-safe runs with identical run attributes after other formatting mutations.
+
+Range splitting is fail-closed for field/control/mixed-inline runs. Every formatting transaction still requires exact revision, validates the candidate package before commit, and rejects the candidate if semantic or paragraph-structure digests change.
+
+### Canonical P2.3 lifecycle receipt
+
+- workflow: `P2.3 Rich-text HWPX lifecycle CI`
+- run: `35305810290`
+- commit: `4d03ac80b522f1fe2fd9e1ff39bcf550ac85b9ab`
+- conclusion: **SUCCESS**
+
+Confirmed P2.3 boundaries include Python compilation, legacy ingress/auth regressions, range-run splitting, exact style-ref reuse, nested paragraph formatting, normalization, OAuth-native map → text edit → range formatting → targeted read → compare → export → re-ingest lifecycle, and cleanup.
+
+### Canonical P2.3 Render/public receipt
+
+- service: `chatgpt-web-hwpx-mcp-p0`
+- deploy: `dep-dambik61egvs738rucjg`
+- commit: `4d03ac80b522f1fe2fd9e1ff39bcf550ac85b9ab`
+- deploy status: **live**
+- public workflow: `P2.3 Render public boundary verification`
+- run: `35305810231`
+- conclusion: **SUCCESS**
+
+The public receipt confirms P2.3 health/version availability, durable OAuth metadata, `offline_access`, and unauthenticated MCP rejection.
+
 ## Current verdict
 
 ```text
-STRUCTURED_DOCUMENT_INTROSPECTION = PASS
-PARAGRAPH_ADDRESS_CONTRACT = PASS
-INTRINSIC_ID_LOCATOR_CONTINUITY_TEXT_ONLY = PASS
-REVISION_BOUND_FALLBACK_SEMANTICS = PASS
-EXACT_REVISION_PRECONDITION = PASS
-STALE_REVISION_REJECTION = PASS
-ATOMIC_MULTI_EDIT_COMMIT = PASS
-VALIDATOR_BEFORE_COMMIT = PASS
-ROLLBACK_BYTE_PRESERVATION = PASS
-SEMANTIC_DIFF_RECEIPT = PASS
-STRUCTURE_DIGEST_RECEIPT = PASS
-OAUTH_NATIVE_P2_CI_LIFECYCLE = PASS
-RENDER_P2_DEPLOYMENT = PASS
-PUBLIC_P2_BOUNDARY = PASS
+P2_STRUCTURED_INTROSPECTION = CLOSED_PASS
+P2_TEXT_TRANSACTION = CLOSED_PASS
+P2_1_PARAGRAPH_STRUCTURAL_EDITING = PASS
+P2_2_FORMATTING_INTROSPECTION_MUTATION_DIFF = PASS
+P2_3_RANGE_RICH_TEXT_SELECTION = PASS
+P2_3_RUN_SPLITTING_SAFE_LANE = PASS
+P2_3_NESTED_PARAGRAPH_FORMATTING = PASS
+P2_3_STYLE_COPY_REUSE = PASS
+P2_3_FORMAT_NORMALIZATION = PASS
+P2_3_OAUTH_NATIVE_LIFECYCLE = PASS
+P2_3_RENDER_DEPLOYMENT = PASS
+P2_3_PUBLIC_BOUNDARY = PASS
 
-CHATGPT_NATIVE_P2_TOOL_SURFACE = PENDING_NATIVE_RECEIPT
-STRUCTURAL_EDITS = HOLD
-FORMATTING = HOLD
+MIXED_INLINE_CONTROL_RANGE_SURGERY = HOLD
+CROSS_CONTAINER_PARAGRAPH_MOVES = HOLD
 TABLE_IMAGE_EQUATION_OPERATIONS = HOLD
 DURABLE_DOCUMENT_OBJECT_STORAGE = HOLD
 HANCOM_RENDERER_FIDELITY_ORACLE = HOLD
 ```
 
-## Promotion rule
-
-P2 is **IMPLEMENTATION PASS / PUBLIC PASS**. Global closure requires one native ChatGPT Web receipt through the existing custom app:
-
-1. call `p2_capabilities()` and observe version `0.3.0-p2`;
-2. create a small document at revision 1;
-3. obtain its paragraph map and one locator;
-4. execute a locator-targeted `replace_paragraph_text` with `expected_revision=1`;
-5. observe revision 2 and a semantic diff;
-6. read the same locator and observe the replacement text without reauthorizing OAuth.
-
-If those native steps pass, P2 may be closed and formatting/structural operations may begin in the next phase.
+P2.3 is therefore **IMPLEMENTATION PASS / NATIVE-CI PASS / PUBLIC PASS**. The remaining inline-formatting boundary is no longer ordinary run or nested-paragraph formatting; it is control-aware range surgery through fields, hyperlinks, mixed markup, tabs, shapes, and other non-plain inline structures.

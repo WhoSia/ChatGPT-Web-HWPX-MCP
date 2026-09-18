@@ -102,7 +102,7 @@ async def main() -> None:
     oauth = OAuthClientProvider(
         server_url=URL,
         client_metadata=OAuthClientMetadata(
-            client_name="ChatGPT Web HWPX MCP P2.8 CI",
+            client_name="ChatGPT Web HWPX MCP P2.9 CI",
             redirect_uris=[AnyUrl("http://127.0.0.1:8765/callback")],
             scope="hwpx offline_access",
         ),
@@ -139,6 +139,8 @@ async def main() -> None:
                 "apply_control_edits",
                 "get_table_map",
                 "apply_table_edits",
+                "get_object_map",
+                "apply_object_edits",
             }
             missing = expected - set(names)
             if missing:
@@ -149,11 +151,11 @@ async def main() -> None:
                     raise RuntimeError(f"secret-bearing field leaked into tool schema: {tool.name}")
 
             read_payload = _payload(await client.call_tool("probe_read", {"message": "P2 OAuth smoke test"}))
-            if not read_payload or not read_payload.get("ok") or read_payload.get("version") != "0.3.8-p2.8":
+            if not read_payload or not read_payload.get("ok") or read_payload.get("version") != "0.3.9-p2.9":
                 raise RuntimeError(f"probe_read did not expose P2: {read_payload}")
 
             p2_caps = _payload(await client.call_tool("p2_capabilities", {}))
-            if not p2_caps or p2_caps.get("phase") != "P2.8":
+            if not p2_caps or p2_caps.get("phase") != "P2.9":
                 raise RuntimeError(f"p2_capabilities failed: {p2_caps}")
 
             if not RUN_WRITE_TEST:
@@ -483,6 +485,64 @@ async def main() -> None:
             if final_table_map.get("table_count") != 0:
                 raise RuntimeError(f"P2.8 table lifecycle did not close: {final_table_map}")
 
+            png_bytes = (
+                b"\x89PNG\r\n\x1a\n" + b"\x00" * 8
+                + (1).to_bytes(4, "big") + (1).to_bytes(4, "big")
+                + b"\x00" * 32
+            )
+            inserted_picture = _payload(await client.call_tool("apply_object_edits", {
+                "document_id": document_id,
+                "expected_revision": 10,
+                "operations": [{
+                    "op": "insert_picture",
+                    "paragraph": locator,
+                    "content_base64": base64.b64encode(png_bytes).decode("ascii"),
+                    "image_format": "png",
+                    "width": 7200,
+                    "height": 3600,
+                    "placement": "inline",
+                }],
+            }))
+            if (
+                not inserted_picture
+                or inserted_picture.get("transaction") != "COMMITTED"
+                or inserted_picture.get("revision_after") != 11
+                or inserted_picture.get("media_custody_changed") is not True
+            ):
+                raise RuntimeError(f"P2.9 insert_picture failed: {inserted_picture}")
+
+            object_map = _payload(await client.call_tool("get_object_map", {
+                "document_id": document_id,
+            }))
+            if (
+                not object_map
+                or object_map.get("picture_count") != 1
+                or object_map.get("media_item_count") != 1
+            ):
+                raise RuntimeError(f"P2.9 get_object_map failed: {object_map}")
+            picture_locator = object_map["pictures"][0]["locator"]
+
+            removed_picture = _payload(await client.call_tool("apply_object_edits", {
+                "document_id": document_id,
+                "expected_revision": 11,
+                "operations": [{
+                    "op": "remove_picture",
+                    "picture": picture_locator,
+                    "remove_orphaned": True,
+                }],
+            }))
+            if (
+                not removed_picture
+                or removed_picture.get("transaction") != "COMMITTED"
+                or removed_picture.get("revision_after") != 12
+            ):
+                raise RuntimeError(f"P2.9 remove_picture failed: {removed_picture}")
+            object_map_after = _payload(await client.call_tool("get_object_map", {
+                "document_id": document_id,
+            }))
+            if object_map_after.get("picture_count") != 0 or object_map_after.get("media_item_count") != 0:
+                raise RuntimeError(f"P2.9 picture/media lifecycle did not close: {object_map_after}")
+
             exported = _payload(await client.call_tool("export_document", {"document_id": document_id, "link_ttl_seconds": 120}))
             if not exported or not exported.get("download_url"):
                 raise RuntimeError(f"export_document failed: {exported}")
@@ -508,7 +568,7 @@ async def main() -> None:
                 deleted = _payload(await client.call_tool("delete_document", {"document_id": doc_id}))
                 if not deleted or not deleted.get("deleted"):
                     raise RuntimeError(f"delete_document failed: {deleted}")
-            print("P2.8 lifecycle PASS", digest)
+            print("P2.9 lifecycle PASS", digest)
 
 
 if __name__ == "__main__":

@@ -132,6 +132,15 @@ def _run_text(run: ElementTree.Element) -> str:
     return "".join(parts)
 
 
+def _range_safe_run(run: ElementTree.Element) -> bool:
+    """Whether a run can be split without guessing about inline controls."""
+    children = list(run)
+    if len(children) != 1 or _local(children[0].tag) != "t":
+        return False
+    text_node = children[0]
+    return len(list(text_node)) == 0 and not (text_node.tail or "")
+
+
 def build_formatting_map(path: Path) -> dict:
     document_map = build_document_map(path)
     paragraph_by_position = {
@@ -157,17 +166,26 @@ def build_formatting_map(path: Path) -> dict:
                 style_ref = node.attrib.get("styleIDRef")
                 runs: list[dict] = []
                 direct_run_index = 0
+                direct_offset = 0
                 for child in list(node):
                     if _local(child.tag) != "run":
                         continue
                     char_ref = child.attrib.get("charPrIDRef")
+                    run_text = _run_text(child)
+                    start = direct_offset
+                    end = start + len(run_text)
                     runs.append({
                         "run_index": direct_run_index,
                         "char_pr_id_ref": char_ref,
-                        "text": _run_text(child),
+                        "text": run_text,
+                        "start": start,
+                        "end": end,
+                        "range_safe": _range_safe_run(child),
                         "style": _char_summary(char_ref, tables),
                     })
+                    direct_offset = end
                     direct_run_index += 1
+                direct_text = "".join(run["text"] for run in runs)
                 paragraphs.append({
                     "locator": mapped["locator"],
                     "section": section_name,
@@ -181,6 +199,8 @@ def build_formatting_map(path: Path) -> dict:
                     "page_break": node.attrib.get("pageBreak"),
                     "column_break": node.attrib.get("columnBreak"),
                     "paragraph_property": _para_summary(para_pr, tables),
+                    "direct_text": direct_text,
+                    "direct_text_length": len(direct_text),
                     "runs": runs,
                 })
                 para_index += 1
@@ -194,7 +214,14 @@ def build_formatting_map(path: Path) -> dict:
                 "style_id_ref": item["style_id_ref"],
                 "page_break": item["page_break"],
                 "column_break": item["column_break"],
-                "run_refs": [run["char_pr_id_ref"] for run in item["runs"]],
+                "runs": [
+                    {
+                        "start": run["start"],
+                        "end": run["end"],
+                        "char_pr_id_ref": run["char_pr_id_ref"],
+                    }
+                    for run in item["runs"]
+                ],
             }
             for item in paragraphs
         ],

@@ -101,7 +101,7 @@ async def main() -> None:
     oauth = OAuthClientProvider(
         server_url=URL,
         client_metadata=OAuthClientMetadata(
-            client_name="ChatGPT Web HWPX MCP P2.2 CI",
+            client_name="ChatGPT Web HWPX MCP P2.3 CI",
             redirect_uris=[AnyUrl("http://127.0.0.1:8765/callback")],
             scope="hwpx offline_access",
         ),
@@ -143,11 +143,11 @@ async def main() -> None:
                     raise RuntimeError(f"secret-bearing field leaked into tool schema: {tool.name}")
 
             read_payload = _payload(await client.call_tool("probe_read", {"message": "P2 OAuth smoke test"}))
-            if not read_payload or not read_payload.get("ok") or read_payload.get("version") != "0.3.2-p2.2":
+            if not read_payload or not read_payload.get("ok") or read_payload.get("version") != "0.3.3-p2.3":
                 raise RuntimeError(f"probe_read did not expose P2: {read_payload}")
 
             p2_caps = _payload(await client.call_tool("p2_capabilities", {}))
-            if not p2_caps or p2_caps.get("phase") != "P2.2":
+            if not p2_caps or p2_caps.get("phase") != "P2.3":
                 raise RuntimeError(f"p2_capabilities failed: {p2_caps}")
 
             if not RUN_WRITE_TEST:
@@ -187,8 +187,54 @@ async def main() -> None:
             if diff.get("after", {}).get("structure_sha256") != structure_before:
                 raise RuntimeError("text-only edit changed structural digest")
 
+            formatting_before = _payload(await client.call_tool("get_formatting", {
+                "document_id": document_id,
+                "locator": locator,
+            }))
+            if not formatting_before or formatting_before.get("revision") != 2:
+                raise RuntimeError(f"get_formatting before range edit failed: {formatting_before}")
+            formatting_sha_before = formatting_before["formatting_sha256"]
+
+            formatted = _payload(await client.call_tool("apply_formatting", {
+                "document_id": document_id,
+                "expected_revision": 2,
+                "operations": [{
+                    "op": "set_range_format",
+                    "target": locator,
+                    "start": 1,
+                    "end": 3,
+                    "format": {"bold": True},
+                }],
+            }))
+            if (
+                not formatted
+                or formatted.get("transaction") != "COMMITTED"
+                or formatted.get("revision_after") != 3
+                or formatted.get("semantic_changed") is not False
+                or formatted.get("structure_changed") is not False
+                or formatted.get("formatting_changed") is not True
+            ):
+                raise RuntimeError(f"apply_formatting range edit failed: {formatted}")
+
+            formatting_after = _payload(await client.call_tool("get_formatting", {
+                "document_id": document_id,
+                "locator": locator,
+            }))
+            if not formatting_after or formatting_after.get("revision") != 3:
+                raise RuntimeError(f"get_formatting after range edit failed: {formatting_after}")
+            if formatting_after.get("formatting_sha256") == formatting_sha_before:
+                raise RuntimeError("range formatting did not change formatting digest")
+            runs_after = [
+                run for run in formatting_after.get("paragraph", {}).get("runs", [])
+                if run.get("text")
+            ]
+            if [run.get("text") for run in runs_after] != ["g", "am", "ma"]:
+                raise RuntimeError(f"range formatting did not split runs as expected: {runs_after}")
+            if not runs_after[1].get("style", {}).get("bold"):
+                raise RuntimeError(f"range formatting did not resolve bold middle run: {runs_after}")
+
             targeted = _payload(await client.call_tool("get_text", {"document_id": document_id, "locator": locator}))
-            if not targeted or targeted.get("revision") != 2 or targeted.get("text") != "gamma":
+            if not targeted or targeted.get("revision") != 3 or targeted.get("text") != "gamma":
                 raise RuntimeError(f"targeted get_text failed: {targeted}")
 
             compared = _payload(await client.call_tool("compare_document", {
@@ -226,7 +272,7 @@ async def main() -> None:
                 deleted = _payload(await client.call_tool("delete_document", {"document_id": doc_id}))
                 if not deleted or not deleted.get("deleted"):
                     raise RuntimeError(f"delete_document failed: {deleted}")
-            print("P2.2 lifecycle PASS", digest)
+            print("P2.3 lifecycle PASS", digest)
 
 
 if __name__ == "__main__":

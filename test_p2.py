@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import hashlib
 import tempfile
 import unittest
@@ -13,6 +14,7 @@ from p24_inline import apply_inline_edits_atomic, build_inline_map
 from p25_controls import apply_control_edits_atomic as apply_control_edits_p25_atomic
 from p26_controls import apply_control_edits_atomic
 from p28_tables import apply_table_edits_atomic, build_table_map
+from p29_objects import apply_object_edits_atomic, build_object_map
 
 
 class P2DocumentTests(unittest.TestCase):
@@ -1021,6 +1023,148 @@ class P2DocumentTests(unittest.TestCase):
                     validator=lambda candidate: server.validate_hwpx_package(candidate),
                 )
             self.assertEqual(path.read_bytes(), before_bytes)
+
+    def test_p29_inline_picture_replace_resize_remove_lifecycle(self) -> None:
+        png = base64.b64encode(
+            b"\x89PNG\r\n\x1a\n" + b"\x00" * 8
+            + (1).to_bytes(4, "big") + (1).to_bytes(4, "big")
+            + b"\x00" * 32
+        ).decode("ascii")
+        with tempfile.TemporaryDirectory() as tmp:
+            path = self._document(tmp)
+            paragraph = build_document_map(path)["paragraphs"][-1]
+
+            inserted = apply_object_edits_atomic(
+                path,
+                [{
+                    "op": "insert_picture",
+                    "paragraph": paragraph["locator"],
+                    "content_base64": png,
+                    "image_format": "png",
+                    "width": 7200,
+                    "height": 3600,
+                    "placement": "inline",
+                }],
+                expected_revision=1,
+                current_revision=1,
+                validator=lambda candidate: server.validate_hwpx_package(candidate),
+            )
+            mapped = build_object_map(path)
+            self.assertEqual(mapped["picture_count"], 1)
+            self.assertEqual(mapped["media_item_count"], 1)
+            picture = mapped["pictures"][0]
+            self.assertEqual(picture["placement"], "inline")
+            self.assertEqual((picture["width"], picture["height"]), (7200, 3600))
+            self.assertTrue(inserted["object_structure_changed"])
+            self.assertTrue(inserted["media_custody_changed"])
+
+            replaced = apply_object_edits_atomic(
+                path,
+                [{
+                    "op": "replace_picture",
+                    "picture": picture["locator"],
+                    "content_base64": png,
+                    "image_format": "png",
+                }],
+                expected_revision=2,
+                current_revision=2,
+                validator=lambda candidate: server.validate_hwpx_package(candidate),
+            )
+            after_replace = build_object_map(path)
+            self.assertEqual(after_replace["picture_count"], 1)
+            self.assertEqual(after_replace["media_item_count"], 1)
+            self.assertEqual(after_replace["pictures"][0]["locator"], picture["locator"])
+            self.assertTrue(replaced["media_custody_changed"])
+
+            resized = apply_object_edits_atomic(
+                path,
+                [{
+                    "op": "resize_picture",
+                    "picture": picture["locator"],
+                    "width": 10800,
+                    "height": 5400,
+                }],
+                expected_revision=3,
+                current_revision=3,
+                validator=lambda candidate: server.validate_hwpx_package(candidate),
+            )
+            after_resize = build_object_map(path)
+            self.assertEqual((after_resize["pictures"][0]["width"], after_resize["pictures"][0]["height"]), (10800, 5400))
+            self.assertTrue(resized["object_geometry_changed"])
+
+            removed = apply_object_edits_atomic(
+                path,
+                [{"op": "remove_picture", "picture": picture["locator"], "remove_orphaned": True}],
+                expected_revision=4,
+                current_revision=4,
+                validator=lambda candidate: server.validate_hwpx_package(candidate),
+            )
+            after_remove = build_object_map(path)
+            self.assertEqual(after_remove["picture_count"], 0)
+            self.assertEqual(after_remove["media_item_count"], 0)
+            self.assertTrue(removed["object_rebinding"]["deleted_pictures"])
+
+    def test_p29_floating_picture_position_and_signature_gate(self) -> None:
+        png = base64.b64encode(
+            b"\x89PNG\r\n\x1a\n" + b"\x00" * 8
+            + (1).to_bytes(4, "big") + (1).to_bytes(4, "big")
+            + b"\x00" * 32
+        ).decode("ascii")
+        with tempfile.TemporaryDirectory() as tmp:
+            path = self._document(tmp)
+            paragraph = build_document_map(path)["paragraphs"][-1]
+            apply_object_edits_atomic(
+                path,
+                [{
+                    "op": "insert_picture",
+                    "paragraph": paragraph["locator"],
+                    "content_base64": png,
+                    "image_format": "png",
+                    "width": 5000,
+                    "height": 4000,
+                    "placement": "floating",
+                    "horizontal_offset": 300,
+                    "vertical_offset": 400,
+                    "text_wrap": "IN_FRONT_OF_TEXT",
+                }],
+                expected_revision=1,
+                current_revision=1,
+                validator=lambda candidate: server.validate_hwpx_package(candidate),
+            )
+            picture = build_object_map(path)["pictures"][0]
+            self.assertEqual(picture["placement"], "floating")
+            moved = apply_object_edits_atomic(
+                path,
+                [{
+                    "op": "set_picture_position",
+                    "picture": picture["locator"],
+                    "horizontal_offset": 900,
+                    "vertical_offset": 1100,
+                }],
+                expected_revision=2,
+                current_revision=2,
+                validator=lambda candidate: server.validate_hwpx_package(candidate),
+            )
+            current = build_object_map(path)["pictures"][0]
+            self.assertEqual(current["position"]["horzOffset"], "900")
+            self.assertEqual(current["position"]["vertOffset"], "1100")
+            self.assertTrue(moved["object_geometry_changed"])
+
+            before = path.read_bytes()
+            with self.assertRaisesRegex(ValueError, "PNG signature mismatch"):
+                apply_object_edits_atomic(
+                    path,
+                    [{
+                        "op": "replace_picture",
+                        "picture": current["locator"],
+                        "content_base64": base64.b64encode(b"not-png").decode("ascii"),
+                        "image_format": "png",
+                    }],
+                    expected_revision=3,
+                    current_revision=3,
+                    validator=lambda candidate: server.validate_hwpx_package(candidate),
+                )
+            self.assertEqual(path.read_bytes(), before)
 
     def test_stale_revision_rejects_without_byte_mutation(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

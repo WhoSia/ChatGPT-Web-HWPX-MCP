@@ -10,6 +10,7 @@ from p2_document import apply_edits_atomic, apply_text_edits_atomic, build_docum
 from p22_formatting import apply_formatting_atomic, build_formatting_map
 from p23_richtext import apply_rich_formatting_atomic
 from p24_inline import apply_inline_edits_atomic, build_inline_map
+from p25_controls import apply_control_edits_atomic
 
 
 class P2DocumentTests(unittest.TestCase):
@@ -503,6 +504,138 @@ class P2DocumentTests(unittest.TestCase):
                     expected_revision=2,
                     current_revision=2,
                 )
+
+    def test_p25_hyperlink_create_retarget_remove_lifecycle(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = self._document(tmp)
+            target = next(p for p in build_document_map(path)["paragraphs"] if p["text"] == "beta")
+
+            created = apply_control_edits_atomic(
+                path,
+                [{
+                    "op": "create_hyperlink",
+                    "target": target["locator"],
+                    "start": 0,
+                    "end": 4,
+                    "url": "https://example.com/a",
+                }],
+                expected_revision=1,
+                current_revision=1,
+                validator=lambda candidate: server.validate_hwpx_package(candidate),
+            )
+            inline = build_inline_map(path)
+            paragraph = next(p for p in inline["paragraphs"] if p["locator"] == target["locator"])
+            self.assertEqual(paragraph["inline_text"], "beta")
+            self.assertEqual(len(paragraph["fields"]), 1)
+            self.assertEqual(paragraph["fields"][0]["type"], "HYPERLINK")
+            self.assertEqual(paragraph["fields"][0]["name"], "https://example.com/a")
+            self.assertTrue(created["inline_structure_changed"])
+
+            retargeted = apply_control_edits_atomic(
+                path,
+                [{
+                    "op": "retarget_hyperlink",
+                    "target": target["locator"],
+                    "field_index": 0,
+                    "url": "https://example.org/b",
+                }],
+                expected_revision=2,
+                current_revision=2,
+                validator=lambda candidate: server.validate_hwpx_package(candidate),
+            )
+            inline = build_inline_map(path)
+            paragraph = next(p for p in inline["paragraphs"] if p["locator"] == target["locator"])
+            self.assertEqual(paragraph["fields"][0]["name"], "https://example.org/b")
+            self.assertTrue(retargeted["inline_structure_changed"])
+
+            removed = apply_control_edits_atomic(
+                path,
+                [{
+                    "op": "remove_hyperlink",
+                    "target": target["locator"],
+                    "field_index": 0,
+                }],
+                expected_revision=3,
+                current_revision=3,
+                validator=lambda candidate: server.validate_hwpx_package(candidate),
+            )
+            inline = build_inline_map(path)
+            paragraph = next(p for p in inline["paragraphs"] if p["locator"] == target["locator"])
+            self.assertEqual(paragraph["inline_text"], "beta")
+            self.assertEqual(paragraph["fields"], [])
+            self.assertTrue(removed["inline_structure_changed"])
+
+    def test_p25_special_atom_insert_delete_roundtrip(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = self._document(tmp)
+            target = next(p for p in build_document_map(path)["paragraphs"] if p["text"] == "beta")
+
+            apply_control_edits_atomic(
+                path,
+                [{
+                    "op": "insert_special_atom",
+                    "target": target["locator"],
+                    "offset": 2,
+                    "kind": "lineBreak",
+                }],
+                expected_revision=1,
+                current_revision=1,
+                validator=lambda candidate: server.validate_hwpx_package(candidate),
+            )
+            inline = build_inline_map(path)
+            paragraph = next(p for p in inline["paragraphs"] if p["locator"] == target["locator"])
+            self.assertEqual(paragraph["inline_text"], "be\nta")
+            newline = next(span for span in paragraph["spans"] if span["kind"] == "lineBreak")
+
+            apply_control_edits_atomic(
+                path,
+                [{
+                    "op": "delete_special_atom",
+                    "target": target["locator"],
+                    "offset": newline["start"],
+                }],
+                expected_revision=2,
+                current_revision=2,
+                validator=lambda candidate: server.validate_hwpx_package(candidate),
+            )
+            inline = build_inline_map(path)
+            paragraph = next(p for p in inline["paragraphs"] if p["locator"] == target["locator"])
+            self.assertEqual(paragraph["inline_text"], "beta")
+            self.assertFalse(any(span["kind"] == "lineBreak" for span in paragraph["spans"]))
+
+    def test_p25_field_name_mutation_preserves_field_type(self) -> None:
+        from hwpx import HwpxDocument
+
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "date-name.hwpx"
+            doc = HwpxDocument.new()
+            paragraph = doc.add_paragraph("")
+            paragraph.add_date_field("2026-09-18")
+            path.write_bytes(doc.to_bytes())
+            doc.close()
+
+            target = next(p for p in build_document_map(path)["paragraphs"] if "2026" in p["text"])
+            before = build_inline_map(path)
+            mapped = next(p for p in before["paragraphs"] if p["locator"] == target["locator"])
+            field = mapped["fields"][0]
+            self.assertEqual(field["type"], "DATE")
+
+            apply_control_edits_atomic(
+                path,
+                [{
+                    "op": "set_field_name",
+                    "target": target["locator"],
+                    "field_index": field["field_index"],
+                    "name": "yyyy-MM-dd",
+                }],
+                expected_revision=1,
+                current_revision=1,
+                validator=lambda candidate: server.validate_hwpx_package(candidate),
+            )
+            after = build_inline_map(path)
+            mapped_after = next(p for p in after["paragraphs"] if p["locator"] == target["locator"])
+            self.assertEqual(mapped_after["fields"][0]["type"], "DATE")
+            self.assertEqual(mapped_after["fields"][0]["name"], "yyyy-MM-dd")
 
     def test_stale_revision_rejects_without_byte_mutation(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

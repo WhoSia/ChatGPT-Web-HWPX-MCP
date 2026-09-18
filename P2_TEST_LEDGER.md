@@ -230,6 +230,56 @@ Confirmed P2.4 boundaries include:
 
 The public receipt confirms P2.4 health/version availability, durable OAuth metadata, `offline_access`, and unauthenticated MCP rejection.
 
+## P2.5 field/control semantic mutation extension receipt
+
+Current extended server version: `0.3.5-p2.5`.
+
+P2.5 separates intentional control-structure mutation from P2.4's structure-preserving inline text lane. The new authenticated MCP tool is `apply_control_edits`.
+
+Admitted operations:
+
+- `create_hyperlink` — wrap complete contiguous plain-text spans with canonical HYPERLINK fieldBegin/fieldEnd runs while retaining the display-text runs;
+- `retarget_hyperlink` — replace only HYPERLINK `fieldBegin/@name`;
+- `remove_hyperlink` — remove canonical control-only wrapper runs while preserving display text;
+- `set_field_name` — mutate a field's `name` while preserving field type and wrapper identity;
+- `insert_special_atom` / `delete_special_atom` — tab, lineBreak, nbSpace, fwSpace, and soft hyphen.
+
+`get_inline_map` now exposes per-paragraph `field_index` values. Field indexes are revision-scoped and are resolved against the same pre-edit state used for the transaction.
+
+Special-atom authoring follows the observed HWPX conventions: lineBreak/nbSpace/fwSpace/soft-hyphen are nested under `hp:t`, while tab is authored as a run-level sibling atom.
+
+P2.5 deliberately permits `inline_structure_sha256` to change. The retained hard gates are exact revision, paragraph-structure invariance, full HWPX candidate validation, and atomic replacement. Field `type` mutation remains unsupported.
+
+### Canonical P2.5 lifecycle receipt
+
+- workflow: `P2.5 Control-semantic HWPX lifecycle CI`
+- run: `35307519782`
+- commit: `50f9413fc9b1cbf8feed5e31d68415e6ad7de586`
+- conclusion: **SUCCESS**
+
+Confirmed P2.5 boundaries include:
+
+- hyperlink create → retarget → remove while preserving display text;
+- DATE field-name mutation with field type preserved;
+- lineBreak insertion/deletion round trip;
+- legacy P2.1–P2.4 regressions;
+- OAuth-native `apply_control_edits` special-atom transaction;
+- signed export, re-ingest, validation, and cleanup.
+
+Two early P2.5 CI attempts failed at Python compilation because generated source contained literal control bytes in the URL-validation tuple. The validation was rewritten to use numeric character codes; no HWPX transaction semantics were changed.
+
+### Canonical P2.5 Render/public receipt
+
+- service: `chatgpt-web-hwpx-mcp-p0`
+- deploy: `dep-dambv3e7bikc73b27p60`
+- commit: `50f9413fc9b1cbf8feed5e31d68415e6ad7de586`
+- deploy status: **live**
+- public workflow: `P2.5 Render public boundary verification`
+- run: `35307519673`
+- conclusion: **SUCCESS**
+
+The public receipt confirms P2.5 health/version availability, durable OAuth metadata, `offline_access`, and unauthenticated MCP rejection.
+
 ## Current verdict
 
 ```text
@@ -248,17 +298,21 @@ P2_4_HYPERLINK_FIELD_SAFE_SELECTION = PASS
 P2_4_DATE_FIELD_CACHED_TEXT_EDITING = PASS
 P2_4_MIXED_MARKUP_BOUNDARY_PRESERVATION = PASS
 P2_4_INLINE_STRUCTURE_DIFF = PASS
-P2_4_OAUTH_NATIVE_LIFECYCLE = PASS
-P2_4_RENDER_DEPLOYMENT = PASS
-P2_4_PUBLIC_BOUNDARY = PASS
+P2_5_HYPERLINK_CREATE_RETARGET_REMOVE = PASS
+P2_5_FIELD_NAME_SEMANTIC_MUTATION = PASS
+P2_5_SPECIAL_INLINE_ATOM_INSERT_DELETE = PASS
+P2_5_CONTROL_STRUCTURE_TRANSACTION = PASS
+P2_5_OAUTH_NATIVE_LIFECYCLE = PASS
+P2_5_RENDER_DEPLOYMENT = PASS
+P2_5_PUBLIC_BOUNDARY = PASS
 
-FIELD_CONTROL_SEMANTIC_MUTATION = HOLD
-SPECIAL_INLINE_ATOM_MUTATION = HOLD
-HYPERLINK_CREATE_DELETE_RETARGET = HOLD
+FIELD_TYPE_MUTATION = HOLD
+PARTIAL_SPAN_HYPERLINK_WRAPPING = HOLD
+BOOKMARK_SHAPE_OBJECT_SEMANTIC_MUTATION = HOLD
 CROSS_CONTAINER_PARAGRAPH_MOVES = HOLD
 TABLE_IMAGE_EQUATION_OPERATIONS = HOLD
 DURABLE_DOCUMENT_OBJECT_STORAGE = HOLD
 HANCOM_RENDERER_FIDELITY_ORACLE = HOLD
 ```
 
-P2.4 is **IMPLEMENTATION PASS / NATIVE-CI PASS / PUBLIC PASS**. The remaining inline gap is no longer safe text surgery around controls; it is deliberate mutation of control semantics themselves: field commands/targets, hyperlink creation-retargeting/removal, and special inline atoms.
+P2.5 is **IMPLEMENTATION PASS / NATIVE-CI PASS / PUBLIC PASS**. The remaining control gap is narrower: partial-span field wrapping, typed field-command/property mutation beyond `name`, bookmark/object semantics, and richer container-level editing.

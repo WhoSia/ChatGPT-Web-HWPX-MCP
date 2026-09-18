@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import hashlib
 import json
 import os
@@ -33,6 +34,14 @@ def _paragraph_intrinsic_id(node: ElementTree.Element) -> str | None:
         if _local(key).lower() == "id" and value:
             return str(value)
     return None
+
+
+def _set_intrinsic_id(node: ElementTree.Element, value: str) -> None:
+    for key in list(node.attrib):
+        if _local(key).lower() == "id":
+            node.attrib[key] = value
+            return
+    node.set("id", value)
 
 
 def _stable_locator(section_name: str, paragraph_index: int, node: ElementTree.Element) -> tuple[str, str]:
@@ -115,26 +124,199 @@ def _paragraph_index_by_locator(document_map: dict) -> dict[str, dict]:
     return {item["locator"]: item for item in document_map["paragraphs"]}
 
 
-def _replace_paragraph_text(root: ElementTree.Element, target_index: int, new_text: str) -> tuple[str, str]:
-    current = -1
-    for node in root.iter():
-        if _local(node.tag) != "p":
-            continue
-        current += 1
-        if current != target_index:
-            continue
-        before = _paragraph_text(node)
-        text_nodes = [elem for elem in node.iter() if _local(elem.tag) == "t"]
-        if not text_nodes:
-            raise ValueError("Target paragraph has no editable text node")
-        text_nodes[0].text = new_text
-        for elem in text_nodes[1:]:
-            elem.text = ""
-        return before, new_text
-    raise ValueError("Target paragraph no longer exists")
+def _replace_paragraph_text(node: ElementTree.Element, new_text: str) -> tuple[str, str]:
+    before = _paragraph_text(node)
+    text_nodes = [elem for elem in node.iter() if _local(elem.tag) == "t"]
+    if not text_nodes:
+        raise ValueError("Target paragraph has no editable text node")
+    text_nodes[0].text = new_text
+    for elem in text_nodes[1:]:
+        elem.text = ""
+    return before, new_text
 
 
-def apply_text_edits_atomic(
+def _parent_map(root: ElementTree.Element) -> dict[ElementTree.Element, ElementTree.Element]:
+    return {child: parent for parent in root.iter() for child in parent}
+
+
+def _paragraph_nodes(root: ElementTree.Element) -> list[ElementTree.Element]:
+    return [node for node in root.iter() if _local(node.tag) == "p"]
+
+
+def _fresh_paragraph_id(root: ElementTree.Element) -> str:
+    used: set[str] = set()
+    numeric: list[int] = []
+    for node in _paragraph_nodes(root):
+        intrinsic = _paragraph_intrinsic_id(node)
+        if intrinsic is None:
+            continue
+        used.add(intrinsic)
+        try:
+            numeric.append(int(intrinsic))
+        except ValueError:
+            pass
+    candidate = (max(numeric) + 1) if numeric else 1
+    while str(candidate) in used:
+        candidate += 1
+    return str(candidate)
+
+
+def _clone_paragraph(anchor: ElementTree.Element, text: str, root: ElementTree.Element) -> ElementTree.Element:
+    node = copy.deepcopy(anchor)
+    _set_intrinsic_id(node, _fresh_paragraph_id(root))
+    _replace_paragraph_text(node, text)
+    return node
+
+
+def _insert_relative(
+    root: ElementTree.Element,
+    anchor: ElementTree.Element,
+    new_node: ElementTree.Element,
+    *,
+    after: bool,
+) -> None:
+    parents = _parent_map(root)
+    parent = parents.get(anchor)
+    if parent is None:
+        raise ValueError("Paragraph anchor has no mutable parent")
+    siblings = list(parent)
+    index = siblings.index(anchor) + (1 if after else 0)
+    parent.insert(index, new_node)
+
+
+def _delete_node(root: ElementTree.Element, node: ElementTree.Element) -> None:
+    parent = _parent_map(root).get(node)
+    if parent is None:
+        raise ValueError("Paragraph target has no mutable parent")
+    parent.remove(node)
+
+
+def _move_relative(
+    root: ElementTree.Element,
+    source: ElementTree.Element,
+    anchor: ElementTree.Element,
+    *,
+    after: bool,
+) -> None:
+    if source is anchor:
+        raise ValueError("Move source and anchor must be different paragraphs")
+    parents = _parent_map(root)
+    source_parent = parents.get(source)
+    anchor_parent = parents.get(anchor)
+    if source_parent is None or anchor_parent is None:
+        raise ValueError("Move source/anchor has no mutable parent")
+    if source_parent is not anchor_parent:
+        raise ValueError("Cross-container paragraph moves are not supported in P2.1")
+    source_parent.remove(source)
+    siblings = list(anchor_parent)
+    index = siblings.index(anchor) + (1 if after else 0)
+    anchor_parent.insert(index, source)
+
+
+def _identity_key(item: dict) -> tuple[str, str] | None:
+    intrinsic = item.get("intrinsic_id")
+    if intrinsic is None:
+        return None
+    return item["section"], str(intrinsic)
+
+
+def _locator_rebinding(before_map: dict, after_map: dict) -> dict:
+    after_by_identity = {
+        key: item
+        for item in after_map["paragraphs"]
+        if (key := _identity_key(item)) is not None
+    }
+    bindings: list[dict] = []
+    invalidated: list[str] = []
+    for before in before_map["paragraphs"]:
+        key = _identity_key(before)
+        if key is None:
+            invalidated.append(before["locator"])
+            continue
+        after = after_by_identity.get(key)
+        bindings.append(
+            {
+                "before_locator": before["locator"],
+                "after_locator": None if after is None else after["locator"],
+                "status": "deleted" if after is None else (
+                    "stable" if after["locator"] == before["locator"] else "rebound"
+                ),
+                "intrinsic_id": before["intrinsic_id"],
+            }
+        )
+    return {
+        "bindings": bindings,
+        "invalidated_revision_bound_locators": invalidated,
+        "reacquire_required": bool(invalidated),
+    }
+
+
+def _normalize_operations(operations: list[dict], locator_index: dict[str, dict]) -> list[dict]:
+    normalized: list[dict] = []
+    mutated_targets: set[str] = set()
+    for raw in operations:
+        if not isinstance(raw, dict):
+            raise ValueError("Each edit operation must be an object")
+        op = raw.get("op")
+        if op == "replace_paragraph_text":
+            locator = raw.get("target")
+            if not isinstance(locator, str) or locator not in locator_index:
+                raise ValueError(f"Unknown paragraph locator: {locator}")
+            if locator in mutated_targets:
+                raise ValueError(f"Duplicate mutation target in one transaction: {locator}")
+            text = raw.get("text")
+            if not isinstance(text, str):
+                raise ValueError("replace_paragraph_text requires string text")
+            if len(text) > 100_000:
+                raise ValueError("Replacement text is too large")
+            mutated_targets.add(locator)
+            normalized.append({"op": op, "target": locator, "text": _norm_text(text)})
+            continue
+
+        if op in {"insert_paragraph_before", "insert_paragraph_after"}:
+            anchor = raw.get("target")
+            if not isinstance(anchor, str) or anchor not in locator_index:
+                raise ValueError(f"Unknown paragraph locator: {anchor}")
+            text = raw.get("text", "")
+            if not isinstance(text, str):
+                raise ValueError(f"{op} requires string text")
+            if len(text) > 100_000:
+                raise ValueError("Inserted paragraph text is too large")
+            normalized.append({"op": op, "target": anchor, "text": _norm_text(text)})
+            continue
+
+        if op == "delete_paragraph":
+            locator = raw.get("target")
+            if not isinstance(locator, str) or locator not in locator_index:
+                raise ValueError(f"Unknown paragraph locator: {locator}")
+            if locator in mutated_targets:
+                raise ValueError(f"Duplicate mutation target in one transaction: {locator}")
+            mutated_targets.add(locator)
+            normalized.append({"op": op, "target": locator})
+            continue
+
+        if op in {"move_paragraph_before", "move_paragraph_after"}:
+            source = raw.get("target")
+            anchor = raw.get("anchor")
+            if not isinstance(source, str) or source not in locator_index:
+                raise ValueError(f"Unknown paragraph locator: {source}")
+            if not isinstance(anchor, str) or anchor not in locator_index:
+                raise ValueError(f"Unknown paragraph anchor locator: {anchor}")
+            if source == anchor:
+                raise ValueError("Move source and anchor must be different paragraphs")
+            if locator_index[source]["section"] != locator_index[anchor]["section"]:
+                raise ValueError("Cross-section paragraph moves are not supported in P2.1")
+            if source in mutated_targets:
+                raise ValueError(f"Duplicate mutation target in one transaction: {source}")
+            mutated_targets.add(source)
+            normalized.append({"op": op, "target": source, "anchor": anchor})
+            continue
+
+        raise ValueError(f"Unsupported edit operation: {op}")
+    return normalized
+
+
+def apply_edits_atomic(
     path: Path,
     operations: list[dict],
     *,
@@ -151,56 +333,76 @@ def apply_text_edits_atomic(
 
     before_map = build_document_map(path)
     locator_index = _paragraph_index_by_locator(before_map)
-    normalized_ops: list[dict] = []
-    seen: set[str] = set()
-    for raw in operations:
-        if not isinstance(raw, dict):
-            raise ValueError("Each edit operation must be an object")
-        op = raw.get("op")
-        locator = raw.get("target")
-        if op != "replace_paragraph_text":
-            raise ValueError(f"Unsupported edit operation: {op}")
-        if not isinstance(locator, str) or locator not in locator_index:
-            raise ValueError(f"Unknown paragraph locator: {locator}")
-        if locator in seen:
-            raise ValueError(f"Duplicate target in one transaction: {locator}")
-        seen.add(locator)
-        text = raw.get("text")
-        if not isinstance(text, str):
-            raise ValueError("replace_paragraph_text requires string text")
-        if len(text) > 100_000:
-            raise ValueError("Replacement text is too large")
-        normalized_ops.append({"op": op, "target": locator, "text": _norm_text(text)})
+    normalized_ops = _normalize_operations(operations, locator_index)
 
-    edits_by_section: dict[str, list[tuple[dict, dict]]] = {}
+    ops_by_section: dict[str, list[dict]] = {}
     for op in normalized_ops:
-        target = locator_index[op["target"]]
-        edits_by_section.setdefault(target["section"], []).append((op, target))
+        section = locator_index[op["target"]]["section"]
+        ops_by_section.setdefault(section, []).append(op)
 
-    fd, tmp_name = tempfile.mkstemp(prefix=path.stem + ".p2-", suffix=".hwpx", dir=str(path.parent))
+    fd, tmp_name = tempfile.mkstemp(prefix=path.stem + ".p21-", suffix=".hwpx", dir=str(path.parent))
     os.close(fd)
     tmp_path = Path(tmp_name)
-    semantic_changes: list[dict] = []
+    changes: list[dict] = []
     validation: dict | None = None
     try:
         with zipfile.ZipFile(path, "r") as source, zipfile.ZipFile(tmp_path, "w") as target_zip:
             for info in source.infolist():
                 payload = source.read(info.filename)
-                section_edits = edits_by_section.get(info.filename)
-                if section_edits:
+                section_ops = ops_by_section.get(info.filename)
+                if section_ops:
                     root = ElementTree.fromstring(payload)
-                    for op, target in section_edits:
-                        before, after = _replace_paragraph_text(root, int(target["paragraph_index"]), op["text"])
-                        semantic_changes.append(
-                            {
+                    original_nodes = _paragraph_nodes(root)
+                    locator_to_node = {
+                        paragraph["locator"]: original_nodes[int(paragraph["paragraph_index"])]
+                        for paragraph in before_map["paragraphs"]
+                        if paragraph["section"] == info.filename
+                    }
+                    for op in section_ops:
+                        kind = op["op"]
+                        target_node = locator_to_node[op["target"]]
+                        if kind == "replace_paragraph_text":
+                            before, after = _replace_paragraph_text(target_node, op["text"])
+                            changes.append({
+                                "op": kind,
                                 "target": op["target"],
-                                "kind": "paragraph_text",
                                 "before": before,
                                 "after": after,
                                 "before_sha256": hashlib.sha256(before.encode("utf-8")).hexdigest(),
                                 "after_sha256": hashlib.sha256(after.encode("utf-8")).hexdigest(),
-                            }
-                        )
+                            })
+                        elif kind in {"insert_paragraph_before", "insert_paragraph_after"}:
+                            new_node = _clone_paragraph(target_node, op["text"], root)
+                            _insert_relative(root, target_node, new_node, after=kind.endswith("_after"))
+                            changes.append({
+                                "op": kind,
+                                "anchor": op["target"],
+                                "inserted_intrinsic_id": _paragraph_intrinsic_id(new_node),
+                                "text": op["text"],
+                            })
+                        elif kind == "delete_paragraph":
+                            deleted_text = _paragraph_text(target_node)
+                            deleted_id = _paragraph_intrinsic_id(target_node)
+                            _delete_node(root, target_node)
+                            changes.append({
+                                "op": kind,
+                                "target": op["target"],
+                                "deleted_intrinsic_id": deleted_id,
+                                "deleted_text": deleted_text,
+                            })
+                        elif kind in {"move_paragraph_before", "move_paragraph_after"}:
+                            anchor_node = locator_to_node[op["anchor"]]
+                            _move_relative(
+                                root,
+                                target_node,
+                                anchor_node,
+                                after=kind.endswith("_after"),
+                            )
+                            changes.append({
+                                "op": kind,
+                                "target": op["target"],
+                                "anchor": op["anchor"],
+                            })
                     payload = ElementTree.tostring(root, encoding="utf-8", xml_declaration=True)
                 target_zip.writestr(info, payload)
 
@@ -215,7 +417,20 @@ def apply_text_edits_atomic(
             pass
         raise
 
-    no_op = before_map["semantic_sha256"] == after_map["semantic_sha256"]
+    after_by_identity = {
+        key: item
+        for item in after_map["paragraphs"]
+        if (key := _identity_key(item)) is not None
+    }
+    for change in changes:
+        inserted_id = change.get("inserted_intrinsic_id")
+        if inserted_id is not None:
+            section = locator_index[change["anchor"]]["section"]
+            inserted = after_by_identity.get((section, str(inserted_id)))
+            change["inserted_locator"] = None if inserted is None else inserted["locator"]
+
+    semantic_changed = before_map["semantic_sha256"] != after_map["semantic_sha256"]
+    structure_changed = before_map["structure_sha256"] != after_map["structure_sha256"]
     result = {
         "before": {
             "semantic_sha256": before_map["semantic_sha256"],
@@ -227,10 +442,31 @@ def apply_text_edits_atomic(
             "structure_sha256": after_map["structure_sha256"],
             "paragraph_count": after_map["paragraph_count"],
         },
-        "changes": semantic_changes,
+        "changes": changes,
         "operation_count": len(normalized_ops),
-        "no_op": no_op,
+        "semantic_changed": semantic_changed,
+        "structure_changed": structure_changed,
+        "no_op": not semantic_changed and not structure_changed,
+        "locator_rebinding": _locator_rebinding(before_map, after_map),
     }
     if validation is not None:
         result["validation"] = validation
     return result
+
+
+def apply_text_edits_atomic(
+    path: Path,
+    operations: list[dict],
+    *,
+    expected_revision: int,
+    current_revision: int,
+    validator: Callable[[Path], dict] | None = None,
+) -> dict:
+    """Backward-compatible P2 entry point; structural ops are also accepted."""
+    return apply_edits_atomic(
+        path,
+        operations,
+        expected_revision=expected_revision,
+        current_revision=current_revision,
+        validator=validator,
+    )

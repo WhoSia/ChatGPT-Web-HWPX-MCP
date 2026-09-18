@@ -9,8 +9,9 @@ from p22_formatting import build_formatting_map
 from p23_richtext import apply_rich_formatting_atomic
 from p24_inline import apply_inline_edits_atomic, build_inline_map
 from p26_controls import apply_control_edits_atomic
+from p27_tables import apply_table_edits_atomic, build_table_map
 
-P2_VERSION = "0.3.6-p2.6"
+P2_VERSION = "0.3.7-p2.7"
 core.VERSION = P2_VERSION
 
 _original_metadata = core._metadata
@@ -44,6 +45,7 @@ def _refresh_metadata(
     document_map: dict,
     formatting_map: dict | None = None,
     inline_map: dict | None = None,
+    table_map: dict | None = None,
 ) -> dict:
     metadata["sha256"] = validation["sha256"]
     metadata["bytes"] = validation["bytes"]
@@ -54,6 +56,9 @@ def _refresh_metadata(
     if inline_map is not None:
         metadata["inline_text_sha256"] = inline_map["inline_text_sha256"]
         metadata["inline_structure_sha256"] = inline_map["inline_structure_sha256"]
+    if table_map is not None:
+        metadata["table_structure_sha256"] = table_map["table_structure_sha256"]
+        metadata["table_format_sha256"] = table_map["table_format_sha256"]
     core._write_metadata(document_id, metadata)
     return metadata
 
@@ -88,6 +93,34 @@ def get_document_map(document_id: str) -> dict:
             "intrinsic-id": "stable across text edits and same-section moves while the paragraph intrinsic id survives",
             "revision-bound-ordinal": "valid only for the current structural revision; reacquire after structural edits",
         },
+    }
+
+
+@core.mcp.tool()
+def get_table_map(document_id: str, table_locator: str = "") -> dict:
+    """Return table/cell semantic addresses, merge geometry and table receipts."""
+    metadata, path = _owned_document(document_id)
+    table_map = build_table_map(path)
+    if table_locator:
+        table = next(
+            (item for item in table_map["tables"] if item["locator"] == table_locator),
+            None,
+        )
+        if table is None:
+            raise ValueError("Unknown table locator")
+        return {
+            "ok": True,
+            "document_id": document_id,
+            "revision": int(metadata["revision"]),
+            "table_structure_sha256": table_map["table_structure_sha256"],
+            "table_format_sha256": table_map["table_format_sha256"],
+            "table": table,
+        }
+    return {
+        "ok": True,
+        "document_id": document_id,
+        "revision": int(metadata["revision"]),
+        **table_map,
     }
 
 
@@ -264,6 +297,50 @@ def apply_control_edits(document_id: str, expected_revision: int, operations: li
 
 
 @core.mcp.tool()
+def apply_table_edits(document_id: str, expected_revision: int, operations: list[dict]) -> dict:
+    """Apply one revision-guarded table structure/geometry/cell-format transaction."""
+    metadata, path = _owned_document(document_id)
+    current_revision = int(metadata["revision"])
+    ingress = metadata.get("source") == "existing-ingress"
+    transaction = apply_table_edits_atomic(
+        path,
+        operations,
+        expected_revision=int(expected_revision),
+        current_revision=current_revision,
+        validator=lambda candidate: core.validate_hwpx_package(candidate, ingress=ingress),
+    )
+    validation = transaction["validation"]
+    after_document = build_document_map(path)
+    after_formatting = build_formatting_map(path)
+    after_inline = build_inline_map(path)
+    after_tables = build_table_map(path)
+    metadata["revision"] = current_revision + 1
+    metadata["last_edit_at"] = core._utc_iso()
+    _refresh_metadata(
+        document_id,
+        metadata,
+        validation,
+        after_document,
+        after_formatting,
+        after_inline,
+        after_tables,
+    )
+    return {
+        "ok": True,
+        "document_id": document_id,
+        "revision_before": current_revision,
+        "revision_after": int(metadata["revision"]),
+        "sha256": validation["sha256"],
+        "table_diff": transaction,
+        "table_structure_changed": transaction["table_structure_changed"],
+        "table_format_changed": transaction["table_format_changed"],
+        "table_rebinding": transaction["table_rebinding"],
+        "validation": validation,
+        "transaction": "COMMITTED",
+    }
+
+
+@core.mcp.tool()
 def apply_formatting(document_id: str, expected_revision: int, operations: list[dict]) -> dict:
     """Apply one revision-guarded formatting-only transaction."""
     metadata, path = _owned_document(document_id)
@@ -394,7 +471,7 @@ def p2_capabilities() -> dict:
     return {
         "project": core.PROJECT,
         "version": core.VERSION,
-        "phase": "P2.6",
+        "phase": "P2.7",
         "authenticated_subject": subject,
         "tools_added": [
             "get_document_map",
@@ -406,6 +483,8 @@ def p2_capabilities() -> dict:
             "get_inline_map",
             "apply_inline_edits",
             "apply_control_edits",
+            "get_table_map",
+            "apply_table_edits",
         ],
         "operations": [
             "replace_paragraph_text",
@@ -477,7 +556,17 @@ def p2_capabilities() -> dict:
             "transaction": "paragraph structure invariant; inline/control structure may change intentionally",
             "diff": "inline_structure_sha256 + control_rebinding",
         },
-        "tables_images_equations": False,
+        "table_editing": {
+            "introspection": "table/cell semantic map + merge geometry + structure/format receipts",
+            "table_address": "intrinsic hp:tbl id when present; revision-bound ordinal fallback",
+            "cell_address": "revision-bound grid-anchor locator with rebinding receipts",
+            "row_structure": "insert_row_by_clone + delete_row",
+            "column_structure": "delete_column + width/autofit operations",
+            "merge_split": "rectangular merge + merged-cell split",
+            "cell_content_format": "text, shading, borders, row/column equalization",
+            "diff": "table_structure_sha256 + table_format_sha256",
+        },
+        "tables_images_equations": "tables=P2.7 active; images/equations=False",
     }
 
 

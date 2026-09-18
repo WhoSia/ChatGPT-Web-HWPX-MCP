@@ -316,11 +316,17 @@ def _scan_paragraph(paragraph: ElementTree.Element, *, with_refs: bool = False) 
         })
         skeleton.append({"token": "field-unclosed", "type": field["type"], "name": field["name"]})
 
+    ordered_fields = sorted(
+        fields,
+        key=lambda item: (item["start"], item["end"] is None, item["end"] or -1),
+    )
+    for field_index, field in enumerate(ordered_fields):
+        field["field_index"] = field_index
     return {
         "inline_text": "".join(text_parts),
         "spans": spans,
         "boundaries": boundaries,
-        "fields": sorted(fields, key=lambda item: (item["start"], item["end"] is None, item["end"] or -1)),
+        "fields": ordered_fields,
         "skeleton": skeleton,
         "run_count": run_index,
     }

@@ -7,6 +7,7 @@ from pathlib import Path
 
 import server
 from p2_document import apply_edits_atomic, apply_text_edits_atomic, build_document_map
+from p22_formatting import apply_formatting_atomic, build_formatting_map
 
 
 class P2DocumentTests(unittest.TestCase):
@@ -109,6 +110,50 @@ class P2DocumentTests(unittest.TestCase):
             self.assertEqual(moved["locator"], alpha["locator"])
             texts = [p["text"] for p in after["paragraphs"]]
             self.assertGreater(texts.index("alpha"), texts.index("gamma"))
+
+    def test_formatting_map_and_run_format_change_are_semantic_structure_invariant(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = self._document(tmp)
+            before_doc = build_document_map(path)
+            before_fmt = build_formatting_map(path)
+            target = next(p for p in before_doc["paragraphs"] if p["text"] == "beta")
+            result = apply_formatting_atomic(
+                path,
+                [{"op": "set_run_format", "target": target["locator"], "format": {"bold": True}}],
+                expected_revision=1,
+                current_revision=1,
+                validator=lambda candidate: server.validate_hwpx_package(candidate),
+            )
+            after_doc = build_document_map(path)
+            after_fmt = build_formatting_map(path)
+            self.assertFalse(result["semantic_changed"])
+            self.assertFalse(result["structure_changed"])
+            self.assertTrue(result["formatting_changed"])
+            self.assertEqual(before_doc["semantic_sha256"], after_doc["semantic_sha256"])
+            self.assertEqual(before_doc["structure_sha256"], after_doc["structure_sha256"])
+            self.assertNotEqual(before_fmt["formatting_sha256"], after_fmt["formatting_sha256"])
+            formatted = next(p for p in after_fmt["paragraphs"] if p["locator"] == target["locator"])
+            self.assertTrue(any(run["style"] and run["style"].get("bold") for run in formatted["runs"] if run["text"]))
+
+    def test_paragraph_format_change_is_resolved_and_text_preserving(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = self._document(tmp)
+            before = build_document_map(path)
+            target = next(p for p in before["paragraphs"] if p["text"] == "alpha")
+            result = apply_formatting_atomic(
+                path,
+                [{"op": "set_paragraph_format", "target": target["locator"], "format": {"alignment": "CENTER"}}],
+                expected_revision=1,
+                current_revision=1,
+                validator=lambda candidate: server.validate_hwpx_package(candidate),
+            )
+            after = build_formatting_map(path)
+            formatted = next(p for p in after["paragraphs"] if p["locator"] == target["locator"])
+            self.assertFalse(result["semantic_changed"])
+            self.assertFalse(result["structure_changed"])
+            self.assertTrue(result["formatting_changed"])
+            alignment = (formatted["paragraph_property"] or {}).get("alignment") or {}
+            self.assertEqual(alignment.get("horizontal"), "CENTER")
 
     def test_stale_revision_rejects_without_byte_mutation(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

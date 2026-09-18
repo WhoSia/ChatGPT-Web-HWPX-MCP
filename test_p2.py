@@ -12,6 +12,7 @@ from p23_richtext import apply_rich_formatting_atomic
 from p24_inline import apply_inline_edits_atomic, build_inline_map
 from p25_controls import apply_control_edits_atomic as apply_control_edits_p25_atomic
 from p26_controls import apply_control_edits_atomic
+from p27_tables import apply_table_edits_atomic, build_table_map
 
 
 class P2DocumentTests(unittest.TestCase):

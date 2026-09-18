@@ -9,6 +9,7 @@ from urllib.parse import parse_qs, urljoin, urlparse
 
 import httpx2
 from pydantic import AnyUrl
+from hwpx import HwpxDocument
 
 from mcp import Client
 from mcp.client.auth import AuthorizationCodeResult, OAuthClientProvider
@@ -101,7 +102,7 @@ async def main() -> None:
     oauth = OAuthClientProvider(
         server_url=URL,
         client_metadata=OAuthClientMetadata(
-            client_name="ChatGPT Web HWPX MCP P2.6 CI",
+            client_name="ChatGPT Web HWPX MCP P2.7 CI",
             redirect_uris=[AnyUrl("http://127.0.0.1:8765/callback")],
             scope="hwpx offline_access",
         ),
@@ -136,6 +137,8 @@ async def main() -> None:
                 "get_inline_map",
                 "apply_inline_edits",
                 "apply_control_edits",
+                "get_table_map",
+                "apply_table_edits",
             }
             missing = expected - set(names)
             if missing:
@@ -146,11 +149,11 @@ async def main() -> None:
                     raise RuntimeError(f"secret-bearing field leaked into tool schema: {tool.name}")
 
             read_payload = _payload(await client.call_tool("probe_read", {"message": "P2 OAuth smoke test"}))
-            if not read_payload or not read_payload.get("ok") or read_payload.get("version") != "0.3.6-p2.6":
+            if not read_payload or not read_payload.get("ok") or read_payload.get("version") != "0.3.7-p2.7":
                 raise RuntimeError(f"probe_read did not expose P2: {read_payload}")
 
             p2_caps = _payload(await client.call_tool("p2_capabilities", {}))
-            if not p2_caps or p2_caps.get("phase") != "P2.6":
+            if not p2_caps or p2_caps.get("phase") != "P2.7":
                 raise RuntimeError(f"p2_capabilities failed: {p2_caps}")
 
             if not RUN_WRITE_TEST:
@@ -379,6 +382,61 @@ async def main() -> None:
             if compared.get("matches", {}).get("inline_structure") is not True:
                 raise RuntimeError(f"compare_document inline-structure verdict failed: {compared}")
 
+            table_doc = HwpxDocument.new()
+            table = table_doc.add_table(rows=2, cols=2)
+            table.set_cell_text(0, 0, "A")
+            table.set_cell_text(0, 1, "B")
+            table.set_cell_text(1, 0, "C")
+            table.set_cell_text(1, 1, "D")
+            table_bytes = table_doc.to_bytes()
+            table_doc.close()
+
+            ingested_table = _payload(await client.call_tool("ingest_document", {
+                "filename": "p27-table.hwpx",
+                "content_base64": base64.b64encode(table_bytes).decode("ascii"),
+            }))
+            if not ingested_table or ingested_table.get("admission") != "PASS":
+                raise RuntimeError(f"P2.7 table ingest failed: {ingested_table}")
+            table_document_id = ingested_table["document_id"]
+
+            table_map = _payload(await client.call_tool("get_table_map", {
+                "document_id": table_document_id,
+            }))
+            if not table_map or table_map.get("table_count") != 1:
+                raise RuntimeError(f"P2.7 get_table_map failed: {table_map}")
+            table_info = table_map["tables"][0]
+            first_cell = next(
+                cell for cell in table_info["cells"]
+                if cell["row"] == 0 and cell["col"] == 0
+            )
+
+            table_edit = _payload(await client.call_tool("apply_table_edits", {
+                "document_id": table_document_id,
+                "expected_revision": 1,
+                "operations": [{
+                    "op": "set_cell_text",
+                    "table": table_info["locator"],
+                    "cell": first_cell["locator"],
+                    "text": "AA",
+                }],
+            }))
+            if (
+                not table_edit
+                or table_edit.get("transaction") != "COMMITTED"
+                or table_edit.get("revision_after") != 2
+            ):
+                raise RuntimeError(f"P2.7 apply_table_edits failed: {table_edit}")
+
+            table_map_after = _payload(await client.call_tool("get_table_map", {
+                "document_id": table_document_id,
+            }))
+            first_after = next(
+                cell for cell in table_map_after["tables"][0]["cells"]
+                if cell["row"] == 0 and cell["col"] == 0
+            )
+            if first_after.get("text") != "AA":
+                raise RuntimeError(f"P2.7 table cell text mismatch: {table_map_after}")
+
             exported = _payload(await client.call_tool("export_document", {"document_id": document_id, "link_ttl_seconds": 120}))
             if not exported or not exported.get("download_url"):
                 raise RuntimeError(f"export_document failed: {exported}")
@@ -400,11 +458,11 @@ async def main() -> None:
             if not inspected or not inspected.get("validation", {}).get("valid"):
                 raise RuntimeError(f"inspect ingested document failed: {inspected}")
 
-            for doc_id in (document_id, ingested["document_id"]):
+            for doc_id in (document_id, ingested["document_id"], table_document_id):
                 deleted = _payload(await client.call_tool("delete_document", {"document_id": doc_id}))
                 if not deleted or not deleted.get("deleted"):
                     raise RuntimeError(f"delete_document failed: {deleted}")
-            print("P2.6 lifecycle PASS", digest)
+            print("P2.7 lifecycle PASS", digest)
 
 
 if __name__ == "__main__":

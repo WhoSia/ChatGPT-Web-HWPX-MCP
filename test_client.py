@@ -101,7 +101,7 @@ async def main() -> None:
     oauth = OAuthClientProvider(
         server_url=URL,
         client_metadata=OAuthClientMetadata(
-            client_name="ChatGPT Web HWPX MCP P2.5 CI",
+            client_name="ChatGPT Web HWPX MCP P2.6 CI",
             redirect_uris=[AnyUrl("http://127.0.0.1:8765/callback")],
             scope="hwpx offline_access",
         ),
@@ -146,11 +146,11 @@ async def main() -> None:
                     raise RuntimeError(f"secret-bearing field leaked into tool schema: {tool.name}")
 
             read_payload = _payload(await client.call_tool("probe_read", {"message": "P2 OAuth smoke test"}))
-            if not read_payload or not read_payload.get("ok") or read_payload.get("version") != "0.3.5-p2.5":
+            if not read_payload or not read_payload.get("ok") or read_payload.get("version") != "0.3.6-p2.6":
                 raise RuntimeError(f"probe_read did not expose P2: {read_payload}")
 
             p2_caps = _payload(await client.call_tool("p2_capabilities", {}))
-            if not p2_caps or p2_caps.get("phase") != "P2.5":
+            if not p2_caps or p2_caps.get("phase") != "P2.6":
                 raise RuntimeError(f"p2_capabilities failed: {p2_caps}")
 
             if not RUN_WRITE_TEST:
@@ -320,8 +320,50 @@ async def main() -> None:
             ):
                 raise RuntimeError(f"apply_control_edits delete special failed: {special_deleted}")
 
+            partial_link = _payload(await client.call_tool("apply_control_edits", {
+                "document_id": document_id,
+                "expected_revision": 6,
+                "operations": [{
+                    "op": "create_hyperlink",
+                    "target": locator,
+                    "start": 1,
+                    "end": 4,
+                    "url": "https://example.com/p26",
+                }],
+            }))
+            if (
+                not partial_link
+                or partial_link.get("transaction") != "COMMITTED"
+                or partial_link.get("revision_after") != 7
+                or partial_link.get("inline_structure_changed") is not True
+            ):
+                raise RuntimeError(f"P2.6 partial hyperlink create failed: {partial_link}")
+
+            linked_map = _payload(await client.call_tool("get_inline_map", {
+                "document_id": document_id,
+                "locator": locator,
+            }))
+            fields = linked_map.get("paragraph", {}).get("fields", [])
+            if len(fields) != 1 or fields[0].get("type") != "HYPERLINK":
+                raise RuntimeError(f"P2.6 partial hyperlink field missing: {linked_map}")
+            p = linked_map["paragraph"]
+            if p["inline_text"][fields[0]["start"]:fields[0]["end"]] != "XYZ":
+                raise RuntimeError(f"P2.6 partial hyperlink span mismatch: {linked_map}")
+
+            unlinked = _payload(await client.call_tool("apply_control_edits", {
+                "document_id": document_id,
+                "expected_revision": 7,
+                "operations": [{
+                    "op": "remove_hyperlink",
+                    "target": locator,
+                    "field_index": 0,
+                }],
+            }))
+            if not unlinked or unlinked.get("revision_after") != 8:
+                raise RuntimeError(f"P2.6 hyperlink remove failed: {unlinked}")
+
             targeted = _payload(await client.call_tool("get_text", {"document_id": document_id, "locator": locator}))
-            if not targeted or targeted.get("revision") != 6 or targeted.get("text") != "gXYZa":
+            if not targeted or targeted.get("revision") != 8 or targeted.get("text") != "gXYZa":
                 raise RuntimeError(f"targeted get_text failed: {targeted}")
 
             compared = _payload(await client.call_tool("compare_document", {
@@ -362,7 +404,7 @@ async def main() -> None:
                 deleted = _payload(await client.call_tool("delete_document", {"document_id": doc_id}))
                 if not deleted or not deleted.get("deleted"):
                     raise RuntimeError(f"delete_document failed: {deleted}")
-            print("P2.5 lifecycle PASS", digest)
+            print("P2.6 lifecycle PASS", digest)
 
 
 if __name__ == "__main__":

@@ -337,7 +337,8 @@ def apply_table_edits(document_id: str, expected_revision: int, operations: list
         "table_diff": transaction,
         "table_structure_changed": transaction["table_structure_changed"],
         "table_format_changed": transaction["table_format_changed"],
-        "table_rebinding": transaction["table_rebinding"],
+        "table_object_changed": transaction["table_object_changed"],
+        "table_rebinding": transaction["table_object_rebinding"],
         "validation": validation,
         "transaction": "COMMITTED",
     }

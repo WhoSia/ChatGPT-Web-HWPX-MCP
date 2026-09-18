@@ -10,7 +10,8 @@ from p2_document import apply_edits_atomic, apply_text_edits_atomic, build_docum
 from p22_formatting import apply_formatting_atomic, build_formatting_map
 from p23_richtext import apply_rich_formatting_atomic
 from p24_inline import apply_inline_edits_atomic, build_inline_map
-from p25_controls import apply_control_edits_atomic
+from p25_controls import apply_control_edits_atomic as apply_control_edits_p25_atomic
+from p26_controls import apply_control_edits_atomic
 
 
 class P2DocumentTests(unittest.TestCase):
@@ -636,6 +637,158 @@ class P2DocumentTests(unittest.TestCase):
             mapped_after = next(p for p in after["paragraphs"] if p["locator"] == target["locator"])
             self.assertEqual(mapped_after["fields"][0]["type"], "DATE")
             self.assertEqual(mapped_after["fields"][0]["name"], "yyyy-MM-dd")
+
+    def test_p26_partial_span_hyperlink_wrap_preserves_text(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = self._document(tmp)
+            target = next(p for p in build_document_map(path)["paragraphs"] if p["text"] == "gamma")
+            result = apply_control_edits_atomic(
+                path,
+                [{
+                    "op": "create_hyperlink",
+                    "target": target["locator"],
+                    "start": 1,
+                    "end": 4,
+                    "url": "https://example.com/partial",
+                }],
+                expected_revision=1,
+                current_revision=1,
+                validator=lambda candidate: server.validate_hwpx_package(candidate),
+            )
+            inline = build_inline_map(path)
+            paragraph = next(p for p in inline["paragraphs"] if p["locator"] == target["locator"])
+            self.assertEqual(paragraph["inline_text"], "gamma")
+            self.assertEqual(len(paragraph["fields"]), 1)
+            field = paragraph["fields"][0]
+            self.assertEqual(field["type"], "HYPERLINK")
+            self.assertEqual(paragraph["inline_text"][field["start"]:field["end"]], "amm")
+            self.assertTrue(result["inline_structure_changed"])
+
+    def test_p26_typed_date_and_mailmerge_mutation(self) -> None:
+        from hwpx import HwpxDocument
+
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "typed-fields.hwpx"
+            doc = HwpxDocument.new()
+            date_p = doc.add_paragraph("")
+            date_p.add_date_field("2026년 9월 18일")
+            merge_p = doc.add_paragraph("")
+            merge_p.add_mail_merge_field("name")
+            path.write_bytes(doc.to_bytes())
+            doc.close()
+
+            doc_map = build_document_map(path)
+            date_target = next(p for p in doc_map["paragraphs"] if "2026년" in p["text"])
+            merge_target = next(p for p in doc_map["paragraphs"] if "{{name}}" in p["text"])
+
+            apply_control_edits_atomic(
+                path,
+                [{
+                    "op": "set_date_field_properties",
+                    "target": date_target["locator"],
+                    "field_index": 0,
+                    "date_format": "YYYY년 M월 D일",
+                    "date_nation": "KOR",
+                    "cached_text": "2026년 9월 19일",
+                }],
+                expected_revision=1,
+                current_revision=1,
+                validator=lambda candidate: server.validate_hwpx_package(candidate),
+            )
+            apply_control_edits_atomic(
+                path,
+                [{
+                    "op": "set_mail_merge_field_properties",
+                    "target": merge_target["locator"],
+                    "field_index": 0,
+                    "name": "student_name",
+                    "sync_cached_text": True,
+                }],
+                expected_revision=2,
+                current_revision=2,
+                validator=lambda candidate: server.validate_hwpx_package(candidate),
+            )
+            inline = build_inline_map(path)
+            date_after = next(p for p in inline["paragraphs"] if p["locator"] == date_target["locator"])
+            merge_after = next(p for p in inline["paragraphs"] if p["locator"] == merge_target["locator"])
+            self.assertEqual(date_after["inline_text"], "2026년 9월 19일")
+            self.assertEqual(date_after["fields"][0]["parameters"]["DateNation"]["value"], "KOR")
+            self.assertEqual(merge_after["fields"][0]["parameters"]["Command"]["value"], "student_name")
+            self.assertEqual(merge_after["inline_text"], "{{student_name}}")
+
+    def test_p26_bookmark_rename_updates_internal_reference(self) -> None:
+        from hwpx import HwpxDocument
+
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "bookmark.hwpx"
+            doc = HwpxDocument.new()
+            anchor = doc.add_paragraph("anchor")
+            anchor.add_bookmark("old_anchor")
+            link = doc.add_paragraph("")
+            link.add_hyperlink("#old_anchor", "jump")
+            path.write_bytes(doc.to_bytes())
+            doc.close()
+
+            doc_map = build_document_map(path)
+            anchor_target = next(p for p in doc_map["paragraphs"] if p["text"] == "anchor")
+            apply_control_edits_atomic(
+                path,
+                [{
+                    "op": "rename_bookmark",
+                    "target": anchor_target["locator"],
+                    "bookmark_index": 0,
+                    "name": "new_anchor",
+                    "update_references": True,
+                }],
+                expected_revision=1,
+                current_revision=1,
+                validator=lambda candidate: server.validate_hwpx_package(candidate),
+            )
+            inline = build_inline_map(path)
+            anchor_after = next(p for p in inline["paragraphs"] if p["locator"] == anchor_target["locator"])
+            self.assertEqual(anchor_after["bookmarks"][0]["name"], "new_anchor")
+            refs = [
+                field for paragraph in inline["paragraphs"] for field in paragraph["fields"]
+                if field["type"] == "HYPERLINK"
+            ]
+            self.assertEqual(refs[0]["name"], "#new_anchor")
+
+    def test_p26_control_rebinding_tracks_stable_field_and_rebound_bookmark(self) -> None:
+        from hwpx import HwpxDocument
+
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "rebind.hwpx"
+            doc = HwpxDocument.new()
+            p = doc.add_paragraph("anchor")
+            p.add_bookmark("mark_a")
+            p.add_hyperlink("https://example.com/a", "link")
+            path.write_bytes(doc.to_bytes())
+            doc.close()
+
+            target = next(p for p in build_document_map(path)["paragraphs"] if "anchor" in p["text"])
+            result = apply_control_edits_atomic(
+                path,
+                [
+                    {
+                        "op": "retarget_hyperlink",
+                        "target": target["locator"],
+                        "field_index": 0,
+                        "url": "https://example.org/b",
+                    },
+                    {
+                        "op": "rename_bookmark",
+                        "target": target["locator"],
+                        "bookmark_index": 0,
+                        "name": "mark_b",
+                    },
+                ],
+                expected_revision=1,
+                current_revision=1,
+                validator=lambda candidate: server.validate_hwpx_package(candidate),
+            )
+            bindings = result["control_rebinding"]["bindings"]
+            self.assertTrue(any(item["before"]["kind"] == "field" and item["status"] == "stable" for item in bindings))
+            self.assertTrue(any(item["before"]["kind"] == "bookmark" and item["status"] == "rebound" for item in bindings))
 
     def test_stale_revision_rejects_without_byte_mutation(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

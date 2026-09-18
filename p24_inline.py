@@ -188,6 +188,8 @@ def _scan_paragraph(paragraph: ElementTree.Element, *, with_refs: bool = False) 
     spans: list[dict] = []
     boundaries: list[dict] = []
     fields: list[dict] = []
+    bookmarks: list[dict] = []
+    controls: list[dict] = []
     skeleton: list[dict] = []
     text_parts: list[str] = []
     field_stack: list[dict] = []
@@ -282,12 +284,28 @@ def _scan_paragraph(paragraph: ElementTree.Element, *, with_refs: bool = False) 
                         })
                     continue
 
+                control_attrs = {} if ctrl_child is None else {
+                    _local(k): v for k, v in ctrl_child.attrib.items()
+                }
+                control_item = {
+                    "offset": offset,
+                    "kind": ctrl_name,
+                    "attributes": control_attrs,
+                    "run_index": run_index,
+                }
+                controls.append(control_item)
+                if ctrl_name == "bookmark" and ctrl_child is not None:
+                    bookmarks.append({
+                        "name": ctrl_child.attrib.get("name") or "",
+                        "offset": offset,
+                        "run_index": run_index,
+                    })
                 boundaries.append({
                     "offset": offset,
                     "kind": "control",
                     "name": ctrl_name,
                     "policy": "hard",
-                    "attributes": {} if ctrl_child is None else {_local(k): v for k, v in ctrl_child.attrib.items()},
+                    "attributes": control_attrs,
                 })
                 skeleton.append({
                     "token": "control",
@@ -322,11 +340,21 @@ def _scan_paragraph(paragraph: ElementTree.Element, *, with_refs: bool = False) 
     )
     for field_index, field in enumerate(ordered_fields):
         field["field_index"] = field_index
+        field["control_identity"] = (
+            f"field:{field.get('type','')}:{field.get('id') or field_index}"
+        )
+    for bookmark_index, bookmark in enumerate(bookmarks):
+        bookmark["bookmark_index"] = bookmark_index
+        bookmark["control_identity"] = f"bookmark:{bookmark['name']}:{bookmark_index}"
+    for control_index, control in enumerate(controls):
+        control["control_index"] = control_index
     return {
         "inline_text": "".join(text_parts),
         "spans": spans,
         "boundaries": boundaries,
         "fields": ordered_fields,
+        "bookmarks": bookmarks,
+        "controls": controls,
         "skeleton": skeleton,
         "run_count": run_index,
     }
@@ -343,6 +371,8 @@ def _public_scan(scan: dict) -> dict:
         ],
         "boundaries": scan["boundaries"],
         "fields": scan["fields"],
+        "bookmarks": scan["bookmarks"],
+        "controls": scan["controls"],
         "run_count": scan["run_count"],
     }
 

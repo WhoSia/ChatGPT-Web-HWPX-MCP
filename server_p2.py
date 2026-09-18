@@ -4,9 +4,9 @@ import os
 from pathlib import Path
 
 import server as core
-from p2_document import apply_text_edits_atomic, build_document_map
+from p2_document import apply_edits_atomic, build_document_map
 
-P2_VERSION = "0.3.0-p2"
+P2_VERSION = "0.3.1-p2.1"
 core.VERSION = P2_VERSION
 
 _original_metadata = core._metadata
@@ -62,7 +62,7 @@ def get_document_map(document_id: str) -> dict:
         "sections": document_map["sections"],
         "paragraphs": document_map["paragraphs"],
         "address_contract": {
-            "intrinsic-id": "stable across text-only edits while the paragraph intrinsic id survives",
+            "intrinsic-id": "stable across text edits and same-section moves while the paragraph intrinsic id survives",
             "revision-bound-ordinal": "valid only for the current structural revision; reacquire after structural edits",
         },
     }
@@ -100,11 +100,11 @@ def get_text(document_id: str, locator: str = "") -> dict:
 
 @core.mcp.tool()
 def apply_edits(document_id: str, expected_revision: int, operations: list[dict]) -> dict:
-    """Apply one atomic text-edit transaction guarded by an exact revision precondition."""
+    """Apply one revision-guarded atomic text/paragraph-structure transaction."""
     metadata, path = _owned_document(document_id)
     current_revision = int(metadata["revision"])
     ingress = metadata.get("source") == "existing-ingress"
-    transaction = apply_text_edits_atomic(
+    transaction = apply_edits_atomic(
         path,
         operations,
         expected_revision=int(expected_revision),
@@ -122,7 +122,16 @@ def apply_edits(document_id: str, expected_revision: int, operations: list[dict]
         "revision_before": current_revision,
         "revision_after": int(metadata["revision"]),
         "sha256": validation["sha256"],
+        "diff": transaction,
         "semantic_diff": transaction,
+        "structure_diff": {
+            "changed": transaction["structure_changed"],
+            "before_sha256": transaction["before"]["structure_sha256"],
+            "after_sha256": transaction["after"]["structure_sha256"],
+            "paragraph_count_before": transaction["before"]["paragraph_count"],
+            "paragraph_count_after": transaction["after"]["paragraph_count"],
+        },
+        "locator_rebinding": transaction["locator_rebinding"],
         "validation": validation,
         "transaction": "COMMITTED",
     }
@@ -156,7 +165,7 @@ def p2_capabilities() -> dict:
     return {
         "project": core.PROJECT,
         "version": core.VERSION,
-        "phase": "P2",
+        "phase": "P2.1",
         "authenticated_subject": subject,
         "tools_added": [
             "get_document_map",
@@ -164,11 +173,22 @@ def p2_capabilities() -> dict:
             "apply_edits",
             "compare_document",
         ],
+        "operations": [
+            "replace_paragraph_text",
+            "insert_paragraph_before",
+            "insert_paragraph_after",
+            "delete_paragraph",
+            "move_paragraph_before",
+            "move_paragraph_after",
+        ],
         "addressing": "intrinsic paragraph ids when present; revision-bound ordinal fallback otherwise",
         "edit_transaction": "exact expected_revision + candidate-package validation + atomic package replacement",
         "semantic_diff": True,
-        "structural_edits": False,
+        "structure_diff": True,
+        "locator_rebinding": True,
+        "structural_edits": "paragraph insert/delete/same-container move",
         "formatting": False,
+        "tables_images_equations": False,
     }
 
 

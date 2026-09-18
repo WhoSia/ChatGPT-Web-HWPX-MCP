@@ -6,7 +6,7 @@ Remote Streamable-HTTP MCP for authenticated HWPX document creation, custody, va
 
 **P0 / P1 / P1.1 / P1.2 are closed / PASS.** The project has established native ChatGPT MCP discovery and actions, opaque document custody, signed HWPX delivery, OAuth-native secret-free invocation, durable restart-safe OAuth authority, and bounded existing-HWPX ingress. See the corresponding test ledgers.
 
-**P2 is CLOSED / PASS. P2.1 is active.** P2 established native structured paragraph maps, stable/revision-bound locators, exact revision guards, atomic text edits, and semantic/structure diff receipts. P2.1 extends the same transaction engine to paragraph insertion, deletion, and same-container reordering with locator-rebinding receipts.
+**P2 is CLOSED / PASS. P2.1 structural editing is implemented. P2.2 is active.** P2.2 adds paragraph/run formatting introspection, formatting-only atomic transactions, character-property mutation, direct-body paragraph-property mutation, and an independent formatting digest.
 
 ```text
 ChatGPT Web
@@ -17,7 +17,7 @@ ChatGPT Web
 → exact expected_revision
 → candidate-package validation
 → atomic HWPX replacement
-→ semantic / structure receipts
+→ semantic / structure / formatting receipts
 → signed export
 ```
 
@@ -31,10 +31,12 @@ ChatGPT Web
 | `create_document` | Yes | Materialize a small HWPX at revision 1 |
 | `ingest_document` | Yes | Admit one bounded existing HWPX at revision 1 |
 | `inspect_document` | No | Validate and inspect one caller-owned document |
-| `get_document_map` | No | Return sections, paragraph locators, and semantic/structure receipts |
+| `get_document_map` | No | Return sections, paragraph locators, and semantic/structure/formatting receipts |
 | `get_text` | No | Return whole-document or locator-targeted paragraph text |
+| `get_formatting` | No | Resolve paragraph/run formatting refs and property summaries |
 | `apply_edits` | Yes | Apply one revision-guarded atomic text/paragraph-structure transaction |
-| `compare_document` | No | Compare prior semantic/structure receipts with the current revision |
+| `apply_formatting` | Yes | Apply one revision-guarded formatting-only transaction |
+| `compare_document` | No | Compare semantic/structure/formatting receipts with the current revision |
 | `export_document` | No* | Return a short-lived signed download URL |
 | `delete_document` | Yes | Delete the caller-owned HWPX and metadata |
 
@@ -47,9 +49,9 @@ Paragraph locators use the form `p_<hash>`.
 - `intrinsic-id`: when HWPX exposes a paragraph id, the locator derives from section identity plus that id and is expected to survive text-only edits while the id survives.
 - `revision-bound-ordinal`: when no intrinsic id is available, the locator falls back to section plus paragraph ordinal. This is deliberately not claimed to survive later structural edits.
 
-`get_document_map` also returns whole-document `semantic_sha256`, `structure_sha256`, per-paragraph text digests, section identity, paragraph index, and locator stability classification.
+`get_document_map` also returns whole-document `semantic_sha256`, `structure_sha256`, `formatting_sha256`, per-paragraph text digests, section identity, paragraph/container indexes, and locator stability classification.
 
-## P2/P2.1 transaction contract
+## P2/P2.1 text and structural transaction contract
 
 `apply_edits` admits:
 
@@ -74,7 +76,53 @@ expected_revision == current_revision
 → update package/semantic/structure receipts
 ```
 
-Stale revisions, invalid operation sets, unknown locators, and candidate-validator failures leave the original document bytes unchanged. Formatting, cross-container paragraph moves, and table/image/equation mutation remain outside the P2.1 boundary.
+Stale revisions, invalid operation sets, unknown locators, and candidate-validator failures leave the original document bytes unchanged. Cross-container paragraph moves and table/image/equation mutation remain outside the P2.1 boundary.
+
+## P2.2 formatting layer
+
+`get_formatting` resolves the formatting surface independently from text and structure:
+
+- paragraph `paraPrIDRef`, `styleIDRef`, page/column break attrs;
+- direct run indexes and `charPrIDRef`;
+- resolved run summaries such as size, text color, bold/italic/underline/strike, font refs, script and outline;
+- resolved paragraph summaries such as alignment, margin, line spacing, break settings and heading refs;
+- document-level `formatting_sha256`.
+
+`apply_formatting` supports two operation families:
+
+```text
+set_run_format
+  → bold / italic / underline / color / font / size / highlight / strike
+  → underline/strike shapes, ratio, letter spacing, shadow, superscript/subscript,
+    outline, emboss, engrave
+
+set_paragraph_format
+  → alignment / line spacing / indents / before-after spacing
+  → outline level / keep rules / page or column break
+  → bottom border / tab stops
+```
+
+Run formatting can target one direct run by `run_index` or all text-bearing runs in the paragraph. Unspecified run properties inherit from the current `charPr` through `python-hwpx`'s style-table machinery instead of reconstructing styles from scratch.
+
+Paragraph-property mutation is intentionally narrower in P2.2: it is accepted only for direct section-body paragraphs. Nested table-cell or shape-internal paragraphs are fully introspectable, but paragraph-property writes fail closed until their container-specific semantics are promoted.
+
+The transaction boundary is formatting-only:
+
+```text
+expected_revision == current_revision
+→ resolve formatting against the pre-edit locator map
+→ write a sibling candidate
+→ create/reuse HWPX charPr / paraPr definitions
+→ apply refs
+→ require semantic_sha256 unchanged
+→ require structure_sha256 unchanged
+→ validate candidate package
+→ atomic os.replace
+→ revision + 1
+→ formatting diff receipt
+```
+
+If a formatting request changes document text or paragraph structure, the candidate is rejected before commit.
 
 ## Durable OAuth boundary
 
@@ -153,7 +201,7 @@ See [`P2_TEST_LEDGER.md`](./P2_TEST_LEDGER.md) for canonical run/deploy receipts
 
 ## Security boundary
 
-P2.1 is still deliberately narrow. It does not yet claim durable document bytes, formatting, cross-container structural moves, tables/images/equations, or native Hancom visual fidelity.
+P2.2 is still deliberately narrow. It does not yet claim durable document bytes, nested paragraph-property mutation, cross-container structural moves, tables/images/equations, or native Hancom visual fidelity.
 
 ## Phase lineage
 
@@ -162,7 +210,9 @@ P1     minimal valid HWPX + document_id + signed export
 P1.1   OAuth-native secret-free lifecycle + authenticated ownership
 P1.2   durable OAuth authority + bounded existing-HWPX ingress
 P2     structured introspection + paragraph addressing + revision-safe text transactions
-P2.1   paragraph insert/delete/reorder + locator rebinding\nP2.x   formatting and richer structural operations
+P2.1   paragraph insert/delete/reorder + locator rebinding
+P2.2   paragraph/run formatting introspection + formatting mutation + formatting diff
+P2.x   richer nested/container-aware structural and formatting operations
 P3     tables / images / equations
 P4     renderer oracle and Hancom fidelity validation
 ```

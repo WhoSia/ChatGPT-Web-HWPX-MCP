@@ -5,8 +5,9 @@ from pathlib import Path
 
 import server as core
 from p2_document import apply_edits_atomic, build_document_map
+from p22_formatting import apply_formatting_atomic, build_formatting_map
 
-P2_VERSION = "0.3.1-p2.1"
+P2_VERSION = "0.3.2-p2.2"
 core.VERSION = P2_VERSION
 
 _original_metadata = core._metadata
@@ -33,11 +34,19 @@ def _owned_document(document_id: str) -> tuple[dict, Path]:
     return metadata, path
 
 
-def _refresh_metadata(document_id: str, metadata: dict, validation: dict, document_map: dict) -> dict:
+def _refresh_metadata(
+    document_id: str,
+    metadata: dict,
+    validation: dict,
+    document_map: dict,
+    formatting_map: dict | None = None,
+) -> dict:
     metadata["sha256"] = validation["sha256"]
     metadata["bytes"] = validation["bytes"]
     metadata["semantic_sha256"] = document_map["semantic_sha256"]
     metadata["structure_sha256"] = document_map["structure_sha256"]
+    if formatting_map is not None:
+        metadata["formatting_sha256"] = formatting_map["formatting_sha256"]
     core._write_metadata(document_id, metadata)
     return metadata
 
@@ -47,11 +56,12 @@ def get_document_map(document_id: str) -> dict:
     """Return revision-bound structural addresses for sections and paragraphs."""
     metadata, path = _owned_document(document_id)
     document_map = build_document_map(path)
+    formatting_map = build_formatting_map(path)
     validation = core.validate_hwpx_package(
         path,
         ingress=metadata.get("source") == "existing-ingress",
     )
-    _refresh_metadata(document_id, metadata, validation, document_map)
+    _refresh_metadata(document_id, metadata, validation, document_map, formatting_map)
     return {
         "ok": True,
         "document_id": document_id,
@@ -59,6 +69,7 @@ def get_document_map(document_id: str) -> dict:
         "sha256": validation["sha256"],
         "semantic_sha256": document_map["semantic_sha256"],
         "structure_sha256": document_map["structure_sha256"],
+        "formatting_sha256": formatting_map["formatting_sha256"],
         "sections": document_map["sections"],
         "paragraphs": document_map["paragraphs"],
         "address_contract": {
@@ -95,6 +106,74 @@ def get_text(document_id: str, locator: str = "") -> dict:
         "text_chars": document_map["text_chars"],
         "paragraph_count": document_map["paragraph_count"],
         "semantic_sha256": document_map["semantic_sha256"],
+    }
+
+
+@core.mcp.tool()
+def get_formatting(document_id: str, locator: str = "") -> dict:
+    """Inspect paragraph/run formatting refs and resolved property summaries."""
+    metadata, path = _owned_document(document_id)
+    formatting_map = build_formatting_map(path)
+    if locator:
+        paragraph = next(
+            (item for item in formatting_map["paragraphs"] if item["locator"] == locator),
+            None,
+        )
+        if paragraph is None:
+            raise ValueError("Unknown paragraph locator")
+        return {
+            "ok": True,
+            "document_id": document_id,
+            "revision": int(metadata["revision"]),
+            "formatting_sha256": formatting_map["formatting_sha256"],
+            "paragraph": paragraph,
+            "property_counts": formatting_map["property_counts"],
+        }
+    return {
+        "ok": True,
+        "document_id": document_id,
+        "revision": int(metadata["revision"]),
+        **formatting_map,
+    }
+
+
+@core.mcp.tool()
+def apply_formatting(document_id: str, expected_revision: int, operations: list[dict]) -> dict:
+    """Apply one revision-guarded formatting-only transaction."""
+    metadata, path = _owned_document(document_id)
+    current_revision = int(metadata["revision"])
+    ingress = metadata.get("source") == "existing-ingress"
+    transaction = apply_formatting_atomic(
+        path,
+        operations,
+        expected_revision=int(expected_revision),
+        current_revision=current_revision,
+        validator=lambda candidate: core.validate_hwpx_package(candidate, ingress=ingress),
+    )
+    validation = transaction["validation"]
+    after_document = build_document_map(path)
+    after_formatting = build_formatting_map(path)
+    metadata["revision"] = current_revision + 1
+    metadata["last_edit_at"] = core._utc_iso()
+    _refresh_metadata(
+        document_id,
+        metadata,
+        validation,
+        after_document,
+        after_formatting,
+    )
+    return {
+        "ok": True,
+        "document_id": document_id,
+        "revision_before": current_revision,
+        "revision_after": int(metadata["revision"]),
+        "sha256": validation["sha256"],
+        "formatting_diff": transaction,
+        "semantic_changed": transaction["semantic_changed"],
+        "structure_changed": transaction["structure_changed"],
+        "formatting_changed": transaction["formatting_changed"],
+        "validation": validation,
+        "transaction": "COMMITTED",
     }
 
 
@@ -138,12 +217,19 @@ def apply_edits(document_id: str, expected_revision: int, operations: list[dict]
 
 
 @core.mcp.tool()
-def compare_document(document_id: str, semantic_sha256: str = "", structure_sha256: str = "") -> dict:
-    """Compare supplied semantic/structure receipts with the current revision."""
+def compare_document(
+    document_id: str,
+    semantic_sha256: str = "",
+    structure_sha256: str = "",
+    formatting_sha256: str = "",
+) -> dict:
+    """Compare supplied semantic/structure/formatting receipts with the current revision."""
     metadata, path = _owned_document(document_id)
     document_map = build_document_map(path)
+    formatting_map = build_formatting_map(path)
     current_semantic = document_map["semantic_sha256"]
     current_structure = document_map["structure_sha256"]
+    current_formatting = formatting_map["formatting_sha256"]
     return {
         "ok": True,
         "document_id": document_id,
@@ -151,10 +237,12 @@ def compare_document(document_id: str, semantic_sha256: str = "", structure_sha2
         "current": {
             "semantic_sha256": current_semantic,
             "structure_sha256": current_structure,
+            "formatting_sha256": current_formatting,
         },
         "matches": {
             "semantic": None if not semantic_sha256 else semantic_sha256 == current_semantic,
             "structure": None if not structure_sha256 else structure_sha256 == current_structure,
+            "formatting": None if not formatting_sha256 else formatting_sha256 == current_formatting,
         },
     }
 
@@ -165,13 +253,15 @@ def p2_capabilities() -> dict:
     return {
         "project": core.PROJECT,
         "version": core.VERSION,
-        "phase": "P2.1",
+        "phase": "P2.2",
         "authenticated_subject": subject,
         "tools_added": [
             "get_document_map",
             "get_text",
             "apply_edits",
             "compare_document",
+            "get_formatting",
+            "apply_formatting",
         ],
         "operations": [
             "replace_paragraph_text",
@@ -187,7 +277,13 @@ def p2_capabilities() -> dict:
         "structure_diff": True,
         "locator_rebinding": True,
         "structural_edits": "paragraph insert/delete/same-container move",
-        "formatting": False,
+        "formatting": {
+            "introspection": "paragraph/run refs + resolved summaries",
+            "run_mutation": "all text runs or selected run_index",
+            "paragraph_mutation": "direct section-body paragraphs",
+            "diff": "formatting_sha256",
+            "semantic_structure_preservation": "fail-closed",
+        },
         "tables_images_equations": False,
     }
 

@@ -8,6 +8,7 @@ from pathlib import Path
 import server
 from p2_document import apply_edits_atomic, apply_text_edits_atomic, build_document_map
 from p22_formatting import apply_formatting_atomic, build_formatting_map
+from p23_richtext import apply_rich_formatting_atomic
 
 
 class P2DocumentTests(unittest.TestCase):
@@ -154,6 +155,151 @@ class P2DocumentTests(unittest.TestCase):
             self.assertTrue(result["formatting_changed"])
             alignment = (formatted["paragraph_property"] or {}).get("alignment") or {}
             self.assertEqual(alignment.get("horizontal"), "CENTER")
+
+    def test_p23_range_format_splits_only_selected_text(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = self._document(tmp)
+            before_doc = build_document_map(path)
+            target = next(p for p in before_doc["paragraphs"] if p["text"] == "beta")
+            result = apply_rich_formatting_atomic(
+                path,
+                [{
+                    "op": "set_range_format",
+                    "target": target["locator"],
+                    "start": 1,
+                    "end": 3,
+                    "format": {"bold": True},
+                }],
+                expected_revision=1,
+                current_revision=1,
+                validator=lambda candidate: server.validate_hwpx_package(candidate),
+            )
+            after = build_formatting_map(path)
+            paragraph = next(p for p in after["paragraphs"] if p["locator"] == target["locator"])
+            text_runs = [run for run in paragraph["runs"] if run["text"]]
+            self.assertEqual([run["text"] for run in text_runs], ["b", "et", "a"])
+            self.assertEqual(paragraph["direct_text"], "beta")
+            self.assertTrue(text_runs[1]["style"]["bold"])
+            self.assertNotEqual(text_runs[0]["char_pr_id_ref"], text_runs[1]["char_pr_id_ref"])
+            self.assertFalse(result["semantic_changed"])
+            self.assertFalse(result["structure_changed"])
+            self.assertTrue(result["formatting_changed"])
+
+    def test_p23_copy_run_format_reuses_exact_char_property(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = self._document(tmp)
+            before = build_document_map(path)
+            alpha = next(p for p in before["paragraphs"] if p["text"] == "alpha")
+            gamma = next(p for p in before["paragraphs"] if p["text"] == "gamma")
+            apply_rich_formatting_atomic(
+                path,
+                [{"op": "set_run_format", "target": alpha["locator"], "format": {"italic": True}}],
+                expected_revision=1,
+                current_revision=1,
+                validator=lambda candidate: server.validate_hwpx_package(candidate),
+            )
+            source_map = build_formatting_map(path)
+            source = next(p for p in source_map["paragraphs"] if p["locator"] == alpha["locator"])
+            source_ref = next(run["char_pr_id_ref"] for run in source["runs"] if run["text"])
+            apply_rich_formatting_atomic(
+                path,
+                [{
+                    "op": "copy_run_format",
+                    "source": alpha["locator"],
+                    "source_run_index": 0,
+                    "target": gamma["locator"],
+                }],
+                expected_revision=2,
+                current_revision=2,
+                validator=lambda candidate: server.validate_hwpx_package(candidate),
+            )
+            after = build_formatting_map(path)
+            copied = next(p for p in after["paragraphs"] if p["locator"] == gamma["locator"])
+            copied_refs = {run["char_pr_id_ref"] for run in copied["runs"] if run["text"]}
+            self.assertEqual(copied_refs, {source_ref})
+
+    def test_p23_nested_paragraph_formatting_mutates_para_property(self) -> None:
+        from hwpx import HwpxDocument
+
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "nested.hwpx"
+            doc = HwpxDocument.new()
+            table = doc.add_table(rows=1, cols=1)
+            table.set_cell_text(0, 0, "nested")
+            path.write_bytes(doc.to_bytes())
+            doc.close()
+
+            before_doc = build_document_map(path)
+            target = next(
+                p for p in before_doc["paragraphs"]
+                if p["text"] == "nested" and p["container"] != "section-body"
+            )
+            result = apply_rich_formatting_atomic(
+                path,
+                [{
+                    "op": "set_paragraph_format",
+                    "target": target["locator"],
+                    "format": {"alignment": "CENTER", "spacing_after_pt": 3},
+                }],
+                expected_revision=1,
+                current_revision=1,
+                validator=lambda candidate: server.validate_hwpx_package(candidate),
+            )
+            after = build_formatting_map(path)
+            formatted = next(p for p in after["paragraphs"] if p["locator"] == target["locator"])
+            alignment = (formatted["paragraph_property"] or {}).get("alignment") or {}
+            self.assertEqual(alignment.get("horizontal"), "CENTER")
+            self.assertFalse(result["semantic_changed"])
+            self.assertFalse(result["structure_changed"])
+
+    def test_p23_normalization_coalesces_equivalent_split_runs(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = self._document(tmp)
+            before = build_document_map(path)
+            beta = next(p for p in before["paragraphs"] if p["text"] == "beta")
+            apply_rich_formatting_atomic(
+                path,
+                [{
+                    "op": "set_range_format",
+                    "target": beta["locator"],
+                    "start": 1,
+                    "end": 3,
+                    "format": {"bold": True},
+                }],
+                expected_revision=1,
+                current_revision=1,
+                validator=lambda candidate: server.validate_hwpx_package(candidate),
+            )
+            split_map = build_formatting_map(path)
+            split_para = next(p for p in split_map["paragraphs"] if p["locator"] == beta["locator"])
+            base_ref = split_para["runs"][0]["char_pr_id_ref"]
+            apply_rich_formatting_atomic(
+                path,
+                [{
+                    "op": "copy_run_format",
+                    "source": beta["locator"],
+                    "source_run_index": 0,
+                    "target": beta["locator"],
+                    "start": 1,
+                    "end": 3,
+                }],
+                expected_revision=2,
+                current_revision=2,
+                validator=lambda candidate: server.validate_hwpx_package(candidate),
+            )
+            result = apply_rich_formatting_atomic(
+                path,
+                [{"op": "normalize_formatting", "target": beta["locator"]}],
+                expected_revision=3,
+                current_revision=3,
+                validator=lambda candidate: server.validate_hwpx_package(candidate),
+            )
+            after = build_formatting_map(path)
+            normalized = next(p for p in after["paragraphs"] if p["locator"] == beta["locator"])
+            text_runs = [run for run in normalized["runs"] if run["text"]]
+            self.assertEqual([run["text"] for run in text_runs], ["beta"])
+            self.assertEqual(text_runs[0]["char_pr_id_ref"], base_ref)
+            self.assertGreaterEqual(result["normalization"]["merged_adjacent_runs"], 2)
 
     def test_stale_revision_rejects_without_byte_mutation(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

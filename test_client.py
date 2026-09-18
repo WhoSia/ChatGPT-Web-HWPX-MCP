@@ -101,7 +101,7 @@ async def main() -> None:
     oauth = OAuthClientProvider(
         server_url=URL,
         client_metadata=OAuthClientMetadata(
-            client_name="ChatGPT Web HWPX MCP P2.3 CI",
+            client_name="ChatGPT Web HWPX MCP P2.4 CI",
             redirect_uris=[AnyUrl("http://127.0.0.1:8765/callback")],
             scope="hwpx offline_access",
         ),
@@ -133,6 +133,8 @@ async def main() -> None:
                 "p2_capabilities",
                 "get_formatting",
                 "apply_formatting",
+                "get_inline_map",
+                "apply_inline_edits",
             }
             missing = expected - set(names)
             if missing:
@@ -143,11 +145,11 @@ async def main() -> None:
                     raise RuntimeError(f"secret-bearing field leaked into tool schema: {tool.name}")
 
             read_payload = _payload(await client.call_tool("probe_read", {"message": "P2 OAuth smoke test"}))
-            if not read_payload or not read_payload.get("ok") or read_payload.get("version") != "0.3.3-p2.3":
+            if not read_payload or not read_payload.get("ok") or read_payload.get("version") != "0.3.4-p2.4":
                 raise RuntimeError(f"probe_read did not expose P2: {read_payload}")
 
             p2_caps = _payload(await client.call_tool("p2_capabilities", {}))
-            if not p2_caps or p2_caps.get("phase") != "P2.3":
+            if not p2_caps or p2_caps.get("phase") != "P2.4":
                 raise RuntimeError(f"p2_capabilities failed: {p2_caps}")
 
             if not RUN_WRITE_TEST:
@@ -233,19 +235,65 @@ async def main() -> None:
             if not runs_after[1].get("style", {}).get("bold"):
                 raise RuntimeError(f"range formatting did not resolve bold middle run: {runs_after}")
 
+            inline_before = _payload(await client.call_tool("get_inline_map", {
+                "document_id": document_id,
+                "locator": locator,
+            }))
+            if not inline_before or inline_before.get("revision") != 3:
+                raise RuntimeError(f"get_inline_map before cross-run edit failed: {inline_before}")
+            if inline_before.get("paragraph", {}).get("inline_text") != "gamma":
+                raise RuntimeError(f"unexpected inline text before cross-run edit: {inline_before}")
+            inline_structure_before = inline_before["inline_structure_sha256"]
+
+            inline_edited = _payload(await client.call_tool("apply_inline_edits", {
+                "document_id": document_id,
+                "expected_revision": 3,
+                "operations": [{
+                    "op": "replace_inline_text",
+                    "target": locator,
+                    "start": 1,
+                    "end": 4,
+                    "text": "XYZ",
+                    "expected_text": "amm",
+                }],
+            }))
+            if (
+                not inline_edited
+                or inline_edited.get("transaction") != "COMMITTED"
+                or inline_edited.get("revision_after") != 4
+                or inline_edited.get("inline_text_changed") is not True
+                or inline_edited.get("inline_structure_changed") is not False
+                or inline_edited.get("structure_changed") is not False
+            ):
+                raise RuntimeError(f"apply_inline_edits cross-run edit failed: {inline_edited}")
+
+            inline_after = _payload(await client.call_tool("get_inline_map", {
+                "document_id": document_id,
+                "locator": locator,
+            }))
+            if not inline_after or inline_after.get("revision") != 4:
+                raise RuntimeError(f"get_inline_map after cross-run edit failed: {inline_after}")
+            if inline_after.get("paragraph", {}).get("inline_text") != "gXYZa":
+                raise RuntimeError(f"cross-run inline edit text mismatch: {inline_after}")
+            if inline_after.get("inline_structure_sha256") != inline_structure_before:
+                raise RuntimeError("cross-run inline edit changed inline structure receipt")
+
             targeted = _payload(await client.call_tool("get_text", {"document_id": document_id, "locator": locator}))
-            if not targeted or targeted.get("revision") != 3 or targeted.get("text") != "gamma":
+            if not targeted or targeted.get("revision") != 4 or targeted.get("text") != "gXYZa":
                 raise RuntimeError(f"targeted get_text failed: {targeted}")
 
             compared = _payload(await client.call_tool("compare_document", {
                 "document_id": document_id,
                 "semantic_sha256": semantic_before,
                 "structure_sha256": structure_before,
+                "inline_structure_sha256": inline_structure_before,
             }))
             if not compared or compared.get("matches", {}).get("semantic") is not False:
                 raise RuntimeError(f"compare_document semantic verdict failed: {compared}")
             if compared.get("matches", {}).get("structure") is not True:
                 raise RuntimeError(f"compare_document structure verdict failed: {compared}")
+            if compared.get("matches", {}).get("inline_structure") is not True:
+                raise RuntimeError(f"compare_document inline-structure verdict failed: {compared}")
 
             exported = _payload(await client.call_tool("export_document", {"document_id": document_id, "link_ttl_seconds": 120}))
             if not exported or not exported.get("download_url"):
@@ -272,7 +320,7 @@ async def main() -> None:
                 deleted = _payload(await client.call_tool("delete_document", {"document_id": doc_id}))
                 if not deleted or not deleted.get("deleted"):
                     raise RuntimeError(f"delete_document failed: {deleted}")
-            print("P2.3 lifecycle PASS", digest)
+            print("P2.4 lifecycle PASS", digest)
 
 
 if __name__ == "__main__":

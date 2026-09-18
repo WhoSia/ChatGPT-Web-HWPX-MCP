@@ -288,8 +288,7 @@ def p2_capabilities() -> dict:
         "locator_rebinding": True,
         "structural_edits": "paragraph insert/delete/same-container move",
         "formatting": {
-            "introspection": "paragraph/run refs + resolved summaries",
-            "run_mutation": "all text runs or selected run_index",
+            "introspection": "paragraph/run refs + resolved summaries + direct-text offsets",
             "range_selection": "[start,end) over paragraph direct_text",
             "run_mutation": "whole run(s) or split-safe character range",
             "paragraph_mutation": "section-body and nested paragraphs",

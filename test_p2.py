@@ -466,9 +466,9 @@ class P2DocumentTests(unittest.TestCase):
             path.write_bytes(doc.to_bytes())
             doc.close()
 
-            target = next(p for p in build_document_map(path)["paragraphs"] if p["text"].startswith("abcd"))
             before = build_inline_map(path)
-            mapped = next(p for p in before["paragraphs"] if p["locator"] == target["locator"])
+            mapped = next(p for p in before["paragraphs"] if p["inline_text"].startswith("abcd"))
+            target = {"locator": mapped["locator"]}
             self.assertIn("\n", mapped["inline_text"])
 
             apply_inline_edits_atomic(

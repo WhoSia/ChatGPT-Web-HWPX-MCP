@@ -413,7 +413,19 @@ def apply_formatting_atomic(
                         "run_index": run_index,
                         "char_pr_id_ref": new_ref,
                     })
-            document.save_to_path(str(candidate))
+            fd2, styled_name = tempfile.mkstemp(
+                prefix=path.stem + ".p22-lib-", suffix=".hwpx", dir=str(path.parent)
+            )
+            os.close(fd2)
+            styled_path = Path(styled_name)
+            try:
+                document.save_to_path(str(styled_path))
+                os.replace(styled_path, candidate)
+            finally:
+                try:
+                    styled_path.unlink()
+                except FileNotFoundError:
+                    pass
         finally:
             close = getattr(document, "close", None)
             if callable(close):

@@ -234,10 +234,22 @@ def _scan_paragraph(paragraph: ElementTree.Element, *, with_refs: bool = False) 
             if name == "ctrl":
                 ctrl_name, ctrl_child = _control_descriptor(child)
                 if ctrl_name == "fieldBegin" and ctrl_child is not None:
+                    parameters: dict[str, dict] = {}
+                    for param in ctrl_child.iter():
+                        param_name = param.attrib.get("name")
+                        local = _local(param.tag)
+                        if param_name and local in {"stringParam", "integerParam", "booleanParam"}:
+                            parameters[param_name] = {
+                                "kind": local,
+                                "value": param.text or "",
+                            }
                     field = {
                         "id": ctrl_child.attrib.get("id"),
+                        "fieldid": ctrl_child.attrib.get("fieldid"),
                         "type": ctrl_child.attrib.get("type") or "",
                         "name": ctrl_child.attrib.get("name") or "",
+                        "attributes": {_local(k): v for k, v in ctrl_child.attrib.items()},
+                        "parameters": parameters,
                         "begin": offset,
                     }
                     boundaries.append({
@@ -277,8 +289,12 @@ def _scan_paragraph(paragraph: ElementTree.Element, *, with_refs: bool = False) 
                     })
                     if field is not None:
                         fields.append({
+                            "id": field.get("id"),
+                            "fieldid": field.get("fieldid"),
                             "type": field["type"],
                             "name": field["name"],
+                            "attributes": field.get("attributes", {}),
+                            "parameters": field.get("parameters", {}),
                             "start": field["begin"],
                             "end": offset,
                         })
@@ -326,8 +342,12 @@ def _scan_paragraph(paragraph: ElementTree.Element, *, with_refs: bool = False) 
 
     for field in reversed(field_stack):
         fields.append({
+            "id": field.get("id"),
+            "fieldid": field.get("fieldid"),
             "type": field["type"],
             "name": field["name"],
+            "attributes": field.get("attributes", {}),
+            "parameters": field.get("parameters", {}),
             "start": field["begin"],
             "end": None,
             "unclosed": True,

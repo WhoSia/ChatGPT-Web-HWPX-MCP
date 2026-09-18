@@ -1,4 +1,4 @@
-name: P2 Structured HWPX edit lifecycle CI
+name: P2.2 HWPX edit and formatting lifecycle CI
 
 on:
   push:
@@ -43,19 +43,19 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Compile Python sources
-        run: python -m compileall -q server.py server_p2.py p2_document.py oauth_provider.py auth_store.py test_client.py test_p1.py test_p2.py test_auth_store.py
+        run: python -m compileall -q server.py server_p2.py p2_document.py p22_formatting.py oauth_provider.py auth_store.py test_client.py test_p1.py test_p2.py test_auth_store.py
 
-      - name: HWPX admission, durable auth, and P2 transaction unit tests
+      - name: HWPX admission, durable auth, and P2.2 transaction unit tests
         run: python -m unittest -v test_p1.py test_p2.py test_auth_store.py
 
-      - name: Start P2 OAuth-protected Streamable HTTP MCP server
+      - name: Start P2.2 OAuth-protected Streamable HTTP MCP server
         run: |
           python server_p2.py > /tmp/mcp.log 2>&1 &
           echo $! > /tmp/mcp.pid
           for i in {1..40}; do
             if curl --fail --silent http://127.0.0.1:8000/health >/tmp/health.json; then
               cat /tmp/health.json
-              grep -q '0.3.0-p2' /tmp/health.json
+              grep -q '0.3.2-p2.2' /tmp/health.json
               grep -q 'postgres-encrypted' /tmp/health.json
               exit 0
             fi
@@ -77,7 +77,7 @@ jobs:
           curl --fail --silent http://127.0.0.1:8000/.well-known/oauth-authorization-server | tee /tmp/as.json
           grep -q 'offline_access' /tmp/as.json
 
-      - name: OAuth-native map, edit, semantic-diff, export, re-ingest, and cleanup
+      - name: OAuth-native map, edit, diff, export, re-ingest, and cleanup
         env:
           MCP_URL: http://127.0.0.1:8000/mcp
           RUN_P2_WRITE_TEST: "1"

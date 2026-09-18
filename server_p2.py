@@ -10,8 +10,9 @@ from p23_richtext import apply_rich_formatting_atomic
 from p24_inline import apply_inline_edits_atomic, build_inline_map
 from p26_controls import apply_control_edits_atomic
 from p28_tables import apply_table_edits_atomic, build_table_map
+from p29_objects import apply_object_edits_atomic, build_object_map
 
-P2_VERSION = "0.3.8-p2.8"
+P2_VERSION = "0.3.9-p2.9"
 core.VERSION = P2_VERSION
 
 _original_metadata = core._metadata
@@ -46,6 +47,7 @@ def _refresh_metadata(
     formatting_map: dict | None = None,
     inline_map: dict | None = None,
     table_map: dict | None = None,
+    object_map: dict | None = None,
 ) -> dict:
     metadata["sha256"] = validation["sha256"]
     metadata["bytes"] = validation["bytes"]
@@ -61,6 +63,10 @@ def _refresh_metadata(
         metadata["table_format_sha256"] = table_map["table_format_sha256"]
         if "table_object_sha256" in table_map:
             metadata["table_object_sha256"] = table_map["table_object_sha256"]
+    if object_map is not None:
+        metadata["object_structure_sha256"] = object_map["object_structure_sha256"]
+        metadata["object_geometry_sha256"] = object_map["object_geometry_sha256"]
+        metadata["media_custody_sha256"] = object_map["media_custody_sha256"]
     core._write_metadata(document_id, metadata)
     return metadata
 
@@ -124,6 +130,35 @@ def get_table_map(document_id: str, table_locator: str = "") -> dict:
         "document_id": document_id,
         "revision": int(metadata["revision"]),
         **table_map,
+    }
+
+
+@core.mcp.tool()
+def get_object_map(document_id: str, object_locator: str = "") -> dict:
+    """Return picture objects, package-owned media items, geometry and custody receipts."""
+    metadata, path = _owned_document(document_id)
+    object_map = build_object_map(path)
+    if object_locator:
+        picture = next(
+            (item for item in object_map["pictures"] if item["locator"] == object_locator),
+            None,
+        )
+        if picture is None:
+            raise ValueError("Unknown picture locator")
+        return {
+            "ok": True,
+            "document_id": document_id,
+            "revision": int(metadata["revision"]),
+            "object_structure_sha256": object_map["object_structure_sha256"],
+            "object_geometry_sha256": object_map["object_geometry_sha256"],
+            "media_custody_sha256": object_map["media_custody_sha256"],
+            "picture": picture,
+        }
+    return {
+        "ok": True,
+        "document_id": document_id,
+        "revision": int(metadata["revision"]),
+        **object_map,
     }
 
 
@@ -345,6 +380,53 @@ def apply_table_edits(document_id: str, expected_revision: int, operations: list
 
 
 @core.mcp.tool()
+def apply_object_edits(document_id: str, expected_revision: int, operations: list[dict]) -> dict:
+    """Apply one revision-guarded picture/media/geometry transaction."""
+    metadata, path = _owned_document(document_id)
+    current_revision = int(metadata["revision"])
+    ingress = metadata.get("source") == "existing-ingress"
+    transaction = apply_object_edits_atomic(
+        path,
+        operations,
+        expected_revision=int(expected_revision),
+        current_revision=current_revision,
+        validator=lambda candidate: core.validate_hwpx_package(candidate, ingress=ingress),
+    )
+    validation = transaction["validation"]
+    after_document = build_document_map(path)
+    after_formatting = build_formatting_map(path)
+    after_inline = build_inline_map(path)
+    after_tables = build_table_map(path)
+    after_objects = build_object_map(path)
+    metadata["revision"] = current_revision + 1
+    metadata["last_edit_at"] = core._utc_iso()
+    _refresh_metadata(
+        document_id,
+        metadata,
+        validation,
+        after_document,
+        after_formatting,
+        after_inline,
+        after_tables,
+        after_objects,
+    )
+    return {
+        "ok": True,
+        "document_id": document_id,
+        "revision_before": current_revision,
+        "revision_after": int(metadata["revision"]),
+        "sha256": validation["sha256"],
+        "object_diff": transaction,
+        "object_structure_changed": transaction["object_structure_changed"],
+        "object_geometry_changed": transaction["object_geometry_changed"],
+        "media_custody_changed": transaction["media_custody_changed"],
+        "object_rebinding": transaction["object_rebinding"],
+        "validation": validation,
+        "transaction": "COMMITTED",
+    }
+
+
+@core.mcp.tool()
 def apply_formatting(document_id: str, expected_revision: int, operations: list[dict]) -> dict:
     """Apply one revision-guarded formatting-only transaction."""
     metadata, path = _owned_document(document_id)
@@ -439,6 +521,9 @@ def compare_document(
     table_structure_sha256: str = "",
     table_format_sha256: str = "",
     table_object_sha256: str = "",
+    object_structure_sha256: str = "",
+    object_geometry_sha256: str = "",
+    media_custody_sha256: str = "",
 ) -> dict:
     """Compare semantic/structure/formatting/inline-structure receipts."""
     metadata, path = _owned_document(document_id)
@@ -453,6 +538,10 @@ def compare_document(
     current_table_structure = table_map["table_structure_sha256"]
     current_table_format = table_map["table_format_sha256"]
     current_table_object = table_map.get("table_object_sha256", "")
+    object_map = build_object_map(path)
+    current_object_structure = object_map["object_structure_sha256"]
+    current_object_geometry = object_map["object_geometry_sha256"]
+    current_media_custody = object_map["media_custody_sha256"]
     return {
         "ok": True,
         "document_id": document_id,
@@ -465,6 +554,9 @@ def compare_document(
             "table_structure_sha256": current_table_structure,
             "table_format_sha256": current_table_format,
             "table_object_sha256": current_table_object,
+            "object_structure_sha256": current_object_structure,
+            "object_geometry_sha256": current_object_geometry,
+            "media_custody_sha256": current_media_custody,
         },
         "matches": {
             "semantic": None if not semantic_sha256 else semantic_sha256 == current_semantic,
@@ -484,6 +576,15 @@ def compare_document(
             "table_object": (
                 None if not table_object_sha256 else table_object_sha256 == current_table_object
             ),
+            "object_structure": (
+                None if not object_structure_sha256 else object_structure_sha256 == current_object_structure
+            ),
+            "object_geometry": (
+                None if not object_geometry_sha256 else object_geometry_sha256 == current_object_geometry
+            ),
+            "media_custody": (
+                None if not media_custody_sha256 else media_custody_sha256 == current_media_custody
+            ),
         },
     }
 
@@ -494,7 +595,7 @@ def p2_capabilities() -> dict:
     return {
         "project": core.PROJECT,
         "version": core.VERSION,
-        "phase": "P2.8",
+        "phase": "P2.9",
         "authenticated_subject": subject,
         "tools_added": [
             "get_document_map",
@@ -508,6 +609,8 @@ def p2_capabilities() -> dict:
             "apply_control_edits",
             "get_table_map",
             "apply_table_edits",
+            "get_object_map",
+            "apply_object_edits",
         ],
         "operations": [
             "replace_paragraph_text",
@@ -590,7 +693,15 @@ def p2_capabilities() -> dict:
             "cell_content_format": "text, shading, borders, gradient, margins, size, header/protect/editable/name",
             "diff": "table_structure_sha256 + table_format_sha256 + table_object_sha256",
         },
-        "tables_images_equations": "tables=P2.8 lifecycle active; images/equations=False",
+        "object_editing": {
+            "introspection": "picture objects + paragraph anchors + package-owned media items",
+            "media_custody": "PNG/JPEG only, base64 ingress, 8 MiB per image, package BinData SHA-256 receipts",
+            "placement": "inline or floating insertion",
+            "replacement_removal": "asset replacement with optional orphan cleanup + picture removal",
+            "geometry": "picture resize + floating offset mutation",
+            "diff": "object_structure_sha256 + object_geometry_sha256 + media_custody_sha256",
+        },
+        "tables_images_equations": "tables=P2.8 active; images=P2.9 active; equations=False",
     }
 
 

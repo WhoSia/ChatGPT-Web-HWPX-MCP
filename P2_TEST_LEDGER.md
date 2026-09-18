@@ -315,6 +315,55 @@ An earlier focused regression run failed during development; the subsequent OAut
 
 The public receipt confirms the final P2.6 head is live behind the existing OAuth/public boundary.
 
+## P2.7 table semantic, grid-addressing and geometry transaction receipt
+
+Current extended server version: `0.3.7-p2.7`.
+
+P2.7 promotes tables to a first-class MCP structure instead of treating them only as nested paragraph content.
+
+The semantic map exposes table identity/context, merge-aware cell anchors, row/column dimensions, cell text and style references, plus independent `table_structure_sha256` and `table_format_sha256` receipts.
+
+Addressing contract:
+
+- tables use intrinsic `hp:tbl/@id` or `instid` when present, with revision-bound ordinal fallback;
+- cells use the current table locator plus logical merge-anchor `(row,col)`;
+- because HWPX does not guarantee a durable independent cell id, every mutation returns explicit table/cell rebinding receipts instead of overstating cell-address permanence.
+
+Admitted P2.7 mutation lanes:
+
+- row structure: `insert_row_by_clone`, `delete_row`;
+- column structure: `delete_column`, `set_column_widths`, `autofit_columns`;
+- merge geometry: `merge_cells`, `split_merged_cell`;
+- cell content/style: `set_cell_text`, `set_cell_shading`, `set_cell_borders`;
+- table normalization: `equalize_columns`, `equalize_rows`.
+
+Row/column structural operations delegate to the validated `python-hwpx.table_patch.apply_table_ops` grid/fail-closed implementation. Merge/split and cell-format operations delegate to `HwpxOxmlTable` rather than maintaining a second independent table-geometry model.
+
+Arbitrary column insertion is intentionally not admitted in P2.7 because the current upstream verified primitive set does not provide an evidence-backed insert-column operation.
+
+### Canonical P2.7 lifecycle receipt
+
+- workflow: `P2.7 Table-semantic HWPX lifecycle CI`
+- run: `35309669171`
+- commit: `2345e9de0a47fb13c9ee5f38dc57967b1fa456b7`
+- conclusion: **SUCCESS**
+
+Confirmed boundaries include table/cell locator maps, row insert/delete, column deletion, merge→split geometry, cell text/shading/border mutation, legacy regression coverage, and OAuth-native table ingest → map → cell edit → map lifecycle.
+
+An earlier regression run failed because the P2.7 test module omitted its new engine import; the implementation itself was unchanged, and the corrected canonical run passed.
+
+### Canonical P2.7 Render/public receipt
+
+- service: `chatgpt-web-hwpx-mcp-p0`
+- deploy: `dep-damceugu01pc739nq2ng`
+- commit: `2345e9de0a47fb13c9ee5f38dc57967b1fa456b7`
+- deploy status: **live**
+- public workflow: `P2.7 Render public boundary verification`
+- run: `35309669195`
+- conclusion: **SUCCESS**
+
+The public receipt confirms the final P2.7 version is live behind the existing OAuth/public boundary.
+
 ## Current verdict
 
 ```text
@@ -348,7 +397,18 @@ P2_6_CONTROL_IDENTITY_REBINDING = PASS
 P2_6_OAUTH_NATIVE_LIFECYCLE = PASS
 P2_6_RENDER_DEPLOYMENT = PASS
 P2_6_PUBLIC_BOUNDARY = PASS
+P2_7_TABLE_SEMANTIC_INTROSPECTION = PASS
+P2_7_TABLE_CELL_ADDRESSING = PASS
+P2_7_ROW_STRUCTURAL_MUTATION = PASS
+P2_7_COLUMN_DELETE_WIDTH_MUTATION = PASS
+P2_7_MERGE_SPLIT_GEOMETRY = PASS
+P2_7_CELL_FORMATTING_TRANSACTION = PASS
+P2_7_TABLE_REBINDING = PASS
+P2_7_OAUTH_NATIVE_LIFECYCLE = PASS
+P2_7_RENDER_DEPLOYMENT = PASS
+P2_7_PUBLIC_BOUNDARY = PASS
 
+COLUMN_INSERTION = HOLD
 ARBITRARY_FIELD_TYPE_MUTATION = HOLD
 BOOKMARK_SHAPE_OBJECT_CROSS_SEMANTIC_MUTATION = HOLD
 CROSS_CONTAINER_PARAGRAPH_MOVES = HOLD
@@ -357,4 +417,4 @@ DURABLE_DOCUMENT_OBJECT_STORAGE = HOLD
 HANCOM_RENDERER_FIDELITY_ORACLE = HOLD
 ```
 
-P2.6 is **IMPLEMENTATION PASS / NATIVE-CI PASS / PUBLIC PASS**. The remaining control gap is now beyond the confirmed hyperlink/typed-field/bookmark lanes: arbitrary field-type reinterpretation, richer object/shape reference semantics, cross-container editing, tables/images/equations, durable document-byte storage, and native Hancom fidelity.
+P2.7 is **IMPLEMENTATION PASS / NATIVE-CI PASS / PUBLIC PASS**. The remaining control gap is now beyond the confirmed hyperlink/typed-field/bookmark lanes: arbitrary field-type reinterpretation, richer object/shape reference semantics, cross-container editing, tables/images/equations, durable document-byte storage, and native Hancom fidelity.

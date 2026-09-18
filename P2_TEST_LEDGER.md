@@ -364,6 +364,57 @@ An earlier regression run failed because the P2.7 test module omitted its new en
 
 The public receipt confirms the final P2.7 version is live behind the existing OAuth/public boundary.
 
+## P2.8 table creation/deletion, advanced cell semantics and evidence-gated column insertion receipt
+
+Current extended server version: `0.3.8-p2.8`.
+
+P2.8 closes the basic table-object lifecycle while preserving the evidence boundary established in P2.7.
+
+New positive mutation lanes:
+
+- `create_table` — document-attached table creation through `HwpxDocument.add_table`, with bounded rows/columns, optional width/height and optional initial cell matrix;
+- `delete_table` — fail-closed deletion through `table_patch.apply_table_ops`;
+- `set_cell_properties` — schema-backed `header`, `protect`, `editable`, and cell `name`;
+- `set_cell_margin` — left/right/top/bottom `cellMargin` plus `hasMargin=1`;
+- `set_cell_size` — explicit cell width/height;
+- `set_cell_border_fill` — bind an existing borderFill reference;
+- `set_cell_gradient` — evidence-backed gradient fill through the existing style machinery.
+
+The table map now adds cell name/margin state and a `table_object_sha256` receipt. `compare_document` also accepts table structure/format/object receipts.
+
+### Evidence-gated column insertion
+
+The current installed `python-hwpx` surface has render-verified row clone/delete and column delete/width operations but no render-verified arbitrary column-insert primitive. P2.8 therefore does not invent one.
+
+`insert_column_by_clone` is a deterministic negative gate:
+
+- request is refused before candidate mutation;
+- the error states that the evidence gate remains closed;
+- regression coverage asserts source bytes are unchanged on refusal.
+
+This is recorded as **CLOSED_NEGATIVE**, not as an implementation PASS for column insertion.
+
+### Canonical P2.8 lifecycle receipt
+
+- workflow: `P2.8 Table-object lifecycle HWPX CI`
+- run: `35310685005`
+- commit: `a19e4f762d06c9ed304af089c0a9b4f38c16cc0b`
+- conclusion: **SUCCESS**
+
+Confirmed boundaries include legacy P2.1–P2.7 regressions, table create → map → delete through OAuth-native MCP, advanced header/protect/editable/name/margin/size mutation, table-object digest changes, and byte-identical refusal for unsupported column insertion.
+
+### Canonical P2.8 Render/public receipt
+
+- service: `chatgpt-web-hwpx-mcp-p0`
+- deploy: `dep-damcma67bikc73b4tuug`
+- commit: `a19e4f762d06c9ed304af089c0a9b4f38c16cc0b`
+- deploy status: **live**
+- public workflow: `P2.8 Render public boundary verification`
+- run: `35310685042`
+- conclusion: **SUCCESS**
+
+The public receipt confirms the final P2.8 version is live behind the existing OAuth/public boundary.
+
 ## Current verdict
 
 ```text
@@ -407,14 +458,23 @@ P2_7_TABLE_REBINDING = PASS
 P2_7_OAUTH_NATIVE_LIFECYCLE = PASS
 P2_7_RENDER_DEPLOYMENT = PASS
 P2_7_PUBLIC_BOUNDARY = PASS
+P2_8_TABLE_CREATE_DELETE = PASS
+P2_8_HEADER_CELL_SEMANTICS = PASS
+P2_8_ADVANCED_CELL_PROPERTIES = PASS
+P2_8_TABLE_OBJECT_DIGEST = PASS
+P2_8_TABLE_OBJECT_LIFECYCLE = PASS
+P2_8_COLUMN_INSERTION_EVIDENCE_GATE = CLOSED_NEGATIVE
+P2_8_OAUTH_NATIVE_LIFECYCLE = PASS
+P2_8_RENDER_DEPLOYMENT = PASS
+P2_8_PUBLIC_BOUNDARY = PASS
 
-COLUMN_INSERTION = HOLD
+COLUMN_INSERTION = EVIDENCE_GATE_CLOSED
 ARBITRARY_FIELD_TYPE_MUTATION = HOLD
 BOOKMARK_SHAPE_OBJECT_CROSS_SEMANTIC_MUTATION = HOLD
 CROSS_CONTAINER_PARAGRAPH_MOVES = HOLD
-TABLE_IMAGE_EQUATION_OPERATIONS = HOLD
+IMAGE_EQUATION_OPERATIONS = HOLD
 DURABLE_DOCUMENT_OBJECT_STORAGE = HOLD
 HANCOM_RENDERER_FIDELITY_ORACLE = HOLD
 ```
 
-P2.7 is **IMPLEMENTATION PASS / NATIVE-CI PASS / PUBLIC PASS**. The remaining control gap is now beyond the confirmed hyperlink/typed-field/bookmark lanes: arbitrary field-type reinterpretation, richer object/shape reference semantics, cross-container editing, tables/images/equations, durable document-byte storage, and native Hancom fidelity.
+P2.8 is **IMPLEMENTATION PASS / NATIVE-CI PASS / PUBLIC PASS**. Column insertion remains **CLOSED_NEGATIVE** pending an evidence-backed primitive. The remaining control gap is now beyond the confirmed hyperlink/typed-field/bookmark lanes: arbitrary field-type reinterpretation, richer object/shape reference semantics, cross-container editing, tables/images/equations, durable document-byte storage, and native Hancom fidelity.

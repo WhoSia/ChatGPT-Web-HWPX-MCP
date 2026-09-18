@@ -6,7 +6,7 @@ Remote Streamable-HTTP MCP for authenticated HWPX document creation, custody, va
 
 **P0 / P1 / P1.1 / P1.2 are closed / PASS.** The project has established native ChatGPT MCP discovery and actions, opaque document custody, signed HWPX delivery, OAuth-native secret-free invocation, durable restart-safe OAuth authority, and bounded existing-HWPX ingress. See the corresponding test ledgers.
 
-**P2 is CLOSED / PASS. P2.1–P2.3 are implemented. P2.4 is active.** P2.4 adds a control-aware inline atom map, hyperlink/field-safe text selection, cross-run character replacement, and an independent inline-structure digest.
+**P2 is CLOSED / PASS. P2.1–P2.4 are implemented. P2.5 is active.** P2.5 promotes fields, hyperlinks, and special inline atoms from preserved structure into explicit revision-safe mutation surfaces.
 
 ```text
 ChatGPT Web
@@ -38,6 +38,7 @@ ChatGPT Web
 | `apply_edits` | Yes | Apply one revision-guarded atomic text/paragraph-structure transaction |
 | `apply_formatting` | Yes | Apply one revision-guarded formatting-only transaction |
 | `apply_inline_edits` | Yes | Apply one control-aware cross-run inline text transaction |
+| `apply_control_edits` | Yes | Mutate hyperlink/field semantics or insert/delete special inline atoms |
 | `compare_document` | No | Compare semantic/structure/formatting/inline-structure receipts with the current revision |
 | `export_document` | No* | Return a short-lived signed download URL |
 | `delete_document` | Yes | Delete the caller-owned HWPX and metadata |
@@ -206,6 +207,60 @@ expected_revision == current_revision
 
 This layer is intended to preserve fields and controls, not to rewrite their semantics. Hyperlink targets, field commands, bookmarks, shapes, and special inline atoms remain separate future mutation surfaces.
 
+## P2.5 field/control semantic mutation layer
+
+P2.5 adds a separate `apply_control_edits` transaction rather than weakening P2.4's inline-structure-invariance contract.
+
+Admitted operations:
+
+```text
+create_hyperlink
+  target + [start,end) + url
+  → wraps complete contiguous plain-text spans
+  → preserves existing display-text runs and character formatting
+
+retarget_hyperlink
+  target + field_index + url
+  → mutates HYPERLINK fieldBegin/@name only
+
+remove_hyperlink
+  target + field_index
+  → removes canonical fieldBegin/fieldEnd wrapper runs
+  → keeps display text unchanged
+
+set_field_name
+  target + field_index + name
+  → mutates fieldBegin/@name while preserving field type
+
+insert_special_atom / delete_special_atom
+  → tab, lineBreak, nbSpace, fwSpace, soft hyphen
+```
+
+`get_inline_map` now assigns a stable pre-revision `field_index` inside each paragraph. Field-index operations are resolved against the same pre-edit revision and processed from higher indexes downward.
+
+Special-atom creation follows observed HWPX authoring conventions rather than treating every atom identically:
+
+- `lineBreak`, `nbSpace`, `fwSpace`, and soft hyphen are nested inside `hp:t` mixed content;
+- `tab` is emitted as a run-level sibling atom.
+
+Hyperlink creation is intentionally conservative in P2.5: the selected range must align to complete contiguous plain text spans with no existing field/markup/control boundary. Partial-range wrapping can be promoted later without weakening the current contract.
+
+Unlike P2.4, P2.5 **expects** `inline_structure_sha256` to change. The hard transaction invariant is instead:
+
+```text
+expected_revision == current_revision
+→ resolve field/range/atom target against one pre-edit inline map
+→ write candidate package
+→ require paragraph structure_sha256 unchanged
+→ validate HWPX package
+→ atomic replace
+→ revision + 1
+→ return before/after inline_text + inline_structure receipts
+```
+
+Field `type` mutation remains fail-closed; P2.5 does not reinterpret a DATE field as HYPERLINK or vice versa. Bookmark/shape/object semantic creation and deletion are also outside this layer.
+
+
 
 ## Durable OAuth boundary
 
@@ -277,14 +332,14 @@ Server-side secrets remain deployment-only and are not stored in this repository
 
 P2 currently uses two confirmatory workflows:
 
-- `P2.4 Control-aware inline HWPX lifecycle CI` — legacy regressions plus cross-run text surgery, hyperlink/date-field wrapper preservation, mixed-inline/special-atom rejection, and OAuth-native map→format→inline-edit→export→re-ingest lifecycle.
-- `P2.4 Render public boundary verification` — public P2.4 version/health, durable OAuth metadata, `offline_access`, and unauthenticated MCP rejection. The workflow uses HTTP/1.1 and retry-on-transport-error because one GitHub-runner↔Render edge reset was observed while Render itself remained healthy.
+- `P2.5 Control-semantic HWPX lifecycle CI` — legacy regressions plus hyperlink create/retarget/remove, field-name mutation, special-atom insertion/deletion, and OAuth-native control-edit lifecycle.
+- `P2.5 Render public boundary verification` — public P2.5 version/health, durable OAuth metadata, `offline_access`, and unauthenticated MCP rejection. The workflow uses HTTP/1.1 and retry-on-transport-error because one GitHub-runner↔Render edge reset was observed while Render itself remained healthy.
 
 See [`P2_TEST_LEDGER.md`](./P2_TEST_LEDGER.md) for canonical run/deploy receipts and the initial transport-failure classification.
 
 ## Security boundary
 
-P2.4 is still deliberately narrow. It does not yet mutate field/control semantics or special inline atoms, create/delete hyperlinks through range surgery, persist document bytes durably, move paragraphs across containers, mutate tables/images/equations, or claim native Hancom visual fidelity.
+P2.5 is still deliberately narrow. It does not mutate field types, perform partial-span hyperlink wrapping, create/delete bookmark/shape/object semantics, persist document bytes durably, move paragraphs across containers, mutate tables/images/equations, or claim native Hancom visual fidelity.
 
 ## Phase lineage
 
@@ -297,7 +352,8 @@ P2.1   paragraph insert/delete/reorder + locator rebinding
 P2.2   paragraph/run formatting introspection + formatting mutation + formatting diff
 P2.3   range selection + run splitting + nested formatting + style reuse + normalization
 P2.4   control-aware inline map + field-safe cross-run text surgery + inline-structure diff
-P2.x   field/control semantic mutation and richer container-aware operations
+P2.5   hyperlink lifecycle + field-name semantics + special inline atom mutation
+P2.x   partial-span control wrapping and richer control/container semantics
 P3     tables / images / equations
 P4     renderer oracle and Hancom fidelity validation
 ```

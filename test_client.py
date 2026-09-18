@@ -102,7 +102,7 @@ async def main() -> None:
     oauth = OAuthClientProvider(
         server_url=URL,
         client_metadata=OAuthClientMetadata(
-            client_name="ChatGPT Web HWPX MCP P2.7 CI",
+            client_name="ChatGPT Web HWPX MCP P2.8 CI",
             redirect_uris=[AnyUrl("http://127.0.0.1:8765/callback")],
             scope="hwpx offline_access",
         ),
@@ -149,11 +149,11 @@ async def main() -> None:
                     raise RuntimeError(f"secret-bearing field leaked into tool schema: {tool.name}")
 
             read_payload = _payload(await client.call_tool("probe_read", {"message": "P2 OAuth smoke test"}))
-            if not read_payload or not read_payload.get("ok") or read_payload.get("version") != "0.3.7-p2.7":
+            if not read_payload or not read_payload.get("ok") or read_payload.get("version") != "0.3.8-p2.8":
                 raise RuntimeError(f"probe_read did not expose P2: {read_payload}")
 
             p2_caps = _payload(await client.call_tool("p2_capabilities", {}))
-            if not p2_caps or p2_caps.get("phase") != "P2.7":
+            if not p2_caps or p2_caps.get("phase") != "P2.8":
                 raise RuntimeError(f"p2_capabilities failed: {p2_caps}")
 
             if not RUN_WRITE_TEST:
@@ -437,6 +437,52 @@ async def main() -> None:
             if first_after.get("text") != "AA":
                 raise RuntimeError(f"P2.7 table cell text mismatch: {table_map_after}")
 
+            created_table = _payload(await client.call_tool("apply_table_edits", {
+                "document_id": document_id,
+                "expected_revision": 8,
+                "operations": [{
+                    "op": "create_table",
+                    "rows": 2,
+                    "cols": 2,
+                    "cells": [["H1", "H2"], ["V1", "V2"]],
+                }],
+            }))
+            if (
+                not created_table
+                or created_table.get("transaction") != "COMMITTED"
+                or created_table.get("revision_after") != 9
+                or created_table.get("table_structure_changed") is not True
+            ):
+                raise RuntimeError(f"P2.8 create_table failed: {created_table}")
+
+            created_map = _payload(await client.call_tool("get_table_map", {
+                "document_id": document_id,
+            }))
+            if not created_map or created_map.get("table_count") != 1:
+                raise RuntimeError(f"P2.8 get_table_map after create failed: {created_map}")
+            created_locator = created_map["tables"][0]["locator"]
+
+            deleted_table = _payload(await client.call_tool("apply_table_edits", {
+                "document_id": document_id,
+                "expected_revision": 9,
+                "operations": [{
+                    "op": "delete_table",
+                    "table": created_locator,
+                }],
+            }))
+            if (
+                not deleted_table
+                or deleted_table.get("transaction") != "COMMITTED"
+                or deleted_table.get("revision_after") != 10
+            ):
+                raise RuntimeError(f"P2.8 delete_table failed: {deleted_table}")
+
+            final_table_map = _payload(await client.call_tool("get_table_map", {
+                "document_id": document_id,
+            }))
+            if final_table_map.get("table_count") != 0:
+                raise RuntimeError(f"P2.8 table lifecycle did not close: {final_table_map}")
+
             exported = _payload(await client.call_tool("export_document", {"document_id": document_id, "link_ttl_seconds": 120}))
             if not exported or not exported.get("download_url"):
                 raise RuntimeError(f"export_document failed: {exported}")
@@ -462,7 +508,7 @@ async def main() -> None:
                 deleted = _payload(await client.call_tool("delete_document", {"document_id": doc_id}))
                 if not deleted or not deleted.get("deleted"):
                     raise RuntimeError(f"delete_document failed: {deleted}")
-            print("P2.7 lifecycle PASS", digest)
+            print("P2.8 lifecycle PASS", digest)
 
 
 if __name__ == "__main__":

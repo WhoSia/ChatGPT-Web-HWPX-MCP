@@ -6,7 +6,7 @@ Remote Streamable-HTTP MCP for authenticated HWPX document creation, custody, va
 
 **P0 / P1 / P1.1 / P1.2 are closed / PASS.** The project has established native ChatGPT MCP discovery and actions, opaque document custody, signed HWPX delivery, OAuth-native secret-free invocation, durable restart-safe OAuth authority, and bounded existing-HWPX ingress. See the corresponding test ledgers.
 
-**P2 is CLOSED / PASS. P2.1–P2.4 are implemented. P2.5 is active.** P2.5 promotes fields, hyperlinks, and special inline atoms from preserved structure into explicit revision-safe mutation surfaces.
+**P2 is CLOSED / PASS. P2.1–P2.5 are implemented. P2.6 is active.** P2.6 adds partial-span hyperlink wrapping, typed DATE/PATH/MAILMERGE property mutation, bookmark/reference lifecycle operations, and explicit control-identity rebinding receipts.
 
 ```text
 ChatGPT Web
@@ -260,6 +260,60 @@ expected_revision == current_revision
 
 Field `type` mutation remains fail-closed; P2.5 does not reinterpret a DATE field as HYPERLINK or vice versa. Bookmark/shape/object semantic creation and deletion are also outside this layer.
 
+## P2.6 partial-span, typed-field, and bookmark/reference layer
+
+P2.6 keeps the same `apply_control_edits` MCP tool and extends its admitted operations.
+
+### Partial-span hyperlink wrapping
+
+`create_hyperlink` no longer requires whole text spans. A selection may begin/end inside plain `hp:t` runs:
+
+```text
+[start,end) over inline_text
+→ require ordinary text only
+→ reject existing field/markup/control crossings
+→ split only boundary runs
+→ preserve each selected fragment's original run attributes
+→ insert canonical HYPERLINK fieldBegin/fieldEnd wrapper runs
+```
+
+`create_bookmark_reference` uses the same range mechanism with an existing bookmark target. `retarget_bookmark_reference` validates the destination bookmark before replacing the hyperlink target.
+
+### Typed field mutation
+
+The inline map now exposes each field's intrinsic id/fieldid, begin attributes, and typed parameter snapshot.
+
+P2.6 admits only field-property combinations backed by the current upstream HWPX contract:
+
+- DATE: `DateFormat="YYYY년 M월 D일"`, `DateNation="KOR"`, matching observed Command value, plus optional cached text;
+- PATH: observed `filename` lane (`Command="$F"`, `Format="$F"`) plus optional cached text;
+- MAILMERGE: rename `Command` and `FieldValue`, preserving `FieldType="USER_DEFINE"`; the default `{{old_name}}` cached placeholder is synchronized when requested.
+
+Unsupported DATE/PATH formats remain typed rejections rather than guessed format-language translations.
+
+### Bookmark/reference lifecycle
+
+```text
+create_bookmark
+rename_bookmark
+remove_bookmark
+create_bookmark_reference
+retarget_bookmark_reference
+```
+
+Bookmark names are document-unique in this layer. Renaming a bookmark updates matching internal HYPERLINK targets (`#name`) by default. Removing a bookmark is rejected while internal references still point to it; callers must retarget/remove those references first.
+
+### Control identity rebinding
+
+Every P2.6 control transaction returns `control_rebinding`.
+
+- fields are rebound primarily by their intrinsic HWPX field id, so ordinary property/target edits retain a stable identity;
+- bookmarks have no equivalent intrinsic id in the observed structure, so bookmark identity is explicitly revision-scoped and rebound by paragraph/offset position when possible;
+- created/deleted/unresolved controls are reported separately rather than silently treated as stable.
+
+The hard transaction boundary remains exact revision, paragraph-structure invariance, candidate HWPX validation, and atomic replacement. Inline/control structure is allowed to change when the requested operation requires it.
+
+
 
 
 ## Durable OAuth boundary
@@ -332,14 +386,14 @@ Server-side secrets remain deployment-only and are not stored in this repository
 
 P2 currently uses two confirmatory workflows:
 
-- `P2.5 Control-semantic HWPX lifecycle CI` — legacy regressions plus hyperlink create/retarget/remove, field-name mutation, special-atom insertion/deletion, and OAuth-native control-edit lifecycle.
-- `P2.5 Render public boundary verification` — public P2.5 version/health, durable OAuth metadata, `offline_access`, and unauthenticated MCP rejection. The workflow uses HTTP/1.1 and retry-on-transport-error because one GitHub-runner↔Render edge reset was observed while Render itself remained healthy.
+- `P2.6 Bookmark and typed-control HWPX lifecycle CI` — legacy regressions plus partial-span hyperlink wrapping, typed field mutation, bookmark/reference propagation, control rebinding, and OAuth-native partial-link roundtrip.
+- `P2.6 Render public boundary verification` — public P2.6 version/health, durable OAuth metadata, `offline_access`, and unauthenticated MCP rejection. The workflow uses HTTP/1.1 and retry-on-transport-error because one GitHub-runner↔Render edge reset was observed while Render itself remained healthy.
 
 See [`P2_TEST_LEDGER.md`](./P2_TEST_LEDGER.md) for canonical run/deploy receipts and the initial transport-failure classification.
 
 ## Security boundary
 
-P2.5 is still deliberately narrow. It does not mutate field types, perform partial-span hyperlink wrapping, create/delete bookmark/shape/object semantics, persist document bytes durably, move paragraphs across containers, mutate tables/images/equations, or claim native Hancom visual fidelity.
+P2.6 is still deliberately narrow. It does not mutate field types, infer unobserved DATE/PATH format languages, create/delete shape/object semantics, persist document bytes durably, move paragraphs across containers, mutate tables/images/equations, or claim native Hancom visual fidelity.
 
 ## Phase lineage
 
@@ -353,7 +407,8 @@ P2.2   paragraph/run formatting introspection + formatting mutation + formatting
 P2.3   range selection + run splitting + nested formatting + style reuse + normalization
 P2.4   control-aware inline map + field-safe cross-run text surgery + inline-structure diff
 P2.5   hyperlink lifecycle + field-name semantics + special inline atom mutation
-P2.x   partial-span control wrapping and richer control/container semantics
+P2.6   partial-span hyperlink + typed fields + bookmark/reference lifecycle + control rebinding
+P2.x   richer cross-reference/control and container semantics
 P3     tables / images / equations
 P4     renderer oracle and Hancom fidelity validation
 ```

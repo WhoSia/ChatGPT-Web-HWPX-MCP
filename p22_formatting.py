@@ -422,6 +422,10 @@ def apply_formatting_atomic(
         _patch_run_style_refs(candidate, assignments)
         after_document = build_document_map(candidate)
         after_format = build_formatting_map(candidate)
+        if before_document["semantic_sha256"] != after_document["semantic_sha256"]:
+            raise ValueError("Formatting transaction changed document text; refusing commit")
+        if before_document["structure_sha256"] != after_document["structure_sha256"]:
+            raise ValueError("Formatting transaction changed paragraph structure; refusing commit")
         if validator is not None:
             validation = validator(candidate)
         os.replace(candidate, path)

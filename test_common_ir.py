@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import unittest
 
-from common_ir import hwp5_to_common_ir, search_common_ir, slice_common_ir
+from common_ir import extract_common_ir, hwp5_to_common_ir, search_common_ir, slice_common_ir
 
 
 class CommonIrTests(unittest.TestCase):
@@ -109,6 +109,25 @@ class CommonIrTests(unittest.TestCase):
         eq = search_common_ir(ir, "x^2", kinds=["equation"])
         self.assertEqual(eq["match_count"], 1)
         self.assertEqual(eq["hits"][0]["fidelity"], "semantic")
+
+    def test_extract_respects_fidelity_threshold(self):
+        ir = hwp5_to_common_ir(
+            self.fixture(),
+            source_sha256="e" * 64,
+            filename="fixture.hwp",
+        )
+        structural = extract_common_ir(
+            ir,
+            minimum_fidelity="structural",
+            max_blocks=20,
+        )
+        kinds = {item["kind"] for item in structural["blocks"]}
+        self.assertIn("paragraph", kinds)
+        self.assertIn("table", kinds)
+        self.assertIn("equation", kinds)
+        self.assertNotIn("picture", kinds)
+        self.assertNotIn("binary", kinds)
+        self.assertEqual(structural["rejected_by_fidelity"].get("inventory"), 2)
 
     def test_slice_is_bounded_and_filterable(self):
         ir = hwp5_to_common_ir(

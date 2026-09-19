@@ -300,14 +300,14 @@ class DurableDocumentStore:
                     """,
                     (self._expiry(expires_at_epoch), document_id),
                 )
-            if lease_token:
-                cur.execute(
-                    """
-                    DELETE FROM hwpx_document_leases
-                    WHERE document_id = %s AND lease_token_hash = %s
-                    """,
-                    (document_id, self._lease_hash(lease_token)),
-                )
+                if lease_token:
+                    cur.execute(
+                        """
+                        DELETE FROM hwpx_document_leases
+                        WHERE document_id = %s AND lease_token_hash = %s
+                        """,
+                        (document_id, self._lease_hash(lease_token)),
+                    )
             conn.commit()
 
         return {

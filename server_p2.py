@@ -735,7 +735,8 @@ def materialize_hwp5_rich_derivative(
                         width=width if width and width > 0 else None,
                         height=height if height and height > 0 else None,
                     )
-                    occupied: set[tuple[int, int]] = set()
+                    normalized_cells: list[dict] = []
+                    anchors_seen: set[tuple[int, int]] = set()
                     for cell in sorted(
                         cells,
                         key=lambda item: (int(item["row"]), int(item["column"])),
@@ -744,31 +745,57 @@ def materialize_hwp5_rich_derivative(
                         col = int(cell["column"])
                         row_span = max(1, int(cell.get("row_span", 1) or 1))
                         col_span = max(1, int(cell.get("col_span", 1) or 1))
-                        if row >= rows or col >= cols:
+                        if row < 0 or col < 0 or row >= rows or col >= cols:
                             raise ValueError("source cell address exceeds table geometry")
-                        covered = {
-                            (r, c)
-                            for r in range(row, min(rows, row + row_span))
-                            for c in range(col, min(cols, col + col_span))
-                        }
-                        if occupied & covered:
-                            raise ValueError("source merged-cell topology overlaps")
-                        occupied |= covered
-                        if row_span > 1 or col_span > 1:
-                            table.merge_cells(
-                                row, col,
-                                row + row_span - 1,
-                                col + col_span - 1,
-                            )
-                        text_value = "\n".join(
-                            str(value) for value in cell.get("paragraph_text", [])
+                        if row + row_span > rows or col + col_span > cols:
+                            raise ValueError("source cell span exceeds table geometry")
+                        if (row, col) in anchors_seen:
+                            raise ValueError("duplicate source cell anchor")
+                        anchors_seen.add((row, col))
+                        normalized_cells.append({
+                            "row": row,
+                            "col": col,
+                            "row_span": row_span,
+                            "col_span": col_span,
+                            "text": "\n".join(
+                                str(value) for value in cell.get("paragraph_text", [])
+                            ),
+                        })
+
+                    # Write content before merge so every physical source address
+                    # is still addressable. Merge changes logical grid lookup.
+                    for cell in normalized_cells:
+                        table.set_cell_text(
+                            cell["row"],
+                            cell["col"],
+                            cell["text"],
+                            logical=False,
                         )
-                        table.set_cell_text(row, col, text_value, logical=True)
+
+                    merged_coverage: set[tuple[int, int]] = set()
+                    for cell in normalized_cells:
+                        if cell["row_span"] == 1 and cell["col_span"] == 1:
+                            continue
+                        covered = {
+                            (r, col)
+                            for r in range(cell["row"], cell["row"] + cell["row_span"])
+                            for col in range(cell["col"], cell["col"] + cell["col_span"])
+                        }
+                        if merged_coverage & covered:
+                            raise ValueError("source merged-cell topology overlaps")
+                        merged_coverage |= covered
+                        table.merge_cells(
+                            cell["row"],
+                            cell["col"],
+                            cell["row"] + cell["row_span"] - 1,
+                            cell["col"] + cell["col_span"] - 1,
+                        )
                     promotion_report["tables"]["promoted"] += 1
                 except Exception as exc:
                     promotion_report["tables"]["deferred"].append({
                         "table_index": table_index,
                         "reason": f"promotion_refused:{type(exc).__name__}",
+                        "detail": str(exc)[:240],
                     })
 
         if promote_equations:
@@ -810,6 +837,7 @@ def materialize_hwp5_rich_derivative(
                     promotion_report["equations"]["deferred"].append({
                         "equation_index": equation_index,
                         "reason": f"promotion_refused:{type(exc).__name__}",
+                        "detail": str(exc)[:240],
                     })
 
         if promote_pictures:

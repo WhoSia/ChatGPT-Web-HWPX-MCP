@@ -720,6 +720,95 @@ def _hwp_rel_to_vertical(value: object) -> str:
 
 
 @core.mcp.tool()
+def get_hwp5_style_map(
+    content_base64: str,
+    filename: str = "document.hwp",
+    start_paragraph: int = 0,
+    paragraph_count: int = 100,
+    include_face_catalog: bool = True,
+) -> dict:
+    """Return bounded canonical run/font/paragraph-style receipts for one HWP 5.x source."""
+    payload = _decode_hwp5_payload(content_base64)
+    parsed = parse_hwp5_bytes(payload)
+    safe_name = Path(filename or "document.hwp").name[:128]
+    if not parsed.get("readable"):
+        return {
+            "ok": True,
+            "filename": safe_name,
+            "sha256": hashlib.sha256(payload).hexdigest(),
+            "readable": False,
+            "block_reason": parsed.get("block_reason"),
+            "paragraphs": [],
+        }
+
+    all_paragraphs = parsed.get("paragraphs", [])
+    start = max(0, int(start_paragraph))
+    count = max(1, min(int(paragraph_count), 500))
+    end = min(len(all_paragraphs), start + count)
+    paragraphs = []
+    for item in all_paragraphs[start:end]:
+        runs = []
+        for run in item.get("runs", []):
+            runs.append({
+                "start": run.get("start"),
+                "end": run.get("end"),
+                "text": run.get("text", ""),
+                "char_shape_id": run.get("char_shape_id"),
+                "visible_span_fidelity": run.get("visible_span_fidelity"),
+                "style": _hwp_style_signature(run),
+            })
+        paragraphs.append({
+            "paragraph_index": item.get("paragraph_index"),
+            "section_index": item.get("section_index"),
+            "source_paragraph_ordinal": item.get("source_paragraph_ordinal"),
+            "flow_kind": item.get("flow_kind"),
+            "control_index": item.get("control_index"),
+            "text": item.get("text", ""),
+            "para_shape_id": (item.get("paragraph_style") or {}).get("para_shape_id"),
+            "para_style_id": (item.get("paragraph_style") or {}).get("para_style_id"),
+            "paragraph_style": _hwp_paragraph_style_signature(item),
+            "runs": runs,
+        })
+
+    face_catalog = None
+    if include_face_catalog:
+        face_catalog = {
+            language: [
+                {
+                    "font_id": face.get("font_id"),
+                    "face": face.get("face"),
+                    "alternative_face": face.get("alternative_face"),
+                    "default_face": face.get("default_face"),
+                }
+                for face in faces
+            ]
+            for language, faces in (parsed.get("face_names") or {}).items()
+        }
+
+    return {
+        "ok": True,
+        "filename": safe_name,
+        "sha256": hashlib.sha256(payload).hexdigest(),
+        "version": parsed.get("version"),
+        "readable": True,
+        "start_paragraph": start,
+        "end_paragraph_exclusive": end,
+        "returned_paragraphs": len(paragraphs),
+        "paragraph_count": len(all_paragraphs),
+        "has_more": end < len(all_paragraphs),
+        "next_start_paragraph": end if end < len(all_paragraphs) else None,
+        "font_faces": face_catalog,
+        "paragraphs": paragraphs,
+        "authority": "CANONICAL_HWP_STYLE_MAP",
+        "canonicalization": {
+            "font": "FaceName-resolved NFKC/casefold semantic name",
+            "color": "canonical #RRGGBB",
+            "paragraph_units": "HWPUNIT converted to mm/pt semantic coordinates",
+        },
+    }
+
+
+@core.mcp.tool()
 def get_hwp5_text_flows(
     content_base64: str,
     filename: str = "document.hwp",
@@ -3078,6 +3167,7 @@ def p2_capabilities() -> dict:
             "materialize_hwp5_rich_derivative",
             "get_hwp5_control_graph",
             "compare_hwp5_roundtrip_fidelity",
+            "get_hwp5_style_map",
             "get_hwp5_text_flows",
             "search_document_text",
             "get_document_slice",
@@ -3227,6 +3317,7 @@ def p2_capabilities() -> dict:
         },
         "hwp5_style_canonicalization": {
             "font": "DocInfo ID_MAPPINGS + FACE_NAME resolves HWP face_ids; HWPX fontRef ids resolve through header.xml fontfaces",
+            "style_map": "bounded MCP surface exposes canonical run/font/paragraph receipts before promotion",
             "paragraph": "PARA_SHAPE alignment/margin/spacing prefix semantics mapped to HWPX paragraph-format coordinates",
             "oracle": "run style reports semantic font/color/script/emphasis axes and paragraph-style axis matches",
             "nested_promotion": "header/footer native section stories; footnote/endnote require recovered owner anchors; object-text remains deferred",

@@ -87,6 +87,20 @@ class DurableDocumentStore:
                 """
             )
             cur.execute(
+                """
+                CREATE TABLE IF NOT EXISTS hwpx_document_commits (
+                    document_id TEXT NOT NULL REFERENCES hwpx_documents(document_id) ON DELETE CASCADE,
+                    revision INTEGER NOT NULL,
+                    expected_revision INTEGER NOT NULL,
+                    sha256 TEXT NOT NULL,
+                    receipt_id TEXT NOT NULL,
+                    committed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    PRIMARY KEY (document_id, revision),
+                    UNIQUE (receipt_id)
+                )
+                """
+            )
+            cur.execute(
                 "CREATE INDEX IF NOT EXISTS hwpx_documents_expiry_idx ON hwpx_documents (expires_at)"
             )
             cur.execute(
@@ -107,10 +121,21 @@ class DurableDocumentStore:
         metadata: dict,
         data: bytes,
         expires_at_epoch: float | int,
+        expected_revision: int | None = None,
     ) -> dict:
+        """CAS-commit one revision or return an idempotent replay receipt.
+
+        New documents commit revision 1 with expected_revision=0. Existing
+        documents may advance only current_revision -> current_revision+1.
+        Replaying the already-current revision is accepted only when SHA-256
+        matches exactly; conflicting bytes at the same revision are rejected.
+        """
         revision = int(revision)
         if revision < 1:
             raise ValueError("revision must be >= 1")
+        if expected_revision is None:
+            expected_revision = max(0, revision - 1)
+        expected_revision = int(expected_revision)
         raw = bytes(data)
         sha256 = hashlib.sha256(raw).hexdigest()
         declared = str(metadata.get("sha256") or sha256)
@@ -118,51 +143,203 @@ class DurableDocumentStore:
             raise ValueError("metadata/document SHA-256 mismatch")
         sealed_bytes = self._seal(raw, DOC_AAD)
         sealed_meta = self._seal_metadata(metadata)
+        receipt_id = hashlib.sha256(
+            f"{document_id}\0{revision}\0{sha256}".encode("utf-8")
+        ).hexdigest()
 
         with self._connect(autocommit=False) as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     """
-                    INSERT INTO hwpx_documents
-                        (document_id, owner_subject, current_revision, current_sha256, expires_at, created_at, updated_at)
-                    VALUES (%s, %s, %s, %s, %s, NOW(), NOW())
-                    ON CONFLICT (document_id) DO UPDATE SET
-                        owner_subject = EXCLUDED.owner_subject,
-                        current_revision = GREATEST(hwpx_documents.current_revision, EXCLUDED.current_revision),
-                        current_sha256 = CASE
-                            WHEN EXCLUDED.current_revision >= hwpx_documents.current_revision
-                            THEN EXCLUDED.current_sha256 ELSE hwpx_documents.current_sha256 END,
-                        expires_at = EXCLUDED.expires_at,
-                        updated_at = NOW()
+                    SELECT current_revision, current_sha256, owner_subject
+                    FROM hwpx_documents
+                    WHERE document_id = %s
+                    FOR UPDATE
                     """,
-                    (
-                        document_id,
-                        owner_subject,
-                        revision,
-                        sha256,
-                        self._expiry(expires_at_epoch),
-                    ),
+                    (document_id,),
                 )
+                current = cur.fetchone()
+
+                if current is None:
+                    if revision != 1 or expected_revision != 0:
+                        conn.rollback()
+                        raise RuntimeError(
+                            f"Revision CAS conflict: durable document absent; "
+                            f"expected initial 0->1, got {expected_revision}->{revision}"
+                        )
+                    cur.execute(
+                        """
+                        INSERT INTO hwpx_documents
+                            (document_id, owner_subject, current_revision, current_sha256, expires_at, created_at, updated_at)
+                        VALUES (%s, %s, 1, %s, %s, NOW(), NOW())
+                        """,
+                        (
+                            document_id,
+                            owner_subject,
+                            sha256,
+                            self._expiry(expires_at_epoch),
+                        ),
+                    )
+                    replay = False
+                else:
+                    current_revision, current_sha, current_owner = int(current[0]), str(current[1]), str(current[2])
+                    if current_owner != owner_subject:
+                        conn.rollback()
+                        raise PermissionError("Durable document owner mismatch")
+
+                    if revision == current_revision:
+                        if sha256 != current_sha:
+                            conn.rollback()
+                            raise RuntimeError(
+                                f"Revision CAS conflict: revision {revision} already exists with different SHA-256"
+                            )
+                        # Same revision + same bytes is an idempotent replay. Metadata
+                        # may be refreshed, but bytes/current pointer remain unchanged.
+                        replay = True
+                    else:
+                        if current_revision != expected_revision or revision != expected_revision + 1:
+                            conn.rollback()
+                            raise RuntimeError(
+                                f"Revision CAS conflict: durable current={current_revision}, "
+                                f"expected={expected_revision}, attempted={revision}"
+                            )
+                        replay = False
+                        cur.execute(
+                            """
+                            UPDATE hwpx_documents
+                            SET current_revision = %s,
+                                current_sha256 = %s,
+                                expires_at = %s,
+                                updated_at = NOW()
+                            WHERE document_id = %s AND current_revision = %s
+                            """,
+                            (
+                                revision,
+                                sha256,
+                                self._expiry(expires_at_epoch),
+                                document_id,
+                                expected_revision,
+                            ),
+                        )
+                        if cur.rowcount != 1:
+                            conn.rollback()
+                            raise RuntimeError("Revision CAS conflict during current-pointer update")
+
+                if replay:
+                    cur.execute(
+                        """
+                        UPDATE hwpx_document_revisions
+                        SET encrypted_metadata = %s
+                        WHERE document_id = %s AND revision = %s AND sha256 = %s
+                        """,
+                        (sealed_meta, document_id, revision, sha256),
+                    )
+                    if cur.rowcount != 1:
+                        conn.rollback()
+                        raise RuntimeError("Idempotent replay revision row is missing")
+                else:
+                    cur.execute(
+                        """
+                        INSERT INTO hwpx_document_revisions
+                            (document_id, revision, sha256, byte_count, encrypted_bytes, encrypted_metadata, created_at)
+                        VALUES (%s, %s, %s, %s, %s, %s, NOW())
+                        """,
+                        (document_id, revision, sha256, len(raw), sealed_bytes, sealed_meta),
+                    )
+                    cur.execute(
+                        """
+                        INSERT INTO hwpx_document_commits
+                            (document_id, revision, expected_revision, sha256, receipt_id, committed_at)
+                        VALUES (%s, %s, %s, %s, %s, NOW())
+                        """,
+                        (document_id, revision, expected_revision, sha256, receipt_id),
+                    )
+
                 cur.execute(
                     """
-                    INSERT INTO hwpx_document_revisions
-                        (document_id, revision, sha256, byte_count, encrypted_bytes, encrypted_metadata, created_at)
-                    VALUES (%s, %s, %s, %s, %s, %s, NOW())
-                    ON CONFLICT (document_id, revision) DO UPDATE SET
-                        sha256 = EXCLUDED.sha256,
-                        byte_count = EXCLUDED.byte_count,
-                        encrypted_bytes = EXCLUDED.encrypted_bytes,
-                        encrypted_metadata = EXCLUDED.encrypted_metadata
+                    UPDATE hwpx_documents
+                    SET expires_at = %s, updated_at = NOW()
+                    WHERE document_id = %s
                     """,
-                    (document_id, revision, sha256, len(raw), sealed_bytes, sealed_meta),
+                    (self._expiry(expires_at_epoch), document_id),
+                )
+            conn.commit()
+
+        return {
+            "document_id": document_id,
+            "revision": revision,
+            "expected_revision": expected_revision,
+            "sha256": sha256,
+            "bytes": len(raw),
+            "storage": self.mode,
+            "receipt_id": receipt_id,
+            "commit_status": "IDEMPOTENT_REPLAY" if replay else "COMMITTED",
+        }
+
+    def update_retention(
+        self,
+        document_id: str,
+        *,
+        expected_revision: int,
+        expires_at_epoch: float | int,
+    ) -> dict:
+        with self._connect(autocommit=False) as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT current_revision
+                    FROM hwpx_documents
+                    WHERE document_id = %s
+                    FOR UPDATE
+                    """,
+                    (document_id,),
+                )
+                row = cur.fetchone()
+                if row is None:
+                    conn.rollback()
+                    raise FileNotFoundError("Unknown document_id")
+                current_revision = int(row[0])
+                if current_revision != int(expected_revision):
+                    conn.rollback()
+                    raise RuntimeError(
+                        f"Revision CAS conflict: durable current={current_revision}, expected={expected_revision}"
+                    )
+                cur.execute(
+                    """
+                    UPDATE hwpx_documents
+                    SET expires_at = %s, updated_at = NOW()
+                    WHERE document_id = %s
+                    """,
+                    (self._expiry(expires_at_epoch), document_id),
                 )
             conn.commit()
         return {
             "document_id": document_id,
-            "revision": revision,
+            "revision": current_revision,
+            "expires_at_epoch": float(expires_at_epoch),
+        }
+
+    def get_commit_receipt(self, document_id: str, revision: int) -> dict | None:
+        with self._connect() as conn, conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT expected_revision, sha256, receipt_id, committed_at
+                FROM hwpx_document_commits
+                WHERE document_id = %s AND revision = %s
+                """,
+                (document_id, int(revision)),
+            )
+            row = cur.fetchone()
+        if row is None:
+            return None
+        expected_revision, sha256, receipt_id, committed_at = row
+        return {
+            "document_id": document_id,
+            "revision": int(revision),
+            "expected_revision": int(expected_revision),
             "sha256": sha256,
-            "bytes": len(raw),
-            "storage": self.mode,
+            "receipt_id": receipt_id,
+            "committed_at": committed_at.astimezone(timezone.utc).isoformat(),
         }
 
     def _load_revision_row(

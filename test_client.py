@@ -140,6 +140,8 @@ async def main() -> None:
                 "compact_document_history",
                 "verify_document_lineage",
                 "get_document_map",
+                "search_document_text",
+                "get_document_slice",
                 "get_text",
                 "apply_edits",
                 "compare_document",
@@ -165,11 +167,11 @@ async def main() -> None:
                     raise RuntimeError(f"secret-bearing field leaked into tool schema: {tool.name}")
 
             read_payload = _payload(await client.call_tool("probe_read", {"message": "P2 OAuth smoke test"}))
-            if not read_payload or not read_payload.get("ok") or read_payload.get("version") != "0.4.2-p3.2":
+            if not read_payload or not read_payload.get("ok") or read_payload.get("version") != "0.4.3-p3.3":
                 raise RuntimeError(f"probe_read did not expose P2: {read_payload}")
 
             p2_caps = _payload(await client.call_tool("p2_capabilities", {}))
-            if not p2_caps or p2_caps.get("phase") != "P3.2":
+            if not p2_caps or p2_caps.get("phase") != "P3.3":
                 raise RuntimeError(f"p2_capabilities failed: {p2_caps}")
 
             if not RUN_WRITE_TEST:
@@ -189,6 +191,34 @@ async def main() -> None:
             mapped = _payload(await client.call_tool("get_document_map", {"document_id": document_id}))
             if not mapped or mapped.get("revision") != 1 or len(mapped.get("paragraphs", [])) < 3:
                 raise RuntimeError(f"get_document_map failed: {mapped}")
+            searched = _payload(await client.call_tool("search_document_text", {
+                "document_id": document_id,
+                "query": "beta",
+                "max_results": 10,
+                "context_chars": 20,
+            }))
+            if (
+                not searched
+                or searched.get("revision") != 1
+                or searched.get("match_count", 0) < 1
+                or not searched.get("hits")
+            ):
+                raise RuntimeError(f"search_document_text failed: {searched}")
+
+            sliced = _payload(await client.call_tool("get_document_slice", {
+                "document_id": document_id,
+                "start_paragraph": 0,
+                "paragraph_count": 2,
+                "include_locators": True,
+            }))
+            if (
+                not sliced
+                or sliced.get("revision") != 1
+                or sliced.get("returned_paragraphs") != 2
+                or len(sliced.get("paragraphs", [])) != 2
+            ):
+                raise RuntimeError(f"get_document_slice failed: {sliced}")
+
             target = mapped["paragraphs"][-1]
             locator = target["locator"]
             structure_before = mapped["structure_sha256"]

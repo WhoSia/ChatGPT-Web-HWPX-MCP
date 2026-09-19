@@ -1,4 +1,4 @@
-name: P3.7 HWP nested-flow and round-trip fidelity probe
+name: P3.8 HWP nested-flow and round-trip fidelity probe
 
 on:
   push:
@@ -76,7 +76,7 @@ jobs:
               print("fixture:", name, "bytes=", len(data))
           PY
 
-      - name: Start local P3.7 OAuth MCP
+      - name: Start local P3.8 OAuth MCP
         run: |
           python server_p2.py > /tmp/p37-mcp.log 2>&1 &
           echo $! > /tmp/p37-mcp.pid

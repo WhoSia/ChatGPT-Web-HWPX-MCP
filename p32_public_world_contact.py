@@ -121,6 +121,21 @@ async def main() -> None:
         access_token = token_data["access_token"]
         print("oauth: DCR+PKCE+token PASS")
 
+        healthy = 0
+        for attempt in range(1, 11):
+            async with httpx2.AsyncClient(follow_redirects=False, timeout=20.0, http2=False, headers={"Connection": "close"}) as edge_probe:
+                edge_health = await edge_probe.get(f"{BASE_URL}/health")
+            print("edge-stability:", attempt, edge_health.status_code)
+            if edge_health.status_code == 200:
+                healthy += 1
+                if healthy >= 3:
+                    break
+            else:
+                healthy = 0
+            await asyncio.sleep(2)
+        if healthy < 3:
+            raise RuntimeError("public edge did not stabilize")
+
         transport_client = httpx2.AsyncClient(follow_redirects=False, timeout=60.0, http2=False, headers={"Connection": "close"})
         print("transport: forced HTTP/1.1 + connection-close")
 

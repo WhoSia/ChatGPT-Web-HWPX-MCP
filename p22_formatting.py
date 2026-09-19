@@ -144,6 +144,33 @@ def _char_summary(style_id: str | None, tables: dict) -> dict | None:
     }
 
 
+def _snapshot_find_first(node: dict, tag: str) -> dict | None:
+    for child in node.get("children", []):
+        if child.get("tag") == tag:
+            return child
+    for child in node.get("children", []):
+        found = _snapshot_find_first(child, tag)
+        if found is not None:
+            return found
+    return None
+
+
+def _margin_value_summary(node: dict | None) -> dict | None:
+    if node is None:
+        return None
+    result: dict[str, dict] = {}
+    for child in node.get("children", []):
+        name = child.get("tag")
+        if name not in {"intent", "left", "right", "prev", "next"}:
+            continue
+        attrs = child.get("attrs", {})
+        result[str(name)] = {
+            "value": attrs.get("value"),
+            "unit": attrs.get("unit"),
+        }
+    return result or None
+
+
 def _para_summary(style_id: str | None, tables: dict) -> dict | None:
     if style_id is None:
         return None
@@ -151,16 +178,35 @@ def _para_summary(style_id: str | None, tables: dict) -> dict | None:
     if node is None:
         return {"id": str(style_id), "resolved": False}
     children = {child["tag"]: child for child in node["children"]}
+    margin_node = children.get("margin") or _snapshot_find_first(node, "margin")
+    line_spacing_node = (
+        children.get("lineSpacing") or _snapshot_find_first(node, "lineSpacing")
+    )
     return {
         "id": str(style_id),
         "resolved": True,
         "attributes": node["attrs"],
-        "alignment": children.get("align", {}).get("attrs"),
+        "alignment": (
+            children.get("align", {}).get("attrs")
+            or (_snapshot_find_first(node, "align") or {}).get("attrs")
+        ),
         "margin": children.get("margin", {}).get("attrs"),
-        "line_spacing": children.get("lineSpacing", {}).get("attrs"),
-        "break_setting": children.get("breakSetting", {}).get("attrs"),
-        "heading": children.get("heading", {}).get("attrs"),
-        "border": children.get("border", {}).get("attrs"),
+        "margin_values": _margin_value_summary(margin_node),
+        "line_spacing": (
+            None if line_spacing_node is None else line_spacing_node.get("attrs")
+        ),
+        "break_setting": (
+            children.get("breakSetting", {}).get("attrs")
+            or (_snapshot_find_first(node, "breakSetting") or {}).get("attrs")
+        ),
+        "heading": (
+            children.get("heading", {}).get("attrs")
+            or (_snapshot_find_first(node, "heading") or {}).get("attrs")
+        ),
+        "border": (
+            children.get("border", {}).get("attrs")
+            or (_snapshot_find_first(node, "border") or {}).get("attrs")
+        ),
     }
 
 

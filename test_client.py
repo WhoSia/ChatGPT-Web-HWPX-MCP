@@ -51,7 +51,7 @@ class HeadlessApprover:
     async def redirect_handler(self, authorization_url: str) -> None:
         if not self.passphrase:
             raise RuntimeError("P11_OAUTH_PASSPHRASE is required for OAuth lifecycle CI")
-        async with httpx2.AsyncClient(follow_redirects=False) as browser:
+        async with httpx2.AsyncClient(follow_redirects=False, timeout=60.0) as browser:
             authorize = await browser.get(authorization_url)
             if authorize.status_code not in (302, 303, 307, 308):
                 raise RuntimeError(f"authorize returned {authorize.status_code}: {authorize.text}")
@@ -112,7 +112,7 @@ async def main() -> None:
         callback_handler=approver.callback_handler,
     )
 
-    async with httpx2.AsyncClient(auth=oauth) as http_client:
+    async with httpx2.AsyncClient(auth=oauth, timeout=60.0) as http_client:
         transport = streamable_http_client(URL, http_client=http_client)
         async with Client(transport) as client:
             print("protocol:", client.protocol_version)

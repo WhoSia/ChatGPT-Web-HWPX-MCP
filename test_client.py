@@ -177,16 +177,32 @@ async def main() -> None:
             if not RUN_WRITE_TEST:
                 return
 
+            create_request_id = "p33-ci-idempotent-create"
             created = _payload(await client.call_tool("create_document", {
                 "title": "P2 CI",
                 "text": "alpha\nbeta",
                 "filename": "p2-ci.hwpx",
+                "request_id": create_request_id,
             }))
             if not created or not created.get("ok"):
                 raise RuntimeError(f"create_document failed: {created}")
             document_id = created["document_id"]
             if created.get("revision") != 1:
                 raise RuntimeError(f"new P2 document did not start at revision 1: {created}")
+
+            replayed_create = _payload(await client.call_tool("create_document", {
+                "title": "P2 CI",
+                "text": "alpha\nbeta",
+                "filename": "p2-ci.hwpx",
+                "request_id": create_request_id,
+            }))
+            if (
+                not replayed_create
+                or replayed_create.get("document_id") != document_id
+                or not replayed_create.get("idempotent_replay")
+                or replayed_create.get("revision") != 1
+            ):
+                raise RuntimeError(f"idempotent create replay failed: {replayed_create}")
 
             mapped = _payload(await client.call_tool("get_document_map", {"document_id": document_id}))
             if not mapped or mapped.get("revision") != 1 or len(mapped.get("paragraphs", [])) < 3:

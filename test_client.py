@@ -103,7 +103,7 @@ async def main() -> None:
     oauth = OAuthClientProvider(
         server_url=URL,
         client_metadata=OAuthClientMetadata(
-            client_name="ChatGPT Web HWPX MCP P3.0 CI",
+            client_name="ChatGPT Web HWPX MCP P3.1 CI",
             redirect_uris=[AnyUrl("http://127.0.0.1:8765/callback")],
             scope="hwpx offline_access",
         ),
@@ -128,6 +128,9 @@ async def main() -> None:
                 "inspect_document",
                 "export_document",
                 "delete_document",
+                "acquire_document_lease",
+                "release_document_lease",
+                "get_document_commit_receipt",
                 "get_document_versions",
                 "restore_document_revision",
                 "set_document_retention",
@@ -157,11 +160,11 @@ async def main() -> None:
                     raise RuntimeError(f"secret-bearing field leaked into tool schema: {tool.name}")
 
             read_payload = _payload(await client.call_tool("probe_read", {"message": "P2 OAuth smoke test"}))
-            if not read_payload or not read_payload.get("ok") or read_payload.get("version") != "0.4.0-p3.0":
+            if not read_payload or not read_payload.get("ok") or read_payload.get("version") != "0.4.1-p3.1":
                 raise RuntimeError(f"probe_read did not expose P2: {read_payload}")
 
             p2_caps = _payload(await client.call_tool("p2_capabilities", {}))
-            if not p2_caps or p2_caps.get("phase") != "P3.0":
+            if not p2_caps or p2_caps.get("phase") != "P3.1":
                 raise RuntimeError(f"p2_capabilities failed: {p2_caps}")
 
             if not RUN_WRITE_TEST:
@@ -622,10 +625,20 @@ async def main() -> None:
             ):
                 raise RuntimeError(f"P3.0 durable version history failed: {versions}")
 
+            lease = _payload(await client.call_tool("acquire_document_lease", {
+                "document_id": document_id,
+                "expected_revision": 14,
+                "ttl_seconds": 30,
+                "holder_id": "ci-worker-a",
+            }))
+            if not lease or not lease.get("lease_token"):
+                raise RuntimeError(f"P3.1 lease acquisition failed: {lease}")
+
             restored = _payload(await client.call_tool("restore_document_revision", {
                 "document_id": document_id,
                 "revision": 1,
                 "expected_revision": 14,
+                "lease_token": lease["lease_token"],
             }))
             if (
                 not restored
@@ -633,7 +646,39 @@ async def main() -> None:
                 or restored.get("revision_after") != 15
                 or restored.get("recovered_from_revision") != 1
             ):
-                raise RuntimeError(f"P3.0 historical recovery failed: {restored}")
+                raise RuntimeError(f"P3.1 historical recovery under lease failed: {restored}")
+
+            commit_receipt = _payload(await client.call_tool("get_document_commit_receipt", {
+                "document_id": document_id,
+                "revision": 15,
+            }))
+            if (
+                not commit_receipt
+                or commit_receipt.get("expected_revision") != 14
+                or len(commit_receipt.get("receipt_id", "")) != 64
+                or commit_receipt.get("sha256") != restored.get("sha256")
+            ):
+                raise RuntimeError(f"P3.1 commit receipt failed: {commit_receipt}")
+
+            release_after_commit = _payload(await client.call_tool("release_document_lease", {
+                "document_id": document_id,
+                "lease_token": lease["lease_token"],
+            }))
+            if not release_after_commit or release_after_commit.get("released") is not False:
+                raise RuntimeError(f"P3.1 commit should auto-release lease: {release_after_commit}")
+
+            release_lease = _payload(await client.call_tool("acquire_document_lease", {
+                "document_id": document_id,
+                "expected_revision": 15,
+                "ttl_seconds": 30,
+                "holder_id": "ci-worker-release",
+            }))
+            released = _payload(await client.call_tool("release_document_lease", {
+                "document_id": document_id,
+                "lease_token": release_lease["lease_token"],
+            }))
+            if not released or released.get("released") is not True:
+                raise RuntimeError(f"P3.1 explicit lease release failed: {released}")
 
             restored_text = _payload(await client.call_tool("get_text", {
                 "document_id": document_id,
@@ -677,7 +722,7 @@ async def main() -> None:
                 deleted = _payload(await client.call_tool("delete_document", {"document_id": doc_id}))
                 if not deleted or not deleted.get("deleted"):
                     raise RuntimeError(f"delete_document failed: {deleted}")
-            print("P3.0 lifecycle PASS", digest)
+            print("P3.1 lifecycle PASS", digest)
 
 
 if __name__ == "__main__":

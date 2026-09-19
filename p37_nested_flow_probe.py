@@ -21,6 +21,8 @@ FIXTURES = {
     "header": Path(os.environ.get("P37_HEADER_HWP", "/tmp/pic-in-head-01.hwp")),
     "footnote": Path(os.environ.get("P37_FOOTNOTE_HWP", "/tmp/footnote-01.hwp")),
     "endnote": Path(os.environ.get("P37_ENDNOTE_HWP", "/tmp/endnote-01.hwp")),
+    "footer": Path(os.environ.get("P37_FOOTER_HWP", "/tmp/sub-superscript.hwp")),
+    "object-text": Path(os.environ.get("P37_TEXTBOX_HWP", "/tmp/footnote-tbox-01.hwp")),
 }
 
 

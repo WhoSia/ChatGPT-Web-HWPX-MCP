@@ -61,6 +61,16 @@ ChatGPT Web
 
 There are no password, passphrase, API-key, or access-token fields in MCP tool schemas. Authentication happens at the HTTP/MCP transport layer.
 
+## P3.3 large-document navigation and replay-safe creation
+
+P3.3 reduces agent cost and lost-response fragility without changing the HWPX editing authority model.
+
+- `search_document_text` returns compact paragraph hits, revision-bound locators, match offsets, and bounded context.
+- `get_document_slice` returns at most 200 paragraphs per call with `next_start_paragraph`, so large documents can be read incrementally.
+- Both surfaces expose the current revision and semantic SHA-256, making a navigation result explicitly stale after later edits.
+- `create_document(request_id=...)` is replay-safe: the same owner + request id + payload resolves to the same durable document after a lost response. Reusing the key with a different payload is rejected.
+- The existing full `get_document_map` remains available when complete structural materialization is actually needed.
+
 ## P3.2 durable revision-lineage contract
 
 P3.2 separates **commit authority** from **historical byte retention**.

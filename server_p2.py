@@ -1111,7 +1111,7 @@ def assess_hwp5_promotion(
     content_base64: str,
     filename: str = "document.hwp",
 ) -> dict:
-    """Grade which HWP 5.x object families can currently be promoted to editable HWPX without overstating fidelity."""
+    """Grade HWP5 object families from observed control/linkage closure rather than format-wide defaults."""
     payload = _decode_hwp5_payload(content_base64)
     parsed = parse_hwp5_bytes(payload)
     if not parsed.get("readable"):
@@ -1125,7 +1125,37 @@ def assess_hwp5_promotion(
             "grades": parsed.get("fidelity", {}),
         }
 
-    grades = parsed.get("fidelity", {})
+    tables = parsed.get("tables", [])
+    equations = parsed.get("equations", [])
+    pictures = [
+        item for item in parsed.get("objects", [])
+        if item.get("kind") == "picture"
+    ]
+    assets = extract_hwp5_binary_assets(payload)
+
+    table_closed = bool(tables) and all(
+        item.get("cells")
+        and all(
+            cell.get("paragraph_indexes") is not None
+            for cell in item.get("cells", [])
+        )
+        for item in tables
+    )
+    equation_closed = bool(equations) and all(
+        item.get("anchor_paragraph_ordinal") is not None
+        and item.get("position_fidelity") == "structural"
+        and bool(item.get("script"))
+        for item in equations
+    )
+    picture_closed = bool(pictures) and all(
+        item.get("anchor_paragraph_ordinal") is not None
+        and item.get("binary_link") is not None
+        and item.get("control_geometry") is not None
+        and assets.get(int(item.get("bin_item_id") or -1), {}).get("format")
+        in {"png", "jpeg"}
+        for item in pictures
+    )
+
     return {
         "ok": True,
         "filename": Path(filename or "document.hwp").name[:128],
@@ -1133,13 +1163,19 @@ def assess_hwp5_promotion(
         "version": parsed.get("version"),
         "readable": True,
         "promotion_allowed": True,
-        "grades": grades,
+        "grades": parsed.get("fidelity", {}),
         "inventory": {
             "paragraphs": len(parsed.get("paragraphs", [])),
-            "tables": len(parsed.get("tables", [])),
-            "equations": len(parsed.get("equations", [])),
+            "tables": len(tables),
+            "equations": len(equations),
+            "pictures": len(pictures),
             "objects": len(parsed.get("objects", [])),
             "binary_items": len(parsed.get("binary_items", [])),
+        },
+        "closure": {
+            "table_cell_paragraph_binding": table_closed,
+            "equation_anchor_position_binding": equation_closed,
+            "picture_bindata_geometry_binding": picture_closed,
         },
         "promotion": {
             "paragraph_text": {
@@ -1147,22 +1183,48 @@ def assess_hwp5_promotion(
                 "authority": "PROMOTE_TO_EDITABLE_HWPX_TEXT",
             },
             "tables": {
-                "grade": "C" if parsed.get("tables") else "N/A",
-                "authority": "STRUCTURAL_PROVENANCE_ONLY",
-                "reason": "row/column geometry is parsed, but cell-content association and merged-cell mapping are not yet certified",
+                "grade": "A-" if table_closed else ("C" if tables else "N/A"),
+                "authority": (
+                    "RICH_PROMOTION_ELIGIBLE"
+                    if table_closed else "STRUCTURAL_PROVENANCE_ONLY"
+                ),
+                "reason": (
+                    "cell addresses, spans, and paragraph ownership are bound"
+                    if table_closed
+                    else "cell/paragraph binding is incomplete"
+                ),
             },
             "equations": {
-                "grade": "B" if parsed.get("equations") else "N/A",
-                "authority": "SEMANTIC_SCRIPT_RECOVERED / POSITION_PROMOTION_DEFERRED",
-                "reason": "EqEdit script is decoded, but exact paragraph/object placement is not yet certified for synthesis",
+                "grade": "A-" if equation_closed else ("B" if equations else "N/A"),
+                "authority": (
+                    "RICH_PROMOTION_ELIGIBLE"
+                    if equation_closed
+                    else "SEMANTIC_SCRIPT_RECOVERED / POSITION_PROMOTION_DEFERRED"
+                ),
+                "reason": (
+                    "EqEdit script and control-derived anchor/geometry are bound"
+                    if equation_closed
+                    else "script is available but positioned control binding is incomplete"
+                ),
             },
             "pictures": {
-                "grade": "D" if any(item.get("kind") == "picture" for item in parsed.get("objects", [])) else "N/A",
-                "authority": "INVENTORY_ONLY",
-                "reason": "picture component and BinData custody are inventoried, but binary linkage/geometry promotion is not yet certified",
+                "grade": "A-" if picture_closed else ("D" if pictures else "N/A"),
+                "authority": (
+                    "RICH_PROMOTION_ELIGIBLE"
+                    if picture_closed else "INVENTORY_OR_PARTIAL_LINKAGE"
+                ),
+                "reason": (
+                    "picture record, unique BinData asset, supported media format, and control geometry are bound"
+                    if picture_closed
+                    else "one or more media/anchor/geometry links remain incomplete"
+                ),
             },
         },
-        "recommended_mode": "TEXT_DERIVATIVE_WITH_OBJECT_PROVENANCE",
+        "recommended_mode": (
+            "FIDELITY_GRADED_RICH_DERIVATIVE"
+            if any([table_closed, equation_closed, picture_closed])
+            else "TEXT_DERIVATIVE_WITH_OBJECT_PROVENANCE"
+        ),
     }
 
 
@@ -2116,7 +2178,7 @@ def p2_capabilities() -> dict:
     return {
         "project": core.PROJECT,
         "version": core.VERSION,
-        "phase": "P3.5",
+        "phase": "P3.6",
         "authenticated_subject": subject,
         "tools_added": [
             "acquire_document_lease",
@@ -2137,6 +2199,8 @@ def p2_capabilities() -> dict:
             "get_common_document_ir",
             "materialize_hwp5_text_derivative",
             "inspect_hwp5_document",
+            "materialize_hwp5_rich_derivative",
+            "get_hwp5_control_graph",
             "search_document_text",
             "get_document_slice",
             "plan_bulk_text_replace",
@@ -2272,8 +2336,15 @@ def p2_capabilities() -> dict:
             "container": "native OLE/CFB HWP 5.x reader; no Hancom desktop dependency",
             "scope": "bounded read-only header/body-text extraction",
             "security": "password/DRM/certificate-encrypted content is blocked rather than bypassed",
-            "fidelity": "text-first, loss-aware; layout/table/object fidelity is not yet claimed",
+            "fidelity": "control-graph graded: paragraph semantic, table cell graph structural/semantic, equation positioned-semantic, picture media-link structural when closed",
             "edit_boundary": "legacy HWP binary is never mutated by the HWPX edit engine",
+        },
+        "hwp5_control_graph": {
+            "controls": "CTRL_HEADER family/instance/geometry reconstruction",
+            "tables": "TABLE → cell LIST_HEADER → paragraph ownership graph",
+            "equations": "EqEdit family record bound to control anchor and object geometry",
+            "pictures": "picture BinItem reference bound to DocInfo/BinData storage and media custody",
+            "promotion": "only closed family bindings may synthesize native HWPX objects; ambiguous families remain provenance",
         },
         "common_document_ir": {
             "formats": ["hwpx", "hwp5"],

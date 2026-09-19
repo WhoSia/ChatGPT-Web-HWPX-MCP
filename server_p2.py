@@ -40,7 +40,7 @@ from common_ir import (
     slice_common_ir,
 )
 
-P2_VERSION = "0.6.0-p3.6"
+P2_VERSION = "0.7.0-p3.7"
 core.VERSION = P2_VERSION
 
 _original_metadata = core._metadata
@@ -560,12 +560,96 @@ def materialize_hwp5_text_derivative(
     }
 
 
+def _hwp_colorref_to_hex(value: object) -> str:
+    raw = int(value or 0)
+    red = raw & 0xFF
+    green = (raw >> 8) & 0xFF
+    blue = (raw >> 16) & 0xFF
+    return f"#{red:02X}{green:02X}{blue:02X}"
+
+
+def _hwp_run_format_subset(run: dict) -> dict:
+    shape = run.get("char_shape") or {}
+    if not shape or shape.get("fidelity") != "semantic":
+        return {}
+    fmt = {
+        "bold": bool(shape.get("bold")),
+        "italic": bool(shape.get("italic")),
+        "underline": int(shape.get("underline_type", 0) or 0) != 0,
+    }
+    height = int(shape.get("height", 0) or 0)
+    if height > 0:
+        fmt["size"] = height / 100.0
+    if shape.get("text_color") is not None:
+        fmt["color"] = _hwp_colorref_to_hex(shape.get("text_color"))
+    return fmt
+
+
+def _hwp_style_signature(run: dict) -> dict:
+    fmt = _hwp_run_format_subset(run)
+    return {
+        "text": str(run.get("text", "")),
+        "bold": fmt.get("bold"),
+        "italic": fmt.get("italic"),
+        "underline": fmt.get("underline"),
+        "size": fmt.get("size"),
+        "color": fmt.get("color"),
+    }
+
+
 def _hwp_rel_to_horizontal(value: object) -> str:
     return {0: "PAGE", 1: "PAGE", 2: "COLUMN", 3: "PARA"}.get(int(value or 0), "COLUMN")
 
 
 def _hwp_rel_to_vertical(value: object) -> str:
     return {0: "PAPER", 1: "PAGE", 2: "PARA"}.get(int(value or 0), "PARA")
+
+
+@core.mcp.tool()
+def get_hwp5_text_flows(
+    content_base64: str,
+    filename: str = "document.hwp",
+    include_paragraphs: bool = True,
+) -> dict:
+    """Return body/header/footer/footnote/endnote/object-text paragraph ownership from HWP5."""
+    payload = _decode_hwp5_payload(content_base64)
+    parsed = parse_hwp5_bytes(payload)
+    if not parsed.get("readable"):
+        return {
+            "ok": True,
+            "filename": Path(filename or "document.hwp").name[:128],
+            "readable": False,
+            "block_reason": parsed.get("block_reason"),
+            "flows": {},
+        }
+    grouped: dict[str, list[dict]] = {}
+    for paragraph in parsed.get("paragraphs", []):
+        flow = str(paragraph.get("flow_kind") or "body")
+        item = {
+            "paragraph_index": paragraph.get("paragraph_index"),
+            "section_index": paragraph.get("section_index"),
+            "source_paragraph_ordinal": paragraph.get("source_paragraph_ordinal"),
+            "control_index": paragraph.get("control_index"),
+            "control_id": paragraph.get("control_id"),
+            "para_shape_id": (paragraph.get("paragraph_style") or {}).get("para_shape_id"),
+            "para_style_id": (paragraph.get("paragraph_style") or {}).get("para_style_id"),
+            "run_count": len(paragraph.get("runs", [])),
+            "run_visible_span_fidelity": paragraph.get("run_visible_span_fidelity"),
+            "text": paragraph.get("text", ""),
+        }
+        grouped.setdefault(flow, []).append(item)
+    return {
+        "ok": True,
+        "filename": Path(filename or "document.hwp").name[:128],
+        "sha256": hashlib.sha256(payload).hexdigest(),
+        "readable": True,
+        "flow_counts": {key: len(value) for key, value in grouped.items()},
+        "flows": grouped if include_paragraphs else {
+            key: {"paragraph_count": len(value)}
+            for key, value in grouped.items()
+        },
+        "authority": "STRUCTURAL_NESTED_TEXT_FLOW_GRAPH",
+    }
 
 
 @core.mcp.tool()
@@ -683,6 +767,15 @@ def materialize_hwp5_rich_derivative(
 
     promotion_report = {
         "paragraph_text": {"status": "PROMOTED", "count": len(top_level)},
+        "run_styles": {"promoted_runs": 0, "deferred": []},
+        "nested_text_flows": {
+            "recovered": sum(
+                1 for item in parsed.get("paragraphs", [])
+                if item.get("flow_kind") != "body"
+            ),
+            "promoted": 0,
+            "authority": "RECOVERED_GRAPH / NATIVE_PROMOTION_DEFERRED",
+        },
         "tables": {"promoted": 0, "deferred": []},
         "equations": {"promoted": 0, "deferred": []},
         "pictures": {"promoted": 0, "deferred": []},
@@ -969,6 +1062,58 @@ def materialize_hwp5_rich_derivative(
                 pass
     finally:
         document.close()
+
+    # Promote only source-coordinate-safe top-level run styles. Nested/control-bearing
+    # flows remain provenance until a dedicated native HWPX control writer is certified.
+    style_operations: list[dict] = []
+    post_object_map = build_document_map(hwpx_path)
+    post_top_level = [
+        item for item in post_object_map.get("paragraphs", [])
+        if item.get("container") == "section-body"
+    ]
+    for source_para, target_para in zip(top_level, post_top_level):
+        for run in source_para.get("runs", []):
+            if not run.get("visible_span_certified"):
+                promotion_report["run_styles"]["deferred"].append({
+                    "paragraph_index": source_para.get("paragraph_index"),
+                    "char_shape_id": run.get("char_shape_id"),
+                    "reason": "visible_span_not_certified",
+                })
+                continue
+            start = int(run.get("visible_start", 0))
+            end = int(run.get("visible_end", 0))
+            fmt = _hwp_run_format_subset(run)
+            if end <= start or not fmt:
+                continue
+            style_operations.append({
+                "op": "set_range_format",
+                "target": target_para["locator"],
+                "start": start,
+                "end": end,
+                "format": fmt,
+            })
+    if style_operations:
+        try:
+            style_result = apply_rich_formatting_atomic(
+                hwpx_path,
+                style_operations,
+                expected_revision=1,
+                current_revision=1,
+                validator=lambda candidate: core.validate_hwpx_package(
+                    candidate, ingress=False
+                ),
+            )
+            promotion_report["run_styles"]["promoted_runs"] = int(
+                style_result.get("operation_count", 0)
+            )
+            promotion_report["run_styles"]["formatting_sha256_after"] = (
+                style_result.get("after", {}).get("formatting_sha256")
+            )
+        except Exception as exc:
+            promotion_report["run_styles"]["deferred"].append({
+                "reason": f"formatting_promotion_refused:{type(exc).__name__}",
+                "detail": str(exc)[:240],
+            })
 
     validation = core.validate_hwpx_package(hwpx_path, ingress=False)
     final_map = build_document_map(hwpx_path)
@@ -2251,12 +2396,179 @@ def compare_document(
 
 
 @core.mcp.tool()
+def compare_hwp5_roundtrip_fidelity(
+    content_base64: str,
+    document_id: str,
+    filename: str = "document.hwp",
+) -> dict:
+    """Compare a source HWP5 payload with one owned promoted HWPX derivative by family."""
+    payload = _decode_hwp5_payload(content_base64)
+    parsed = parse_hwp5_bytes(payload)
+    if not parsed.get("readable"):
+        raise ValueError(
+            f"HWP source is not readable by the native lane: {parsed.get('block_reason')}"
+        )
+    metadata, path = _owned_document(document_id)
+    source_sha256 = hashlib.sha256(payload).hexdigest()
+    provenance_match = metadata.get("source_hwp_sha256") == source_sha256
+
+    document_map = build_document_map(path)
+    formatting_map = build_formatting_map(path)
+    table_map = build_table_map(path)
+    equation_map = build_equation_map(path)
+    object_map = build_object_map(path)
+
+    source_top = [
+        item for item in parsed.get("paragraphs", [])
+        if item.get("flow_kind") == "body"
+        and item.get("list_header_record_index") is None
+    ]
+    target_top = [
+        item for item in formatting_map.get("paragraphs", [])
+        if item.get("container") == "section-body"
+    ]
+    source_text = [str(item.get("text", "")) for item in source_top]
+    target_text = [str(item.get("direct_text", item.get("text", ""))) for item in target_top[:len(source_top)]]
+    text_exact = source_text == target_text
+
+    source_style_runs = []
+    for paragraph in source_top:
+        source_style_runs.append([
+            _hwp_style_signature(run)
+            for run in paragraph.get("runs", [])
+            if run.get("visible_span_certified") and str(run.get("text", ""))
+        ])
+    target_style_runs = []
+    for paragraph in target_top[:len(source_top)]:
+        runs = []
+        for run in paragraph.get("runs", []):
+            if not str(run.get("text", "")):
+                continue
+            style = run.get("style") or {}
+            runs.append({
+                "text": str(run.get("text", "")),
+                "bold": style.get("bold"),
+                "italic": style.get("italic"),
+                "underline": style.get("underline"),
+                "size": style.get("size_pt"),
+                "color": style.get("color"),
+            })
+        target_style_runs.append(runs)
+
+    comparable_style_paragraphs = 0
+    exact_style_paragraphs = 0
+    for expected, observed in zip(source_style_runs, target_style_runs):
+        if not expected:
+            continue
+        comparable_style_paragraphs += 1
+        if len(expected) != len(observed):
+            continue
+        ok = True
+        for left, right in zip(expected, observed):
+            if left["text"] != right["text"]:
+                ok = False
+                break
+            for key in ("bold", "italic", "underline", "color"):
+                if left.get(key) != right.get(key):
+                    ok = False
+                    break
+            if not ok:
+                break
+            if left.get("size") is not None and right.get("size") is not None:
+                if abs(float(left["size"]) - float(right["size"])) > 0.02:
+                    ok = False
+                    break
+        if ok:
+            exact_style_paragraphs += 1
+
+    source_tables = parsed.get("tables", [])
+    target_tables = table_map.get("tables", [])
+    source_table_geometry = sorted(
+        (int(item.get("row_count", 0)), int(item.get("col_count", 0)))
+        for item in source_tables
+    )
+    target_table_geometry = sorted(
+        (int(item.get("rows", 0)), int(item.get("cols", 0)))
+        for item in target_tables
+    )
+
+    source_equations = sorted(
+        str(item.get("script", "")) for item in parsed.get("equations", [])
+    )
+    target_equations = sorted(
+        str(item.get("script", "")) for item in equation_map.get("equations", [])
+    )
+
+    source_pictures = [
+        item for item in parsed.get("objects", [])
+        if item.get("kind") == "picture"
+    ]
+    target_pictures = object_map.get("pictures", [])
+
+    nested = [
+        item for item in parsed.get("paragraphs", [])
+        if item.get("flow_kind") != "body"
+    ]
+    result = {
+        "ok": True,
+        "document_id": document_id,
+        "source_filename": Path(filename or "document.hwp").name[:128],
+        "source_sha256": source_sha256,
+        "provenance_match": provenance_match,
+        "families": {
+            "body_text": {
+                "source_paragraphs": len(source_text),
+                "target_paragraphs_compared": len(target_text),
+                "exact": text_exact,
+            },
+            "run_style": {
+                "comparable_paragraphs": comparable_style_paragraphs,
+                "exact_paragraphs": exact_style_paragraphs,
+                "exact": (
+                    comparable_style_paragraphs > 0
+                    and comparable_style_paragraphs == exact_style_paragraphs
+                ),
+            },
+            "tables": {
+                "source_count": len(source_tables),
+                "target_count": len(target_tables),
+                "geometry_exact": source_table_geometry == target_table_geometry,
+            },
+            "equations": {
+                "source_count": len(source_equations),
+                "target_count": len(target_equations),
+                "script_exact": source_equations == target_equations,
+            },
+            "pictures": {
+                "source_count": len(source_pictures),
+                "target_count": len(target_pictures),
+                "count_exact": len(source_pictures) == len(target_pictures),
+            },
+            "nested_text_flows": {
+                "source_count": len(nested),
+                "source_flow_counts": {
+                    kind: sum(1 for item in nested if item.get("flow_kind") == kind)
+                    for kind in sorted({str(item.get("flow_kind")) for item in nested})
+                },
+                "native_promotion": "DEFERRED",
+            },
+        },
+        "authority": (
+            "ROUNDTRIP_FIDELITY_RECEIPT"
+            if provenance_match
+            else "SOURCE_PROVENANCE_MISMATCH"
+        ),
+    }
+    return result
+
+
+@core.mcp.tool()
 def p2_capabilities() -> dict:
     subject = core._caller_subject()
     return {
         "project": core.PROJECT,
         "version": core.VERSION,
-        "phase": "P3.6",
+        "phase": "P3.7",
         "authenticated_subject": subject,
         "tools_added": [
             "acquire_document_lease",
@@ -2279,6 +2591,8 @@ def p2_capabilities() -> dict:
             "inspect_hwp5_document",
             "materialize_hwp5_rich_derivative",
             "get_hwp5_control_graph",
+            "compare_hwp5_roundtrip_fidelity",
+            "get_hwp5_text_flows",
             "search_document_text",
             "get_document_slice",
             "plan_bulk_text_replace",
@@ -2417,6 +2731,14 @@ def p2_capabilities() -> dict:
             "fidelity": "control-graph graded: paragraph semantic, table cell graph structural/semantic, equation positioned-semantic, picture media-link structural when closed",
             "edit_boundary": "legacy HWP binary is never mutated by the HWPX edit engine",
         },
+        "hwp5_run_style_and_flows": {
+            "paragraph_style": "PARA_HEADER shape/style/control-mask/instance references",
+            "run_style": "PARA_CHAR_SHAPE source-coordinate transitions resolved through DocInfo CHAR_SHAPE",
+            "visible_span": "certified only for control-free paragraphs; controlled paragraphs remain source-coordinate-only",
+            "nested_flows": "header/footer/footnote/endnote/object-text paragraph ownership is explicit in Common IR",
+            "promotion": "safe body run subset uses existing formatting transaction; nested flow native promotion remains deferred",
+            "oracle": "source HWP versus promoted HWPX family-by-family fidelity receipt",
+        },
         "hwp5_control_graph": {
             "controls": "CTRL_HEADER family/instance/geometry reconstruction",
             "tables": "TABLE → cell LIST_HEADER → paragraph ownership graph",
@@ -2426,7 +2748,7 @@ def p2_capabilities() -> dict:
         },
         "common_document_ir": {
             "formats": ["hwpx", "hwp5"],
-            "blocks": ["paragraph", "table", "equation", "picture", "shape", "binary"],
+            "blocks": ["paragraph", "header", "footer", "footnote", "endnote", "object-text", "table", "equation", "picture", "shape", "binary"],
             "search": "one query contract across HWPX document custody and bounded HWP 5.x payloads",
             "extract": "kind-filtered blocks gated by an explicit minimum fidelity threshold",
             "fidelity": "every block carries source-native receipts and an explicit fidelity grade",

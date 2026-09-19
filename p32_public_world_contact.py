@@ -59,7 +59,7 @@ async def main() -> None:
     verifier = b64url(secrets.token_bytes(48))
     challenge = b64url(hashlib.sha256(verifier.encode("ascii")).digest())
 
-    async with httpx2.AsyncClient(follow_redirects=False, timeout=60.0, http2=False, headers={"Connection": "close"}) as client:
+    async with httpx2.AsyncClient(follow_redirects=False, timeout=60.0, http2=False) as client:
         registration = await client.post(
             f"{BASE_URL}/register",
             json={
@@ -123,7 +123,7 @@ async def main() -> None:
 
         healthy = 0
         for attempt in range(1, 11):
-            async with httpx2.AsyncClient(follow_redirects=False, timeout=20.0, http2=False, headers={"Connection": "close"}) as edge_probe:
+            async with httpx2.AsyncClient(follow_redirects=False, timeout=20.0, http2=False) as edge_probe:
                 edge_health = await edge_probe.get(f"{BASE_URL}/health")
             print("edge-stability:", attempt, edge_health.status_code)
             if edge_health.status_code == 200:
@@ -136,8 +136,8 @@ async def main() -> None:
         if healthy < 3:
             raise RuntimeError("public edge did not stabilize")
 
-        transport_client = httpx2.AsyncClient(follow_redirects=False, timeout=60.0, http2=False, headers={"Connection": "close"})
-        print("transport: forced HTTP/1.1 + connection-close")
+        transport_client = httpx2.AsyncClient(follow_redirects=False, timeout=60.0, http2=False)
+        print("transport: HTTP/1.1; default connection semantics")
 
         async def safe_probe(label: str, method: str, url: str, headers: dict | None = None) -> int:
             response = await transport_client.request(method, url, headers=headers or {})
@@ -256,9 +256,10 @@ async def main() -> None:
         document_id = None
         try:
             created = await call_tool("create_document", {
-                "title": "P3.2-R1 Production World Contact",
+                "title": "P3.2-R3 Production World Contact",
                 "text": "alpha\nbeta",
-                "filename": "p32-r1-world-contact.hwpx",
+                "filename": "p32-r3-world-contact.hwpx",
+                "request_id": "p32-r3-world-contact-create-v1",
             })
             document_id = created["document_id"]
             if created.get("revision") != 1:

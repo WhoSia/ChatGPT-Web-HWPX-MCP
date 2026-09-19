@@ -14,6 +14,12 @@ from hwp5_reader import (
     _parse_header,
     _parse_table_record,
     _parse_equation_record,
+    _parse_ctrl_header,
+    _parse_list_header,
+    _parse_table_cell_from_list_header,
+    _parse_picture_record,
+    _parse_bindata_record,
+    _parent_indexes,
 )
 
 
@@ -79,6 +85,80 @@ class Hwp5ReaderPrimitiveTests(unittest.TestCase):
         self.assertEqual(eq["script"], script)
         self.assertEqual(eq["font_size"], 1200)
         self.assertEqual(eq["baseline"], -7)
+
+    def test_ctrl_header_geometry_decode(self):
+        ctrl_id = (ord("e") << 24) | (ord("q") << 16) | (ord("e") << 8) | ord("d")
+        raw = bytearray(46)
+        struct.pack_into("<I", raw, 0, ctrl_id)
+        struct.pack_into("<I", raw, 4, 1 | (2 << 3) | (3 << 8))
+        struct.pack_into("<iiiii", raw, 8, 120, 340, 5000, 2100, -2)
+        struct.pack_into("<HHHH", raw, 28, 1, 2, 3, 4)
+        struct.pack_into("<I", raw, 36, 77)
+        struct.pack_into("<i", raw, 40, 1)
+        struct.pack_into("<H", raw, 44, 0)
+        ctrl = _parse_ctrl_header(bytes(raw))
+        self.assertEqual(ctrl["ctrl_id"], "eqed")
+        self.assertEqual(ctrl["width"], 5000)
+        self.assertEqual(ctrl["height"], 2100)
+        self.assertEqual(ctrl["instance_id"], 77)
+        self.assertTrue(ctrl["treat_as_char"])
+
+    def test_table_cell_list_header_decode(self):
+        raw = bytearray(32)
+        struct.pack_into("<hI", raw, 0, 2, 0)
+        struct.pack_into("<HHHH", raw, 6, 3, 4, 2, 1)
+        struct.pack_into("<ii", raw, 14, 7200, 1800)
+        struct.pack_into("<HHHH", raw, 22, 10, 20, 30, 40)
+        struct.pack_into("<H", raw, 30, 9)
+        header = _parse_list_header(bytes(raw))
+        cell = _parse_table_cell_from_list_header(bytes(raw))
+        self.assertEqual(header["paragraph_count"], 2)
+        self.assertEqual(cell["column"], 3)
+        self.assertEqual(cell["row"], 4)
+        self.assertEqual(cell["col_span"], 2)
+        self.assertEqual(cell["width"], 7200)
+        self.assertEqual(cell["border_fill_id"], 9)
+
+    def test_picture_bindata_reference_decode(self):
+        raw = bytearray(78)
+        struct.pack_into("<I", raw, 0, 0x112233)
+        struct.pack_into("<i", raw, 4, 20)
+        struct.pack_into("<I", raw, 8, 0)
+        struct.pack_into("<iiii", raw, 12, 0, 100, 100, 0)
+        struct.pack_into("<iiii", raw, 28, 0, 0, 100, 100)
+        struct.pack_into("<iiii", raw, 44, 1, 2, 90, 80)
+        struct.pack_into("<HHHH", raw, 60, 0, 0, 0, 0)
+        struct.pack_into("<bbB", raw, 68, 5, -3, 0)
+        struct.pack_into("<H", raw, 71, 12)
+        raw[73] = 7
+        struct.pack_into("<I", raw, 74, 99)
+        pic = _parse_picture_record(bytes(raw))
+        self.assertEqual(pic["bin_item_id"], 12)
+        self.assertEqual(pic["instance_id"], 99)
+        self.assertEqual(pic["crop"]["right"], 90)
+
+    def test_bindata_embedding_metadata_decode(self):
+        ext = "png"
+        raw = struct.pack("<HHH", 0x0011, 5, len(ext)) + ext.encode("utf-16le")
+        item = _parse_bindata_record(raw)
+        self.assertEqual(item["data_type"], 1)
+        self.assertEqual(item["compression"], 0x0010)
+        self.assertEqual(item["storage_id"], 5)
+        self.assertEqual(item["extension"], "png")
+
+    def test_record_parent_graph(self):
+        def rec(tag, level, payload=b"x"):
+            return (tag, level, payload)
+        records = [
+            rec(0x42, 0),
+            rec(0x47, 1),
+            rec(0x48, 2),
+            rec(0x42, 3),
+            rec(0x43, 4),
+            rec(0x4D, 2),
+        ]
+        parents = _parent_indexes(records)
+        self.assertEqual(parents, [None, 0, 1, 2, 3, 1])
 
     def test_control_units_are_not_exposed_as_visible_text(self):
         payload = "앞".encode("utf-16le") + b"\x01\x00" + "뒤".encode("utf-16le")

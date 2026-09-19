@@ -3244,10 +3244,43 @@ def compare_hwp5_roundtrip_fidelity(
         if axes_ok:
             paragraph_style_exact += 1
         elif len(paragraph_style_mismatches) < 8:
+            source_para = [
+                item for item in source_top if str(item.get("text", "")).strip()
+            ][paragraph_style_comparable - 1]
+            target_para = [
+                item for item in target_top
+                if str(item.get("direct_text", item.get("text", ""))).strip()
+            ][paragraph_style_comparable - 1]
+            source_style_meta = source_para.get("paragraph_style") or {}
+            target_style_meta = target_para.get("style_property") or {}
             paragraph_style_mismatches.append({
                 "paragraph_index": paragraph_style_comparable - 1,
                 "source": expected,
                 "target": observed,
+                "source_provenance": {
+                    "para_shape_id": source_style_meta.get("para_shape_id"),
+                    "para_style_id": source_style_meta.get("para_style_id"),
+                    "style_name": (source_style_meta.get("resolved_style") or {}).get("local_name"),
+                    "style_para_shape_id": (source_style_meta.get("resolved_style") or {}).get("para_shape_id"),
+                    "direct_matches_style_para_shape": (
+                        source_style_meta.get("para_shape_id") is not None
+                        and (source_style_meta.get("resolved_style") or {}).get("para_shape_id") is not None
+                        and int(source_style_meta.get("para_shape_id"))
+                        == int((source_style_meta.get("resolved_style") or {}).get("para_shape_id"))
+                    ),
+                },
+                "target_provenance": {
+                    "para_pr_id_ref": target_para.get("para_pr_id_ref"),
+                    "style_id_ref": target_para.get("style_id_ref"),
+                    "style_name": target_style_meta.get("name"),
+                    "style_para_pr_id_ref": target_style_meta.get("para_pr_id_ref"),
+                    "direct_matches_style_para_pr": (
+                        target_para.get("para_pr_id_ref") is not None
+                        and target_style_meta.get("para_pr_id_ref") is not None
+                        and str(target_para.get("para_pr_id_ref"))
+                        == str(target_style_meta.get("para_pr_id_ref"))
+                    ),
+                },
             })
 
     source_tables = parsed.get("tables", [])
@@ -3273,6 +3306,53 @@ def compare_hwp5_roundtrip_fidelity(
         if item.get("kind") == "picture"
     ]
     target_pictures = object_map.get("pictures", [])
+
+    source_object_paragraphs = [
+        item for item in parsed.get("paragraphs", [])
+        if item.get("flow_kind") == "object-text"
+    ]
+    source_object_controls: dict[int, list[dict]] = {}
+    for item in source_object_paragraphs:
+        control_index = item.get("control_index")
+        if control_index is not None:
+            source_object_controls.setdefault(int(control_index), []).append(item)
+    control_index_map = {
+        int(item["control_index"]): item
+        for item in parsed.get("controls", [])
+        if item.get("control_index") is not None
+    }
+    source_textbox_geometry = []
+    for control_index, owned in sorted(source_object_controls.items()):
+        control = control_index_map.get(control_index) or {}
+        if control.get("shape_family") != "rectangle":
+            continue
+        source_textbox_geometry.append({
+            "control_index": control_index,
+            "width": int(control.get("width") or 0),
+            "height": int(control.get("height") or 0),
+            "treat_as_char": bool(control.get("treat_as_char")),
+            "horizontal_offset": int(control.get("horizontal_offset") or 0),
+            "vertical_offset": int(control.get("vertical_offset") or 0),
+            "paragraphs": [str(item.get("text", "")) for item in owned],
+        })
+    target_textbox_map = build_textbox_map(path)
+    target_textboxes = target_textbox_map.get("textboxes", [])
+    textbox_pairs = list(zip(source_textbox_geometry, target_textboxes))
+    textbox_geometry_exact = (
+        len(source_textbox_geometry) == len(target_textboxes)
+        and all(
+            left["width"] == int(right.get("width") or 0)
+            and left["height"] == int(right.get("height") or 0)
+            and left["horizontal_offset"] == int((right.get("position") or {}).get("horzOffset", 0) or 0)
+            and left["vertical_offset"] == int((right.get("position") or {}).get("vertOffset", 0) or 0)
+            and left["treat_as_char"] == (
+                str((right.get("position") or {}).get("treatAsChar", "0")).lower()
+                in {"1", "true"}
+            )
+            and left["paragraphs"] == list(right.get("paragraphs") or [])
+            for left, right in textbox_pairs
+        )
+    )
 
     nested = [
         item for item in parsed.get("paragraphs", [])
@@ -3337,6 +3417,14 @@ def compare_hwp5_roundtrip_fidelity(
                 "source_count": len(source_pictures),
                 "target_count": len(target_pictures),
                 "count_exact": len(source_pictures) == len(target_pictures),
+            },
+            "textboxes": {
+                "source_rectangle_textbox_count": len(source_textbox_geometry),
+                "target_native_textbox_count": len(target_textboxes),
+                "structural_geometry_exact": textbox_geometry_exact,
+                "authority": "STRUCTURAL_HWPUNIT_GEOMETRY / NOT_PIXEL_RENDERING",
+                "source": source_textbox_geometry[:20],
+                "target": target_textboxes[:20],
             },
             "nested_text_flows": {
                 "source_count": len(nested),

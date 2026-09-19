@@ -6,7 +6,7 @@ Remote Streamable-HTTP MCP for authenticated HWPX document creation, custody, va
 
 **P0 / P1 / P1.1 / P1.2 are closed / PASS.** The project has established native ChatGPT MCP discovery and actions, opaque document custody, signed HWPX delivery, OAuth-native secret-free invocation, durable restart-safe OAuth authority, and bounded existing-HWPX ingress. See the corresponding test ledgers.
 
-**P2 rich-object is CLOSED / PASS. P3.0 durable custody is CLOSED / PASS. P3.1 is active.** P3.1 closes durable multi-worker commit authority with revision CAS, TTL leases, idempotent commit receipts, and crash-consistent conflict recovery.
+**P2 rich-object, P3.0 durable custody, and P3.1 durable concurrency are CLOSED / PASS. P3.2 is active.** P3.2 governs long-lived revision lineage: pinned restore anchors, lease-safe snapshot compaction, append-only commit receipts, restore-reachability checks, and a tamper-evident SHA-256 audit chain.
 
 ```text
 ChatGPT Web
@@ -31,6 +31,16 @@ ChatGPT Web
 | `create_document` | Yes | Materialize a small HWPX at revision 1 |
 | `ingest_document` | Yes | Admit one bounded existing HWPX at revision 1 |
 | `inspect_document` | No | Validate and inspect one caller-owned document |
+| `get_document_versions` | No | List retained durable revision snapshots |
+| `get_document_commit_receipt` | No | Return a deterministic commit receipt plus audit-chain hashes |
+| `acquire_document_lease` | Yes | Acquire a short durable coordination lease for one revision |
+| `release_document_lease` | Yes | Release a durable lease by opaque token |
+| `restore_document_revision` | Yes | Promote one retained historical snapshot as a new monotonic revision |
+| `set_document_retention` | Yes | Update document TTL under revision CAS |
+| `pin_document_revision` | Yes | Protect a historical revision as a restore anchor |
+| `unpin_document_revision` | Yes | Remove a restore-anchor pin |
+| `compact_document_history` | Yes | Prune unpinned old byte snapshots while preserving the commit ledger |
+| `verify_document_lineage` | No | Verify audit-chain integrity plus current/pinned restore reachability |
 | `get_document_map` | No | Return sections, paragraph locators, and semantic/structure/formatting receipts |
 | `get_text` | No | Return whole-document or locator-targeted paragraph text |
 | `get_formatting` | No | Resolve paragraph/run formatting refs and property summaries |
@@ -51,6 +61,26 @@ ChatGPT Web
 
 There are no password, passphrase, API-key, or access-token fields in MCP tool schemas. Authentication happens at the HTTP/MCP transport layer.
 
+## P3.2 durable revision-lineage contract
+
+P3.2 separates **commit authority** from **historical byte retention**.
+
+```text
+append-only commit receipt ledger
+  └─ SHA-256 previous_audit_hash → audit_hash chain
+
+revision byte snapshots
+  ├─ current revision: always protected
+  ├─ explicitly pinned restore anchors: DB-level protected
+  ├─ recent K revisions: retention policy
+  └─ older unpinned snapshots: eligible for compaction
+```
+
+`compact_document_history` is revision-CAS guarded and refuses to run while an unexpired document lease exists. A compaction transaction may delete only historical `hwpx_document_revisions` rows; it does not delete `hwpx_document_commits`. After compaction the server immediately re-verifies the audit chain, the current revision snapshot, and every pinned restore anchor.
+
+The commit audit hash covers `document_id`, `revision`, `expected_revision`, document SHA-256, deterministic `receipt_id`, and the previous audit hash. P3.1 rows with no audit fields are migration-backfilled once; existing non-NULL audit values are never auto-healed, so later tampering remains observable across process restart.
+
+Pinned revisions are protected by a database foreign-key constraint in addition to application-level candidate filtering. Restore semantics stay monotonic: an old retained snapshot is never made current by pointer rewind; it is promoted as a fresh `current_revision + 1` commit.
 ## P2 address contract
 
 Paragraph locators use the form `p_<hash>`.

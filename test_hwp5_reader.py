@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import io
 import struct
 import unittest
 import zlib
+
+from PIL import Image
 
 from hwp5_reader import (
     HWP5_SIGNATURE,
@@ -20,6 +23,7 @@ from hwp5_reader import (
     _parse_picture_record,
     _parse_bindata_record,
     _parent_indexes,
+    prepare_hwp5_image_for_hwpx,
 )
 
 
@@ -159,6 +163,26 @@ class Hwp5ReaderPrimitiveTests(unittest.TestCase):
         ]
         parents = _parent_indexes(records)
         self.assertEqual(parents, [None, 0, 1, 2, 3, 1])
+
+    def test_bmp_to_png_promotion_receipt_and_pixel_bound(self):
+        output = io.BytesIO()
+        Image.new("RGB", (2, 2), (12, 34, 56)).save(output, format="BMP")
+        raw = output.getvalue()
+        prepared = prepare_hwp5_image_for_hwpx({
+            "data": raw,
+            "format": "bmp",
+        })
+        self.assertEqual(prepared["transform"], "bmp-to-png")
+        self.assertEqual(prepared["format"], "png")
+        self.assertTrue(prepared["data"].startswith(b"\x89PNG\r\n\x1a\n"))
+        self.assertEqual(prepared["width"], 2)
+        self.assertEqual(prepared["height"], 2)
+        self.assertNotEqual(prepared["source_sha256"], prepared["output_sha256"])
+        with self.assertRaises(Hwp5ReadError):
+            prepare_hwp5_image_for_hwpx(
+                {"data": raw, "format": "bmp"},
+                max_pixels=3,
+            )
 
     def test_control_units_are_not_exposed_as_visible_text(self):
         payload = "앞".encode("utf-16le") + b"\x01\x00" + "뒤".encode("utf-16le")

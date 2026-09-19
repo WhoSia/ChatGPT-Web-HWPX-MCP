@@ -514,6 +514,72 @@ Earlier P2.10 runs failed only because the workflow/server version advanced befo
 
 P2.10 closes the principal P2 rich-object families: paragraph/text structure, formatting, inline/control semantics, tables, pictures/media, and equations. Remaining gaps are intentionally outside this closure: arbitrary raw EqEdit authoring, picture crop/effect/group-member semantics, column insertion without an evidence-backed primitive, cross-container paragraph transport, durable document-byte storage, and native Hancom fidelity.
 
+## P3.0 durable document-object storage, restart recovery and versioned custody receipt
+
+Current server version: `0.4.0-p3.0`.
+
+P3.0 moves HWPX document custody from ephemeral instance-local files to encrypted, versioned Postgres authority.
+
+Storage model:
+
+- `hwpx_documents` — owner, retention horizon, current monotonic revision pointer and current SHA-256;
+- `hwpx_document_revisions` — immutable per-revision encrypted HWPX bytes plus encrypted metadata;
+- local `/tmp` HWPX/JSON files — disposable execution cache only.
+
+OAuth state and document custody may share the same Postgres transport, but remain separate authority domains with independent tables, payload formats, AAD constants and a domain-separated AES-GCM key derivation.
+
+Every P2 mutation inherits durable write-through through the shared `_write_metadata` commit boundary. A durable write failure cannot silently promote a local-only revision: the local cache is rehydrated from durable current, or deleted if no durable document exists.
+
+### Restart-safe rehydration
+
+`_load_metadata` always checks durable current authority. Missing, stale, SHA-mismatched or revision-mismatched local cache files are automatically reconstructed from the encrypted current snapshot.
+
+The canonical native lifecycle explicitly deleted both local cache files after revision 14 and then called `inspect_document`. The same document id, revision and content were restored from durable custody without re-ingress or reauthorization.
+
+### Version history, recovery and retention
+
+New MCP surfaces:
+
+- `get_document_versions` — list durable monotonic revision snapshots;
+- `restore_document_revision` — validate historical bytes and promote them as `current_revision + 1`; revision numbers never rewind;
+- `set_document_retention` — bounded 1-hour to 30-day retention; default 7 days unless configured.
+
+The canonical lifecycle recovered durable revision 1 after revision 14 and sealed the recovery as revision 15.
+
+### Canonical P3.0 lifecycle receipt
+
+- workflow: `P3.0 Durable document custody HWPX CI`
+- run: `35411908396`
+- commit: `5abefb614039cdcab0813e972bf4fc3d4cc8a05b`
+- conclusion: **SUCCESS**
+
+Confirmed coverage includes:
+
+- encrypted durable document bytes and metadata;
+- revision 1→2 restart-safe history through fresh store instances;
+- ciphertext does not expose document body or filename plaintext;
+- all legacy P1/P2 regressions;
+- OAuth-native P2.1–P2.10 lifecycle under durable write-through;
+- deliberate local-cache deletion and automatic rehydration;
+- durable revision listing;
+- historical revision 1 → new revision 15 recovery;
+- bounded retention mutation;
+- export, re-ingest and deletion after recovery.
+
+An earlier P3.0 run failed only because one historical-revision SQL query omitted the Python f-string prefix around its expiry clause. The corrected canonical head passes the full lifecycle.
+
+### Canonical P3.0 Render/public receipt
+
+- service: `chatgpt-web-hwpx-mcp-p0`
+- deploy: `dep-damu30hibops73b7i12g`
+- commit: `5abefb614039cdcab0813e972bf4fc3d4cc8a05b`
+- deploy status: **live**
+- public workflow: `P3.0 Render public boundary verification`
+- run: `35411908355`
+- conclusion: **SUCCESS**
+
+The public health gate now requires both OAuth durable authority and document custody to be reachable, including `store="postgres-encrypted-versioned"`.
+
 ## Current verdict
 
 ```text
@@ -587,6 +653,16 @@ P2_10_OAUTH_NATIVE_LIFECYCLE = PASS
 P2_10_RENDER_DEPLOYMENT = PASS
 P2_10_PUBLIC_BOUNDARY = PASS
 P2_RICH_OBJECT_CLOSURE = CLOSED_PASS
+P3_0_DURABLE_DOCUMENT_OBJECT_STORAGE = PASS
+P3_0_VERSIONED_REVISION_PERSISTENCE = PASS
+P3_0_RESTART_SAFE_REHYDRATION = PASS
+P3_0_HISTORICAL_RECOVERY = PASS
+P3_0_RETENTION_CONTROL = PASS
+P3_0_DOCUMENT_STORE_ENCRYPTION = PASS
+P3_0_OAUTH_DOCUMENT_AUTHORITY_SEPARATION = PASS
+P3_0_OAUTH_NATIVE_LIFECYCLE = PASS
+P3_0_RENDER_DEPLOYMENT = PASS
+P3_0_PUBLIC_BOUNDARY = PASS
 
 COLUMN_INSERTION = EVIDENCE_GATE_CLOSED
 ARBITRARY_FIELD_TYPE_MUTATION = HOLD
@@ -594,8 +670,7 @@ BOOKMARK_SHAPE_OBJECT_CROSS_SEMANTIC_MUTATION = HOLD
 CROSS_CONTAINER_PARAGRAPH_MOVES = HOLD
 PICTURE_EFFECT_CROP_GROUP_OPERATIONS = HOLD
 RAW_EQEDIT_AUTHORING = EVIDENCE_GATE_CLOSED
-DURABLE_DOCUMENT_OBJECT_STORAGE = HOLD
 HANCOM_RENDERER_FIDELITY_ORACLE = HOLD
 ```
 
-P2.10 is **IMPLEMENTATION PASS / NATIVE-CI PASS / PUBLIC PASS / RICH-OBJECT CLOSED**. Raw EqEdit authoring remains **CLOSED_NEGATIVE** outside the verified LaTeX conversion lane. Column insertion remains **CLOSED_NEGATIVE** pending an evidence-backed primitive. The remaining control gap is now beyond the confirmed hyperlink/typed-field/bookmark lanes: arbitrary field-type reinterpretation, richer object/shape reference semantics, cross-container editing, tables/images/equations, durable document-byte storage, and native Hancom fidelity.
+P3.0 is **IMPLEMENTATION PASS / NATIVE-CI PASS / PUBLIC PASS / DURABLE-CUSTODY CLOSED**. Raw EqEdit authoring remains **CLOSED_NEGATIVE** outside the verified LaTeX conversion lane. Column insertion remains **CLOSED_NEGATIVE** pending an evidence-backed primitive. The remaining gaps are now outside durable custody itself: arbitrary field-type reinterpretation, richer object/shape semantics, cross-container editing, evidence-backed column insertion, advanced picture effects/crops/groups, raw EqEdit authoring, large-file streaming ingress, and native Hancom fidelity.

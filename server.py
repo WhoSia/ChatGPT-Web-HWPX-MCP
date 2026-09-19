@@ -423,7 +423,6 @@ def probe_capabilities() -> dict:
             "opaque document_id and short-lived signed export",
         ],
         "not_in_scope_yet": [
-            "durable document object storage",
             "large-file streaming ingress",
             "rich editing/formatting",
             "Hancom renderer fidelity oracle",
@@ -588,24 +587,39 @@ async def download_artifact(request):
 async def health(_request):
     try:
         oauth_counts = OAUTH_STORE.counts()
-        db_ok = True
+        oauth_ok = True
     except Exception:
         oauth_counts = {}
-        db_ok = False
+        oauth_ok = False
+    try:
+        document_counts = DOCUMENT_STORE.counts()
+        document_ok = True
+    except Exception:
+        document_counts = {}
+        document_ok = False
+    durable_ok = oauth_ok and document_ok
     return JSONResponse(
         {
-            "status": "ok" if db_ok else "degraded",
+            "status": "ok" if durable_ok else "degraded",
             "project": PROJECT,
             "version": VERSION,
-            "phase": "P1.2",
+            "phase": "P3.0",
             "oauth": {
                 "enabled": True,
                 "configured": OAUTH_PROVIDER.configured,
                 "resource": MCP_RESOURCE_URL,
                 "scope": HWPX_SCOPE,
                 "state_store": OAUTH_PROVIDER.state_store_mode,
-                "durable_store_reachable": db_ok,
+                "durable_store_reachable": oauth_ok,
                 "active_state_counts": oauth_counts,
+            },
+            "documents": {
+                "store": DOCUMENT_STORE.mode,
+                "durable_store_reachable": document_ok,
+                "active_counts": document_counts,
+                "local_cache": str(OBJECT_DIR),
+                "retention_seconds_default": DOC_TTL_SECONDS,
+                "restart_rehydration": True,
             },
             "ingress": {
                 "enabled": True,
@@ -613,7 +627,7 @@ async def health(_request):
                 "transport": "base64-tool-argument",
             },
         },
-        status_code=200 if db_ok else 503,
+        status_code=200 if durable_ok else 503,
     )
 
 

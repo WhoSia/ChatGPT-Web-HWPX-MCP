@@ -660,13 +660,16 @@ def _hwp_style_signature(run: dict) -> dict:
 
 def _hwp_paragraph_style_signature(paragraph: dict) -> dict:
     fmt = _hwp_paragraph_format_subset(paragraph)
+    def zero_default(name: str) -> float:
+        value = fmt.get(name)
+        return 0.0 if value is None else round(float(value), 4)
     return {
         "alignment": fmt.get("alignment"),
-        "indent_left_mm": fmt.get("indent_left_mm"),
-        "indent_right_mm": fmt.get("indent_right_mm"),
-        "first_line_indent_mm": fmt.get("first_line_indent_mm"),
-        "spacing_before_pt": fmt.get("spacing_before_pt"),
-        "spacing_after_pt": fmt.get("spacing_after_pt"),
+        "indent_left_mm": zero_default("indent_left_mm"),
+        "indent_right_mm": zero_default("indent_right_mm"),
+        "first_line_indent_mm": zero_default("first_line_indent_mm"),
+        "spacing_before_pt": zero_default("spacing_before_pt"),
+        "spacing_after_pt": zero_default("spacing_after_pt"),
     }
 
 
@@ -703,11 +706,11 @@ def _hwpx_paragraph_style_signature(paragraph: dict) -> dict:
 
     return {
         "alignment": alignment,
-        "indent_left_mm": mm(left),
-        "indent_right_mm": mm(right),
-        "first_line_indent_mm": mm(intent),
-        "spacing_before_pt": pt(prev),
-        "spacing_after_pt": pt(next_value),
+        "indent_left_mm": 0.0 if left is None else mm(left),
+        "indent_right_mm": 0.0 if right is None else mm(right),
+        "first_line_indent_mm": 0.0 if intent is None else mm(intent),
+        "spacing_before_pt": 0.0 if prev is None else pt(prev),
+        "spacing_after_pt": 0.0 if next_value is None else pt(next_value),
     }
 
 

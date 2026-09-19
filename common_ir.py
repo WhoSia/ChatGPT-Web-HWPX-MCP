@@ -331,6 +331,58 @@ def hwpx_to_common_ir(
     }
 
 
+def extract_common_ir(
+    ir: dict,
+    *,
+    kinds: list[str] | None = None,
+    minimum_fidelity: str = "inventory",
+    include_text: bool = True,
+    include_data: bool = True,
+    max_blocks: int = 200,
+) -> dict:
+    """Return only blocks whose object family and fidelity meet an explicit extraction threshold."""
+    threshold = str(minimum_fidelity or "inventory")
+    if threshold not in FIDELITY_RANK:
+        raise ValueError(f"Unknown fidelity threshold: {threshold}")
+    allowed = None if not kinds else {str(item) for item in kinds}
+    limit = max(1, min(int(max_blocks), 1000))
+    blocks = []
+    rejected = {}
+    eligible_total = 0
+    for block in ir.get("blocks", []):
+        kind = str(block.get("kind", ""))
+        fidelity = str(block.get("fidelity", "none"))
+        if allowed is not None and kind not in allowed:
+            continue
+        if FIDELITY_RANK.get(fidelity, -1) < FIDELITY_RANK[threshold]:
+            rejected[fidelity] = rejected.get(fidelity, 0) + 1
+            continue
+        eligible_total += 1
+        if len(blocks) >= limit:
+            continue
+        item = {
+            "block_id": block.get("block_id"),
+            "kind": kind,
+            "fidelity": fidelity,
+            "source": block.get("source", {}),
+            "block_sha256": block.get("block_sha256"),
+        }
+        if include_text:
+            item["text"] = block.get("text", "")
+        if include_data:
+            item["data"] = block.get("data", {})
+        blocks.append(item)
+    return {
+        "minimum_fidelity": threshold,
+        "requested_kinds": sorted(allowed) if allowed is not None else None,
+        "eligible_block_count": eligible_total,
+        "returned_blocks": len(blocks),
+        "truncated": eligible_total > len(blocks),
+        "rejected_by_fidelity": rejected,
+        "blocks": blocks,
+    }
+
+
 def search_common_ir(
     ir: dict,
     query: str,

@@ -135,7 +135,10 @@ def _scan_para_text(payload: bytes) -> dict:
         code = units[source_index]
 
         if code in _HWP8_CONTROL_CODES:
-            width = min(8, len(units) - source_index)
+            # Valid HWP extended controls occupy exactly 8 WCHARs. A truncated
+            # synthetic/corrupt tail is treated as one opaque control so we do
+            # not accidentally consume following visible text.
+            width = 8 if (len(units) - source_index) >= 8 else 1
             if code == 9:
                 chars.append("\t")
                 visible_index += 1
@@ -328,6 +331,10 @@ def _build_run_receipts(
             "source_coordinate_authority": "none",
         }
     offsets = None if scan is None else scan.get("visible_offsets")
+    if offsets is None and not int(header.get("control_mask", 0) or 0):
+        # In a control-free paragraph, PARA_CHAR_SHAPE source WCHAR offsets
+        # coincide with visible text coordinates.
+        offsets = list(range(len(text) + 1))
     source_limit = int(
         header.get(
             "char_count",

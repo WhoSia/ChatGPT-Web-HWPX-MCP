@@ -61,6 +61,20 @@ ChatGPT Web
 
 There are no password, passphrase, API-key, or access-token fields in MCP tool schemas. Authentication happens at the HTTP/MCP transport layer.
 
+## P3.9 paragraph-style provenance, native textboxes, and structural geometry
+
+P3.9 decomposes remaining cross-format layout differences into explicit provenance and native geometry receipts.
+
+- `get_paragraph_style_provenance` exposes HWP ParaShape/Style references and HWPX paraPr/style inheritance side by side.
+- The retained `para-001` left-margin mismatch is a direct paragraph override on both formats, not a hidden style-inheritance artifact.
+- Rectangle-certified HWP object-text controls can be promoted to native HWPX textboxes when anchor, owner, shape family, text flow, and geometry all close.
+- `get_textbox_map` returns native HWPX textbox paragraphs plus width/height/position receipts.
+- The real mixed textbox fixture promotes one rectangle textbox containing two paragraphs while non-rectangle object-text families remain deferred.
+- Table cell LIST_HEADER decoding follows the observed writer contract: base LIST_HEADER + width-ref + 26-byte cell properties.
+- Rich table promotion reapplies certified source cell width/height after merges; the real `table-001.hwp` fixture reaches exact 131/131 material-cell HWPUNIT geometry.
+- Equation and picture fixtures also reach exact structural HWPUNIT geometry after promotion.
+- Geometry authority is deliberately **structural HWPUNIT**, not pixel-rendered or Hancom-renderer identity. Pixel/raster fidelity remains a separate successor gate.
+
 ## P3.8 cross-format style canonicalization and native nested-flow promotion
 
 P3.8 closes the previous run-style exact HOLD and expands nested HWP text-flow promotion.

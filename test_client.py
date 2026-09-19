@@ -180,11 +180,11 @@ async def main() -> None:
                     raise RuntimeError(f"secret-bearing field leaked into tool schema: {tool.name}")
 
             read_payload = _payload(await client.call_tool("probe_read", {"message": "P2 OAuth smoke test"}))
-            if not read_payload or not read_payload.get("ok") or read_payload.get("version") != "0.7.0-p3.7":
+            if not read_payload or not read_payload.get("ok") or read_payload.get("version") != "0.8.0-p3.8":
                 raise RuntimeError(f"probe_read did not expose P2: {read_payload}")
 
             p2_caps = _payload(await client.call_tool("p2_capabilities", {}))
-            if not p2_caps or p2_caps.get("phase") != "P3.7":
+            if not p2_caps or p2_caps.get("phase") != "P3.8":
                 raise RuntimeError(f"p2_capabilities failed: {p2_caps}")
 
             if not RUN_WRITE_TEST:

@@ -61,6 +61,20 @@ ChatGPT Web
 
 There are no password, passphrase, API-key, or access-token fields in MCP tool schemas. Authentication happens at the HTTP/MCP transport layer.
 
+## P3.7 run/style recovery, nested text flows and round-trip fidelity oracle
+
+P3.7 extends HWP 5.x authority from object-family reconstruction into paragraph/run style provenance and nested text-flow ownership.
+
+- `PARA_HEADER` contributes paragraph-shape/style/control-mask/instance receipts.
+- `PARA_CHAR_SHAPE` transitions are mapped from source WCHAR coordinates into visible text coordinates through the HWP control scanner.
+- DocInfo `CHAR_SHAPE` records recover bold/italic/underline, size, color, super/subscript and related semantic style attributes.
+- Header, footer, footnote, endnote and object-text paragraphs are assigned to explicit owner/control flows and surfaced through the Common Document IR.
+- `get_hwp5_text_flows` exposes those nested flows without mutating the HWP source.
+- `compare_hwp5_roundtrip_fidelity` compares source HWP with an owned or explicitly supplied HWPX target family-by-family.
+- Body-text receipts distinguish strict paragraph-structure equality from semantic nonblank-text equality. Whitespace-only paragraph representation differences are preserved as diagnostics rather than silently erased.
+- Native promotion of nested header/footer/note/text-box flows remains deferred until target control synthesis is independently verified.
+- Cross-format run-style recovery is available, but exact style equivalence on the current real HWP/HWPX pair is not yet earned.
+
 ## P3.6 HWP control graph and fidelity-preserving rich promotion
 
 P3.6 closes the main structural gap between native HWP parsing and editable HWPX derivatives.

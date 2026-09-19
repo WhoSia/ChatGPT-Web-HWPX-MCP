@@ -653,6 +653,26 @@ def _parse_list_header(payload: bytes) -> dict:
     }
 
 
+def _parse_header_footer_from_list_header(payload: bytes) -> dict | None:
+    # Header/footer LIST_HEADER = 6-byte paragraph-list header + 14-byte family data.
+    if len(payload) < 20:
+        return None
+    attributes = struct.unpack_from("<I", payload, 6)[0]
+    text_width, text_height = struct.unpack_from("<ii", payload, 10)
+    page_code = attributes & 0b11
+    return {
+        "fidelity": "semantic",
+        "attributes": attributes,
+        "apply_page_type": {0: "BOTH", 1: "EVEN", 2: "ODD"}.get(
+            page_code, "UNKNOWN"
+        ),
+        "text_width": text_width,
+        "text_height": text_height,
+        "text_reference_flags": payload[18],
+        "number_reference_flags": payload[19],
+    }
+
+
 def _parse_table_cell_from_list_header(payload: bytes) -> dict | None:
     # Table cell LIST_HEADER = 6-byte paragraph-list header + 26-byte cell properties.
     if len(payload) < 32:
@@ -1224,6 +1244,25 @@ def parse_hwp5_bytes(
                 }
                 controls.append(ctrl)
                 ctrl_by_record[record_index] = ctrl
+
+            # Header/footer family data lives in the owning LIST_HEADER tail
+            # in real HWP files. Enrich the already-created control node with
+            # page scope and text-area semantics before paragraph ownership is used.
+            for record_index, (tag_id, level, record) in enumerate(records):
+                if tag_id != HWPTAG_LIST_HEADER:
+                    continue
+                ctrl_record = _nearest_ancestor(
+                    records, parents, record_index, {HWPTAG_CTRL_HEADER}
+                )
+                ctrl = None if ctrl_record is None else ctrl_by_record.get(ctrl_record)
+                if not ctrl or ctrl.get("ctrl_id") not in {"head", "foot"}:
+                    continue
+                family = _parse_header_footer_from_list_header(record)
+                if family is None:
+                    continue
+                ctrl.update(family)
+                ctrl["family_list_record_index"] = record_index
+                ctrl["family_list_record_level"] = level
 
             table_record_by_control: dict[int, dict] = {}
             for record_index, (tag_id, level, record) in enumerate(records):

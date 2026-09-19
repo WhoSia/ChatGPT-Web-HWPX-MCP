@@ -1,6 +1,10 @@
 from __future__ import annotations
 
+import hashlib
+import hmac
+import json
 import os
+import re
 import secrets
 import tempfile
 import time
@@ -16,7 +20,7 @@ from p28_tables import apply_table_edits_atomic, build_table_map
 from p29_objects import apply_object_edits_atomic, build_object_map
 from p210_equations import apply_equation_edits_atomic, build_equation_map
 
-P2_VERSION = "0.4.3-p3.3"
+P2_VERSION = "0.4.4-p3.4"
 core.VERSION = P2_VERSION
 
 _original_metadata = core._metadata
@@ -453,6 +457,258 @@ def get_document_slice(
         "has_more": end < total,
         "next_start_paragraph": end if end < total else None,
         "paragraphs": paragraphs,
+    }
+
+
+def _literal_matches(text: str, query: str, case_sensitive: bool) -> list[tuple[int, int, str]]:
+    flags = 0 if case_sensitive else re.IGNORECASE
+    pattern = re.compile(re.escape(query), flags)
+    return [(match.start(), match.end(), match.group(0)) for match in pattern.finditer(text)]
+
+
+def _bulk_plan(
+    document_id: str,
+    metadata: dict,
+    path: Path,
+    query: str,
+    replacement: str,
+    case_sensitive: bool,
+    max_operations: int,
+    selected_hit_indexes: list[int],
+) -> dict:
+    needle = str(query)
+    if not needle:
+        raise ValueError("query must not be empty")
+    if len(replacement) > 100_000:
+        raise ValueError("replacement is too large")
+    limit = max(1, min(int(max_operations), 100))
+    document_map = build_document_map(path)
+    all_hits: list[dict] = []
+    for paragraph_index, paragraph in enumerate(document_map["paragraphs"]):
+        text_value = paragraph.get("text", "")
+        for start, end, matched_text in _literal_matches(text_value, needle, case_sensitive):
+            all_hits.append({
+                "hit_index": len(all_hits),
+                "paragraph_index": paragraph_index,
+                "locator": paragraph["locator"],
+                "address_stability": paragraph["address_stability"],
+                "start": start,
+                "end": end,
+                "expected_text": matched_text,
+                "text_sha256": paragraph["text_sha256"],
+            })
+
+    if selected_hit_indexes:
+        requested = [int(item) for item in selected_hit_indexes]
+        if len(set(requested)) != len(requested):
+            raise ValueError("selected_hit_indexes must not contain duplicates")
+        by_index = {item["hit_index"]: item for item in all_hits}
+        missing = [item for item in requested if item not in by_index]
+        if missing:
+            raise ValueError(f"Unknown selected hit indexes: {missing[:10]}")
+        selected = [by_index[item] for item in requested]
+    else:
+        selected = all_hits[:limit]
+
+    if len(selected) > limit:
+        raise ValueError(f"Selected hits exceed max_operations={limit}")
+    if not selected:
+        raise ValueError("No text matches selected for bulk replacement")
+
+    # Apply from right to left within each paragraph so earlier offsets stay valid.
+    operations = [
+        {
+            "op": "replace_inline_text",
+            "target": hit["locator"],
+            "start": hit["start"],
+            "end": hit["end"],
+            "text": replacement,
+            "expected_text": hit["expected_text"],
+        }
+        for hit in sorted(
+            selected,
+            key=lambda item: (item["paragraph_index"], item["start"]),
+            reverse=True,
+        )
+    ]
+
+    ingress = metadata.get("source") == "existing-ingress"
+    fd, tmp_name = tempfile.mkstemp(
+        prefix=path.stem + ".p34-preview-",
+        suffix=".hwpx",
+        dir=str(path.parent),
+    )
+    os.close(fd)
+    candidate = Path(tmp_name)
+    candidate.write_bytes(path.read_bytes())
+    try:
+        preview = apply_inline_edits_atomic(
+            candidate,
+            operations,
+            expected_revision=int(metadata["revision"]),
+            current_revision=int(metadata["revision"]),
+            validator=lambda item: core.validate_hwpx_package(item, ingress=ingress),
+        )
+        after_map = build_document_map(candidate)
+    finally:
+        try:
+            candidate.unlink()
+        except FileNotFoundError:
+            pass
+
+    canonical = {
+        "document_id": document_id,
+        "revision": int(metadata["revision"]),
+        "semantic_sha256": document_map["semantic_sha256"],
+        "query": needle,
+        "replacement": replacement,
+        "case_sensitive": bool(case_sensitive),
+        "selected": [
+            {
+                "hit_index": item["hit_index"],
+                "locator": item["locator"],
+                "start": item["start"],
+                "end": item["end"],
+                "expected_text": item["expected_text"],
+                "text_sha256": item["text_sha256"],
+            }
+            for item in selected
+        ],
+    }
+    payload = json.dumps(
+        canonical,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    plan_id = hmac.new(core._download_secret(), b"p3.4-bulk-plan\0" + payload, hashlib.sha256).hexdigest()
+    return {
+        "plan_id": plan_id,
+        "revision": int(metadata["revision"]),
+        "semantic_sha256": document_map["semantic_sha256"],
+        "query": needle,
+        "replacement": replacement,
+        "case_sensitive": bool(case_sensitive),
+        "total_hits": len(all_hits),
+        "selected_hit_count": len(selected),
+        "selected_hits": selected,
+        "truncated": not selected_hit_indexes and len(all_hits) > len(selected),
+        "operations": operations,
+        "preview": preview,
+        "after_semantic_sha256": after_map["semantic_sha256"],
+    }
+
+
+@core.mcp.tool()
+def plan_bulk_text_replace(
+    document_id: str,
+    query: str,
+    replacement: str,
+    case_sensitive: bool = False,
+    max_operations: int = 100,
+    selected_hit_indexes: list[int] = [],
+) -> dict:
+    """Build and validate a revision-bound multi-hit inline replacement plan without committing it."""
+    metadata, path = _owned_document(document_id)
+    plan = _bulk_plan(
+        document_id,
+        metadata,
+        path,
+        query,
+        replacement,
+        case_sensitive,
+        max_operations,
+        selected_hit_indexes,
+    )
+    return {
+        "ok": True,
+        "document_id": document_id,
+        **plan,
+        "authority": "preview only; commit requires the same plan_id against the same revision",
+    }
+
+
+@core.mcp.tool()
+def commit_bulk_text_replace(
+    document_id: str,
+    expected_revision: int,
+    plan_id: str,
+    query: str,
+    replacement: str,
+    case_sensitive: bool = False,
+    max_operations: int = 100,
+    selected_hit_indexes: list[int] = [],
+    lease_token: str = "",
+) -> dict:
+    """Commit one previously previewed multi-hit inline replacement as a single CAS-guarded revision."""
+    metadata, path = _owned_document(document_id)
+    current_revision = int(metadata["revision"])
+    if int(expected_revision) != current_revision:
+        raise ValueError(f"Stale revision: expected {expected_revision}, current {current_revision}")
+    plan = _bulk_plan(
+        document_id,
+        metadata,
+        path,
+        query,
+        replacement,
+        case_sensitive,
+        max_operations,
+        selected_hit_indexes,
+    )
+    if not hmac.compare_digest(str(plan_id), plan["plan_id"]):
+        raise ValueError("Bulk edit plan no longer matches the current document or selection")
+
+    ingress = metadata.get("source") == "existing-ingress"
+    transaction = apply_inline_edits_atomic(
+        path,
+        plan["operations"],
+        expected_revision=current_revision,
+        current_revision=current_revision,
+        validator=lambda candidate: core.validate_hwpx_package(candidate, ingress=ingress),
+    )
+    validation = transaction["validation"]
+    after_document = build_document_map(path)
+    after_formatting = build_formatting_map(path)
+    after_inline = build_inline_map(path)
+    metadata["revision"] = current_revision + 1
+    metadata["last_edit_at"] = core._utc_iso()
+    if lease_token:
+        metadata["_commit_lease_token"] = lease_token
+    _refresh_metadata(
+        document_id,
+        metadata,
+        validation,
+        after_document,
+        after_formatting,
+        after_inline,
+    )
+
+    changed_locators = sorted({item["locator"] for item in plan["selected_hits"]})
+    after_index = {item["locator"]: item for item in after_document["paragraphs"]}
+    verification = [
+        {
+            "locator": locator,
+            "text_sha256": after_index[locator]["text_sha256"],
+            "text": after_index[locator]["text"][:1000],
+            "text_truncated": len(after_index[locator]["text"]) > 1000,
+        }
+        for locator in changed_locators
+        if locator in after_index
+    ][:50]
+    return {
+        "ok": True,
+        "document_id": document_id,
+        "plan_id": plan["plan_id"],
+        "revision_before": current_revision,
+        "revision_after": int(metadata["revision"]),
+        "operation_count": len(plan["operations"]),
+        "changed_paragraph_count": len(changed_locators),
+        "semantic_sha256_before": plan["semantic_sha256"],
+        "semantic_sha256_after": after_document["semantic_sha256"],
+        "inline_structure_sha256_after": after_inline["inline_structure_sha256"],
+        "verification": verification,
+        "verification_truncated": len(changed_locators) > len(verification),
+        "transaction": "COMMITTED",
     }
 
 
@@ -1060,7 +1316,7 @@ def p2_capabilities() -> dict:
     return {
         "project": core.PROJECT,
         "version": core.VERSION,
-        "phase": "P3.3",
+        "phase": "P3.4",
         "authenticated_subject": subject,
         "tools_added": [
             "acquire_document_lease",
@@ -1076,6 +1332,8 @@ def p2_capabilities() -> dict:
             "get_document_map",
             "search_document_text",
             "get_document_slice",
+            "plan_bulk_text_replace",
+            "commit_bulk_text_replace",
             "get_text",
             "apply_edits",
             "compare_document",
@@ -1195,6 +1453,13 @@ def p2_capabilities() -> dict:
             "token_economy": "agents can locate and read relevant regions without materializing the full document map",
             "revision_binding": "all search/slice receipts expose the current revision and semantic SHA-256",
             "create_replay": "optional request_id makes create_document recoverable after a lost response; payload mismatch is rejected",
+        },
+        "bulk_text_transactions": {
+            "plan": "query-to-hit selection with optional hit indexes and exact inline-range validation",
+            "preview": "candidate HWPX is validated without durable mutation and returns after-semantic receipt",
+            "commit": "same plan id + same revision required; all selected spans commit in one CAS-guarded revision",
+            "format_safety": "uses inline-range mutation instead of whole-paragraph replacement to preserve unaffected rich formatting",
+            "verification": "bounded post-edit paragraph receipts are returned after commit",
         },
         "durable_document_storage": {
             "authority": "encrypted Postgres revision snapshots; local filesystem is a rehydratable execution cache",

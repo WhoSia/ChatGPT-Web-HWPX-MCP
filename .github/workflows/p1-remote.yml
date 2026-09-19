@@ -42,12 +42,20 @@ jobs:
 
       - name: Verify authorization-server metadata and offline access
         run: |
-          $CURL --fail --silent --show-error \
-            "$BASE_URL/.well-known/oauth-authorization-server" | tee /tmp/as.json
-          grep -q '"authorization_endpoint"' /tmp/as.json
-          grep -q '"token_endpoint"' /tmp/as.json
-          grep -q '"registration_endpoint"' /tmp/as.json
-          grep -q '"offline_access"' /tmp/as.json
+          for i in {1..12}; do
+            body="$($CURL --fail --silent --show-error \
+              "$BASE_URL/.well-known/oauth-authorization-server" || true)"
+            if echo "$body" | grep -q '"authorization_endpoint"' && \
+               echo "$body" | grep -q '"token_endpoint"' && \
+               echo "$body" | grep -q '"registration_endpoint"' && \
+               echo "$body" | grep -q '"offline_access"'; then
+              echo "$body" | tee /tmp/as.json
+              exit 0
+            fi
+            echo "Authorization metadata not ready yet ($i/12): $body"
+            sleep 5
+          done
+          exit 1
 
       - name: Verify unauthenticated MCP request is rejected before tool execution
         run: |

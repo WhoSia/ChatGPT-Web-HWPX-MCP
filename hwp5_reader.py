@@ -707,9 +707,9 @@ def _parse_list_header(payload: bytes) -> dict:
     return {
         "paragraph_count": paragraph_count,
         "attributes": attributes,
-        "text_direction": attributes & 0b111,
-        "line_break_mode": (attributes >> 3) & 0b11,
-        "vertical_alignment": (attributes >> 5) & 0b11,
+        "text_direction": (attributes >> 16) & 0b111,
+        "line_break_mode": (attributes >> 19) & 0b11,
+        "vertical_alignment": (attributes >> 21) & 0b11,
         "fidelity": "structural",
         "payload_bytes": len(payload),
         "payload_sha256": hashlib.sha256(payload).hexdigest(),
@@ -737,14 +737,20 @@ def _parse_header_footer_from_list_header(payload: bytes) -> dict | None:
 
 
 def _parse_table_cell_from_list_header(payload: bytes) -> dict | None:
-    # Table cell LIST_HEADER = 6-byte paragraph-list header + 26-byte cell properties.
-    if len(payload) < 32:
+    # Real HWP5 cell LIST_HEADER records contain:
+    #   6-byte paragraph-list header + 2-byte width_ref + 26-byte cell properties.
+    # The public specification presents the 26-byte cell property structure
+    # separately; observed writer output retains width_ref before that structure.
+    if len(payload) < 34:
         return None
-    column, row, col_span, row_span = struct.unpack_from("<HHHH", payload, 6)
-    width, height = struct.unpack_from("<ii", payload, 14)
-    margins = struct.unpack_from("<HHHH", payload, 22)
-    border_fill_id = struct.unpack_from("<H", payload, 30)[0]
+    width_ref = struct.unpack_from("<H", payload, 6)[0]
+    column, row, col_span, row_span = struct.unpack_from("<HHHH", payload, 8)
+    width, height = struct.unpack_from("<ii", payload, 16)
+    margins = struct.unpack_from("<HHHH", payload, 24)
+    border_fill_id = struct.unpack_from("<H", payload, 32)[0]
     return {
+        "width_ref": width_ref,
+        "apply_inner_margin": bool(width_ref & 0x0001),
         "column": column,
         "row": row,
         "col_span": col_span,
@@ -759,6 +765,7 @@ def _parse_table_cell_from_list_header(payload: bytes) -> dict | None:
         },
         "border_fill_id": border_fill_id,
         "fidelity": "structural",
+        "cell_layout_contract": "LIST_HEADER6 + width_ref2 + cell_property26",
     }
 
 

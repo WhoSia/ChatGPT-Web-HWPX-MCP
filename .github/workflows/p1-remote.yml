@@ -1,4 +1,4 @@
-name: P2.9 Render public boundary verification
+name: P2.10 Render public boundary verification
 
 on:
   push:
@@ -17,17 +17,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Wait for Render P2.9 server
+      - name: Wait for Render P2.10 server
         run: |
           for i in {1..36}; do
             body="$($CURL --fail --silent --show-error "$BASE_URL/health" || true)"
-            if echo "$body" | grep -q '0.3.9-p2.9' && \
+            if echo "$body" | grep -q '0.3.10-p2.10' && \
                echo "$body" | grep -q 'postgres-encrypted' && \
                echo "$body" | grep -q '"durable_store_reachable":true'; then
               echo "$body"
               exit 0
             fi
-            echo "Render P2.9 not ready yet ($i/36): $body"
+            echo "Render P2.10 not ready yet ($i/36): $body"
             sleep 5
           done
           exit 1

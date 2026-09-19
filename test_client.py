@@ -149,6 +149,7 @@ async def main() -> None:
                 "get_hwp5_control_graph",
                 "compare_hwp5_roundtrip_fidelity",
                 "get_hwp5_style_map",
+                "get_paragraph_style_provenance",
                 "get_hwp5_text_flows",
                 "materialize_hwp5_text_derivative",
                 "get_common_document_ir",
@@ -181,11 +182,11 @@ async def main() -> None:
                     raise RuntimeError(f"secret-bearing field leaked into tool schema: {tool.name}")
 
             read_payload = _payload(await client.call_tool("probe_read", {"message": "P2 OAuth smoke test"}))
-            if not read_payload or not read_payload.get("ok") or read_payload.get("version") != "0.8.0-p3.8":
+            if not read_payload or not read_payload.get("ok") or read_payload.get("version") != "0.9.0-p3.9":
                 raise RuntimeError(f"probe_read did not expose P2: {read_payload}")
 
             p2_caps = _payload(await client.call_tool("p2_capabilities", {}))
-            if not p2_caps or p2_caps.get("phase") != "P3.8":
+            if not p2_caps or p2_caps.get("phase") != "P3.9":
                 raise RuntimeError(f"p2_capabilities failed: {p2_caps}")
 
             if not RUN_WRITE_TEST:
@@ -221,6 +222,18 @@ async def main() -> None:
             mapped = _payload(await client.call_tool("get_document_map", {"document_id": document_id}))
             if not mapped or mapped.get("revision") != 1 or len(mapped.get("paragraphs", [])) < 3:
                 raise RuntimeError(f"get_document_map failed: {mapped}")
+            style_provenance = _payload(await client.call_tool(
+                "get_paragraph_style_provenance",
+                {"document_id": document_id, "max_paragraphs": 10},
+            ))
+            if (
+                not style_provenance
+                or style_provenance.get("source_format") != "hwpx"
+                or style_provenance.get("returned_paragraphs", 0) < 1
+                or style_provenance.get("authority") != "STYLE_REFERENCE_PROVENANCE_GRAPH"
+            ):
+                raise RuntimeError(f"P3.9 style provenance failed: {style_provenance}")
+
             common_ir = _payload(await client.call_tool("get_common_document_ir", {
                 "document_id": document_id,
                 "include_blocks": True,

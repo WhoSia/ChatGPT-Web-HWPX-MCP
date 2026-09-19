@@ -11,8 +11,9 @@ from p24_inline import apply_inline_edits_atomic, build_inline_map
 from p26_controls import apply_control_edits_atomic
 from p28_tables import apply_table_edits_atomic, build_table_map
 from p29_objects import apply_object_edits_atomic, build_object_map
+from p210_equations import apply_equation_edits_atomic, build_equation_map
 
-P2_VERSION = "0.3.9-p2.9"
+P2_VERSION = "0.3.10-p2.10"
 core.VERSION = P2_VERSION
 
 _original_metadata = core._metadata
@@ -48,6 +49,7 @@ def _refresh_metadata(
     inline_map: dict | None = None,
     table_map: dict | None = None,
     object_map: dict | None = None,
+    equation_map: dict | None = None,
 ) -> dict:
     metadata["sha256"] = validation["sha256"]
     metadata["bytes"] = validation["bytes"]
@@ -67,6 +69,10 @@ def _refresh_metadata(
         metadata["object_structure_sha256"] = object_map["object_structure_sha256"]
         metadata["object_geometry_sha256"] = object_map["object_geometry_sha256"]
         metadata["media_custody_sha256"] = object_map["media_custody_sha256"]
+    if equation_map is not None:
+        metadata["equation_structure_sha256"] = equation_map["equation_structure_sha256"]
+        metadata["equation_geometry_sha256"] = equation_map["equation_geometry_sha256"]
+        metadata["equation_script_custody_sha256"] = equation_map["equation_script_custody_sha256"]
     core._write_metadata(document_id, metadata)
     return metadata
 
@@ -159,6 +165,35 @@ def get_object_map(document_id: str, object_locator: str = "") -> dict:
         "document_id": document_id,
         "revision": int(metadata["revision"]),
         **object_map,
+    }
+
+
+@core.mcp.tool()
+def get_equation_map(document_id: str, equation_locator: str = "") -> dict:
+    """Return equation identities, EqEdit scripts, geometry and custody receipts."""
+    metadata, path = _owned_document(document_id)
+    equation_map = build_equation_map(path)
+    if equation_locator:
+        equation = next(
+            (item for item in equation_map["equations"] if item["locator"] == equation_locator),
+            None,
+        )
+        if equation is None:
+            raise ValueError("Unknown equation locator")
+        return {
+            "ok": True,
+            "document_id": document_id,
+            "revision": int(metadata["revision"]),
+            "equation_structure_sha256": equation_map["equation_structure_sha256"],
+            "equation_geometry_sha256": equation_map["equation_geometry_sha256"],
+            "equation_script_custody_sha256": equation_map["equation_script_custody_sha256"],
+            "equation": equation,
+        }
+    return {
+        "ok": True,
+        "document_id": document_id,
+        "revision": int(metadata["revision"]),
+        **equation_map,
     }
 
 
@@ -427,6 +462,55 @@ def apply_object_edits(document_id: str, expected_revision: int, operations: lis
 
 
 @core.mcp.tool()
+def apply_equation_edits(document_id: str, expected_revision: int, operations: list[dict]) -> dict:
+    """Apply one revision-guarded equation script/geometry/lifecycle transaction."""
+    metadata, path = _owned_document(document_id)
+    current_revision = int(metadata["revision"])
+    ingress = metadata.get("source") == "existing-ingress"
+    transaction = apply_equation_edits_atomic(
+        path,
+        operations,
+        expected_revision=int(expected_revision),
+        current_revision=current_revision,
+        validator=lambda candidate: core.validate_hwpx_package(candidate, ingress=ingress),
+    )
+    validation = transaction["validation"]
+    after_document = build_document_map(path)
+    after_formatting = build_formatting_map(path)
+    after_inline = build_inline_map(path)
+    after_tables = build_table_map(path)
+    after_objects = build_object_map(path)
+    after_equations = build_equation_map(path)
+    metadata["revision"] = current_revision + 1
+    metadata["last_edit_at"] = core._utc_iso()
+    _refresh_metadata(
+        document_id,
+        metadata,
+        validation,
+        after_document,
+        after_formatting,
+        after_inline,
+        after_tables,
+        after_objects,
+        after_equations,
+    )
+    return {
+        "ok": True,
+        "document_id": document_id,
+        "revision_before": current_revision,
+        "revision_after": int(metadata["revision"]),
+        "sha256": validation["sha256"],
+        "equation_diff": transaction,
+        "equation_structure_changed": transaction["equation_structure_changed"],
+        "equation_geometry_changed": transaction["equation_geometry_changed"],
+        "equation_script_custody_changed": transaction["equation_script_custody_changed"],
+        "equation_rebinding": transaction["equation_rebinding"],
+        "validation": validation,
+        "transaction": "COMMITTED",
+    }
+
+
+@core.mcp.tool()
 def apply_formatting(document_id: str, expected_revision: int, operations: list[dict]) -> dict:
     """Apply one revision-guarded formatting-only transaction."""
     metadata, path = _owned_document(document_id)
@@ -524,6 +608,9 @@ def compare_document(
     object_structure_sha256: str = "",
     object_geometry_sha256: str = "",
     media_custody_sha256: str = "",
+    equation_structure_sha256: str = "",
+    equation_geometry_sha256: str = "",
+    equation_script_custody_sha256: str = "",
 ) -> dict:
     """Compare semantic/structure/formatting/inline-structure receipts."""
     metadata, path = _owned_document(document_id)
@@ -542,6 +629,10 @@ def compare_document(
     current_object_structure = object_map["object_structure_sha256"]
     current_object_geometry = object_map["object_geometry_sha256"]
     current_media_custody = object_map["media_custody_sha256"]
+    equation_map = build_equation_map(path)
+    current_equation_structure = equation_map["equation_structure_sha256"]
+    current_equation_geometry = equation_map["equation_geometry_sha256"]
+    current_equation_script_custody = equation_map["equation_script_custody_sha256"]
     return {
         "ok": True,
         "document_id": document_id,
@@ -557,6 +648,9 @@ def compare_document(
             "object_structure_sha256": current_object_structure,
             "object_geometry_sha256": current_object_geometry,
             "media_custody_sha256": current_media_custody,
+            "equation_structure_sha256": current_equation_structure,
+            "equation_geometry_sha256": current_equation_geometry,
+            "equation_script_custody_sha256": current_equation_script_custody,
         },
         "matches": {
             "semantic": None if not semantic_sha256 else semantic_sha256 == current_semantic,
@@ -585,6 +679,17 @@ def compare_document(
             "media_custody": (
                 None if not media_custody_sha256 else media_custody_sha256 == current_media_custody
             ),
+            "equation_structure": (
+                None if not equation_structure_sha256 else equation_structure_sha256 == current_equation_structure
+            ),
+            "equation_geometry": (
+                None if not equation_geometry_sha256 else equation_geometry_sha256 == current_equation_geometry
+            ),
+            "equation_script_custody": (
+                None
+                if not equation_script_custody_sha256
+                else equation_script_custody_sha256 == current_equation_script_custody
+            ),
         },
     }
 
@@ -595,7 +700,7 @@ def p2_capabilities() -> dict:
     return {
         "project": core.PROJECT,
         "version": core.VERSION,
-        "phase": "P2.9",
+        "phase": "P2.10",
         "authenticated_subject": subject,
         "tools_added": [
             "get_document_map",
@@ -611,6 +716,8 @@ def p2_capabilities() -> dict:
             "apply_table_edits",
             "get_object_map",
             "apply_object_edits",
+            "get_equation_map",
+            "apply_equation_edits",
         ],
         "operations": [
             "replace_paragraph_text",
@@ -701,7 +808,15 @@ def p2_capabilities() -> dict:
             "geometry": "picture resize + floating offset mutation",
             "diff": "object_structure_sha256 + object_geometry_sha256 + media_custody_sha256",
         },
-        "tables_images_equations": "tables=P2.8 active; images=P2.9 active; equations=False",
+        "equation_editing": {
+            "introspection": "EqEdit script + owning paragraph + intrinsic object identity + geometry",
+            "authoring_input": "verified LaTeX token set only; converted by hwpx.equation.latex_to_eqedit",
+            "raw_eqedit_authoring": "evidence gate closed",
+            "lifecycle": "insert + verified-script replacement + removal",
+            "geometry": "explicit hp:sz resize; replacement re-estimates size unless preserve_size=true",
+            "diff": "equation_structure_sha256 + equation_geometry_sha256 + equation_script_custody_sha256",
+        },
+        "tables_images_equations": "tables=P2.8 active; images=P2.9 active; equations=P2.10 active",
     }
 
 

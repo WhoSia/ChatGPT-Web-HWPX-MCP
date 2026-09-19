@@ -22,6 +22,7 @@ from p24_inline import apply_inline_edits_atomic, build_inline_map
 from p26_controls import apply_control_edits_atomic
 from p28_tables import apply_table_edits_atomic, build_table_map
 from p29_objects import apply_object_edits_atomic, build_object_map
+from p39_textbox import build_textbox_map, inject_textbox
 from p210_equations import (
     apply_equation_edits_atomic,
     build_equation_map,
@@ -41,7 +42,7 @@ from common_ir import (
     slice_common_ir,
 )
 
-P2_VERSION = "0.8.0-p3.8"
+P2_VERSION = "0.9.0-p3.9"
 core.VERSION = P2_VERSION
 
 _original_metadata = core._metadata
@@ -812,6 +813,97 @@ def get_hwp5_style_map(
 
 
 @core.mcp.tool()
+def get_paragraph_style_provenance(
+    document_id: str = "",
+    content_base64: str = "",
+    filename: str = "document.hwp",
+    max_paragraphs: int = 200,
+) -> dict:
+    """Return paragraph-style reference provenance for either HWP5 or owned HWPX."""
+    limit = max(1, min(int(max_paragraphs), 1000))
+    has_hwpx = bool(str(document_id or "").strip())
+    has_hwp = bool(str(content_base64 or "").strip())
+    if has_hwpx == has_hwp:
+        raise ValueError("Provide exactly one of document_id or content_base64")
+    if has_hwp:
+        payload = _decode_hwp5_payload(content_base64)
+        parsed = parse_hwp5_bytes(payload)
+        if not parsed.get("readable"):
+            raise ValueError(
+                f"HWP source is not readable by the native lane: {parsed.get('block_reason')}"
+            )
+        paragraphs = []
+        for item in parsed.get("paragraphs", [])[:limit]:
+            style = item.get("paragraph_style") or {}
+            resolved = style.get("resolved_style") or {}
+            paragraphs.append({
+                "paragraph_index": item.get("paragraph_index"),
+                "flow_kind": item.get("flow_kind"),
+                "para_shape_id": style.get("para_shape_id"),
+                "para_style_id": style.get("para_style_id"),
+                "direct_para_shape": style.get("resolved_para_shape"),
+                "resolved_style": resolved,
+                "style_para_shape": style.get("style_para_shape"),
+                "style_char_shape": style.get("style_char_shape"),
+                "provenance": {
+                    "paragraph_header_para_shape_id": style.get("para_shape_id"),
+                    "paragraph_header_style_id": style.get("para_style_id"),
+                    "style_para_shape_id": resolved.get("para_shape_id"),
+                    "style_char_shape_id": resolved.get("char_shape_id"),
+                    "direct_matches_style_para_shape": (
+                        style.get("para_shape_id") is not None
+                        and resolved.get("para_shape_id") is not None
+                        and int(style.get("para_shape_id")) == int(resolved.get("para_shape_id"))
+                    ),
+                },
+            })
+        return {
+            "ok": True,
+            "source_format": "hwp5",
+            "source_sha256": hashlib.sha256(payload).hexdigest(),
+            "paragraph_count": len(parsed.get("paragraphs", [])),
+            "returned_paragraphs": len(paragraphs),
+            "paragraphs": paragraphs,
+            "authority": "STYLE_REFERENCE_PROVENANCE_GRAPH",
+        }
+
+    metadata, path = _owned_document(document_id)
+    formatting = build_formatting_map(path)
+    paragraphs = []
+    for item in formatting.get("paragraphs", [])[:limit]:
+        style = item.get("style_property") or {}
+        paragraphs.append({
+            "locator": item.get("locator"),
+            "container": item.get("container"),
+            "para_pr_id_ref": item.get("para_pr_id_ref"),
+            "style_id_ref": item.get("style_id_ref"),
+            "direct_para_property": item.get("paragraph_property"),
+            "resolved_style": style,
+            "provenance": {
+                "paragraph_para_pr_id_ref": item.get("para_pr_id_ref"),
+                "paragraph_style_id_ref": item.get("style_id_ref"),
+                "style_para_pr_id_ref": style.get("para_pr_id_ref"),
+                "style_char_pr_id_ref": style.get("char_pr_id_ref"),
+                "direct_matches_style_para_pr": (
+                    item.get("para_pr_id_ref") is not None
+                    and style.get("para_pr_id_ref") is not None
+                    and str(item.get("para_pr_id_ref")) == str(style.get("para_pr_id_ref"))
+                ),
+            },
+        })
+    return {
+        "ok": True,
+        "source_format": "hwpx",
+        "document_id": document_id,
+        "revision": int(metadata["revision"]),
+        "paragraph_count": len(formatting.get("paragraphs", [])),
+        "returned_paragraphs": len(paragraphs),
+        "paragraphs": paragraphs,
+        "authority": "STYLE_REFERENCE_PROVENANCE_GRAPH",
+    }
+
+
+@core.mcp.tool()
 def get_hwp5_text_flows(
     content_base64: str,
     filename: str = "document.hwp",
@@ -955,6 +1047,7 @@ def materialize_hwp5_rich_derivative(
     promote_tables: bool = True,
     promote_equations: bool = True,
     promote_pictures: bool = True,
+    promote_textboxes: bool = True,
 ) -> dict:
     """Create an HWPX derivative and promote only HWP object families whose bindings are independently closed."""
     owner_subject = core._caller_subject()
@@ -971,7 +1064,7 @@ def materialize_hwp5_rich_derivative(
     if normalized_request_id and len(normalized_request_id) > 160:
         raise ValueError("request_id exceeds 160 characters")
     derivative_request = (
-        f"hwp5-rich-v2:{source_sha256}:{normalized_request_id}"
+        f"hwp5-rich-v3:{source_sha256}:{normalized_request_id}"
         if normalized_request_id else ""
     )
     document_id = (
@@ -1025,7 +1118,9 @@ def materialize_hwp5_rich_derivative(
             "families": {
                 "object-text": {
                     "status": "DEFERRED",
-                    "reason": "native_textbox_container_and_anchor_fidelity_not_certified",
+                    "reason": "no_rectangle_certified_object_text_promoted_yet",
+                    "promoted_controls": 0,
+                    "deferred": [],
                 }
             },
         },
@@ -1052,6 +1147,8 @@ def materialize_hwp5_rich_derivative(
             for item in parsed.get("controls", [])
             if item.get("control_index") is not None
         }
+
+        pending_textboxes: list[dict] = []
 
         if promote_tables:
             for table_index, source_table in enumerate(parsed.get("tables", [])):
@@ -1452,6 +1549,66 @@ def materialize_hwp5_rich_derivative(
                 "deferred": deferred[:20],
             }
 
+        object_items = nested_groups.get("object-text", [])
+        object_by_control: dict[int, list[dict]] = {}
+        object_deferred: list[dict] = []
+        for item in object_items:
+            control_index = item.get("control_index")
+            if control_index is None:
+                object_deferred.append({
+                    "reason": "paragraph_without_owner_control",
+                    "paragraph_index": item.get("paragraph_index"),
+                })
+                continue
+            object_by_control.setdefault(int(control_index), []).append(item)
+        if promote_textboxes:
+            for control_index, owned in sorted(object_by_control.items()):
+                control = controls.get(control_index) or {}
+                if control.get("shape_family") != "rectangle":
+                    object_deferred.append({
+                        "control_index": control_index,
+                        "reason": "source_shape_family_not_certified_rectangle",
+                        "shape_family": control.get("shape_family"),
+                    })
+                    continue
+                ordinal = control.get("anchor_paragraph_ordinal")
+                section_indexes = {int(item.get("section_index", 0)) for item in owned}
+                locator = None
+                if ordinal is not None and len(section_indexes) == 1:
+                    locator = anchor_map.get((next(iter(section_indexes)), int(ordinal)))
+                width = int(control.get("width") or 0)
+                height = int(control.get("height") or 0)
+                if not locator or width <= 0 or height <= 0:
+                    object_deferred.append({
+                        "control_index": control_index,
+                        "reason": "textbox_anchor_or_geometry_incomplete",
+                        "anchor_resolved": bool(locator),
+                        "width": width,
+                        "height": height,
+                    })
+                    continue
+                pending_textboxes.append({
+                    "control_index": control_index,
+                    "anchor_locator": locator,
+                    "paragraphs": [str(item.get("text", "")) for item in owned],
+                    "width": width,
+                    "height": height,
+                    "treat_as_char": bool(control.get("treat_as_char")),
+                    "horizontal_offset": int(control.get("horizontal_offset") or 0),
+                    "vertical_offset": int(control.get("vertical_offset") or 0),
+                    "horz_rel_to": _hwp_rel_to_horizontal(control.get("horz_rel_to")),
+                    "vert_rel_to": _hwp_rel_to_vertical(control.get("vert_rel_to")),
+                    "z_order": int(control.get("z_order") or 0),
+                })
+        elif object_items:
+            object_deferred.append({"reason": "textbox_promotion_disabled"})
+
+        object_family = promotion_report["nested_text_flows"]["families"]["object-text"]
+        object_family["source_paragraph_count"] = len(object_items)
+        object_family["source_control_count"] = len(object_by_control)
+        object_family["deferred"] = object_deferred[:20]
+        object_family["status"] = "PENDING" if pending_textboxes else "DEFERRED"
+
         if promotion_report["nested_text_flows"]["promoted"] > 0:
             promotion_report["nested_text_flows"]["authority"] = (
                 "FAMILY_GRADED_NATIVE_PROMOTION"
@@ -1459,6 +1616,63 @@ def materialize_hwp5_rich_derivative(
 
     finally:
         document.close()
+
+    textbox_family = promotion_report["nested_text_flows"]["families"]["object-text"]
+    promoted_textbox_controls = 0
+    textbox_receipts: list[dict] = []
+    textbox_deferred = list(textbox_family.get("deferred") or [])
+    for spec in pending_textboxes:
+        try:
+            receipt = inject_textbox(
+                hwpx_path,
+                anchor_locator=spec["anchor_locator"],
+                paragraphs=spec["paragraphs"],
+                width=spec["width"],
+                height=spec["height"],
+                treat_as_char=spec["treat_as_char"],
+                horizontal_offset=spec["horizontal_offset"],
+                vertical_offset=spec["vertical_offset"],
+                horz_rel_to=spec["horz_rel_to"],
+                vert_rel_to=spec["vert_rel_to"],
+                z_order=spec["z_order"],
+                shape_seed=f"{source_sha256}:{spec['control_index']}",
+            )
+            core.validate_hwpx_package(hwpx_path, ingress=False)
+            mapped_boxes = build_textbox_map(hwpx_path)
+            created = next(
+                (
+                    box for box in mapped_boxes.get("textboxes", [])
+                    if box.get("shape_id") == receipt.get("shape_id")
+                ),
+                None,
+            )
+            if created is None:
+                raise ValueError("native textbox could not be re-read after synthesis")
+            receipt["verified_geometry"] = {
+                "width": created.get("width"),
+                "height": created.get("height"),
+                "position": created.get("position"),
+                "paragraphs": created.get("paragraphs"),
+            }
+            textbox_receipts.append(receipt)
+            promoted_textbox_controls += 1
+            promotion_report["nested_text_flows"]["promoted"] += len(spec["paragraphs"])
+        except Exception as exc:
+            textbox_deferred.append({
+                "control_index": spec.get("control_index"),
+                "reason": f"textbox_promotion_refused:{type(exc).__name__}",
+                "detail": str(exc)[:240],
+            })
+    textbox_family["promoted_controls"] = promoted_textbox_controls
+    textbox_family["receipts"] = textbox_receipts
+    textbox_family["deferred"] = textbox_deferred[:20]
+    textbox_family["status"] = (
+        "PROMOTED_NATIVE"
+        if promoted_textbox_controls and not textbox_deferred
+        else ("PARTIAL" if promoted_textbox_controls else "DEFERRED")
+    )
+    if promotion_report["nested_text_flows"]["promoted"] > 0:
+        promotion_report["nested_text_flows"]["authority"] = "FAMILY_GRADED_NATIVE_PROMOTION"
 
     # Promote only source-coordinate-safe top-level run styles. Nested/control-bearing
     # flows remain provenance until a dedicated native HWPX control writer is certified.
@@ -1551,6 +1765,7 @@ def materialize_hwp5_rich_derivative(
     final_tables = build_table_map(hwpx_path)
     final_equations = build_equation_map(hwpx_path)
     final_objects = build_object_map(hwpx_path)
+    final_textboxes = build_textbox_map(hwpx_path)
     metadata = core._metadata(
         document_id,
         filename=core.sanitize_filename(Path(source_name).stem + ".hwpx"),
@@ -1574,6 +1789,7 @@ def materialize_hwp5_rich_derivative(
         "table_structure_sha256": final_tables["table_structure_sha256"],
         "equation_structure_sha256": final_equations["equation_structure_sha256"],
         "object_structure_sha256": final_objects["object_structure_sha256"],
+        "textbox_geometry_sha256": final_textboxes["textbox_geometry_sha256"],
     })
     core._write_metadata(document_id, metadata)
     return {
@@ -1587,6 +1803,7 @@ def materialize_hwp5_rich_derivative(
             "equations": final_equations["equation_count"],
             "pictures": final_objects["picture_count"],
             "media_items": final_objects["media_item_count"],
+            "textboxes": final_textboxes["textbox_count"],
         },
         "authority": "FIDELITY_GRADED_RICH_HWPX_DERIVATIVE / ORIGINAL_HWP_READ_ONLY",
     }
@@ -3154,7 +3371,7 @@ def p2_capabilities() -> dict:
     return {
         "project": core.PROJECT,
         "version": core.VERSION,
-        "phase": "P3.8",
+        "phase": "P3.9",
         "authenticated_subject": subject,
         "tools_added": [
             "acquire_document_lease",
@@ -3179,6 +3396,7 @@ def p2_capabilities() -> dict:
             "get_hwp5_control_graph",
             "compare_hwp5_roundtrip_fidelity",
             "get_hwp5_style_map",
+            "get_paragraph_style_provenance",
             "get_hwp5_text_flows",
             "search_document_text",
             "get_document_slice",
@@ -3352,6 +3570,11 @@ def p2_capabilities() -> dict:
             "tables": "structural provenance only until cell association is certified",
             "equations": "semantic EqEdit script recovered; exact position synthesis deferred",
             "pictures": "inventory/BinData custody only until linkage and geometry are certified",
+        },
+        "p39_style_layout": {
+            "style_provenance": "HWP STYLE→ParaShape/CharShape and HWPX styleIDRef→paraPr/charPr reference graphs",
+            "textbox_promotion": "rectangle-certified object-text only; anchor/geometry must close before native hp:rect+drawText synthesis",
+            "geometry_oracle": "structural HWPUNIT geometry receipts; does not claim pixel-rendered identity",
         },
         "durable_document_storage": {
             "authority": "encrypted Postgres revision snapshots; local filesystem is a rehydratable execution cache",

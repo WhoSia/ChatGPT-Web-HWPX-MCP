@@ -121,6 +121,47 @@ async def main() -> None:
         access_token = token_data["access_token"]
         print("oauth: DCR+PKCE+token PASS")
 
+        auth_probe = await client.post(
+            f"{BASE_URL}/p32-r2/auth-probe",
+            headers={"Authorization": f"Bearer {access_token}"},
+        )
+        print(
+            "auth-probe:",
+            auth_probe.status_code,
+            auth_probe.headers.get("content-type", ""),
+            auth_probe.text[:300],
+        )
+        if auth_probe.status_code != 200:
+            raise RuntimeError(
+                f"bearer lookup probe failed HTTP {auth_probe.status_code}: {auth_probe.text[:500]}"
+            )
+
+        async def wire_probe(label: str, headers: dict, payload: dict) -> int:
+            response = await client.post(MCP_URL, headers=headers, json=payload)
+            print(
+                f"wire-probe {label}:",
+                response.status_code,
+                response.headers.get("content-type", ""),
+                response.text[:220].replace("\n", " "),
+            )
+            return response.status_code
+
+        base_headers = {
+            "Authorization": f"Bearer {access_token}",
+            "Content-Type": "application/json",
+            "Accept": "application/json, text/event-stream",
+        }
+        await wire_probe(
+            "ping-auth-only",
+            dict(base_headers),
+            {"jsonrpc": "2.0", "id": 9001, "method": "ping", "params": {}},
+        )
+        await wire_probe(
+            "ping-protocol",
+            {**base_headers, "MCP-Protocol-Version": PROTOCOL},
+            {"jsonrpc": "2.0", "id": 9002, "method": "ping", "params": {}},
+        )
+
         rpc_id = 0
         async def rpc(method: str, params: dict | None = None, *, tool_name: str = "") -> dict:
             nonlocal rpc_id

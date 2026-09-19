@@ -591,6 +591,42 @@ async def download_artifact(request):
     return FileResponse(hwpx_path, media_type="application/hwp+zip", filename=metadata["filename"], headers={"Cache-Control": "private, no-store"})
 
 
+@mcp.custom_route("/p32-r2/auth-probe", methods=["POST"])
+async def p32_r2_auth_probe(request):
+    """R2 diagnostic: verify bearer lookup without entering MCP transport."""
+    authorization = request.headers.get("authorization", "")
+    if not authorization.lower().startswith("bearer "):
+        return JSONResponse({"ok": False, "reason": "missing_bearer"}, status_code=401)
+    raw_token = authorization.split(" ", 1)[1].strip()
+    if not raw_token:
+        return JSONResponse({"ok": False, "reason": "missing_bearer"}, status_code=401)
+    try:
+        token = await OAUTH_PROVIDER.load_access_token(raw_token)
+    except Exception as exc:
+        return JSONResponse(
+            {"ok": False, "reason": "lookup_error", "error_type": type(exc).__name__},
+            status_code=500,
+        )
+    if token is None:
+        return JSONResponse({"ok": False, "reason": "unknown_token"}, status_code=401)
+    valid = (
+        HWPX_SCOPE in token.scopes
+        and token.subject == SUBJECT
+        and str(token.resource).rstrip("/") == MCP_RESOURCE_URL.rstrip("/")
+    )
+    return JSONResponse(
+        {
+            "ok": bool(valid),
+            "subject": token.subject,
+            "scopes": list(token.scopes),
+            "resource_matches": str(token.resource).rstrip("/") == MCP_RESOURCE_URL.rstrip("/"),
+            "expires_at": token.expires_at,
+        },
+        status_code=200 if valid else 403,
+        headers={"Cache-Control": "no-store"},
+    )
+
+
 @mcp.custom_route("/health", methods=["GET"])
 async def health(_request):
     try:

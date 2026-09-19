@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import base64
+import binascii
 import hashlib
 import hmac
 import json
@@ -19,6 +21,7 @@ from p26_controls import apply_control_edits_atomic
 from p28_tables import apply_table_edits_atomic, build_table_map
 from p29_objects import apply_object_edits_atomic, build_object_map
 from p210_equations import apply_equation_edits_atomic, build_equation_map
+from hwp5_reader import Hwp5ReadError, parse_hwp5_bytes
 
 P2_VERSION = "0.4.4-p3.4"
 core.VERSION = P2_VERSION
@@ -364,6 +367,57 @@ def get_document_map(document_id: str) -> dict:
             "revision-bound-ordinal": "valid only for the current structural revision; reacquire after structural edits",
         },
     }
+
+
+@core.mcp.tool()
+def inspect_hwp5_document(
+    content_base64: str,
+    filename: str = "document.hwp",
+    include_text: bool = True,
+    include_paragraphs: bool = True,
+    max_text_chars: int = 100000,
+) -> dict:
+    """Read one bounded legacy HWP 5.x payload without converting or editing the original file."""
+    encoded_limit = ((core.MAX_INGEST_BYTES + 2) // 3) * 4 + 16
+    if len(content_base64) > encoded_limit:
+        raise ValueError("Encoded HWP exceeds the bounded ingress limit")
+    try:
+        payload = base64.b64decode(content_base64, validate=True)
+    except (binascii.Error, ValueError) as exc:
+        raise ValueError("content_base64 is not valid base64") from exc
+    if len(payload) > core.MAX_INGEST_BYTES:
+        raise ValueError(f"HWP ingress exceeds {core.MAX_INGEST_BYTES} bytes")
+
+    result = parse_hwp5_bytes(
+        payload,
+        max_text_chars=max(1000, min(int(max_text_chars), 500000)),
+    )
+    safe_name = Path(filename or "document.hwp").name[:128]
+    response = {
+        "ok": True,
+        "filename": safe_name,
+        "bytes": len(payload),
+        "sha256": hashlib.sha256(payload).hexdigest(),
+        "format": result["format"],
+        "version": result["version"],
+        "flags": result["flags"],
+        "readable": result["readable"],
+        "block_reason": result["block_reason"],
+        "section_count": result.get("section_count", 0),
+        "paragraph_count": result.get("paragraph_count", 0),
+        "text_chars": result.get("text_chars", 0),
+        "preview_text": result.get("preview_text", ""),
+        "preview_text_truncated": result.get("preview_text_truncated", False),
+        "warnings": result.get("warnings", []),
+        "authority": result.get("authority", "READ_ONLY_LOSS_AWARE"),
+        "edit_authority": "NONE_FOR_HWP_BINARY",
+        "recommended_successor": "materialize a provenance-marked HWPX derivative before using HWPX edit tools",
+    }
+    if include_text:
+        response["text"] = result.get("text", "")
+    if include_paragraphs:
+        response["paragraphs"] = result.get("paragraphs", [])
+    return response
 
 
 @core.mcp.tool()
@@ -1460,6 +1514,13 @@ def p2_capabilities() -> dict:
             "commit": "same plan id + same revision required; all selected spans commit in one CAS-guarded revision",
             "format_safety": "uses inline-range mutation instead of whole-paragraph replacement to preserve unaffected rich formatting",
             "verification": "bounded post-edit paragraph receipts are returned after commit",
+        },
+        "legacy_hwp5_read": {
+            "container": "native OLE/CFB HWP 5.x reader; no Hancom desktop dependency",
+            "scope": "bounded read-only header/body-text extraction",
+            "security": "password/DRM/certificate-encrypted content is blocked rather than bypassed",
+            "fidelity": "text-first, loss-aware; layout/table/object fidelity is not yet claimed",
+            "edit_boundary": "legacy HWP binary is never mutated by the HWPX edit engine",
         },
         "durable_document_storage": {
             "authority": "encrypted Postgres revision snapshots; local filesystem is a rehydratable execution cache",

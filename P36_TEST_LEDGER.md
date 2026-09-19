@@ -6,7 +6,7 @@
 
 ## Verdict
 
-`IMPLEMENTATION_PASS / NATIVE_CI_PASS / REAL_HWP_CONTROL_GRAPH_PASS / REAL_RICH_PROMOTION_PASS / PRODUCTION_DEPLOY_PENDING_AT_SEAL`
+`IMPLEMENTATION_PASS / NATIVE_CI_PASS / REAL_HWP_CONTROL_GRAPH_PASS / REAL_RICH_PROMOTION_PASS / PUBLIC_BOUNDARY_PASS / PRODUCTION_DEPLOYED`
 
 ## Server
 
@@ -147,3 +147,17 @@ P3.6 does **not** claim universal byte-perfect HWP→HWPX round-trip fidelity ac
 ## Successor
 
 **ChatGPT Web HWPX MCP P3.7 — HWP Run/Style Recovery, Header/Footer/Footnote/Endnote Controls, Nested Text-Box/Object Graph, Cross-Format Round-Trip Fidelity Oracle & Rich Promotion Expansion**
+
+
+## Final production closure
+
+After the original seal, the same canonical P3.6 head was materialized publicly and re-verified.
+
+- canonical commit: `b9f0193e37d2e7727352986ea9aa74eb9d80ff9a`
+- Render deploy: `dep-dan7nch42hec73dhf0mg`
+- Render status: `live`
+- final native lifecycle: `35442100310` — SUCCESS
+- final public boundary: `35442100274` — SUCCESS
+- real-HWP OAuth-native rich-promotion probe: `35442008034` — SUCCESS
+
+Therefore the P3.6 implementation, real-HWP family reconstruction, public boundary, and production materialization are all closed at the same canonical lineage.

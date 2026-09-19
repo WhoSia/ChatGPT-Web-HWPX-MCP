@@ -52,81 +52,126 @@ def tool_payload(result: dict) -> dict | None:
     return None
 
 
+TRANSIENT_HTTP = {502, 503, 504}
+
+
+async def _sleep_retry(label: str, attempt: int) -> None:
+    delay = min(8.0, 1.5 + attempt * 0.75)
+    print(f"restart-aware retry {label}: attempt={attempt} sleep={delay:.2f}s")
+    await asyncio.sleep(delay)
+
+
+async def _acquire_access_token() -> str:
+    last_error: Exception | None = None
+    for flow_attempt in range(1, 9):
+        verifier = b64url(secrets.token_bytes(48))
+        challenge = b64url(hashlib.sha256(verifier.encode("ascii")).digest())
+        try:
+            async with httpx2.AsyncClient(
+                follow_redirects=False,
+                timeout=45.0,
+                http2=False,
+            ) as client:
+                registration = await client.post(
+                    f"{BASE_URL}/register",
+                    json={
+                        "client_name": "P3.2-R3 Restart-Aware World Contact",
+                        "redirect_uris": [REDIRECT_URI],
+                        "grant_types": ["authorization_code", "refresh_token"],
+                        "response_types": ["code"],
+                        "token_endpoint_auth_method": "none",
+                        "scope": "hwpx offline_access",
+                    },
+                )
+                if registration.status_code in TRANSIENT_HTTP:
+                    raise RuntimeError(f"transient register HTTP {registration.status_code}")
+                registration.raise_for_status()
+                client_id = registration.json()["client_id"]
+
+                params = {
+                    "response_type": "code",
+                    "client_id": client_id,
+                    "redirect_uri": REDIRECT_URI,
+                    "state": secrets.token_urlsafe(24),
+                    "code_challenge": challenge,
+                    "code_challenge_method": "S256",
+                    "resource": MCP_URL,
+                    "scope": "hwpx offline_access",
+                    "prompt": "consent",
+                }
+                authorize = await client.get(f"{BASE_URL}/authorize?{urlencode(params)}")
+                if authorize.status_code in TRANSIENT_HTTP:
+                    raise RuntimeError(f"transient authorize HTTP {authorize.status_code}")
+                if authorize.status_code not in (302, 303, 307, 308):
+                    raise RuntimeError(f"authorize status={authorize.status_code}")
+                approval_url = urljoin(BASE_URL, authorize.headers["location"])
+                request_id = parse_qs(urlparse(approval_url).query).get("request", [""])[0]
+                if not request_id:
+                    raise RuntimeError("approval request id missing")
+
+                approved = await client.post(
+                    approval_url,
+                    data={
+                        "request": request_id,
+                        "passphrase": PASSPHRASE,
+                        "decision": "approve",
+                    },
+                )
+                if approved.status_code in TRANSIENT_HTTP:
+                    raise RuntimeError(f"transient approve HTTP {approved.status_code}")
+                if approved.status_code not in (302, 303, 307, 308):
+                    raise RuntimeError(f"approval status={approved.status_code}")
+                callback = urljoin(approval_url, approved.headers["location"])
+                code = parse_qs(urlparse(callback).query).get("code", [""])[0]
+                if not code:
+                    raise RuntimeError("authorization code missing")
+
+                token_response = await client.post(
+                    f"{BASE_URL}/token",
+                    data={
+                        "grant_type": "authorization_code",
+                        "code": code,
+                        "redirect_uri": REDIRECT_URI,
+                        "client_id": client_id,
+                        "code_verifier": verifier,
+                        "resource": MCP_URL,
+                    },
+                )
+                if token_response.status_code in TRANSIENT_HTTP:
+                    raise RuntimeError(f"transient token HTTP {token_response.status_code}")
+                token_response.raise_for_status()
+                access_token = token_response.json()["access_token"]
+                print(f"oauth: DCR+PKCE+token PASS flow_attempt={flow_attempt}")
+                return access_token
+        except (httpx2.HTTPError, RuntimeError) as exc:
+            last_error = exc
+            await _sleep_retry("oauth-flow", flow_attempt)
+    raise RuntimeError(f"OAuth flow did not survive restart window: {last_error}")
+
+
 async def main() -> None:
     if len(PASSPHRASE) < 12:
         raise RuntimeError("P11_OAUTH_PASSPHRASE is required")
 
-    verifier = b64url(secrets.token_bytes(48))
-    challenge = b64url(hashlib.sha256(verifier.encode("ascii")).digest())
+    access_token = await _acquire_access_token()
 
     async with httpx2.AsyncClient(follow_redirects=False, timeout=60.0, http2=False) as client:
-        registration = await client.post(
-            f"{BASE_URL}/register",
-            json={
-                "client_name": "P3.2-R1 Raw MCP World Contact",
-                "redirect_uris": [REDIRECT_URI],
-                "grant_types": ["authorization_code", "refresh_token"],
-                "response_types": ["code"],
-                "token_endpoint_auth_method": "none",
-                "scope": "hwpx offline_access",
-            },
-        )
-        registration.raise_for_status()
-        client_info = registration.json()
-        client_id = client_info["client_id"]
-
-        params = {
-            "response_type": "code",
-            "client_id": client_id,
-            "redirect_uri": REDIRECT_URI,
-            "state": secrets.token_urlsafe(24),
-            "code_challenge": challenge,
-            "code_challenge_method": "S256",
-            "resource": MCP_URL,
-            "scope": "hwpx offline_access",
-            "prompt": "consent",
-        }
-        authorize = await client.get(f"{BASE_URL}/authorize?{urlencode(params)}")
-        if authorize.status_code not in (302, 303, 307, 308):
-            raise RuntimeError(f"authorize status={authorize.status_code}")
-        approval_url = urljoin(BASE_URL, authorize.headers["location"])
-        request_id = parse_qs(urlparse(approval_url).query).get("request", [""])[0]
-        if not request_id:
-            raise RuntimeError("approval request id missing")
-
-        approved = await client.post(
-            approval_url,
-            data={"request": request_id, "passphrase": PASSPHRASE, "decision": "approve"},
-        )
-        if approved.status_code not in (302, 303, 307, 308):
-            raise RuntimeError(f"approval status={approved.status_code}")
-        callback = urljoin(approval_url, approved.headers["location"])
-        code = parse_qs(urlparse(callback).query).get("code", [""])[0]
-        if not code:
-            raise RuntimeError("authorization code missing")
-
-        token_response = await client.post(
-            f"{BASE_URL}/token",
-            data={
-                "grant_type": "authorization_code",
-                "code": code,
-                "redirect_uri": REDIRECT_URI,
-                "client_id": client_id,
-                "code_verifier": verifier,
-                "resource": MCP_URL,
-            },
-        )
-        token_response.raise_for_status()
-        token_data = token_response.json()
-        access_token = token_data["access_token"]
-        print("oauth: DCR+PKCE+token PASS")
-
         healthy = 0
-        for attempt in range(1, 11):
-            async with httpx2.AsyncClient(follow_redirects=False, timeout=20.0, http2=False) as edge_probe:
-                edge_health = await edge_probe.get(f"{BASE_URL}/health")
-            print("edge-stability:", attempt, edge_health.status_code)
-            if edge_health.status_code == 200:
+        for attempt in range(1, 61):
+            try:
+                async with httpx2.AsyncClient(
+                    follow_redirects=False,
+                    timeout=12.0,
+                    http2=False,
+                ) as edge_probe:
+                    edge_health = await edge_probe.get(
+                        f"{BASE_URL}/health?r3={secrets.token_hex(6)}"
+                    )
+                status = edge_health.status_code
+            except httpx2.HTTPError:
+                status = 599
+            print("edge-stability:", attempt, status)
+            if status == 200:
                 healthy += 1
                 if healthy >= 3:
                     break
@@ -134,7 +179,7 @@ async def main() -> None:
                 healthy = 0
             await asyncio.sleep(2)
         if healthy < 3:
-            raise RuntimeError("public edge did not stabilize")
+            raise RuntimeError("public edge did not stabilize within restart-aware window")
 
         transport_client = httpx2.AsyncClient(follow_redirects=False, timeout=60.0, http2=False)
         print("transport: HTTP/1.1; default connection semantics")
@@ -205,33 +250,68 @@ async def main() -> None:
         )
 
         rpc_id = 0
-        async def rpc(method: str, params: dict | None = None, *, tool_name: str = "") -> dict:
+        async def rpc(
+            method: str,
+            params: dict | None = None,
+            *,
+            tool_name: str = "",
+            transport_retries: int = 0,
+        ) -> dict:
             nonlocal rpc_id
-            rpc_id += 1
-            headers = {
-                "Authorization": f"Bearer {access_token}",
-                "Content-Type": "application/json",
-                "Accept": "application/json, text/event-stream",
-                "MCP-Protocol-Version": PROTOCOL,
-                "MCP-Method": method,
-            }
-            if tool_name:
-                headers["MCP-Name"] = tool_name
-            response = await transport_client.post(
-                MCP_URL,
-                headers=headers,
-                json={"jsonrpc": "2.0", "id": rpc_id, "method": method, "params": params or {}},
-            )
-            safe_body = response.text[:700]
-            if response.status_code >= 400:
-                raise RuntimeError(f"RPC {method} HTTP {response.status_code}: {safe_body}")
-            message = parse_json_response(response)
-            if "error" in message:
-                raise RuntimeError(f"RPC {method} error: {message['error']}")
-            return message["result"]
+            last_status = None
+            for attempt in range(transport_retries + 1):
+                rpc_id += 1
+                headers = {
+                    "Authorization": f"Bearer {access_token}",
+                    "Content-Type": "application/json",
+                    "Accept": "application/json, text/event-stream",
+                    "MCP-Protocol-Version": PROTOCOL,
+                    "MCP-Method": method,
+                }
+                if tool_name:
+                    headers["MCP-Name"] = tool_name
+                try:
+                    response = await transport_client.post(
+                        MCP_URL,
+                        headers=headers,
+                        json={
+                            "jsonrpc": "2.0",
+                            "id": rpc_id,
+                            "method": method,
+                            "params": params or {},
+                        },
+                    )
+                    last_status = response.status_code
+                except httpx2.HTTPError:
+                    last_status = 599
+                    response = None
+                if response is None or last_status in TRANSIENT_HTTP:
+                    if attempt < transport_retries:
+                        await _sleep_retry(f"rpc:{method}:{tool_name}", attempt + 1)
+                        continue
+                    raise RuntimeError(f"RPC {method} transient transport exhausted status={last_status}")
+                safe_body = response.text[:700]
+                if response.status_code >= 400:
+                    raise RuntimeError(f"RPC {method} HTTP {response.status_code}: {safe_body}")
+                message = parse_json_response(response)
+                if "error" in message:
+                    raise RuntimeError(f"RPC {method} error: {message['error']}")
+                return message["result"]
+            raise RuntimeError(f"RPC {method} exhausted")
 
-        async def call_tool(name: str, arguments: dict, *, allow_error: bool = False) -> dict | None:
-            result = await rpc("tools/call", {"name": name, "arguments": arguments}, tool_name=name)
+        async def call_tool(
+            name: str,
+            arguments: dict,
+            *,
+            allow_error: bool = False,
+            transport_retries: int = 0,
+        ) -> dict | None:
+            result = await rpc(
+                "tools/call",
+                {"name": name, "arguments": arguments},
+                tool_name=name,
+                transport_retries=transport_retries,
+            )
             if result.get("isError"):
                 if allow_error:
                     return None
@@ -241,7 +321,7 @@ async def main() -> None:
                 raise RuntimeError(f"tool {name} returned no structured payload: {result}")
             return payload
 
-        listed = await rpc("tools/list")
+        listed = await rpc("tools/list", transport_retries=20)
         names = {item.get("name") for item in listed.get("tools", [])}
         required = {
             "create_document", "get_document_map", "apply_edits",
@@ -260,14 +340,14 @@ async def main() -> None:
                 "text": "alpha\nbeta",
                 "filename": "p32-r3-world-contact.hwpx",
                 "request_id": "p32-r3-world-contact-create-v1",
-            })
+            }, transport_retries=20)
             document_id = created["document_id"]
             if created.get("revision") != 1:
                 raise RuntimeError(f"unexpected initial revision: {created}")
 
             revision = 1
             for text_value in ("gamma", "delta", "epsilon"):
-                mapped = await call_tool("get_document_map", {"document_id": document_id})
+                mapped = await call_tool("get_document_map", {"document_id": document_id}, transport_retries=20)
                 locator = mapped["paragraphs"][-1]["locator"]
                 edited = await call_tool("apply_edits", {
                     "document_id": document_id,
@@ -283,8 +363,8 @@ async def main() -> None:
             pinned = await call_tool("pin_document_revision", {
                 "document_id": document_id,
                 "revision": 1,
-                "reason": "p32-r1-production-anchor",
-            })
+                "reason": "p32-r3-production-anchor",
+            }, transport_retries=20)
             if pinned.get("revision") != 1 or not pinned.get("pinned"):
                 raise RuntimeError(f"pin failed: {pinned}")
 
@@ -317,7 +397,7 @@ async def main() -> None:
                 "expected_revision": 4,
                 "keep_last": 2,
                 "dry_run": True,
-            })
+            }, transport_retries=20)
             if preview.get("prunable_revisions") != [2]:
                 raise RuntimeError(f"unexpected dry-run geometry: {preview}")
 
@@ -332,7 +412,7 @@ async def main() -> None:
             if not compacted.get("audit_chain_valid") or not compacted.get("restore_reachability_valid"):
                 raise RuntimeError(f"post-compaction verification failed: {compacted}")
 
-            lineage = await call_tool("verify_document_lineage", {"document_id": document_id})
+            lineage = await call_tool("verify_document_lineage", {"document_id": document_id}, transport_retries=20)
             if not lineage.get("audit_chain_valid") or not lineage.get("restore_reachability_valid"):
                 raise RuntimeError(f"lineage invalid: {lineage}")
             if lineage.get("commit_count") != 4:
@@ -353,7 +433,7 @@ async def main() -> None:
             }, sort_keys=True))
         finally:
             if document_id:
-                deleted = await call_tool("delete_document", {"document_id": document_id}, allow_error=True)
+                deleted = await call_tool("delete_document", {"document_id": document_id}, allow_error=True, transport_retries=20)
                 print("cleanup:", bool(deleted and deleted.get("deleted")))
             await transport_client.aclose()
 

@@ -3298,6 +3298,39 @@ def compare_hwp5_roundtrip_fidelity(
         (int(item.get("rows", 0)), int(item.get("cols", 0)))
         for item in target_tables
     )
+    source_table_cells = [
+        sorted(
+            (
+                int(cell.get("row", 0)),
+                int(cell.get("column", 0)),
+                int(cell.get("row_span", 1) or 1),
+                int(cell.get("col_span", 1) or 1),
+                int(cell.get("width", 0) or 0),
+                int(cell.get("height", 0) or 0),
+            )
+            for cell in item.get("cells", [])
+            if cell.get("row") is not None and cell.get("column") is not None
+        )
+        for item in source_tables
+    ]
+    target_table_cells = [
+        sorted(
+            (
+                int(cell.get("row", 0)),
+                int(cell.get("col", 0)),
+                int(cell.get("row_span", 1) or 1),
+                int(cell.get("col_span", 1) or 1),
+                int(cell.get("width", 0) or 0),
+                int(cell.get("height", 0) or 0),
+            )
+            for cell in item.get("cells", [])
+        )
+        for item in target_tables
+    ]
+    table_cell_geometry_exact = (
+        len(source_table_cells) == len(target_table_cells)
+        and source_table_cells == target_table_cells
+    )
 
     source_equations = sorted(
         str(item.get("script", "")) for item in parsed.get("equations", [])
@@ -3305,12 +3338,52 @@ def compare_hwp5_roundtrip_fidelity(
     target_equations = sorted(
         str(item.get("script", "")) for item in equation_map.get("equations", [])
     )
+    source_equation_geometry = sorted(
+        (
+            int((item.get("position") or {}).get("width", 0) or 0),
+            int((item.get("position") or {}).get("height", 0) or 0),
+        )
+        for item in parsed.get("equations", [])
+    )
+    target_equation_geometry = sorted(
+        (int(item.get("width", 0) or 0), int(item.get("height", 0) or 0))
+        for item in equation_map.get("equations", [])
+    )
+    equation_geometry_exact = (
+        len(source_equation_geometry) == len(target_equation_geometry)
+        and source_equation_geometry == target_equation_geometry
+    )
 
     source_pictures = [
         item for item in parsed.get("objects", [])
         if item.get("kind") == "picture"
     ]
     target_pictures = object_map.get("pictures", [])
+    source_picture_geometry = sorted(
+        (
+            int((item.get("control_geometry") or {}).get("width", 0) or 0),
+            int((item.get("control_geometry") or {}).get("height", 0) or 0),
+            int((item.get("control_geometry") or {}).get("horizontal_offset", 0) or 0),
+            int((item.get("control_geometry") or {}).get("vertical_offset", 0) or 0),
+            bool((item.get("control_geometry") or {}).get("treat_as_char")),
+        )
+        for item in source_pictures
+    )
+    target_picture_geometry = sorted(
+        (
+            int(item.get("width", 0) or 0),
+            int(item.get("height", 0) or 0),
+            int((item.get("position") or {}).get("horzOffset", 0) or 0),
+            int((item.get("position") or {}).get("vertOffset", 0) or 0),
+            str((item.get("position") or {}).get("treatAsChar", "0")).lower()
+            in {"1", "true"},
+        )
+        for item in target_pictures
+    )
+    picture_geometry_exact = (
+        len(source_picture_geometry) == len(target_picture_geometry)
+        and source_picture_geometry == target_picture_geometry
+    )
 
     source_object_paragraphs = [
         item for item in parsed.get("paragraphs", [])
@@ -3412,16 +3485,28 @@ def compare_hwp5_roundtrip_fidelity(
                 "source_count": len(source_tables),
                 "target_count": len(target_tables),
                 "geometry_exact": source_table_geometry == target_table_geometry,
+                "cell_geometry_exact": table_cell_geometry_exact,
+                "source_cell_geometry": source_table_cells[:20],
+                "target_cell_geometry": target_table_cells[:20],
+                "geometry_authority": "STRUCTURAL_HWPUNIT_GEOMETRY / NOT_PIXEL_RENDERING",
             },
             "equations": {
                 "source_count": len(source_equations),
                 "target_count": len(target_equations),
                 "script_exact": source_equations == target_equations,
+                "geometry_exact": equation_geometry_exact,
+                "source_geometry": source_equation_geometry[:50],
+                "target_geometry": target_equation_geometry[:50],
+                "geometry_authority": "STRUCTURAL_HWPUNIT_GEOMETRY / NOT_PIXEL_RENDERING",
             },
             "pictures": {
                 "source_count": len(source_pictures),
                 "target_count": len(target_pictures),
                 "count_exact": len(source_pictures) == len(target_pictures),
+                "geometry_exact": picture_geometry_exact,
+                "source_geometry": source_picture_geometry[:50],
+                "target_geometry": target_picture_geometry[:50],
+                "geometry_authority": "STRUCTURAL_HWPUNIT_GEOMETRY / NOT_PIXEL_RENDERING",
             },
             "textboxes": {
                 "source_rectangle_textbox_count": len(source_textbox_geometry),

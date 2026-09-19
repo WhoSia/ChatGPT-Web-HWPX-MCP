@@ -1666,6 +1666,11 @@ def materialize_hwp5_rich_derivative(
     textbox_family["promoted_controls"] = promoted_textbox_controls
     textbox_family["receipts"] = textbox_receipts
     textbox_family["deferred"] = textbox_deferred[:20]
+    textbox_family["reason"] = (
+        None
+        if promoted_textbox_controls
+        else "no_rectangle_certified_object_text_promoted"
+    )
     textbox_family["status"] = (
         "PROMOTED_NATIVE"
         if promoted_textbox_controls and not textbox_deferred
@@ -3454,6 +3459,20 @@ def compare_hwp5_roundtrip_fidelity(
 
 
 @core.mcp.tool()
+def get_textbox_map(document_id: str) -> dict:
+    """Return native HWPX rectangle-textbox text, anchor and structural geometry receipts."""
+    metadata, path = _owned_document(document_id)
+    mapped = build_textbox_map(path)
+    return {
+        "ok": True,
+        "document_id": document_id,
+        "revision": int(metadata["revision"]),
+        **mapped,
+        "authority": "NATIVE_HWPX_TEXTBOX_MAP / STRUCTURAL_HWPUNIT_GEOMETRY",
+    }
+
+
+@core.mcp.tool()
 def p2_capabilities() -> dict:
     subject = core._caller_subject()
     return {
@@ -3485,6 +3504,7 @@ def p2_capabilities() -> dict:
             "compare_hwp5_roundtrip_fidelity",
             "get_hwp5_style_map",
             "get_paragraph_style_provenance",
+            "get_textbox_map",
             "get_hwp5_text_flows",
             "search_document_text",
             "get_document_slice",

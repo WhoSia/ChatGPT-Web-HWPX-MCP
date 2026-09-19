@@ -145,6 +145,8 @@ async def main() -> None:
                 "plan_bulk_text_replace",
                 "commit_bulk_text_replace",
                 "inspect_hwp5_document",
+                "materialize_hwp5_rich_derivative",
+                "get_hwp5_control_graph",
                 "materialize_hwp5_text_derivative",
                 "get_common_document_ir",
                 "extract_common_document",
@@ -176,11 +178,11 @@ async def main() -> None:
                     raise RuntimeError(f"secret-bearing field leaked into tool schema: {tool.name}")
 
             read_payload = _payload(await client.call_tool("probe_read", {"message": "P2 OAuth smoke test"}))
-            if not read_payload or not read_payload.get("ok") or read_payload.get("version") != "0.5.0-p3.5":
+            if not read_payload or not read_payload.get("ok") or read_payload.get("version") != "0.6.0-p3.6":
                 raise RuntimeError(f"probe_read did not expose P2: {read_payload}")
 
             p2_caps = _payload(await client.call_tool("p2_capabilities", {}))
-            if not p2_caps or p2_caps.get("phase") != "P3.5":
+            if not p2_caps or p2_caps.get("phase") != "P3.6":
                 raise RuntimeError(f"p2_capabilities failed: {p2_caps}")
 
             if not RUN_WRITE_TEST:

@@ -260,5 +260,132 @@ class DurableDocumentStoreTests(unittest.TestCase):
         self.assertNotIn(b"durable.hwpx", bytes(encrypted_metadata))
 
 
+    def test_p32_compaction_preserves_pins_restore_and_audit_chain(self) -> None:
+        payloads = {}
+        for revision in range(1, 6):
+            payload = f"PK-p32-revision-{revision}".encode("utf-8")
+            payloads[revision] = payload
+            self.store.put_revision(
+                document_id=self.document_id,
+                owner_subject=self.owner,
+                revision=revision,
+                expected_revision=revision - 1,
+                metadata=self._metadata(revision, payload),
+                data=payload,
+                expires_at_epoch=4_102_444_800,
+            )
+
+        pin = self.store.pin_revision(self.document_id, 2, reason="restore-anchor")
+        self.assertTrue(pin["pinned"])
+        self.assertEqual(pin["revision"], 2)
+
+        token = secrets.token_urlsafe(32)
+        self.store.acquire_lease(
+            self.document_id,
+            holder_id="p32-maintenance-race",
+            expected_revision=5,
+            lease_token=token,
+            ttl_seconds=30,
+        )
+        with self.assertRaisesRegex(RuntimeError, "Active document lease blocks compaction"):
+            self.store.compact_revisions(
+                self.document_id,
+                expected_revision=5,
+                keep_last=2,
+                dry_run=False,
+            )
+        self.assertTrue(self.store.release_lease(self.document_id, lease_token=token))
+
+        preview = self.store.compact_revisions(
+            self.document_id,
+            expected_revision=5,
+            keep_last=2,
+            dry_run=True,
+        )
+        self.assertEqual(preview["prunable_revisions"], [1, 3])
+        self.assertEqual(preview["deleted_revisions"], [])
+
+        compacted = self.store.compact_revisions(
+            self.document_id,
+            expected_revision=5,
+            keep_last=2,
+            dry_run=False,
+        )
+        self.assertEqual(compacted["deleted_revisions"], [1, 3])
+        self.assertEqual(
+            [v["revision"] for v in self.store.list_revisions(self.document_id)],
+            [2, 4, 5],
+        )
+
+        # The commit ledger survives byte compaction intact.
+        report = self.store.verify_audit_chain(self.document_id)
+        self.assertTrue(report["audit_chain_valid"], report)
+        self.assertTrue(report["restore_reachability_valid"], report)
+        self.assertEqual(report["commit_count"], 5)
+        self.assertEqual(report["compacted_revisions"], [1, 3])
+        self.assertEqual(report["pinned_revisions"], [2])
+
+        pinned = self.store.load_revision(self.document_id, 2)
+        self.assertIsNotNone(pinned)
+        self.assertEqual(pinned["bytes"], payloads[2])
+
+        # A pinned historical snapshot remains promotable as a new monotonic revision.
+        restored = self.store.put_revision(
+            document_id=self.document_id,
+            owner_subject=self.owner,
+            revision=6,
+            expected_revision=5,
+            metadata=self._metadata(6, pinned["bytes"]),
+            data=pinned["bytes"],
+            expires_at_epoch=4_102_444_800,
+        )
+        self.assertEqual(restored["commit_status"], "COMMITTED")
+        final = self.store.verify_audit_chain(self.document_id)
+        self.assertTrue(final["audit_chain_valid"], final)
+        self.assertEqual(final["current_revision"], 6)
+
+    def test_p32_audit_chain_detects_commit_tampering(self) -> None:
+        first = b"PK-p32-audit-1"
+        second = b"PK-p32-audit-2"
+        self.store.put_revision(
+            document_id=self.document_id,
+            owner_subject=self.owner,
+            revision=1,
+            expected_revision=0,
+            metadata=self._metadata(1, first),
+            data=first,
+            expires_at_epoch=4_102_444_800,
+        )
+        self.store.put_revision(
+            document_id=self.document_id,
+            owner_subject=self.owner,
+            revision=2,
+            expected_revision=1,
+            metadata=self._metadata(2, second),
+            data=second,
+            expires_at_epoch=4_102_444_800,
+        )
+        healthy = self.store.verify_audit_chain(self.document_id)
+        self.assertTrue(healthy["audit_chain_valid"], healthy)
+
+        with psycopg.connect(self.database_url) as conn, conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE hwpx_document_commits
+                SET sha256=%s
+                WHERE document_id=%s AND revision=1
+                """,
+                ("0" * 64, self.document_id),
+            )
+
+        damaged = self.store.verify_audit_chain(self.document_id)
+        self.assertFalse(damaged["audit_chain_valid"])
+        self.assertTrue(
+            any(item["reason"] == "audit hash mismatch" for item in damaged["failures"]),
+            damaged,
+        )
+
+
+
 if __name__ == "__main__":
     unittest.main()

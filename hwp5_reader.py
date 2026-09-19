@@ -11,8 +11,10 @@ from PIL import Image
 
 HWP5_SIGNATURE = b"HWP Document File" + (b"\x00" * 15)
 HWPTAG_BIN_DATA = 0x12
+HWPTAG_CHAR_SHAPE = 0x15
 HWPTAG_PARA_HEADER = 0x42
 HWPTAG_PARA_TEXT = 0x43
+HWPTAG_PARA_CHAR_SHAPE = 0x44
 HWPTAG_CTRL_HEADER = 0x47
 HWPTAG_LIST_HEADER = 0x48
 HWPTAG_TABLE = 0x4D
@@ -131,6 +133,157 @@ def _clean_para_text(payload: bytes) -> str:
         else:
             chars.append(ch)
     return "".join(chars).replace("\r\n", "\n").replace("\r", "\n").strip("\x00")
+
+
+def _parse_para_header(payload: bytes) -> dict:
+    if len(payload) < 22:
+        return {
+            "fidelity": "inventory",
+            "parse_error": "para_header_too_short",
+            "payload_sha256": hashlib.sha256(payload).hexdigest(),
+        }
+    char_count, control_mask = struct.unpack_from("<II", payload, 0)
+    para_shape_id = struct.unpack_from("<H", payload, 8)[0]
+    para_style_id = payload[10]
+    break_type = payload[11]
+    char_shape_count, range_tag_count, line_seg_count = struct.unpack_from("<HHH", payload, 12)
+    instance_id = struct.unpack_from("<I", payload, 18)[0]
+    return {
+        "fidelity": "structural",
+        "char_count": char_count,
+        "control_mask": control_mask,
+        "para_shape_id": para_shape_id,
+        "para_style_id": para_style_id,
+        "break_type": break_type,
+        "char_shape_count": char_shape_count,
+        "range_tag_count": range_tag_count,
+        "line_seg_count": line_seg_count,
+        "instance_id": instance_id,
+        "payload_sha256": hashlib.sha256(payload).hexdigest(),
+    }
+
+
+def _parse_para_char_shapes(payload: bytes) -> list[dict]:
+    if len(payload) % 8:
+        raise Hwp5ReadError("PARA_CHAR_SHAPE payload is not aligned to 8-byte entries")
+    result = []
+    for offset in range(0, len(payload), 8):
+        position, char_shape_id = struct.unpack_from("<II", payload, offset)
+        result.append({
+            "source_position": position,
+            "char_shape_id": char_shape_id,
+        })
+    return result
+
+
+def _parse_docinfo_char_shape(payload: bytes, index: int) -> dict:
+    if len(payload) < 70:
+        return {
+            "char_shape_id": index,
+            "fidelity": "inventory",
+            "parse_error": "char_shape_record_too_short",
+            "payload_bytes": len(payload),
+            "payload_sha256": hashlib.sha256(payload).hexdigest(),
+        }
+    face_ids = list(struct.unpack_from("<7H", payload, 0))
+    ratios = list(payload[14:21])
+    spacing = list(struct.unpack_from("<7b", payload, 21))
+    relative_sizes = list(payload[28:35])
+    offsets = list(struct.unpack_from("<7b", payload, 35))
+    height = struct.unpack_from("<I", payload, 42)[0]
+    attributes = struct.unpack_from("<I", payload, 46)[0]
+    shadow_x = struct.unpack_from("<b", payload, 50)[0]
+    shadow_y = struct.unpack_from("<b", payload, 51)[0]
+    text_color, underline_color, shade_color, shadow_color = struct.unpack_from("<IIII", payload, 52)
+    border_fill_id = struct.unpack_from("<H", payload, 68)[0]
+    result = {
+        "char_shape_id": index,
+        "fidelity": "semantic",
+        "face_ids": face_ids,
+        "ratios": ratios,
+        "spacing": spacing,
+        "relative_sizes": relative_sizes,
+        "offsets": offsets,
+        "height": height,
+        "attributes": attributes,
+        "italic": bool(attributes & (1 << 0)),
+        "bold": bool(attributes & (1 << 1)),
+        "underline_type": (attributes >> 2) & 0b11,
+        "outline_type": (attributes >> 8) & 0b111,
+        "shadow_type": (attributes >> 11) & 0b11,
+        "emboss": bool(attributes & (1 << 13)),
+        "engrave": bool(attributes & (1 << 14)),
+        "superscript": bool(attributes & (1 << 15)),
+        "subscript": bool(attributes & (1 << 16)),
+        "shadow_offset_x": shadow_x,
+        "shadow_offset_y": shadow_y,
+        "text_color": text_color,
+        "underline_color": underline_color,
+        "shade_color": shade_color,
+        "shadow_color": shadow_color,
+        "border_fill_id": border_fill_id,
+        "payload_bytes": len(payload),
+        "payload_sha256": hashlib.sha256(payload).hexdigest(),
+    }
+    if len(payload) >= 74:
+        result["strikeout_color"] = struct.unpack_from("<I", payload, 70)[0]
+    return result
+
+
+def _flow_kind_for_control(ctrl_id: str | None) -> str:
+    return {
+        "head": "header",
+        "foot": "footer",
+        "fn  ": "footnote",
+        "en  ": "endnote",
+        "gso ": "object-text",
+    }.get(str(ctrl_id or ""), "body")
+
+
+def _build_run_receipts(text: str, header: dict, changes: list[dict], char_shapes: list[dict]) -> dict:
+    normalized = sorted(changes, key=lambda item: int(item["source_position"]))
+    if not normalized:
+        return {
+            "runs": [],
+            "visible_span_fidelity": "none",
+            "source_coordinate_authority": "none",
+        }
+    control_free = int(header.get("control_mask", 0) or 0) == 0
+    runs = []
+    for index, change in enumerate(normalized):
+        start = int(change["source_position"])
+        end = (
+            int(normalized[index + 1]["source_position"])
+            if index + 1 < len(normalized)
+            else int(header.get("char_count", len(text)) or len(text))
+        )
+        shape_id = int(change["char_shape_id"])
+        shape = char_shapes[shape_id] if 0 <= shape_id < len(char_shapes) else None
+        item = {
+            "run_index": index,
+            "source_start": start,
+            "source_end": end,
+            "char_shape_id": shape_id,
+            "char_shape": shape,
+            "fidelity": "semantic" if shape and shape.get("fidelity") == "semantic" else "structural",
+        }
+        if control_free:
+            visible_start = max(0, min(start, len(text)))
+            visible_end = max(visible_start, min(end, len(text)))
+            item.update({
+                "visible_start": visible_start,
+                "visible_end": visible_end,
+                "text": text[visible_start:visible_end],
+                "visible_span_certified": True,
+            })
+        else:
+            item["visible_span_certified"] = False
+        runs.append(item)
+    return {
+        "runs": runs,
+        "visible_span_fidelity": "semantic" if control_free else "source-coordinate-only",
+        "source_coordinate_authority": "structural",
+    }
 
 
 def _ctrl_id_text(value: int) -> str:
@@ -649,6 +802,15 @@ def parse_hwp5_bytes(
                 ],
             }
 
+        char_shapes: list[dict] = []
+        if ole.exists("DocInfo"):
+            docinfo_raw = ole.openstream("DocInfo").read()
+            if header.compressed:
+                docinfo_raw = _decompress_stream(docinfo_raw)
+            for tag_id, _level, record in _iter_records(docinfo_raw):
+                if tag_id == HWPTAG_CHAR_SHAPE:
+                    char_shapes.append(_parse_docinfo_char_shape(record, len(char_shapes)))
+
         streams = ["/".join(parts) for parts in ole.listdir(streams=True, storages=False)]
         binary_items = []
         binary_by_id: dict[int, dict] = {}
@@ -702,6 +864,18 @@ def parse_hwp5_bytes(
                 if tag_id == HWPTAG_PARA_HEADER:
                     para_header_ord[record_index] = local_para_ord
                     local_para_ord += 1
+
+            para_header_meta: dict[int, dict] = {}
+            para_char_changes: dict[int, list[dict]] = {}
+            for record_index, (tag_id, _level, record) in enumerate(records):
+                if tag_id == HWPTAG_PARA_HEADER:
+                    para_header_meta[record_index] = _parse_para_header(record)
+                elif tag_id == HWPTAG_PARA_CHAR_SHAPE:
+                    para_header_record = _nearest_ancestor(
+                        records, parents, record_index, {HWPTAG_PARA_HEADER}
+                    )
+                    if para_header_record is not None:
+                        para_char_changes[para_header_record] = _parse_para_char_shapes(record)
 
             ctrl_by_record: dict[int, dict] = {}
             for record_index, (tag_id, level, record) in enumerate(records):
@@ -822,6 +996,19 @@ def parse_hwp5_bytes(
                         records, parents, record_index, {HWPTAG_LIST_HEADER}
                     )
                     paragraph_index = len(paragraphs)
+                    header_meta = (
+                        {} if para_header_record is None
+                        else dict(para_header_meta.get(para_header_record, {}))
+                    )
+                    run_receipts = _build_run_receipts(
+                        text,
+                        header_meta,
+                        [] if para_header_record is None else para_char_changes.get(para_header_record, []),
+                        char_shapes,
+                    )
+                    flow_kind = _flow_kind_for_control(
+                        None if ctrl is None else ctrl.get("ctrl_id")
+                    )
                     paragraph = {
                         "paragraph_index": paragraph_index,
                         "paragraph_header_record_index": para_header_record,
@@ -832,6 +1019,11 @@ def parse_hwp5_bytes(
                         ),
                         "list_header_record_index": list_header_record,
                         "control_index": None if ctrl is None else ctrl["control_index"],
+                        "control_id": None if ctrl is None else ctrl.get("ctrl_id"),
+                        "flow_kind": flow_kind,
+                        "paragraph_style": header_meta,
+                        "runs": run_receipts["runs"],
+                        "run_visible_span_fidelity": run_receipts["visible_span_fidelity"],
                         **source,
                         "text": text,
                     }
@@ -1004,6 +1196,7 @@ def parse_hwp5_bytes(
             "paragraph_count": len(paragraphs),
             "text_chars": total_chars,
             "paragraphs": paragraphs,
+            "char_shapes": char_shapes,
             "tables": tables,
             "equations": equations,
             "objects": objects,
@@ -1021,6 +1214,22 @@ def parse_hwp5_bytes(
             ],
             "fidelity": {
                 "paragraph_text": "semantic",
+                "run_style": (
+                    "semantic"
+                    if paragraphs and all(
+                        (not item.get("runs")) or all(
+                            run.get("fidelity") == "semantic"
+                            for run in item.get("runs", [])
+                        )
+                        for item in paragraphs
+                    )
+                    else "structural"
+                ) if paragraphs else "not-present",
+                "nested_text_flows": (
+                    "structural"
+                    if any(item.get("flow_kind") != "body" for item in paragraphs)
+                    else "not-present"
+                ),
                 "tables": ("semantic" if tables and all(item.get("cells") for item in tables) else "structural") if tables else "not-present",
                 "equations": ("semantic" if equations else "not-present"),
                 "equation_position": ("structural" if equations and all(item.get("position_fidelity") == "structural" for item in equations) else "inventory") if equations else "not-present",

@@ -40,7 +40,7 @@ from common_ir import (
     slice_common_ir,
 )
 
-P2_VERSION = "0.7.0-p3.7"
+P2_VERSION = "0.8.0-p3.8"
 core.VERSION = P2_VERSION
 
 _original_metadata = core._metadata
@@ -576,12 +576,50 @@ def _hwp_run_format_subset(run: dict) -> dict:
         "bold": bool(shape.get("bold")),
         "italic": bool(shape.get("italic")),
         "underline": int(shape.get("underline_type", 0) or 0) != 0,
+        "strike": bool(shape.get("strikeout_color") is not None and (int(shape.get("attributes", 0)) >> 18) & 0b111),
     }
     height = int(shape.get("height", 0) or 0)
     if height > 0:
         fmt["size"] = height / 100.0
     if shape.get("text_color") is not None:
         fmt["color"] = _hwp_colorref_to_hex(shape.get("text_color"))
+    primary_font = shape.get("primary_font_face")
+    if primary_font:
+        fmt["font"] = str(primary_font)
+    if shape.get("superscript"):
+        fmt["script"] = "sup"
+    elif shape.get("subscript"):
+        fmt["script"] = "sub"
+    return fmt
+
+
+def _hwp_paragraph_format_subset(paragraph: dict) -> dict:
+    shape = (paragraph.get("paragraph_style") or {}).get("resolved_para_shape") or {}
+    if shape.get("fidelity") != "semantic":
+        return {}
+    fmt: dict = {}
+    alignment = str(shape.get("alignment") or "")
+    if alignment in {"LEFT", "RIGHT", "CENTER", "JUSTIFY", "DISTRIBUTE"}:
+        fmt["alignment"] = alignment
+    def mm(value: object) -> float:
+        return round(float(value or 0) * 25.4 / 7200.0, 4)
+    def pt(value: object) -> float:
+        return round(float(value or 0) / 100.0, 4)
+    left = int(shape.get("left_margin_hwpunit", 0) or 0)
+    right = int(shape.get("right_margin_hwpunit", 0) or 0)
+    indent = int(shape.get("indent_hwpunit", 0) or 0)
+    before = int(shape.get("spacing_before_hwpunit", 0) or 0)
+    after = int(shape.get("spacing_after_hwpunit", 0) or 0)
+    if left:
+        fmt["indent_left_mm"] = mm(left)
+    if right:
+        fmt["indent_right_mm"] = mm(right)
+    if indent:
+        fmt["first_line_indent_mm"] = mm(indent)
+    if before:
+        fmt["spacing_before_pt"] = pt(before)
+    if after:
+        fmt["spacing_after_pt"] = pt(after)
     return fmt
 
 
@@ -592,8 +630,44 @@ def _hwp_style_signature(run: dict) -> dict:
         "bold": fmt.get("bold"),
         "italic": fmt.get("italic"),
         "underline": fmt.get("underline"),
+        "strike": fmt.get("strike"),
         "size": fmt.get("size"),
-        "color": fmt.get("color"),
+        "color": None if fmt.get("color") is None else str(fmt.get("color")).upper(),
+        "font": fmt.get("font"),
+        "script": fmt.get("script"),
+    }
+
+
+def _hwp_paragraph_style_signature(paragraph: dict) -> dict:
+    fmt = _hwp_paragraph_format_subset(paragraph)
+    return {
+        "alignment": fmt.get("alignment"),
+        "indent_left_mm": fmt.get("indent_left_mm"),
+        "indent_right_mm": fmt.get("indent_right_mm"),
+        "first_line_indent_mm": fmt.get("first_line_indent_mm"),
+        "spacing_before_pt": fmt.get("spacing_before_pt"),
+        "spacing_after_pt": fmt.get("spacing_after_pt"),
+    }
+
+
+def _hwpx_paragraph_style_signature(paragraph: dict) -> dict:
+    prop = paragraph.get("paragraph_property") or {}
+    alignment = (prop.get("alignment") or {}).get("horizontal")
+    margin = prop.get("margin") or {}
+    def number(value: object) -> float | None:
+        if value is None:
+            return None
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return None
+    return {
+        "alignment": alignment,
+        "indent_left_mm": number(margin.get("left")),
+        "indent_right_mm": number(margin.get("right")),
+        "first_line_indent_mm": number(margin.get("indent")),
+        "spacing_before_pt": number(margin.get("prev")),
+        "spacing_after_pt": number(margin.get("next")),
     }
 
 
@@ -753,7 +827,8 @@ def materialize_hwp5_rich_derivative(
     # duplicated into the top-level text stream.
     top_level = [
         item for item in parsed.get("paragraphs", [])
-        if item.get("list_header_record_index") is None
+        if item.get("flow_kind") == "body"
+        and item.get("list_header_record_index") is None
     ]
     if not top_level:
         top_level = list(parsed.get("paragraphs", []))
@@ -768,6 +843,7 @@ def materialize_hwp5_rich_derivative(
     promotion_report = {
         "paragraph_text": {"status": "PROMOTED", "count": len(top_level)},
         "run_styles": {"promoted_runs": 0, "deferred": []},
+        "paragraph_styles": {"promoted_paragraphs": 0, "deferred": []},
         "nested_text_flows": {
             "recovered": sum(
                 1 for item in parsed.get("paragraphs", [])
@@ -1060,6 +1136,80 @@ def materialize_hwp5_rich_derivative(
                 tmp_path.unlink()
             except FileNotFoundError:
                 pass
+        nested_groups: dict[str, list[dict]] = {}
+        for item in parsed.get("paragraphs", []):
+            flow = str(item.get("flow_kind") or "body")
+            if flow == "body":
+                continue
+            nested_groups.setdefault(flow, []).append(item)
+
+        # Header/footer are section-level stories and therefore do not need a
+        # body-text anchor. The current native API preserves the master-page link.
+        for flow, setter_name in (("header", "set_header_text"), ("footer", "set_footer_text")):
+            items = nested_groups.get(flow, [])
+            if not items:
+                continue
+            text_value = "\n".join(str(item.get("text", "")) for item in items)
+            try:
+                section = document.sections[0]
+                setter = getattr(section.properties, setter_name)
+                setter(text_value, page_type="BOTH")
+                promotion_report["nested_text_flows"]["promoted"] += len(items)
+                promotion_report["nested_text_flows"].setdefault("families", {})[flow] = {
+                    "status": "PROMOTED_NATIVE",
+                    "paragraph_count": len(items),
+                }
+            except Exception as exc:
+                promotion_report["nested_text_flows"].setdefault("families", {})[flow] = {
+                    "status": "DEFERRED",
+                    "paragraph_count": len(items),
+                    "reason": f"{type(exc).__name__}:{str(exc)[:180]}",
+                }
+
+        # Footnote/endnote authoring requires a body anchor. We bind each nested
+        # note family to its recovered owning control paragraph when available.
+        for flow, method_name in (("footnote", "add_footnote"), ("endnote", "add_endnote")):
+            items = nested_groups.get(flow, [])
+            if not items:
+                continue
+            promoted = 0
+            deferred: list[dict] = []
+            for item in items:
+                control_index = item.get("control_index")
+                control = controls.get(int(control_index)) if control_index is not None else None
+                ordinal = None if control is None else control.get("anchor_paragraph_ordinal")
+                locator = (
+                    None
+                    if ordinal is None
+                    else anchor_map.get((int(item.get("section_index", 0)), int(ordinal)))
+                )
+                if not locator:
+                    deferred.append({"reason": "owner_anchor_missing"})
+                    continue
+                try:
+                    paragraph, _target = _resolve_hwpx_paragraph(
+                        document, hwpx_path, locator
+                    )
+                    getattr(paragraph, method_name)(str(item.get("text", "")))
+                    promoted += 1
+                except Exception as exc:
+                    deferred.append({
+                        "reason": f"{type(exc).__name__}:{str(exc)[:180]}"
+                    })
+            promotion_report["nested_text_flows"]["promoted"] += promoted
+            promotion_report["nested_text_flows"].setdefault("families", {})[flow] = {
+                "status": "PROMOTED_NATIVE" if promoted and not deferred else (
+                    "PARTIAL" if promoted else "DEFERRED"
+                ),
+                "promoted": promoted,
+                "deferred": deferred[:20],
+            }
+
+        if promotion_report["nested_text_flows"]["promoted"] > 0:
+            promotion_report["nested_text_flows"]["authority"] = (
+                "FAMILY_GRADED_NATIVE_PROMOTION"
+            )
+
     finally:
         document.close()
 
@@ -1112,6 +1262,45 @@ def materialize_hwp5_rich_derivative(
         except Exception as exc:
             promotion_report["run_styles"]["deferred"].append({
                 "reason": f"formatting_promotion_refused:{type(exc).__name__}",
+                "detail": str(exc)[:240],
+            })
+
+    paragraph_style_operations: list[dict] = []
+    refreshed_map = build_document_map(hwpx_path)
+    refreshed_top = [
+        item for item in refreshed_map.get("paragraphs", [])
+        if item.get("container") == "section-body"
+    ]
+    for source_para, target_para in zip(top_level, refreshed_top):
+        fmt = _hwp_paragraph_format_subset(source_para)
+        if not fmt:
+            continue
+        paragraph_style_operations.append({
+            "op": "set_paragraph_format",
+            "target": target_para["locator"],
+            "format": fmt,
+        })
+    if paragraph_style_operations:
+        try:
+            current_revision = 2 if style_operations else 1
+            para_result = apply_rich_formatting_atomic(
+                hwpx_path,
+                paragraph_style_operations,
+                expected_revision=current_revision,
+                current_revision=current_revision,
+                validator=lambda candidate: core.validate_hwpx_package(
+                    candidate, ingress=False
+                ),
+            )
+            promotion_report["paragraph_styles"]["promoted_paragraphs"] = int(
+                para_result.get("operation_count", 0)
+            )
+            promotion_report["paragraph_styles"]["formatting_sha256_after"] = (
+                para_result.get("after", {}).get("formatting_sha256")
+            )
+        except Exception as exc:
+            promotion_report["paragraph_styles"]["deferred"].append({
+                "reason": f"paragraph_formatting_refused:{type(exc).__name__}",
                 "detail": str(exc)[:240],
             })
 
@@ -2497,8 +2686,11 @@ def compare_hwp5_roundtrip_fidelity(
                 "bold": style.get("bold"),
                 "italic": style.get("italic"),
                 "underline": style.get("underline"),
+                "strike": style.get("strike"),
                 "size": style.get("size_pt"),
-                "color": style.get("color"),
+                "color": None if style.get("text_color") is None else str(style.get("text_color")).upper(),
+                "font": style.get("primary_font_face"),
+                "script": style.get("script"),
             })
         target_style_runs.append(runs)
 
@@ -2515,7 +2707,7 @@ def compare_hwp5_roundtrip_fidelity(
             if left["text"] != right["text"]:
                 ok = False
                 break
-            for key in ("bold", "italic", "underline", "color"):
+            for key in ("bold", "italic", "underline", "strike", "color", "font", "script"):
                 if left.get(key) != right.get(key):
                     ok = False
                     break
@@ -2527,6 +2719,49 @@ def compare_hwp5_roundtrip_fidelity(
                     break
         if ok:
             exact_style_paragraphs += 1
+
+    source_para_styles = [
+        _hwp_paragraph_style_signature(item)
+        for item in source_top
+        if str(item.get("text", "")).strip()
+    ]
+    target_para_styles = [
+        _hwpx_paragraph_style_signature(item)
+        for item in target_top
+        if str(item.get("direct_text", item.get("text", ""))).strip()
+    ][:len(source_para_styles)]
+    paragraph_style_comparable = 0
+    paragraph_style_exact = 0
+    paragraph_style_axis_matches = {
+        "alignment": 0,
+        "indent_left_mm": 0,
+        "indent_right_mm": 0,
+        "first_line_indent_mm": 0,
+        "spacing_before_pt": 0,
+        "spacing_after_pt": 0,
+    }
+    for expected, observed in zip(source_para_styles, target_para_styles):
+        paragraph_style_comparable += 1
+        axes_ok = True
+        for key in paragraph_style_axis_matches:
+            left = expected.get(key)
+            right = observed.get(key)
+            if left is None and right is None:
+                paragraph_style_axis_matches[key] += 1
+                continue
+            if key == "alignment":
+                same = left == right
+            else:
+                same = (
+                    left is not None and right is not None
+                    and abs(float(left) - float(right)) <= 0.05
+                )
+            if same:
+                paragraph_style_axis_matches[key] += 1
+            else:
+                axes_ok = False
+        if axes_ok:
+            paragraph_style_exact += 1
 
     source_tables = parsed.get("tables", [])
     target_tables = table_map.get("tables", [])
@@ -2582,6 +2817,20 @@ def compare_hwp5_roundtrip_fidelity(
                     comparable_style_paragraphs > 0
                     and comparable_style_paragraphs == exact_style_paragraphs
                 ),
+                "canonical_axes": [
+                    "text", "bold", "italic", "underline", "strike",
+                    "size", "color", "font", "script",
+                ],
+                "font_semantics": "FaceName-resolved rather than raw fontRef id",
+            },
+            "paragraph_style": {
+                "comparable_paragraphs": paragraph_style_comparable,
+                "exact_paragraphs": paragraph_style_exact,
+                "exact": (
+                    paragraph_style_comparable > 0
+                    and paragraph_style_comparable == paragraph_style_exact
+                ),
+                "axis_match_counts": paragraph_style_axis_matches,
             },
             "tables": {
                 "source_count": len(source_tables),
@@ -2604,7 +2853,7 @@ def compare_hwp5_roundtrip_fidelity(
                     kind: sum(1 for item in nested if item.get("flow_kind") == kind)
                     for kind in sorted({str(item.get("flow_kind")) for item in nested})
                 },
-                "native_promotion": "DEFERRED",
+                "native_promotion": "FAMILY_GRADED",
             },
         },
         "authority": (
@@ -2627,7 +2876,7 @@ def p2_capabilities() -> dict:
     return {
         "project": core.PROJECT,
         "version": core.VERSION,
-        "phase": "P3.7",
+        "phase": "P3.8",
         "authenticated_subject": subject,
         "tools_added": [
             "acquire_document_lease",
@@ -2795,8 +3044,14 @@ def p2_capabilities() -> dict:
             "run_style": "PARA_CHAR_SHAPE source-coordinate transitions resolved through DocInfo CHAR_SHAPE",
             "visible_span": "certified through source-WCHAR→visible mapping when control decoding closes; control-free paragraphs use identity coordinates",
             "nested_flows": "header/footer/footnote/endnote/object-text paragraph ownership is explicit in Common IR",
-            "promotion": "safe body run subset uses existing formatting transaction; nested flow native promotion remains deferred",
-            "oracle": "source HWP versus promoted HWPX family-by-family fidelity receipt",
+            "promotion": "body run/paragraph styles use semantic FaceName/ParaShape subsets; header/footer and anchored footnote/endnote families may promote natively",
+            "oracle": "canonical FaceName/run emphasis/paragraph semantics are compared by meaning rather than source-local IDs",
+        },
+        "hwp5_style_canonicalization": {
+            "font": "DocInfo ID_MAPPINGS + FACE_NAME resolves HWP face_ids; HWPX fontRef ids resolve through header.xml fontfaces",
+            "paragraph": "PARA_SHAPE alignment/margin/spacing prefix semantics mapped to HWPX paragraph-format coordinates",
+            "oracle": "run style reports semantic font/color/script/emphasis axes and paragraph-style axis matches",
+            "nested_promotion": "header/footer native section stories; footnote/endnote require recovered owner anchors; object-text remains deferred",
         },
         "hwp5_control_graph": {
             "controls": "CTRL_HEADER family/instance/geometry reconstruction",

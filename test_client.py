@@ -150,6 +150,7 @@ async def main() -> None:
                 "compare_hwp5_roundtrip_fidelity",
                 "get_hwp5_style_map",
                 "get_paragraph_style_provenance",
+                "get_textbox_map",
                 "get_hwp5_text_flows",
                 "materialize_hwp5_text_derivative",
                 "get_common_document_ir",
@@ -222,6 +223,17 @@ async def main() -> None:
             mapped = _payload(await client.call_tool("get_document_map", {"document_id": document_id}))
             if not mapped or mapped.get("revision") != 1 or len(mapped.get("paragraphs", [])) < 3:
                 raise RuntimeError(f"get_document_map failed: {mapped}")
+            textbox_map = _payload(await client.call_tool(
+                "get_textbox_map", {"document_id": document_id}
+            ))
+            if (
+                not textbox_map
+                or textbox_map.get("revision") != 1
+                or textbox_map.get("textbox_count") != 0
+                or not textbox_map.get("textbox_geometry_sha256")
+            ):
+                raise RuntimeError(f"P3.9 textbox map baseline failed: {textbox_map}")
+
             style_provenance = _payload(await client.call_tool(
                 "get_paragraph_style_provenance",
                 {"document_id": document_id, "max_paragraphs": 10},

@@ -31,7 +31,7 @@ async def main() -> None:
     oauth = OAuthClientProvider(
         server_url=URL,
         client_metadata=OAuthClientMetadata(
-            client_name="P3.7 Nested HWP Flow Probe",
+            client_name="P3.8 Nested HWP Flow Probe",
             redirect_uris=[AnyUrl("http://127.0.0.1:8765/callback")],
             scope="hwpx offline_access",
         ),
@@ -74,7 +74,7 @@ async def main() -> None:
                 rich = _payload(await client.call_tool("materialize_hwp5_rich_derivative", {
                     "content_base64": encoded,
                     "filename": path.name,
-                    "request_id": f"p37-nested-{expected_flow}-v1",
+                    "request_id": f"p38-nested-{expected_flow}-v2",
                     "promote_tables": False,
                     "promote_equations": False,
                     "promote_pictures": False,
@@ -89,10 +89,19 @@ async def main() -> None:
                     raise RuntimeError(
                         f"{expected_flow}: promotion receipt lost nested flow: {rich}"
                     )
-                if int(nested_receipt.get("promoted", 0)) != 0:
-                    raise RuntimeError(
-                        f"{expected_flow}: nested flow was promoted without authority: {rich}"
-                    )
+                family_receipt = (nested_receipt.get("families") or {}).get(
+                    expected_flow, {}
+                )
+                if expected_flow in {"header", "footer", "footnote", "endnote"}:
+                    if family_receipt.get("status") != "PROMOTED_NATIVE":
+                        raise RuntimeError(
+                            f"{expected_flow}: native promotion did not close: {rich}"
+                        )
+                elif expected_flow == "object-text":
+                    if family_receipt.get("status") != "DEFERRED":
+                        raise RuntimeError(
+                            f"{expected_flow}: text-box promotion overstated: {rich}"
+                        )
 
                 oracle = _payload(await client.call_tool(
                     "compare_hwp5_roundtrip_fidelity",
@@ -113,10 +122,23 @@ async def main() -> None:
                     raise RuntimeError(
                         f"{expected_flow}: oracle omitted nested source flow: {oracle}"
                     )
-                if nested_oracle.get("native_promotion") != "DEFERRED":
+                if nested_oracle.get("native_promotion") != "FAMILY_GRADED":
                     raise RuntimeError(
-                        f"{expected_flow}: oracle overstated promotion: {oracle}"
+                        f"{expected_flow}: oracle lost family-graded promotion: {oracle}"
                     )
+                oracle_family = (
+                    (nested_oracle.get("promotion_receipt") or {}).get("families") or {}
+                ).get(expected_flow, {})
+                if expected_flow in {"header", "footer", "footnote", "endnote"}:
+                    if oracle_family.get("status") != "PROMOTED_NATIVE":
+                        raise RuntimeError(
+                            f"{expected_flow}: oracle promotion receipt did not close: {oracle}"
+                        )
+                elif expected_flow == "object-text":
+                    if oracle_family.get("status") != "DEFERRED":
+                        raise RuntimeError(
+                            f"{expected_flow}: oracle overstated text-box promotion: {oracle}"
+                        )
 
                 report[expected_flow] = {
                     "source_bytes": len(raw),
@@ -133,7 +155,7 @@ async def main() -> None:
                 if not deleted or not deleted.get("deleted"):
                     raise RuntimeError(f"cleanup failed: {document_id}: {deleted}")
 
-    print("P3.7 REAL_NESTED_HWP_FLOW_PASS")
+    print("P3.8 REAL_NESTED_HWP_FLOW_PASS")
     print(json.dumps(report, ensure_ascii=False, sort_keys=True))
 
 

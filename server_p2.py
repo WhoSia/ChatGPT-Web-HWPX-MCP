@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import os
+import tempfile
+import time
 from pathlib import Path
 
 import server as core
@@ -13,7 +15,7 @@ from p28_tables import apply_table_edits_atomic, build_table_map
 from p29_objects import apply_object_edits_atomic, build_object_map
 from p210_equations import apply_equation_edits_atomic, build_equation_map
 
-P2_VERSION = "0.3.10-p2.10"
+P2_VERSION = "0.4.0-p3.0"
 core.VERSION = P2_VERSION
 
 _original_metadata = core._metadata
@@ -75,6 +77,105 @@ def _refresh_metadata(
         metadata["equation_script_custody_sha256"] = equation_map["equation_script_custody_sha256"]
     core._write_metadata(document_id, metadata)
     return metadata
+
+
+@core.mcp.tool()
+def get_document_versions(document_id: str) -> dict:
+    """Return durable revision history for one owned document."""
+    metadata, _path = _owned_document(document_id)
+    versions = core.DOCUMENT_STORE.list_revisions(document_id)
+    return {
+        "ok": True,
+        "document_id": document_id,
+        "revision": int(metadata["revision"]),
+        "storage": core.DOCUMENT_STORE.mode,
+        "versions": versions,
+        "version_count": len(versions),
+    }
+
+
+@core.mcp.tool()
+def restore_document_revision(
+    document_id: str,
+    revision: int,
+    expected_revision: int,
+) -> dict:
+    """Promote one durable historical snapshot as a new monotonic revision."""
+    metadata, path = _owned_document(document_id)
+    current_revision = int(metadata["revision"])
+    if int(expected_revision) != current_revision:
+        raise ValueError(
+            f"Stale revision: expected {expected_revision}, current {current_revision}"
+        )
+    source_revision = int(revision)
+    if source_revision < 1 or source_revision > current_revision:
+        raise ValueError("Recovery source revision is outside durable history")
+    historical = core.DOCUMENT_STORE.load_revision(document_id, source_revision)
+    if historical is None:
+        raise FileNotFoundError("Durable revision not found")
+    if historical["owner_subject"] != metadata.get("owner_subject"):
+        raise PermissionError("Durable revision owner mismatch")
+
+    fd, tmp_name = tempfile.mkstemp(
+        prefix=path.stem + ".p30-restore-",
+        suffix=".hwpx",
+        dir=str(path.parent),
+    )
+    os.close(fd)
+    candidate = Path(tmp_name)
+    candidate.write_bytes(historical["bytes"])
+    try:
+        validation = core.validate_hwpx_package(
+            candidate,
+            ingress=metadata.get("source") == "existing-ingress",
+        )
+        new_revision = current_revision + 1
+        restored = dict(metadata)
+        restored["revision"] = new_revision
+        restored["sha256"] = validation["sha256"]
+        restored["bytes"] = validation["bytes"]
+        restored["recovered_from_revision"] = source_revision
+        restored["recovered_at"] = core._utc_iso()
+        os.replace(candidate, path)
+        core._write_metadata(document_id, restored)
+    except Exception:
+        try:
+            candidate.unlink()
+        except FileNotFoundError:
+            pass
+        raise
+
+    return {
+        "ok": True,
+        "document_id": document_id,
+        "revision_before": current_revision,
+        "revision_after": new_revision,
+        "recovered_from_revision": source_revision,
+        "sha256": validation["sha256"],
+        "bytes": validation["bytes"],
+        "storage": core.DOCUMENT_STORE.mode,
+        "transaction": "RECOVERED_AS_NEW_REVISION",
+    }
+
+
+@core.mcp.tool()
+def set_document_retention(document_id: str, retention_seconds: int) -> dict:
+    """Extend or shorten durable retention within the P3.0 bounded window."""
+    metadata, _path = _owned_document(document_id)
+    seconds = max(3600, min(int(retention_seconds), 2_592_000))
+    expires = time.time() + seconds
+    metadata["expires_at_epoch"] = expires
+    metadata["expires_at"] = core._utc_iso(expires)
+    metadata["retention_seconds"] = seconds
+    core._write_metadata(document_id, metadata)
+    return {
+        "ok": True,
+        "document_id": document_id,
+        "revision": int(metadata["revision"]),
+        "retention_seconds": seconds,
+        "expires_at": metadata["expires_at"],
+        "storage": core.DOCUMENT_STORE.mode,
+    }
 
 
 @core.mcp.tool()
@@ -700,9 +801,12 @@ def p2_capabilities() -> dict:
     return {
         "project": core.PROJECT,
         "version": core.VERSION,
-        "phase": "P2.10",
+        "phase": "P3.0",
         "authenticated_subject": subject,
         "tools_added": [
+            "get_document_versions",
+            "restore_document_revision",
+            "set_document_retention",
             "get_document_map",
             "get_text",
             "apply_edits",
@@ -807,6 +911,15 @@ def p2_capabilities() -> dict:
             "replacement_removal": "asset replacement with optional orphan cleanup + picture removal",
             "geometry": "picture resize + floating offset mutation",
             "diff": "object_structure_sha256 + object_geometry_sha256 + media_custody_sha256",
+        },
+        "durable_document_storage": {
+            "authority": "encrypted Postgres revision snapshots; local filesystem is a rehydratable execution cache",
+            "versioning": "every committed content revision is stored by document_id + monotonic revision",
+            "restart_recovery": "local cache miss or mismatch rehydrates current durable revision automatically",
+            "historical_recovery": "restore historical bytes only by promoting them as current_revision+1",
+            "retention": "bounded 1 hour..30 days; default 7 days unless configured",
+            "encryption": "AES-GCM with document-specific domain-separated key/AAD from OAuth-state secret",
+            "oauth_separation": "separate tables, payload format, AAD, and derived key from OAuth authority",
         },
         "equation_editing": {
             "introspection": "EqEdit script + owning paragraph + intrinsic object identity + geometry",

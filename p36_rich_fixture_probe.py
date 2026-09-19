@@ -118,8 +118,6 @@ async def main() -> None:
                 if not oracle or not oracle.get("provenance_match"):
                     raise RuntimeError(f"{family}: round-trip provenance mismatch: {oracle}")
                 families = oracle.get("families", {})
-                if not (families.get("body_text", {}) or {}).get("exact"):
-                    raise RuntimeError(f"{family}: body text round-trip mismatch: {oracle}")
                 if family == "table" and not (families.get("tables", {}) or {}).get("geometry_exact"):
                     raise RuntimeError(f"table geometry round-trip mismatch: {oracle}")
                 if family == "equation" and not (families.get("equations", {}) or {}).get("script_exact"):

@@ -23,6 +23,11 @@ HWPTAG_CTRL_HEADER = 0x47
 HWPTAG_LIST_HEADER = 0x48
 HWPTAG_TABLE = 0x4D
 HWPTAG_SHAPE_COMPONENT = 0x4C
+HWPTAG_SHAPE_COMPONENT_LINE = 0x4E
+HWPTAG_SHAPE_COMPONENT_RECTANGLE = 0x4F
+HWPTAG_SHAPE_COMPONENT_ELLIPSE = 0x50
+HWPTAG_SHAPE_COMPONENT_ARC = 0x51
+HWPTAG_SHAPE_COMPONENT_POLYGON = 0x52
 HWPTAG_SHAPE_COMPONENT_PICTURE = 0x55
 HWPTAG_EQEDIT = 0x58
 
@@ -945,6 +950,20 @@ def extract_hwp5_binary_assets(data: bytes) -> dict[int, dict]:
         ole.close()
 
 
+def _parse_rectangle_record(payload: bytes) -> dict:
+    result = _opaque_object_record("rectangle", payload, fidelity="structural")
+    if len(payload) < 33:
+        result["fidelity"] = "inventory"
+        result["parse_error"] = "rectangle_record_too_short"
+        return result
+    result.update({
+        "curvature": payload[0],
+        "x": list(struct.unpack_from("<iiii", payload, 1)),
+        "y": list(struct.unpack_from("<iiii", payload, 17)),
+    })
+    return result
+
+
 def _parse_picture_record(payload: bytes) -> dict:
     # HWPTAG_SHAPE_COMPONENT_PICTURE body is table 107; picture-info begins at byte 68.
     base = _opaque_object_record("picture", payload)
@@ -1592,16 +1611,56 @@ def parse_hwp5_bytes(
                             "relation": "references-binary",
                         })
 
-                elif tag_id == HWPTAG_SHAPE_COMPONENT:
+                elif tag_id in {
+                    HWPTAG_SHAPE_COMPONENT,
+                    HWPTAG_SHAPE_COMPONENT_LINE,
+                    HWPTAG_SHAPE_COMPONENT_RECTANGLE,
+                    HWPTAG_SHAPE_COMPONENT_ELLIPSE,
+                    HWPTAG_SHAPE_COMPONENT_ARC,
+                    HWPTAG_SHAPE_COMPONENT_POLYGON,
+                }:
+                    family = {
+                        HWPTAG_SHAPE_COMPONENT: "shape",
+                        HWPTAG_SHAPE_COMPONENT_LINE: "line",
+                        HWPTAG_SHAPE_COMPONENT_RECTANGLE: "rectangle",
+                        HWPTAG_SHAPE_COMPONENT_ELLIPSE: "ellipse",
+                        HWPTAG_SHAPE_COMPONENT_ARC: "arc",
+                        HWPTAG_SHAPE_COMPONENT_POLYGON: "polygon",
+                    }[tag_id]
+                    parsed_shape = (
+                        _parse_rectangle_record(record)
+                        if tag_id == HWPTAG_SHAPE_COMPONENT_RECTANGLE
+                        else _opaque_object_record(
+                            family,
+                            record,
+                            fidelity=(
+                                "raw-preserved"
+                                if tag_id == HWPTAG_SHAPE_COMPONENT
+                                else "structural"
+                            ),
+                        )
+                    )
                     shape = {
                         **source,
-                        **_opaque_object_record(
-                            "shape", record, fidelity="raw-preserved"
-                        ),
+                        **parsed_shape,
                         "control_index": None if ctrl is None else ctrl["control_index"],
                         "control_id": None if ctrl is None else ctrl.get("ctrl_id"),
+                        "anchor_paragraph_ordinal": (
+                            None if ctrl is None else ctrl.get("anchor_paragraph_ordinal")
+                        ),
                     }
                     objects.append(shape)
+                    if ctrl is not None:
+                        ctrl["shape_family"] = family
+                        ctrl["shape_family_record_index"] = record_index
+                        ctrl["shape_family_fidelity"] = parsed_shape.get(
+                            "fidelity", "inventory"
+                        )
+                        control_edges.append({
+                            "from": f"ctrl:{ctrl['control_index']}",
+                            "to": f"object:{len(objects)-1}",
+                            "relation": "owns-shape-family",
+                        })
 
             for list_record_index, cell in cell_by_list_record.items():
                 table = table_by_control.get(int(cell["control_index"]))

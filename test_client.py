@@ -145,6 +145,7 @@ async def main() -> None:
                 "plan_bulk_text_replace",
                 "commit_bulk_text_replace",
                 "inspect_hwp5_document",
+                "materialize_hwp5_text_derivative",
                 "get_text",
                 "apply_edits",
                 "compare_document",

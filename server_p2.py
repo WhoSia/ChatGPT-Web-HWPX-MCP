@@ -13,6 +13,7 @@ import time
 from pathlib import Path
 
 import server as core
+from hwpx import HwpxDocument
 from p2_document import apply_edits_atomic, build_document_map
 from p22_formatting import build_formatting_map
 from p23_richtext import apply_rich_formatting_atomic
@@ -20,8 +21,16 @@ from p24_inline import apply_inline_edits_atomic, build_inline_map
 from p26_controls import apply_control_edits_atomic
 from p28_tables import apply_table_edits_atomic, build_table_map
 from p29_objects import apply_object_edits_atomic, build_object_map
-from p210_equations import apply_equation_edits_atomic, build_equation_map
-from hwp5_reader import Hwp5ReadError, parse_hwp5_bytes
+from p210_equations import (
+    apply_equation_edits_atomic,
+    build_equation_map,
+    _resolve_paragraph as _resolve_hwpx_paragraph,
+)
+from hwp5_reader import (
+    Hwp5ReadError,
+    extract_hwp5_binary_assets,
+    parse_hwp5_bytes,
+)
 from common_ir import (
     hwp5_to_common_ir,
     hwpx_to_common_ir,
@@ -30,7 +39,7 @@ from common_ir import (
     slice_common_ir,
 )
 
-P2_VERSION = "0.5.0-p3.5"
+P2_VERSION = "0.6.0-p3.6"
 core.VERSION = P2_VERSION
 
 _original_metadata = core._metadata
@@ -547,6 +556,396 @@ def materialize_hwp5_text_derivative(
         },
         "authority": "EDITABLE_HWPX_DERIVATIVE / ORIGINAL_HWP_READ_ONLY",
         "next": "Use HWPX navigation/edit/export tools on this derivative document_id.",
+    }
+
+
+def _hwp_rel_to_horizontal(value: object) -> str:
+    return {0: "PAGE", 1: "PAGE", 2: "COLUMN", 3: "PARA"}.get(int(value or 0), "COLUMN")
+
+
+def _hwp_rel_to_vertical(value: object) -> str:
+    return {0: "PAPER", 1: "PAGE", 2: "PARA"}.get(int(value or 0), "PARA")
+
+
+@core.mcp.tool()
+def get_hwp5_control_graph(
+    content_base64: str,
+    filename: str = "document.hwp",
+) -> dict:
+    """Return the reconstructed HWP5 control/cell/object graph without mutating the source."""
+    payload = _decode_hwp5_payload(content_base64)
+    parsed = parse_hwp5_bytes(payload)
+    if not parsed.get("readable"):
+        return {
+            "ok": True,
+            "filename": Path(filename or "document.hwp").name[:128],
+            "sha256": hashlib.sha256(payload).hexdigest(),
+            "readable": False,
+            "block_reason": parsed.get("block_reason"),
+            "controls": [],
+            "edges": [],
+        }
+    pictures = [
+        item for item in parsed.get("objects", [])
+        if item.get("kind") == "picture"
+    ]
+    return {
+        "ok": True,
+        "filename": Path(filename or "document.hwp").name[:128],
+        "sha256": hashlib.sha256(payload).hexdigest(),
+        "readable": True,
+        "controls": parsed.get("controls", []),
+        "edges": parsed.get("control_edges", []),
+        "tables": parsed.get("tables", []),
+        "equations": parsed.get("equations", []),
+        "pictures": pictures,
+        "receipts": {
+            "table_cell_binding_closed": bool(parsed.get("tables")) and all(
+                bool(item.get("cells")) for item in parsed.get("tables", [])
+            ),
+            "equation_anchor_binding_closed": bool(parsed.get("equations")) and all(
+                item.get("anchor_paragraph_ordinal") is not None
+                and item.get("position_fidelity") == "structural"
+                for item in parsed.get("equations", [])
+            ),
+            "picture_bindata_binding_closed": bool(pictures) and all(
+                item.get("binary_link") is not None for item in pictures
+            ),
+        },
+        "authority": "READ_ONLY_CONTROL_GRAPH",
+    }
+
+
+@core.mcp.tool()
+def materialize_hwp5_rich_derivative(
+    content_base64: str,
+    filename: str = "document.hwp",
+    title: str = "",
+    request_id: str = "",
+    promote_tables: bool = True,
+    promote_equations: bool = True,
+    promote_pictures: bool = True,
+) -> dict:
+    """Create an HWPX derivative and promote only HWP object families whose bindings are independently closed."""
+    owner_subject = core._caller_subject()
+    payload = _decode_hwp5_payload(content_base64)
+    parsed = parse_hwp5_bytes(payload)
+    if not parsed.get("readable"):
+        raise ValueError(
+            f"HWP source is not readable by the native lane: {parsed.get('block_reason')}"
+        )
+
+    source_sha256 = hashlib.sha256(payload).hexdigest()
+    source_name = Path(filename or "document.hwp").name[:128]
+    normalized_request_id = str(request_id or "").strip()
+    if normalized_request_id and len(normalized_request_id) > 160:
+        raise ValueError("request_id exceeds 160 characters")
+    derivative_request = (
+        f"hwp5-rich-v1:{source_sha256}:{normalized_request_id}"
+        if normalized_request_id else ""
+    )
+    document_id = (
+        core._idempotent_document_id(owner_subject, derivative_request)
+        if derivative_request else core._new_document_id()
+    )
+    if derivative_request:
+        try:
+            existing = core._load_metadata(document_id)
+        except FileNotFoundError:
+            existing = None
+        if existing is not None:
+            core._require_owner(existing)
+            if existing.get("source_hwp_sha256") != source_sha256:
+                raise RuntimeError("Derivative request id conflicts with a different HWP source")
+            return {
+                "ok": True,
+                **existing,
+                "idempotent_replay": True,
+                "promotion_report": existing.get("hwp_rich_promotion_report", {}),
+            }
+
+    # Cell-owned paragraphs are materialized inside promoted tables rather than
+    # duplicated into the top-level text stream.
+    top_level = [
+        item for item in parsed.get("paragraphs", [])
+        if item.get("list_header_record_index") is None
+    ]
+    if not top_level:
+        top_level = list(parsed.get("paragraphs", []))
+    base_text = "\n".join(str(item.get("text", "")) for item in top_level)
+    if not base_text:
+        base_text = " "
+
+    hwpx_path, _ = core._paths(document_id)
+    derivative_title = title or Path(source_name).stem
+    core.materialize_hwpx(hwpx_path, base_text, derivative_title)
+
+    promotion_report = {
+        "paragraph_text": {"status": "PROMOTED", "count": len(top_level)},
+        "tables": {"promoted": 0, "deferred": []},
+        "equations": {"promoted": 0, "deferred": []},
+        "pictures": {"promoted": 0, "deferred": []},
+    }
+
+    document = HwpxDocument.open(str(hwpx_path))
+    try:
+        mapped = build_document_map(hwpx_path)
+        target_paragraphs = mapped.get("paragraphs", [])
+        anchor_map: dict[tuple[int, int], str] = {}
+        for source_para, target_para in zip(top_level, target_paragraphs):
+            ordinal = source_para.get("source_paragraph_ordinal")
+            if ordinal is None:
+                continue
+            anchor_map[
+                (int(source_para.get("section_index", 0)), int(ordinal))
+            ] = target_para["locator"]
+
+        controls = {
+            int(item["control_index"]): item
+            for item in parsed.get("controls", [])
+            if item.get("control_index") is not None
+        }
+
+        if promote_tables:
+            for table_index, source_table in enumerate(parsed.get("tables", [])):
+                cells = source_table.get("cells", [])
+                anchor_key = (
+                    int(source_table.get("section_index", 0)),
+                    int(source_table.get("anchor_paragraph_ordinal", -1)),
+                )
+                anchor_locator = anchor_map.get(anchor_key)
+                rows = int(source_table.get("row_count", 0) or 0)
+                cols = int(source_table.get("col_count", 0) or 0)
+                if not anchor_locator or not cells or rows <= 0 or cols <= 0:
+                    promotion_report["tables"]["deferred"].append({
+                        "table_index": table_index,
+                        "reason": "anchor_or_cell_binding_incomplete",
+                    })
+                    continue
+                try:
+                    paragraph, _target = _resolve_hwpx_paragraph(
+                        document, hwpx_path, anchor_locator
+                    )
+                    control = controls.get(int(source_table.get("control_index", -1)))
+                    width = None if not control else int(control.get("width") or 0)
+                    height = None if not control else int(control.get("height") or 0)
+                    table = paragraph.add_table(
+                        rows,
+                        cols,
+                        width=width if width and width > 0 else None,
+                        height=height if height and height > 0 else None,
+                    )
+                    occupied: set[tuple[int, int]] = set()
+                    for cell in sorted(
+                        cells,
+                        key=lambda item: (int(item["row"]), int(item["column"])),
+                    ):
+                        row = int(cell["row"])
+                        col = int(cell["column"])
+                        row_span = max(1, int(cell.get("row_span", 1) or 1))
+                        col_span = max(1, int(cell.get("col_span", 1) or 1))
+                        if row >= rows or col >= cols:
+                            raise ValueError("source cell address exceeds table geometry")
+                        covered = {
+                            (r, c)
+                            for r in range(row, min(rows, row + row_span))
+                            for c in range(col, min(cols, col + col_span))
+                        }
+                        if occupied & covered:
+                            raise ValueError("source merged-cell topology overlaps")
+                        occupied |= covered
+                        if row_span > 1 or col_span > 1:
+                            table.merge_cells(
+                                row, col,
+                                row + row_span - 1,
+                                col + col_span - 1,
+                            )
+                        text_value = "\n".join(
+                            str(value) for value in cell.get("paragraph_text", [])
+                        )
+                        table.set_cell_text(row, col, text_value, logical=True)
+                    promotion_report["tables"]["promoted"] += 1
+                except Exception as exc:
+                    promotion_report["tables"]["deferred"].append({
+                        "table_index": table_index,
+                        "reason": f"promotion_refused:{type(exc).__name__}",
+                    })
+
+        if promote_equations:
+            for equation_index, equation in enumerate(parsed.get("equations", [])):
+                anchor_ordinal = equation.get("anchor_paragraph_ordinal")
+                anchor_key = (
+                    int(equation.get("section_index", 0)),
+                    int(anchor_ordinal if anchor_ordinal is not None else -1),
+                )
+                anchor_locator = anchor_map.get(anchor_key)
+                script = str(equation.get("script", ""))
+                if (
+                    not anchor_locator
+                    or not script
+                    or equation.get("position_fidelity") != "structural"
+                ):
+                    promotion_report["equations"]["deferred"].append({
+                        "equation_index": equation_index,
+                        "reason": "anchor_position_or_script_incomplete",
+                    })
+                    continue
+                try:
+                    paragraph, _target = _resolve_hwpx_paragraph(
+                        document, hwpx_path, anchor_locator
+                    )
+                    position = equation.get("position") or {}
+                    width = int(position.get("width") or 0)
+                    height = int(position.get("height") or 0)
+                    size = (width, height) if width > 0 and height > 0 else None
+                    base_unit = max(1, int(equation.get("font_size") or 1100))
+                    document.shapes.add_equation(
+                        script,
+                        paragraph=paragraph,
+                        base_unit=base_unit,
+                        size=size,
+                    )
+                    promotion_report["equations"]["promoted"] += 1
+                except Exception as exc:
+                    promotion_report["equations"]["deferred"].append({
+                        "equation_index": equation_index,
+                        "reason": f"promotion_refused:{type(exc).__name__}",
+                    })
+
+        if promote_pictures:
+            assets = extract_hwp5_binary_assets(payload)
+            pictures = [
+                item for item in parsed.get("objects", [])
+                if item.get("kind") == "picture"
+            ]
+            for picture_index, picture in enumerate(pictures):
+                anchor_ordinal = picture.get("anchor_paragraph_ordinal")
+                anchor_key = (
+                    int(picture.get("section_index", 0)),
+                    int(anchor_ordinal if anchor_ordinal is not None else -1),
+                )
+                anchor_locator = anchor_map.get(anchor_key)
+                bin_item_id = picture.get("bin_item_id")
+                asset = (
+                    None if bin_item_id is None
+                    else assets.get(int(bin_item_id))
+                )
+                if (
+                    not anchor_locator
+                    or asset is None
+                    or asset.get("format") not in {"png", "jpeg"}
+                ):
+                    promotion_report["pictures"]["deferred"].append({
+                        "picture_index": picture_index,
+                        "reason": "anchor_media_or_supported_format_incomplete",
+                        "bin_item_id": bin_item_id,
+                    })
+                    continue
+                try:
+                    paragraph, _target = _resolve_hwpx_paragraph(
+                        document, hwpx_path, anchor_locator
+                    )
+                    media_item = document.media.add_image(
+                        asset["data"], str(asset["format"])
+                    )
+                    geometry = picture.get("control_geometry") or {}
+                    width = max(1, int(geometry.get("width") or 14400))
+                    height = max(1, int(geometry.get("height") or 14400))
+                    treat_as_char = bool(geometry.get("treat_as_char", True))
+                    pos_overrides = None
+                    if not treat_as_char:
+                        pos_overrides = {
+                            "horzRelTo": _hwp_rel_to_horizontal(
+                                controls.get(
+                                    int(picture.get("control_index", -1)), {}
+                                ).get("horz_rel_to")
+                            ),
+                            "vertRelTo": _hwp_rel_to_vertical(
+                                controls.get(
+                                    int(picture.get("control_index", -1)), {}
+                                ).get("vert_rel_to")
+                            ),
+                            "horzAlign": "LEFT",
+                            "vertAlign": "TOP",
+                            "horzOffset": int(geometry.get("horizontal_offset") or 0),
+                            "vertOffset": int(geometry.get("vertical_offset") or 0),
+                        }
+                    paragraph.add_picture(
+                        str(media_item),
+                        width=width,
+                        height=height,
+                        treat_as_char=treat_as_char,
+                        pos_overrides=pos_overrides,
+                    )
+                    promotion_report["pictures"]["promoted"] += 1
+                except Exception as exc:
+                    promotion_report["pictures"]["deferred"].append({
+                        "picture_index": picture_index,
+                        "reason": f"promotion_refused:{type(exc).__name__}",
+                        "bin_item_id": bin_item_id,
+                    })
+
+        fd, tmp_name = tempfile.mkstemp(
+            prefix=hwpx_path.stem + ".p36-rich-",
+            suffix=".hwpx",
+            dir=str(hwpx_path.parent),
+        )
+        os.close(fd)
+        tmp_path = Path(tmp_name)
+        try:
+            document.save_to_path(str(tmp_path))
+            os.replace(tmp_path, hwpx_path)
+        finally:
+            try:
+                tmp_path.unlink()
+            except FileNotFoundError:
+                pass
+    finally:
+        document.close()
+
+    validation = core.validate_hwpx_package(hwpx_path, ingress=False)
+    final_map = build_document_map(hwpx_path)
+    final_tables = build_table_map(hwpx_path)
+    final_equations = build_equation_map(hwpx_path)
+    final_objects = build_object_map(hwpx_path)
+    metadata = core._metadata(
+        document_id,
+        filename=core.sanitize_filename(Path(source_name).stem + ".hwpx"),
+        owner_subject=owner_subject,
+        validation=validation,
+        title=derivative_title,
+        source="hwp5-rich-derivative",
+    )
+    metadata.update({
+        "source_hwp_filename": source_name,
+        "source_hwp_sha256": source_sha256,
+        "source_hwp_version": parsed.get("version"),
+        "source_hwp_flags": parsed.get("flags", {}),
+        "hwp_derivative_fidelity": "family-graded-rich",
+        "hwp_fidelity_grades": parsed.get("fidelity", {}),
+        "hwp_rich_promotion_report": promotion_report,
+        "hwp_control_graph_edge_count": len(parsed.get("control_edges", [])),
+        "hwp_original_mutated": False,
+        "semantic_sha256": final_map["semantic_sha256"],
+        "structure_sha256": final_map["structure_sha256"],
+        "table_structure_sha256": final_tables["table_structure_sha256"],
+        "equation_structure_sha256": final_equations["equation_structure_sha256"],
+        "object_structure_sha256": final_objects["object_structure_sha256"],
+    })
+    core._write_metadata(document_id, metadata)
+    return {
+        "ok": True,
+        **metadata,
+        "validation": validation,
+        "idempotent_replay": False,
+        "promotion_report": promotion_report,
+        "final_inventory": {
+            "tables": final_tables["table_count"],
+            "equations": final_equations["equation_count"],
+            "pictures": final_objects["picture_count"],
+            "media_items": final_objects["media_item_count"],
+        },
+        "authority": "FIDELITY_GRADED_RICH_HWPX_DERIVATIVE / ORIGINAL_HWP_READ_ONLY",
     }
 
 

@@ -188,7 +188,7 @@ class DurableDocumentStore:
                 )
             else:
                 cur.execute(
-                    """
+                    f"""
                     SELECT r.revision, r.sha256, r.byte_count, r.encrypted_bytes, r.encrypted_metadata,
                            d.owner_subject, EXTRACT(EPOCH FROM d.expires_at)
                     FROM hwpx_documents d

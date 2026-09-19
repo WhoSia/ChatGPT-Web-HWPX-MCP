@@ -2441,6 +2441,27 @@ def compare_hwp5_roundtrip_fidelity(
     source_text = [str(item.get("text", "")) for item in source_top]
     target_text = [str(item.get("direct_text", item.get("text", ""))) for item in target_top[:len(source_top)]]
     text_exact = source_text == target_text
+    text_mismatches = []
+    for paragraph_index, (left, right) in enumerate(zip(source_text, target_text)):
+        if left == right:
+            continue
+        prefix = 0
+        for a, b in zip(left, right):
+            if a != b:
+                break
+            prefix += 1
+        text_mismatches.append({
+            "paragraph_index": paragraph_index,
+            "source_chars": len(left),
+            "target_chars": len(right),
+            "common_prefix_chars": prefix,
+            "source_excerpt": left[max(0, prefix - 40):prefix + 120],
+            "target_excerpt": right[max(0, prefix - 40):prefix + 120],
+            "source_sha256": hashlib.sha256(left.encode("utf-8")).hexdigest(),
+            "target_sha256": hashlib.sha256(right.encode("utf-8")).hexdigest(),
+        })
+        if len(text_mismatches) >= 8:
+            break
 
     source_style_runs = []
     for paragraph in source_top:
@@ -2531,6 +2552,8 @@ def compare_hwp5_roundtrip_fidelity(
                 "source_paragraphs": len(source_text),
                 "target_paragraphs_compared": len(target_text),
                 "exact": text_exact,
+                "mismatch_count_bounded": len(text_mismatches),
+                "mismatches": text_mismatches,
             },
             "run_style": {
                 "comparable_paragraphs": comparable_style_paragraphs,

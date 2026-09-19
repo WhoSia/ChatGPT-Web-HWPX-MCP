@@ -2995,6 +2995,7 @@ def compare_hwp5_roundtrip_fidelity(
     ][:len(source_para_styles)]
     paragraph_style_comparable = 0
     paragraph_style_exact = 0
+    paragraph_style_mismatches = []
     paragraph_style_axis_matches = {
         "alignment": 0,
         "indent_left_mm": 0,
@@ -3025,6 +3026,12 @@ def compare_hwp5_roundtrip_fidelity(
                 axes_ok = False
         if axes_ok:
             paragraph_style_exact += 1
+        elif len(paragraph_style_mismatches) < 8:
+            paragraph_style_mismatches.append({
+                "paragraph_index": paragraph_style_comparable - 1,
+                "source": expected,
+                "target": observed,
+            })
 
     source_tables = parsed.get("tables", [])
     target_tables = table_map.get("tables", [])
@@ -3097,6 +3104,7 @@ def compare_hwp5_roundtrip_fidelity(
                     and paragraph_style_comparable == paragraph_style_exact
                 ),
                 "axis_match_counts": paragraph_style_axis_matches,
+                "mismatches": paragraph_style_mismatches,
             },
             "tables": {
                 "source_count": len(source_tables),

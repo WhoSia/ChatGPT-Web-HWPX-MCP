@@ -1,4 +1,4 @@
-name: P3.6 Official HWP real-world parser probe
+name: P3.6 HWP real-world control-graph and rich-promotion probe
 
 on:
   push:
@@ -7,14 +7,39 @@ on:
       - ".github/p36-real-hwp-trigger"
       - ".github/workflows/p36-real-hwp-contact.yml"
       - "p36_real_hwp_probe.py"
+      - "p36_rich_fixture_probe.py"
       - "hwp5_reader.py"
       - "common_ir.py"
+      - "server_p2.py"
   workflow_dispatch:
 
 jobs:
   real-hwp:
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: hwpx
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d hwpx"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      P1_PUBLIC_BASE_URL: http://127.0.0.1:8000
+      P11_OAUTH_PASSPHRASE: p36-real-hwp-oauth-passphrase
+      P1_DOWNLOAD_SECRET: p36-real-hwp-download-secret
+      P12_AUTH_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/hwpx
+      P12_STATE_SECRET: p36-real-hwp-state-secret-0123456789-abcdefghijklmnopqrstuvwxyz
+      MCP_URL: http://127.0.0.1:8000/mcp
+
     steps:
       - uses: actions/checkout@v4
 
@@ -23,27 +48,61 @@ jobs:
           python-version: "3.12"
           cache: pip
 
-      - name: Install parser dependencies
-        run: pip install olefile
+      - name: Install project dependencies
+        run: pip install -r requirements.txt
 
-      - name: Download official Hancom HWP 5.0 specification sample ephemerally
+      - name: Download real HWP fixtures ephemerally
         env:
-          HWP_URL: "https://cdn.hancom.com/link/docs/%ED%95%9C%EA%B8%80%EB%AC%B8%EC%84%9C%ED%8C%8C%EC%9D%BC%ED%98%95%EC%8B%9D_5.0_revision1.3.hwp"
+          OFFICIAL_HWP_URL: "https://cdn.hancom.com/link/docs/%ED%95%9C%EA%B8%80%EB%AC%B8%EC%84%9C%ED%8C%8C%EC%9D%BC%ED%98%95%EC%8B%9D_5.0_revision1.3.hwp"
+          TABLE_HWP_URL: "https://raw.githubusercontent.com/edwardkim/rhwp/main/samples/table-001.hwp"
+          EQUATION_HWP_URL: "https://raw.githubusercontent.com/edwardkim/rhwp/main/samples/eq-01.hwp"
+          PICTURE_HWP_URL: "https://raw.githubusercontent.com/edwardkim/rhwp/main/samples/test-image.hwp"
         run: |
-          curl --fail --location --retry 4 --retry-all-errors --connect-timeout 15 --max-time 90             "$HWP_URL" -o /tmp/hancom-hwp5-spec.hwp
-          test -s /tmp/hancom-hwp5-spec.hwp
+          set -euo pipefail
+          curl --fail --location --retry 4 --retry-all-errors --connect-timeout 15 --max-time 90 "$OFFICIAL_HWP_URL" -o /tmp/hancom-hwp5-spec.hwp
+          curl --fail --location --retry 4 --retry-all-errors --connect-timeout 15 --max-time 60 "$TABLE_HWP_URL" -o /tmp/table-001.hwp
+          curl --fail --location --retry 4 --retry-all-errors --connect-timeout 15 --max-time 60 "$EQUATION_HWP_URL" -o /tmp/eq-01.hwp
+          curl --fail --location --retry 4 --retry-all-errors --connect-timeout 15 --max-time 60 "$PICTURE_HWP_URL" -o /tmp/test-image.hwp
           python - <<'PY'
           from pathlib import Path
-          p = Path("/tmp/hancom-hwp5-spec.hwp")
-          print("ephemeral_hwp_bytes:", p.stat().st_size)
-          print("cfb_signature:", p.read_bytes()[:8].hex())
+          for name in ("hancom-hwp5-spec.hwp", "table-001.hwp", "eq-01.hwp", "test-image.hwp"):
+              p = Path("/tmp") / name
+              data = p.read_bytes()
+              assert data[:8] == bytes.fromhex("d0cf11e0a1b11ae1"), (name, data[:8].hex())
+              print("fixture:", name, "bytes=", len(data))
           PY
 
-      - name: Native HWP5 control-graph and Common-IR probe
+      - name: Official HWP parser and Common-IR contact
         env:
           P36_REAL_HWP: /tmp/hancom-hwp5-spec.hwp
         run: python p36_real_hwp_probe.py
 
-      - name: Remove source sample
+      - name: Start local P3.6 OAuth MCP
+        run: |
+          python server_p2.py > /tmp/p36-mcp.log 2>&1 &
+          echo $! > /tmp/p36-mcp.pid
+          for i in {1..40}; do
+            body="$(curl --fail --silent http://127.0.0.1:8000/health || true)"
+            if echo "$body" | grep -q '0.6.0-p3.6'; then
+              echo "$body"
+              exit 0
+            fi
+            sleep 1
+          done
+          cat /tmp/p36-mcp.log || true
+          exit 1
+
+      - name: OAuth-native real table/equation/picture rich promotion
+        env:
+          P36_TABLE_HWP: /tmp/table-001.hwp
+          P36_EQUATION_HWP: /tmp/eq-01.hwp
+          P36_PICTURE_HWP: /tmp/test-image.hwp
+        run: python p36_rich_fixture_probe.py
+
+      - name: Show MCP log on failure
+        if: failure()
+        run: cat /tmp/p36-mcp.log || true
+
+      - name: Remove all external source fixtures
         if: always()
-        run: rm -f /tmp/hancom-hwp5-spec.hwp
+        run: rm -f /tmp/hancom-hwp5-spec.hwp /tmp/table-001.hwp /tmp/eq-01.hwp /tmp/test-image.hwp

@@ -146,6 +146,10 @@ async def main() -> None:
                 "commit_bulk_text_replace",
                 "inspect_hwp5_document",
                 "materialize_hwp5_text_derivative",
+                "get_common_document_ir",
+                "search_common_document",
+                "get_common_document_slice",
+                "assess_hwp5_promotion",
                 "get_text",
                 "apply_edits",
                 "compare_document",
@@ -171,11 +175,11 @@ async def main() -> None:
                     raise RuntimeError(f"secret-bearing field leaked into tool schema: {tool.name}")
 
             read_payload = _payload(await client.call_tool("probe_read", {"message": "P2 OAuth smoke test"}))
-            if not read_payload or not read_payload.get("ok") or read_payload.get("version") != "0.4.4-p3.4":
+            if not read_payload or not read_payload.get("ok") or read_payload.get("version") != "0.5.0-p3.5":
                 raise RuntimeError(f"probe_read did not expose P2: {read_payload}")
 
             p2_caps = _payload(await client.call_tool("p2_capabilities", {}))
-            if not p2_caps or p2_caps.get("phase") != "P3.4":
+            if not p2_caps or p2_caps.get("phase") != "P3.5":
                 raise RuntimeError(f"p2_capabilities failed: {p2_caps}")
 
             if not RUN_WRITE_TEST:
@@ -211,6 +215,47 @@ async def main() -> None:
             mapped = _payload(await client.call_tool("get_document_map", {"document_id": document_id}))
             if not mapped or mapped.get("revision") != 1 or len(mapped.get("paragraphs", [])) < 3:
                 raise RuntimeError(f"get_document_map failed: {mapped}")
+            common_ir = _payload(await client.call_tool("get_common_document_ir", {
+                "document_id": document_id,
+                "include_blocks": True,
+                "max_blocks": 20,
+            }))
+            if (
+                not common_ir
+                or common_ir.get("source_format") != "hwpx"
+                or common_ir.get("revision") != 1
+                or common_ir.get("inventory", {}).get("paragraph", 0) < 1
+                or not common_ir.get("ir_sha256")
+            ):
+                raise RuntimeError(f"P3.5 common IR failed: {common_ir}")
+
+            common_search = _payload(await client.call_tool("search_common_document", {
+                "document_id": document_id,
+                "query": "beta",
+                "kinds": ["paragraph"],
+                "max_results": 10,
+            }))
+            if (
+                not common_search
+                or common_search.get("source_format") != "hwpx"
+                or common_search.get("match_count", 0) < 1
+                or not common_search.get("hits")
+            ):
+                raise RuntimeError(f"P3.5 cross-format search failed: {common_search}")
+
+            common_slice = _payload(await client.call_tool("get_common_document_slice", {
+                "document_id": document_id,
+                "start_block": 0,
+                "block_count": 2,
+                "kinds": ["paragraph"],
+            }))
+            if (
+                not common_slice
+                or common_slice.get("source_format") != "hwpx"
+                or common_slice.get("returned_blocks") != 2
+            ):
+                raise RuntimeError(f"P3.5 common IR slice failed: {common_slice}")
+
             searched = _payload(await client.call_tool("search_document_text", {
                 "document_id": document_id,
                 "query": "beta",
@@ -903,7 +948,7 @@ async def main() -> None:
                 deleted = _payload(await client.call_tool("delete_document", {"document_id": doc_id}))
                 if not deleted or not deleted.get("deleted"):
                     raise RuntimeError(f"delete_document failed: {deleted}")
-            print("P3.4 lifecycle PASS", digest)
+            print("P3.5 lifecycle PASS", digest)
 
 
 if __name__ == "__main__":

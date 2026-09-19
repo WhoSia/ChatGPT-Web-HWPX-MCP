@@ -147,6 +147,7 @@ async def main() -> None:
                 "inspect_hwp5_document",
                 "materialize_hwp5_text_derivative",
                 "get_common_document_ir",
+                "extract_common_document",
                 "search_common_document",
                 "get_common_document_slice",
                 "assess_hwp5_promotion",

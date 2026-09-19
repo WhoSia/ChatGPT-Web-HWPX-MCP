@@ -86,6 +86,26 @@ def _property_tables(header_root: ElementTree.Element) -> dict:
     }
 
 
+def _style_summary(style_id: str | None, tables: dict) -> dict | None:
+    if style_id is None:
+        return None
+    node = tables["style"].get(str(style_id))
+    if node is None:
+        return {"id": str(style_id), "resolved": False}
+    attrs = dict(node.get("attrs") or {})
+    return {
+        "id": str(style_id),
+        "resolved": True,
+        "name": attrs.get("name"),
+        "eng_name": attrs.get("engName") or attrs.get("englishName"),
+        "type": attrs.get("type"),
+        "next_style_id_ref": attrs.get("nextStyleIDRef"),
+        "para_pr_id_ref": attrs.get("paraPrIDRef"),
+        "char_pr_id_ref": attrs.get("charPrIDRef"),
+        "attributes": attrs,
+    }
+
+
 def _char_summary(style_id: str | None, tables: dict) -> dict | None:
     if style_id is None:
         return None
@@ -285,6 +305,7 @@ def build_formatting_map(path: Path) -> dict:
                     "page_break": node.attrib.get("pageBreak"),
                     "column_break": node.attrib.get("columnBreak"),
                     "paragraph_property": _para_summary(para_pr, tables),
+                    "style_property": _style_summary(style_ref, tables),
                     "direct_text": direct_text,
                     "direct_text_length": len(direct_text),
                     "runs": runs,

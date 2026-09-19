@@ -43,10 +43,10 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Compile Python sources
-        run: python -m compileall -q server.py server_p2.py p2_document.py p22_formatting.py p23_richtext.py p24_inline.py p25_controls.py p26_controls.py p27_tables.py p28_tables.py p29_objects.py p210_equations.py document_store.py oauth_provider.py auth_store.py test_client.py test_p1.py test_p2.py test_auth_store.py test_document_store.py
+        run: python -m compileall -q server.py server_p2.py p2_document.py p22_formatting.py p23_richtext.py p24_inline.py p25_controls.py p26_controls.py p27_tables.py p28_tables.py p29_objects.py p210_equations.py hwp5_reader.py document_store.py oauth_provider.py auth_store.py test_client.py test_p1.py test_p2.py test_hwp5_reader.py test_auth_store.py test_document_store.py
 
       - name: HWPX admission, durable auth, and P3.4 transaction unit tests
-        run: python -m unittest -v test_p1.py test_p2.py test_auth_store.py test_document_store.py
+        run: python -m unittest -v test_p1.py test_p2.py test_hwp5_reader.py test_auth_store.py test_document_store.py
 
       - name: Start P3.4 OAuth-protected Streamable HTTP MCP server
         run: |

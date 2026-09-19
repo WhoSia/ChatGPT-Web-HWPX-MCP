@@ -1190,6 +1190,8 @@ def materialize_hwp5_rich_derivative(
                             "col": col,
                             "row_span": row_span,
                             "col_span": col_span,
+                            "width": max(1, int(cell.get("width", 0) or 0)),
+                            "height": max(1, int(cell.get("height", 0) or 0)),
                             "text": "\n".join(
                                 str(value) for value in cell.get("paragraph_text", [])
                             ),
@@ -1255,6 +1257,26 @@ def materialize_hwp5_rich_derivative(
                             cell["row"] + cell["row_span"] - 1,
                             cell["col"] + cell["col_span"] - 1,
                         )
+
+                    # HWP stores the material cell's visible span extent in
+                    # width/height. paragraph.add_table starts from an even grid,
+                    # and merge_cells may recompute the merged anchor extent.
+                    # Restore the certified source geometry *after* merges.
+                    for cell in material_cells:
+                        created_table.cell(
+                            cell["row"], cell["col"]
+                        ).set_size(
+                            width=cell["width"],
+                            height=cell["height"],
+                        )
+                    promotion_report["tables"].setdefault(
+                        "geometry_receipts", []
+                    ).append({
+                        "table_index": table_index,
+                        "material_cell_count": len(material_cells),
+                        "source_cell_sizes_applied": True,
+                        "authority": "STRUCTURAL_HWPUNIT_CELL_GEOMETRY",
+                    })
                     promotion_report["tables"]["promoted"] += 1
                 except Exception as exc:
                     if created_table is not None:

@@ -1,0 +1,99 @@
+name: P3.7 HWP nested-flow and round-trip fidelity probe
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/p37-real-hwp-contact.yml"
+      - "p37_nested_flow_probe.py"
+      - "p36_rich_fixture_probe.py"
+      - "hwp5_reader.py"
+      - "common_ir.py"
+      - "server_p2.py"
+  workflow_dispatch:
+
+jobs:
+  nested-flow:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: hwpx
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d hwpx"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      P1_PUBLIC_BASE_URL: http://127.0.0.1:8000
+      P11_OAUTH_PASSPHRASE: p37-real-hwp-oauth-passphrase
+      P1_DOWNLOAD_SECRET: p37-real-hwp-download-secret
+      P12_AUTH_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/hwpx
+      P12_STATE_SECRET: p37-real-hwp-state-secret-0123456789-abcdefghijklmnopqrstuvwxyz
+      MCP_URL: http://127.0.0.1:8000/mcp
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install project dependencies
+        run: pip install -r requirements.txt
+
+      - name: Download nested-flow HWP fixtures ephemerally
+        env:
+          HEADER_HWP_URL: "https://raw.githubusercontent.com/myeolinmalchi/hangulang/main/tests/fixtures/headerfooter/pic-in-head-01.hwp"
+          FOOTNOTE_HWP_URL: "https://raw.githubusercontent.com/myeolinmalchi/hangulang/main/tests/fixtures/footnotes/footnote-01.hwp"
+          ENDNOTE_HWP_URL: "https://raw.githubusercontent.com/myeolinmalchi/hangulang/main/tests/fixtures/footnotes/endnote-01.hwp"
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 4 --retry-all-errors --connect-timeout 15 --max-time 60 "$HEADER_HWP_URL" -o /tmp/pic-in-head-01.hwp
+          curl --fail --location --retry 4 --retry-all-errors --connect-timeout 15 --max-time 60 "$FOOTNOTE_HWP_URL" -o /tmp/footnote-01.hwp
+          curl --fail --location --retry 4 --retry-all-errors --connect-timeout 15 --max-time 60 "$ENDNOTE_HWP_URL" -o /tmp/endnote-01.hwp
+          python - <<'PY'
+          from pathlib import Path
+          for name in ("pic-in-head-01.hwp", "footnote-01.hwp", "endnote-01.hwp"):
+              data = (Path("/tmp") / name).read_bytes()
+              assert data[:8] == bytes.fromhex("d0cf11e0a1b11ae1"), (name, data[:8].hex())
+              print("fixture:", name, "bytes=", len(data))
+          PY
+
+      - name: Start local P3.7 OAuth MCP
+        run: |
+          python server_p2.py > /tmp/p37-mcp.log 2>&1 &
+          echo $! > /tmp/p37-mcp.pid
+          for i in {1..40}; do
+            body="$(curl --fail --silent http://127.0.0.1:8000/health || true)"
+            if echo "$body" | grep -q '0.7.0-p3.7'; then
+              echo "$body"
+              exit 0
+            fi
+            sleep 1
+          done
+          cat /tmp/p37-mcp.log || true
+          exit 1
+
+      - name: OAuth-native nested-flow graph and defer-oracle verification
+        env:
+          P37_HEADER_HWP: /tmp/pic-in-head-01.hwp
+          P37_FOOTNOTE_HWP: /tmp/footnote-01.hwp
+          P37_ENDNOTE_HWP: /tmp/endnote-01.hwp
+        run: python p37_nested_flow_probe.py
+
+      - name: Show MCP log on failure
+        if: failure()
+        run: cat /tmp/p37-mcp.log || true
+
+      - name: Remove external HWP fixtures
+        if: always()
+        run: rm -f /tmp/pic-in-head-01.hwp /tmp/footnote-01.hwp /tmp/endnote-01.hwp

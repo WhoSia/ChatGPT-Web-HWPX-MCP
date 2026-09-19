@@ -564,6 +564,34 @@ def _parse_ctrl_header(payload: bytes) -> dict:
         "payload_bytes": len(payload),
         "payload_sha256": hashlib.sha256(payload).hexdigest(),
     }
+    ctrl_id = result["ctrl_id"]
+    if ctrl_id in {"head", "foot"}:
+        if len(payload) < 18:
+            result["parse_error"] = "header_footer_ctrl_truncated"
+            return result
+        attributes = struct.unpack_from("<I", payload, 4)[0]
+        text_width, text_height = struct.unpack_from("<ii", payload, 8)
+        page_code = attributes & 0b11
+        result.update({
+            "fidelity": "semantic",
+            "attributes": attributes,
+            "apply_page_type": {0: "BOTH", 1: "EVEN", 2: "ODD"}.get(
+                page_code, "UNKNOWN"
+            ),
+            "text_width": text_width,
+            "text_height": text_height,
+            "text_reference_flags": payload[16],
+            "number_reference_flags": payload[17],
+        })
+        return result
+    if ctrl_id in {"fn  ", "en  "}:
+        # The HWP5 spec defines no note-specific attributes beyond its paragraph
+        # list; implementations serialize eight bytes for compatibility.
+        result.update({
+            "fidelity": "structural",
+            "note_payload_bytes": max(0, len(payload) - 4),
+        })
+        return result
     if len(payload) < 46:
         return result
 

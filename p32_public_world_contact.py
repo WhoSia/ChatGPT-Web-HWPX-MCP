@@ -59,7 +59,7 @@ async def main() -> None:
     verifier = b64url(secrets.token_bytes(48))
     challenge = b64url(hashlib.sha256(verifier.encode("ascii")).digest())
 
-    async with httpx2.AsyncClient(follow_redirects=False, timeout=60.0) as client:
+    async with httpx2.AsyncClient(follow_redirects=False, timeout=60.0, http2=False, headers={"Connection": "close"}) as client:
         registration = await client.post(
             f"{BASE_URL}/register",
             json={
@@ -121,8 +121,8 @@ async def main() -> None:
         access_token = token_data["access_token"]
         print("oauth: DCR+PKCE+token PASS")
 
-        transport_client = httpx2.AsyncClient(follow_redirects=False, timeout=60.0)
-        print("transport: fresh post-token HTTP connection")
+        transport_client = httpx2.AsyncClient(follow_redirects=False, timeout=60.0, http2=False, headers={"Connection": "close"})
+        print("transport: forced HTTP/1.1 + connection-close")
 
         async def safe_probe(label: str, method: str, url: str, headers: dict | None = None) -> int:
             response = await transport_client.request(method, url, headers=headers or {})

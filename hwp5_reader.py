@@ -673,7 +673,24 @@ def parse_hwp5_bytes(
                 controls.append(ctrl)
                 ctrl_by_record[record_index] = ctrl
 
+            table_record_by_control: dict[int, dict] = {}
+            for record_index, (tag_id, level, record) in enumerate(records):
+                if tag_id != HWPTAG_TABLE:
+                    continue
+                ctrl_record = _nearest_ancestor(
+                    records, parents, record_index, {HWPTAG_CTRL_HEADER}
+                )
+                ctrl = None if ctrl_record is None else ctrl_by_record.get(ctrl_record)
+                if not ctrl or ctrl.get("ctrl_id") != "tbl ":
+                    continue
+                table_record_by_control[int(ctrl["control_index"])] = {
+                    "record_index": record_index,
+                    "record_level": level,
+                    **_parse_table_record(record),
+                }
+
             cell_by_list_record: dict[int, dict] = {}
+            cell_anchor_seen: set[tuple[int, int, int]] = set()
             for record_index, (tag_id, level, record) in enumerate(records):
                 if tag_id != HWPTAG_LIST_HEADER:
                     continue
@@ -683,15 +700,37 @@ def parse_hwp5_bytes(
                 ctrl = None if ctrl_record is None else ctrl_by_record.get(ctrl_record)
                 if not ctrl or ctrl.get("ctrl_id") != "tbl ":
                     continue
+                control_index = int(ctrl["control_index"])
+                table_meta = table_record_by_control.get(control_index)
+                if table_meta is None:
+                    continue
+                # The table control may own caption/list headers before the
+                # HWPTAG_TABLE record. Physical cell LIST_HEADER records occur
+                # after the table geometry record.
+                if record_index <= int(table_meta["record_index"]):
+                    continue
                 cell = _parse_table_cell_from_list_header(record)
                 if cell is None:
                     continue
+                row = int(cell.get("row", -1))
+                col = int(cell.get("column", -1))
+                rows = int(table_meta.get("row_count", 0) or 0)
+                cols = int(table_meta.get("col_count", 0) or 0)
+                if row < 0 or col < 0 or row >= rows or col >= cols:
+                    continue
+                anchor_key = (control_index, row, col)
+                if anchor_key in cell_anchor_seen:
+                    warnings.append(
+                        f"Duplicate table-cell LIST_HEADER ignored for control={control_index}, row={row}, col={col}."
+                    )
+                    continue
+                cell_anchor_seen.add(anchor_key)
                 cell.update({
                     "cell_index": len(cell_by_list_record),
                     "section_index": section_index,
                     "list_record_index": record_index,
                     "list_record_level": level,
-                    "control_index": ctrl["control_index"],
+                    "control_index": control_index,
                     "paragraph_indexes": [],
                     "paragraph_text": [],
                 })

@@ -6,7 +6,7 @@ Remote Streamable-HTTP MCP for authenticated HWPX document creation, custody, va
 
 **P0 / P1 / P1.1 / P1.2 are closed / PASS.** The project has established native ChatGPT MCP discovery and actions, opaque document custody, signed HWPX delivery, OAuth-native secret-free invocation, durable restart-safe OAuth authority, and bounded existing-HWPX ingress. See the corresponding test ledgers.
 
-**P2 is CLOSED / PASS. P2.1–P2.9 are implemented. P2.10 is active.** P2.10 promotes equations and their EqEdit scripts to first-class, revision-safe rich objects.
+**P2 rich-object is CLOSED / PASS. P3.0 is active.** P3.0 moves document bytes and revision history from ephemeral instance storage to encrypted, restart-safe durable custody.
 
 ```text
 ChatGPT Web

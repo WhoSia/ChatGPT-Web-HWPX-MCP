@@ -82,7 +82,7 @@ jobs:
           echo $! > /tmp/p37-mcp.pid
           for i in {1..40}; do
             body="$(curl --fail --silent http://127.0.0.1:8000/health || true)"
-            if echo "$body" | grep -q '0.7.0-p3.7'; then
+            if echo "$body" | grep -q '0.8.0-p3.8'; then
               echo "$body"
               exit 0
             fi

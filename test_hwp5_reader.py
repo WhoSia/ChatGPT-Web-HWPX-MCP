@@ -264,6 +264,73 @@ class Hwp5ReaderPrimitiveTests(unittest.TestCase):
                 max_pixels=3,
             )
 
+    def test_p38_id_mappings_face_name_and_font_resolution(self):
+        counts = [0, 1, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0]
+        mappings = _parse_id_mappings(struct.pack("<18i", *counts))
+        self.assertEqual(mappings["font_counts"]["hangul"], 1)
+        self.assertEqual(mappings["font_counts"]["latin"], 1)
+        self.assertEqual(mappings["char_shape"], 1)
+        self.assertEqual(mappings["para_shape"], 1)
+
+        name = "함초롬바탕"
+        face = _parse_face_name(
+            bytes([0]) + struct.pack("<H", len(name)) + name.encode("utf-16le")
+        )
+        self.assertEqual(face["fidelity"], "semantic")
+        self.assertEqual(face["face"], name)
+
+        shape = {
+            "fidelity": "semantic",
+            "face_ids": [0, 0, 0, 0, 0, 0, 0],
+        }
+        resolved = _resolve_char_shape_faces(
+            shape,
+            {
+                "hangul": [{"face": name}],
+                "latin": [{"face": "Arial"}],
+                "hanja": [],
+                "japanese": [],
+                "other": [],
+                "symbol": [],
+                "user": [],
+            },
+        )
+        self.assertEqual(resolved["primary_font_face"], name)
+        self.assertEqual(resolved["font_faces"]["latin"], "Arial")
+
+    def test_p38_para_shape_semantics(self):
+        attributes = 3 << 2  # CENTER in the P3.8 canonical mapping.
+        payload = (
+            struct.pack("<I", attributes)
+            + struct.pack("<iiiiii", 720, 360, -180, 100, 200, 160)
+            + struct.pack("<HHH", 2, 0, 7)
+        )
+        shape = _parse_docinfo_para_shape(payload, 4)
+        self.assertEqual(shape["fidelity"], "semantic")
+        self.assertEqual(shape["para_shape_id"], 4)
+        self.assertEqual(shape["alignment"], "CENTER")
+        self.assertEqual(shape["left_margin_hwpunit"], 720)
+        self.assertEqual(shape["spacing_after_hwpunit"], 200)
+        self.assertEqual(shape["border_fill_id"], 7)
+
+    def test_p38_header_footer_scope_and_note_control(self):
+        ctrl_value = int.from_bytes(b"head", "big")
+        payload = (
+            struct.pack("<I", ctrl_value)
+            + struct.pack("<IiiBB", 2, 7200, 900, 0x03, 0x01)
+        )
+        header = _parse_ctrl_header(payload)
+        self.assertEqual(header["ctrl_id"], "head")
+        self.assertEqual(header["fidelity"], "semantic")
+        self.assertEqual(header["apply_page_type"], "ODD")
+        self.assertEqual(header["text_width"], 7200)
+
+        note_value = int.from_bytes(b"fn  ", "big")
+        note = _parse_ctrl_header(struct.pack("<I", note_value) + b"\x00" * 8)
+        self.assertEqual(note["ctrl_id"], "fn  ")
+        self.assertEqual(note["fidelity"], "structural")
+        self.assertEqual(note["note_payload_bytes"], 8)
+
     def test_control_units_are_not_exposed_as_visible_text(self):
         payload = "앞".encode("utf-16le") + b"\x01\x00" + "뒤".encode("utf-16le")
         self.assertEqual(_clean_para_text(payload), "앞뒤")

@@ -199,12 +199,16 @@ class DurableDocumentStore:
                             receipt_id=str(receipt_id),
                             previous_audit_hash=previous,
                         )
-                        if stored_previous != previous or stored_audit != audit:
+                        # Migration only: populate audit fields for pre-P3.2 rows.
+                        # Once a row has an audit hash, never "heal" it here; a mismatch
+                        # must remain observable to verify_audit_chain after restart.
+                        if stored_audit is None:
                             cur.execute(
                                 """
                                 UPDATE hwpx_document_commits
                                 SET previous_audit_hash=%s, audit_hash=%s
                                 WHERE document_id=%s AND revision=%s
+                                  AND audit_hash IS NULL
                                 """,
                                 (previous, audit, document_id, int(revision)),
                             )

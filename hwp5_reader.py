@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import io
 import struct
 import zlib
@@ -9,6 +10,11 @@ import olefile
 
 HWP5_SIGNATURE = b"HWP Document File" + (b"\x00" * 15)
 HWPTAG_PARA_TEXT = 0x43
+HWPTAG_CTRL_HEADER = 0x47
+HWPTAG_TABLE = 0x4D
+HWPTAG_SHAPE_COMPONENT = 0x4C
+HWPTAG_SHAPE_COMPONENT_PICTURE = 0x55
+HWPTAG_EQEDIT = 0x58
 
 
 class Hwp5ReadError(ValueError):
@@ -123,6 +129,105 @@ def _clean_para_text(payload: bytes) -> str:
     return "".join(chars).replace("\r\n", "\n").replace("\r", "\n").strip("\x00")
 
 
+def _parse_table_record(payload: bytes) -> dict:
+    if len(payload) < 20:
+        return {
+            "kind": "table",
+            "fidelity": "inventory",
+            "parse_error": "table_record_too_short",
+            "payload_bytes": len(payload),
+            "payload_sha256": hashlib.sha256(payload).hexdigest(),
+        }
+    attributes = struct.unpack_from("<I", payload, 0)[0]
+    row_count = struct.unpack_from("<H", payload, 4)[0]
+    col_count = struct.unpack_from("<H", payload, 6)[0]
+    cell_spacing = struct.unpack_from("<H", payload, 8)[0]
+    margins = struct.unpack_from("<HHHH", payload, 10)
+    row_sizes_offset = 18
+    row_sizes_end = row_sizes_offset + (2 * row_count)
+    if row_sizes_end + 2 > len(payload):
+        return {
+            "kind": "table",
+            "fidelity": "inventory",
+            "parse_error": "table_record_truncated",
+            "row_count": row_count,
+            "col_count": col_count,
+            "payload_bytes": len(payload),
+            "payload_sha256": hashlib.sha256(payload).hexdigest(),
+        }
+    row_sizes = list(struct.unpack_from(f"<{row_count}H", payload, row_sizes_offset)) if row_count else []
+    border_fill_id = struct.unpack_from("<H", payload, row_sizes_end)[0]
+    return {
+        "kind": "table",
+        "fidelity": "structural",
+        "attributes": attributes,
+        "page_break_mode": attributes & 0b11,
+        "repeat_header": bool(attributes & (1 << 2)),
+        "row_count": row_count,
+        "col_count": col_count,
+        "cell_spacing": cell_spacing,
+        "margins": {
+            "left": margins[0],
+            "right": margins[1],
+            "top": margins[2],
+            "bottom": margins[3],
+        },
+        "row_sizes": row_sizes,
+        "border_fill_id": border_fill_id,
+        "payload_bytes": len(payload),
+        "payload_sha256": hashlib.sha256(payload).hexdigest(),
+    }
+
+
+def _parse_equation_record(payload: bytes) -> dict:
+    if len(payload) < 16:
+        return {
+            "kind": "equation",
+            "fidelity": "inventory",
+            "parse_error": "equation_record_too_short",
+            "payload_bytes": len(payload),
+            "payload_sha256": hashlib.sha256(payload).hexdigest(),
+        }
+    attributes = struct.unpack_from("<I", payload, 0)[0]
+    script_length = struct.unpack_from("<H", payload, 4)[0]
+    script_end = 6 + (2 * script_length)
+    if script_end + 10 > len(payload):
+        return {
+            "kind": "equation",
+            "fidelity": "inventory",
+            "parse_error": "equation_record_truncated",
+            "script_length": script_length,
+            "payload_bytes": len(payload),
+            "payload_sha256": hashlib.sha256(payload).hexdigest(),
+        }
+    script = payload[6:script_end].decode("utf-16le", errors="replace").rstrip("\x00")
+    font_size = struct.unpack_from("<I", payload, script_end)[0]
+    text_color = struct.unpack_from("<I", payload, script_end + 4)[0]
+    baseline = struct.unpack_from("<h", payload, script_end + 8)[0]
+    return {
+        "kind": "equation",
+        "fidelity": "semantic",
+        "attributes": attributes,
+        "line_mode": bool(attributes & 1),
+        "script": script,
+        "script_length": script_length,
+        "font_size": font_size,
+        "text_color": text_color,
+        "baseline": baseline,
+        "payload_bytes": len(payload),
+        "payload_sha256": hashlib.sha256(payload).hexdigest(),
+    }
+
+
+def _opaque_object_record(kind: str, payload: bytes, *, fidelity: str = "inventory") -> dict:
+    return {
+        "kind": kind,
+        "fidelity": fidelity,
+        "payload_bytes": len(payload),
+        "payload_sha256": hashlib.sha256(payload).hexdigest(),
+    }
+
+
 def parse_hwp5_bytes(
     data: bytes,
     *,
@@ -150,6 +255,9 @@ def parse_hwp5_bytes(
                 "readable": False,
                 "block_reason": "encrypted_or_drm",
                 "paragraphs": [],
+                "tables": [],
+                "equations": [],
+                "objects": [],
                 "text": "",
                 "warnings": [
                     "Encrypted/DRM HWP content is not decoded by the read-only lane."
@@ -169,6 +277,9 @@ def parse_hwp5_bytes(
             raise Hwp5ReadError("HWP section count exceeds the bounded reader limit")
 
         paragraphs: list[dict] = []
+        tables: list[dict] = []
+        equations: list[dict] = []
+        objects: list[dict] = []
         warnings: list[str] = []
         total_chars = 0
         for section_index, section_name in enumerate(section_names):
@@ -177,32 +288,42 @@ def parse_hwp5_bytes(
                 raw = _decompress_stream(raw)
             record_index = 0
             for tag_id, level, record in _iter_records(raw):
-                if tag_id != HWPTAG_PARA_TEXT:
-                    record_index += 1
-                    continue
-                text = _clean_para_text(record)
-                if text:
-                    remaining = max_text_chars - total_chars
-                    if remaining <= 0:
-                        warnings.append("Text extraction stopped at max_text_chars.")
-                        break
-                    if len(text) > remaining:
-                        text = text[:remaining]
-                        warnings.append("Final paragraph was truncated at max_text_chars.")
-                    paragraphs.append(
-                        {
-                            "paragraph_index": len(paragraphs),
-                            "section_index": section_index,
-                            "section_stream": section_name,
-                            "record_index": record_index,
-                            "record_level": level,
-                            "text": text,
-                        }
-                    )
-                    total_chars += len(text)
-                    if len(paragraphs) >= max_paragraphs:
-                        warnings.append("Paragraph extraction stopped at max_paragraphs.")
-                        break
+                source = {
+                    "section_index": section_index,
+                    "section_stream": section_name,
+                    "record_index": record_index,
+                    "record_level": level,
+                    "tag_id": tag_id,
+                }
+                if tag_id == HWPTAG_PARA_TEXT:
+                    text = _clean_para_text(record)
+                    if text:
+                        remaining = max_text_chars - total_chars
+                        if remaining <= 0:
+                            warnings.append("Text extraction stopped at max_text_chars.")
+                            break
+                        if len(text) > remaining:
+                            text = text[:remaining]
+                            warnings.append("Final paragraph was truncated at max_text_chars.")
+                        paragraphs.append(
+                            {
+                                "paragraph_index": len(paragraphs),
+                                **source,
+                                "text": text,
+                            }
+                        )
+                        total_chars += len(text)
+                        if len(paragraphs) >= max_paragraphs:
+                            warnings.append("Paragraph extraction stopped at max_paragraphs.")
+                            break
+                elif tag_id == HWPTAG_TABLE:
+                    tables.append({**source, **_parse_table_record(record)})
+                elif tag_id == HWPTAG_EQEDIT:
+                    equations.append({**source, **_parse_equation_record(record)})
+                elif tag_id == HWPTAG_SHAPE_COMPONENT_PICTURE:
+                    objects.append({**source, **_opaque_object_record("picture", record)})
+                elif tag_id == HWPTAG_SHAPE_COMPONENT:
+                    objects.append({**source, **_opaque_object_record("shape", record, fidelity="raw-preserved")})
                 record_index += 1
             if len(paragraphs) >= max_paragraphs or total_chars >= max_text_chars:
                 break
@@ -225,15 +346,25 @@ def parse_hwp5_bytes(
             "paragraph_count": len(paragraphs),
             "text_chars": total_chars,
             "paragraphs": paragraphs,
+            "tables": tables,
+            "equations": equations,
+            "objects": objects,
             "text": "\n".join(item["text"] for item in paragraphs),
             "preview_text": preview_text[:20000],
             "preview_text_truncated": len(preview_text) > 20000,
             "streams": streams[:512],
             "streams_truncated": len(streams) > 512,
             "warnings": warnings + [
-                "HWP 5.x read lane is text-first and does not yet claim layout/table/object fidelity.",
+                "HWP 5.x fidelity is graded per object family; table cell content and picture binary linkage are not yet fully reconstructed.",
                 "C0 control atoms are stripped rather than interpreted as visible text.",
             ],
+            "fidelity": {
+                "paragraph_text": "semantic",
+                "tables": "structural" if tables else "not-present",
+                "equations": "semantic" if equations else "not-present",
+                "pictures": "inventory" if any(item["kind"] == "picture" for item in objects) else "not-present",
+                "shapes": "raw-preserved" if any(item["kind"] == "shape" for item in objects) else "not-present",
+            },
             "authority": "READ_ONLY_LOSS_AWARE",
         }
     finally:

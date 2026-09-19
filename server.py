@@ -165,25 +165,29 @@ def _hydrate_local(document_id: str, durable: dict) -> dict:
     return metadata
 
 
-def _write_metadata(document_id: str, metadata: dict) -> None:
+def _write_metadata(document_id: str, metadata: dict) -> dict:
     hwpx_path, metadata_path = _paths(document_id)
     if not hwpx_path.is_file():
         raise FileNotFoundError("Document bytes missing before durable commit")
     metadata = dict(metadata)
+    lease_token = str(metadata.pop("_commit_lease_token", "") or "")
     metadata["storage"] = DOCUMENT_STORE.mode
     metadata.setdefault("revision", 1)
+    revision = int(metadata["revision"])
     raw = hwpx_path.read_bytes()
     digest = hashlib.sha256(raw).hexdigest()
     metadata["sha256"] = digest
     metadata["bytes"] = len(raw)
     try:
-        DOCUMENT_STORE.put_revision(
+        receipt = DOCUMENT_STORE.put_revision(
             document_id=document_id,
             owner_subject=str(metadata["owner_subject"]),
-            revision=int(metadata["revision"]),
+            revision=revision,
+            expected_revision=max(0, revision - 1),
             metadata=metadata,
             data=raw,
             expires_at_epoch=float(metadata["expires_at_epoch"]),
+            lease_token=lease_token or None,
         )
     except Exception:
         durable = DOCUMENT_STORE.load_current(document_id, allow_expired=True)
@@ -196,10 +200,12 @@ def _write_metadata(document_id: str, metadata: dict) -> None:
         else:
             _hydrate_local(document_id, durable)
         raise
+    metadata["last_commit_receipt"] = receipt
     metadata_path.write_text(
         json.dumps(metadata, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
+    return receipt
 
 
 def _load_metadata(document_id: str, *, allow_expired: bool = False) -> dict:

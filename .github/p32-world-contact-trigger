@@ -9,3 +9,4 @@ r2-authorization-header-matrix
 r2-fresh-post-token-transport
 r2-http11-close
 r2-stable-edge-gate
+r3-restart-aware-final

@@ -6,6 +6,8 @@ on:
     paths:
       - ".github/workflows/p37-real-hwp-contact.yml"
       - "p37_nested_flow_probe.py"
+      - "p37_equivalence_probe.py"
+      - "p39_textbox.py"
       - "p36_rich_fixture_probe.py"
       - "hwp5_reader.py"
       - "common_ir.py"

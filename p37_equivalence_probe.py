@@ -31,7 +31,7 @@ async def main() -> None:
     oauth = OAuthClientProvider(
         server_url=URL,
         client_metadata=OAuthClientMetadata(
-            client_name="P3.7 HWP-HWPX Equivalence Probe",
+            client_name="P3.8 HWP-HWPX Equivalence Probe",
             redirect_uris=[AnyUrl("http://127.0.0.1:8765/callback")],
             scope="hwpx offline_access",
         ),
@@ -99,6 +99,7 @@ async def main() -> None:
                 "source_recovered_runs": recovered_runs,
                 "body_text": families.get("body_text"),
                 "run_style": families.get("run_style"),
+                "paragraph_style": families.get("paragraph_style"),
                 "tables": families.get("tables"),
                 "equations": families.get("equations"),
                 "pictures": families.get("pictures"),
@@ -112,7 +113,7 @@ async def main() -> None:
                 raise RuntimeError(f"pair cleanup failed: {deleted}")
             document_id = None
 
-    print("P3.7 REAL_HWP_HWPX_EQUIVALENCE_PASS")
+    print("P3.8 REAL_HWP_HWPX_EQUIVALENCE_PASS")
     print(json.dumps(report, ensure_ascii=False, sort_keys=True))
 
 

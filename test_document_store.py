@@ -10,6 +10,7 @@ from concurrent.futures import ThreadPoolExecutor
 import psycopg
 
 from document_store import DurableDocumentStore
+import server
 
 
 class DurableDocumentStoreTests(unittest.TestCase):
@@ -139,6 +140,72 @@ class DurableDocumentStoreTests(unittest.TestCase):
                 expected_revision=2,
             )
         )
+
+    def test_core_conflict_rehydrates_durable_winner_after_lost_race(self) -> None:
+        document_id = "doc_" + secrets.token_urlsafe(18)
+        original_dir = server.OBJECT_DIR
+        try:
+            with __import__("tempfile").TemporaryDirectory() as tmp:
+                server.OBJECT_DIR = __import__("pathlib").Path(tmp)
+                server.OBJECT_DIR.mkdir(parents=True, exist_ok=True)
+                path, metadata_path = server._paths(document_id)
+
+                base_validation = server.materialize_hwpx(path, "base", "P3.1")
+                metadata = {
+                    "document_id": document_id,
+                    "filename": "race.hwpx",
+                    "title": "P3.1",
+                    "owner_subject": self.owner,
+                    "created_at": server._utc_iso(),
+                    "created_at_epoch": 1_700_000_000,
+                    "expires_at": server._utc_iso(4_102_444_800),
+                    "expires_at_epoch": 4_102_444_800,
+                    "sha256": base_validation["sha256"],
+                    "bytes": base_validation["bytes"],
+                    "storage": server.DOCUMENT_STORE.mode,
+                    "format": "hwpx",
+                    "source": "generated",
+                    "revision": 1,
+                }
+                server._write_metadata(document_id, metadata)
+
+                winner_path = __import__("pathlib").Path(tmp) / "winner.hwpx"
+                winner_validation = server.materialize_hwpx(winner_path, "winner", "P3.1")
+                winner_meta = dict(metadata)
+                winner_meta.update(
+                    revision=2,
+                    sha256=winner_validation["sha256"],
+                    bytes=winner_validation["bytes"],
+                )
+                server.DOCUMENT_STORE.put_revision(
+                    document_id=document_id,
+                    owner_subject=self.owner,
+                    revision=2,
+                    expected_revision=1,
+                    metadata=winner_meta,
+                    data=winner_path.read_bytes(),
+                    expires_at_epoch=4_102_444_800,
+                )
+
+                loser_validation = server.materialize_hwpx(path, "loser", "P3.1")
+                loser_meta = dict(metadata)
+                loser_meta.update(
+                    revision=2,
+                    sha256=loser_validation["sha256"],
+                    bytes=loser_validation["bytes"],
+                )
+                with self.assertRaisesRegex(RuntimeError, "Revision CAS conflict"):
+                    server._write_metadata(document_id, loser_meta)
+
+                durable = server.DOCUMENT_STORE.load_current(document_id)
+                self.assertEqual(durable["revision"], 2)
+                self.assertEqual(path.read_bytes(), durable["bytes"])
+                local_meta = __import__("json").loads(metadata_path.read_text(encoding="utf-8"))
+                self.assertEqual(local_meta["revision"], 2)
+                self.assertEqual(local_meta["sha256"], durable["sha256"])
+        finally:
+            server.DOCUMENT_STORE.delete_document(document_id)
+            server.OBJECT_DIR = original_dir
 
     def test_encrypted_restart_safe_version_history(self) -> None:
         first = b"PK-first-revision"

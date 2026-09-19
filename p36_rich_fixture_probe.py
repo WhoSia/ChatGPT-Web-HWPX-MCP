@@ -29,7 +29,7 @@ async def main() -> None:
     oauth = OAuthClientProvider(
         server_url=URL,
         client_metadata=OAuthClientMetadata(
-            client_name="P3.6 Rich HWP Fixture Probe",
+            client_name="P3.7 Rich HWP Fixture Probe",
             redirect_uris=[AnyUrl("http://127.0.0.1:8765/callback")],
             scope="hwpx offline_access",
         ),
@@ -57,7 +57,7 @@ async def main() -> None:
                     raise RuntimeError(f"{family}: control graph unreadable: {graph}")
                 closure = assessment.get("closure", {}) if assessment else {}
                 if family == "picture":
-                    print("P3.6 picture-link diagnostics:", json.dumps([
+                    print("P3.7 picture-link diagnostics:", json.dumps([
                         {
                             "record_index": item.get("record_index"),
                             "control_index": item.get("control_index"),
@@ -90,7 +90,7 @@ async def main() -> None:
                 rich = _payload(await client.call_tool("materialize_hwp5_rich_derivative", {
                     "content_base64": encoded,
                     "filename": path.name,
-                    "request_id": f"p36-real-{family}-fixture-v1",
+                    "request_id": f"p37-real-{family}-fixture-v1",
                     "promote_tables": family == "table",
                     "promote_equations": family == "equation",
                     "promote_pictures": family == "picture",
@@ -110,6 +110,23 @@ async def main() -> None:
                 if int(inventory.get(expected_key, 0)) < 1:
                     raise RuntimeError(f"{family}: promoted object absent from final HWPX map: {rich}")
 
+                oracle = _payload(await client.call_tool("compare_hwp5_roundtrip_fidelity", {
+                    "content_base64": encoded,
+                    "document_id": rich["document_id"],
+                    "filename": path.name,
+                }))
+                if not oracle or not oracle.get("provenance_match"):
+                    raise RuntimeError(f"{family}: round-trip provenance mismatch: {oracle}")
+                families = oracle.get("families", {})
+                if not (families.get("body_text", {}) or {}).get("exact"):
+                    raise RuntimeError(f"{family}: body text round-trip mismatch: {oracle}")
+                if family == "table" and not (families.get("tables", {}) or {}).get("geometry_exact"):
+                    raise RuntimeError(f"table geometry round-trip mismatch: {oracle}")
+                if family == "equation" and not (families.get("equations", {}) or {}).get("script_exact"):
+                    raise RuntimeError(f"equation script round-trip mismatch: {oracle}")
+                if family == "picture" and not (families.get("pictures", {}) or {}).get("count_exact"):
+                    raise RuntimeError(f"picture count round-trip mismatch: {oracle}")
+
                 reports[family] = {
                     "source_bytes": len(raw),
                     "closure": closure,
@@ -117,6 +134,7 @@ async def main() -> None:
                     "final_inventory": inventory,
                     "control_count": len(graph.get("controls", [])),
                     "edge_count": len(graph.get("edges", [])),
+                    "roundtrip": oracle.get("families", {}),
                 }
 
             for doc_id in created:
@@ -124,7 +142,7 @@ async def main() -> None:
                 if not deleted or not deleted.get("deleted"):
                     raise RuntimeError(f"cleanup failed: {doc_id}: {deleted}")
 
-    print("P3.6 REAL_RICH_HWP_PROMOTION_PASS")
+    print("P3.7 REAL_RICH_HWP_PROMOTION_PASS")
     print(json.dumps(reports, ensure_ascii=False, sort_keys=True))
 
 

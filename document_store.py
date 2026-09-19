@@ -101,6 +101,18 @@ class DurableDocumentStore:
                 """
             )
             cur.execute(
+                """
+                CREATE TABLE IF NOT EXISTS hwpx_document_leases (
+                    document_id TEXT PRIMARY KEY REFERENCES hwpx_documents(document_id) ON DELETE CASCADE,
+                    lease_token_hash TEXT NOT NULL,
+                    holder_id TEXT NOT NULL,
+                    expected_revision INTEGER NOT NULL,
+                    expires_at TIMESTAMPTZ NOT NULL,
+                    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                )
+                """
+            )
+            cur.execute(
                 "CREATE INDEX IF NOT EXISTS hwpx_documents_expiry_idx ON hwpx_documents (expires_at)"
             )
             cur.execute(
@@ -341,6 +353,124 @@ class DurableDocumentStore:
             "receipt_id": receipt_id,
             "committed_at": committed_at.astimezone(timezone.utc).isoformat(),
         }
+
+    @staticmethod
+    def _lease_hash(token: str) -> str:
+        return hashlib.sha256(("lease\0" + token).encode("utf-8")).hexdigest()
+
+    def acquire_lease(
+        self,
+        document_id: str,
+        *,
+        holder_id: str,
+        expected_revision: int,
+        lease_token: str,
+        ttl_seconds: int = 30,
+    ) -> dict:
+        ttl_seconds = max(5, min(int(ttl_seconds), 300))
+        token_hash = self._lease_hash(lease_token)
+        with self._connect(autocommit=False) as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT current_revision
+                    FROM hwpx_documents
+                    WHERE document_id = %s
+                    FOR UPDATE
+                    """,
+                    (document_id,),
+                )
+                row = cur.fetchone()
+                if row is None:
+                    conn.rollback()
+                    raise FileNotFoundError("Unknown document_id")
+                current_revision = int(row[0])
+                if current_revision != int(expected_revision):
+                    conn.rollback()
+                    raise RuntimeError(
+                        f"Revision CAS conflict: durable current={current_revision}, expected={expected_revision}"
+                    )
+                cur.execute(
+                    """
+                    DELETE FROM hwpx_document_leases
+                    WHERE document_id = %s AND expires_at <= NOW()
+                    """,
+                    (document_id,),
+                )
+                cur.execute(
+                    """
+                    SELECT holder_id, expected_revision, expires_at
+                    FROM hwpx_document_leases
+                    WHERE document_id = %s
+                    """,
+                    (document_id,),
+                )
+                existing = cur.fetchone()
+                if existing is not None:
+                    conn.rollback()
+                    raise RuntimeError(
+                        f"Document lease conflict: held by {existing[0]} for revision {existing[1]}"
+                    )
+                cur.execute(
+                    """
+                    INSERT INTO hwpx_document_leases
+                        (document_id, lease_token_hash, holder_id, expected_revision, expires_at, updated_at)
+                    VALUES (%s, %s, %s, %s, NOW() + (%s * INTERVAL '1 second'), NOW())
+                    """,
+                    (document_id, token_hash, holder_id[:200], int(expected_revision), ttl_seconds),
+                )
+                cur.execute(
+                    "SELECT expires_at FROM hwpx_document_leases WHERE document_id = %s",
+                    (document_id,),
+                )
+                expires_at = cur.fetchone()[0]
+            conn.commit()
+        return {
+            "document_id": document_id,
+            "holder_id": holder_id[:200],
+            "expected_revision": int(expected_revision),
+            "ttl_seconds": ttl_seconds,
+            "expires_at": expires_at.astimezone(timezone.utc).isoformat(),
+        }
+
+    def validate_lease(
+        self,
+        document_id: str,
+        *,
+        lease_token: str,
+        expected_revision: int,
+    ) -> bool:
+        token_hash = self._lease_hash(lease_token)
+        with self._connect() as conn, conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT 1
+                FROM hwpx_document_leases
+                WHERE document_id = %s
+                  AND lease_token_hash = %s
+                  AND expected_revision = %s
+                  AND expires_at > NOW()
+                """,
+                (document_id, token_hash, int(expected_revision)),
+            )
+            return cur.fetchone() is not None
+
+    def release_lease(self, document_id: str, *, lease_token: str) -> bool:
+        token_hash = self._lease_hash(lease_token)
+        with self._connect() as conn, conn.cursor() as cur:
+            cur.execute(
+                """
+                DELETE FROM hwpx_document_leases
+                WHERE document_id = %s AND lease_token_hash = %s
+                """,
+                (document_id, token_hash),
+            )
+            return cur.rowcount > 0
+
+    def cleanup_expired_leases(self) -> int:
+        with self._connect() as conn, conn.cursor() as cur:
+            cur.execute("DELETE FROM hwpx_document_leases WHERE expires_at <= NOW()")
+            return cur.rowcount
 
     def _load_revision_row(
         self,

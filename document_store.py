@@ -165,17 +165,24 @@ class DurableDocumentStore:
             "storage": self.mode,
         }
 
-    def _load_revision_row(self, document_id: str, revision: int | None = None):
+    def _load_revision_row(
+        self,
+        document_id: str,
+        revision: int | None = None,
+        *,
+        allow_expired: bool = False,
+    ):
+        expiry_clause = "" if allow_expired else " AND d.expires_at > NOW()"
         with self._connect() as conn, conn.cursor() as cur:
             if revision is None:
                 cur.execute(
-                    """
+                    f"""
                     SELECT r.revision, r.sha256, r.byte_count, r.encrypted_bytes, r.encrypted_metadata,
                            d.owner_subject, EXTRACT(EPOCH FROM d.expires_at)
                     FROM hwpx_documents d
                     JOIN hwpx_document_revisions r
                       ON r.document_id = d.document_id AND r.revision = d.current_revision
-                    WHERE d.document_id = %s AND d.expires_at > NOW()
+                    WHERE d.document_id = %s{expiry_clause}
                     """,
                     (document_id,),
                 )
@@ -186,14 +193,14 @@ class DurableDocumentStore:
                            d.owner_subject, EXTRACT(EPOCH FROM d.expires_at)
                     FROM hwpx_documents d
                     JOIN hwpx_document_revisions r ON r.document_id = d.document_id
-                    WHERE d.document_id = %s AND r.revision = %s AND d.expires_at > NOW()
+                    WHERE d.document_id = %s AND r.revision = %s{expiry_clause}
                     """,
                     (document_id, int(revision)),
                 )
             return cur.fetchone()
 
-    def load_current(self, document_id: str) -> dict | None:
-        row = self._load_revision_row(document_id)
+    def load_current(self, document_id: str, *, allow_expired: bool = False) -> dict | None:
+        row = self._load_revision_row(document_id, allow_expired=allow_expired)
         if row is None:
             return None
         revision, sha256, byte_count, encrypted_bytes, encrypted_metadata, owner_subject, expires_epoch = row

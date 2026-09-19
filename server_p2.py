@@ -10,6 +10,7 @@ import re
 import secrets
 import tempfile
 import time
+import unicodedata
 from pathlib import Path
 
 import server as core
@@ -560,6 +561,25 @@ def materialize_hwp5_text_derivative(
     }
 
 
+def _canonical_font_face(value: object) -> str | None:
+    if value is None:
+        return None
+    text = unicodedata.normalize("NFKC", str(value))
+    text = " ".join(text.split()).strip()
+    return text.casefold() or None
+
+
+def _canonical_color(value: object) -> str | None:
+    if value is None:
+        return None
+    text = str(value).strip().upper()
+    if text.startswith("#"):
+        text = text[1:]
+    if re.fullmatch(r"[0-9A-F]{6}", text):
+        return f"#{text}"
+    return text or None
+
+
 def _hwp_colorref_to_hex(value: object) -> str:
     raw = int(value or 0)
     red = raw & 0xFF
@@ -632,8 +652,8 @@ def _hwp_style_signature(run: dict) -> dict:
         "underline": fmt.get("underline"),
         "strike": fmt.get("strike"),
         "size": fmt.get("size"),
-        "color": None if fmt.get("color") is None else str(fmt.get("color")).upper(),
-        "font": fmt.get("font"),
+        "color": _canonical_color(fmt.get("color")),
+        "font": _canonical_font_face(fmt.get("font")),
         "script": fmt.get("script"),
     }
 
@@ -653,21 +673,41 @@ def _hwp_paragraph_style_signature(paragraph: dict) -> dict:
 def _hwpx_paragraph_style_signature(paragraph: dict) -> dict:
     prop = paragraph.get("paragraph_property") or {}
     alignment = (prop.get("alignment") or {}).get("horizontal")
-    margin = prop.get("margin") or {}
-    def number(value: object) -> float | None:
-        if value is None:
+    margin_values = prop.get("margin_values") or {}
+
+    def hwpunit_value(name: str) -> float | None:
+        item = margin_values.get(name) or {}
+        raw = item.get("value")
+        if raw is None:
             return None
         try:
-            return float(value)
+            value = float(raw)
         except (TypeError, ValueError):
             return None
+        unit = str(item.get("unit") or "HWPUNIT").upper()
+        if unit != "HWPUNIT":
+            return None
+        return value
+
+    left = hwpunit_value("left")
+    right = hwpunit_value("right")
+    intent = hwpunit_value("intent")
+    prev = hwpunit_value("prev")
+    next_value = hwpunit_value("next")
+
+    def mm(value: float | None) -> float | None:
+        return None if value is None else round(value * 25.4 / 7200.0, 4)
+
+    def pt(value: float | None) -> float | None:
+        return None if value is None else round(value / 100.0, 4)
+
     return {
         "alignment": alignment,
-        "indent_left_mm": number(margin.get("left")),
-        "indent_right_mm": number(margin.get("right")),
-        "first_line_indent_mm": number(margin.get("indent")),
-        "spacing_before_pt": number(margin.get("prev")),
-        "spacing_after_pt": number(margin.get("next")),
+        "indent_left_mm": mm(left),
+        "indent_right_mm": mm(right),
+        "first_line_indent_mm": mm(intent),
+        "spacing_before_pt": pt(prev),
+        "spacing_after_pt": pt(next_value),
     }
 
 
@@ -773,6 +813,45 @@ def get_hwp5_control_graph(
         },
         "authority": "READ_ONLY_CONTROL_GRAPH",
     }
+
+
+def _apply_formatting_batched_atomic(
+    path: Path,
+    operations: list[dict],
+    *,
+    validator,
+    batch_size: int = 100,
+) -> dict:
+    if not operations:
+        return {
+            "operation_count": 0,
+            "batch_count": 0,
+            "after": build_formatting_map(path),
+        }
+    size = max(1, min(int(batch_size), 100))
+    original = path.read_bytes()
+    batch_count = 0
+    total = 0
+    try:
+        for start in range(0, len(operations), size):
+            batch = operations[start:start + size]
+            result = apply_rich_formatting_atomic(
+                path,
+                batch,
+                expected_revision=1,
+                current_revision=1,
+                validator=validator,
+            )
+            total += int(result.get("operation_count", len(batch)))
+            batch_count += 1
+        return {
+            "operation_count": total,
+            "batch_count": batch_count,
+            "after": build_formatting_map(path),
+        }
+    except Exception:
+        path.write_bytes(original)
+        raise
 
 
 @core.mcp.tool()
@@ -1320,11 +1399,9 @@ def materialize_hwp5_rich_derivative(
             })
     if style_operations:
         try:
-            style_result = apply_rich_formatting_atomic(
+            style_result = _apply_formatting_batched_atomic(
                 hwpx_path,
                 style_operations,
-                expected_revision=1,
-                current_revision=1,
                 validator=lambda candidate: core.validate_hwpx_package(
                     candidate, ingress=False
                 ),
@@ -1358,12 +1435,9 @@ def materialize_hwp5_rich_derivative(
         })
     if paragraph_style_operations:
         try:
-            current_revision = 2 if style_operations else 1
-            para_result = apply_rich_formatting_atomic(
+            para_result = _apply_formatting_batched_atomic(
                 hwpx_path,
                 paragraph_style_operations,
-                expected_revision=current_revision,
-                current_revision=current_revision,
                 validator=lambda candidate: core.validate_hwpx_package(
                     candidate, ingress=False
                 ),
@@ -2764,8 +2838,8 @@ def compare_hwp5_roundtrip_fidelity(
                 "underline": style.get("underline"),
                 "strike": style.get("strike"),
                 "size": style.get("size_pt"),
-                "color": None if style.get("text_color") is None else str(style.get("text_color")).upper(),
-                "font": style.get("primary_font_face"),
+                "color": _canonical_color(style.get("text_color")),
+                "font": _canonical_font_face(style.get("primary_font_face")),
                 "script": style.get("script"),
             })
         target_style_runs.append(runs)

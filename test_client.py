@@ -142,6 +142,8 @@ async def main() -> None:
                 "get_document_map",
                 "search_document_text",
                 "get_document_slice",
+                "plan_bulk_text_replace",
+                "commit_bulk_text_replace",
                 "get_text",
                 "apply_edits",
                 "compare_document",
@@ -167,11 +169,11 @@ async def main() -> None:
                     raise RuntimeError(f"secret-bearing field leaked into tool schema: {tool.name}")
 
             read_payload = _payload(await client.call_tool("probe_read", {"message": "P2 OAuth smoke test"}))
-            if not read_payload or not read_payload.get("ok") or read_payload.get("version") != "0.4.3-p3.3":
+            if not read_payload or not read_payload.get("ok") or read_payload.get("version") != "0.4.4-p3.4":
                 raise RuntimeError(f"probe_read did not expose P2: {read_payload}")
 
             p2_caps = _payload(await client.call_tool("p2_capabilities", {}))
-            if not p2_caps or p2_caps.get("phase") != "P3.3":
+            if not p2_caps or p2_caps.get("phase") != "P3.4":
                 raise RuntimeError(f"p2_capabilities failed: {p2_caps}")
 
             if not RUN_WRITE_TEST:
@@ -837,11 +839,69 @@ async def main() -> None:
             if not inspected or not inspected.get("validation", {}).get("valid"):
                 raise RuntimeError(f"inspect ingested document failed: {inspected}")
 
-            for doc_id in (document_id, ingested["document_id"], table_document_id):
+            bulk_created = _payload(await client.call_tool("create_document", {
+                "title": "P3.4 Bulk Text",
+                "text": "red one\nblue red two\nred red three",
+                "filename": "p34-bulk.hwpx",
+                "request_id": "p34-ci-bulk-document",
+            }))
+            if not bulk_created or bulk_created.get("revision") != 1:
+                raise RuntimeError(f"P3.4 bulk fixture create failed: {bulk_created}")
+            bulk_document_id = bulk_created["document_id"]
+
+            bulk_plan = _payload(await client.call_tool("plan_bulk_text_replace", {
+                "document_id": bulk_document_id,
+                "query": "red",
+                "replacement": "GREEN",
+                "case_sensitive": False,
+                "max_operations": 10,
+                "selected_hit_indexes": [0, 2],
+            }))
+            if (
+                not bulk_plan
+                or bulk_plan.get("revision") != 1
+                or bulk_plan.get("selected_hit_count") != 2
+                or not bulk_plan.get("plan_id")
+                or bulk_plan.get("preview", {}).get("structure_changed")
+                or bulk_plan.get("preview", {}).get("inline_structure_changed")
+            ):
+                raise RuntimeError(f"P3.4 bulk preview failed: {bulk_plan}")
+
+            bulk_commit = _payload(await client.call_tool("commit_bulk_text_replace", {
+                "document_id": bulk_document_id,
+                "expected_revision": 1,
+                "plan_id": bulk_plan["plan_id"],
+                "query": "red",
+                "replacement": "GREEN",
+                "case_sensitive": False,
+                "max_operations": 10,
+                "selected_hit_indexes": [0, 2],
+            }))
+            if (
+                not bulk_commit
+                or bulk_commit.get("transaction") != "COMMITTED"
+                or bulk_commit.get("revision_after") != 2
+                or bulk_commit.get("operation_count") != 2
+                or bulk_commit.get("changed_paragraph_count") < 1
+            ):
+                raise RuntimeError(f"P3.4 bulk commit failed: {bulk_commit}")
+
+            bulk_text = _payload(await client.call_tool("get_text", {
+                "document_id": bulk_document_id,
+            }))
+            if (
+                not bulk_text
+                or bulk_text.get("revision") != 2
+                or bulk_text.get("text", "").count("GREEN") != 2
+                or bulk_text.get("text", "").count("red") != 2
+            ):
+                raise RuntimeError(f"P3.4 bounded post-edit verification failed: {bulk_text}")
+
+            for doc_id in (document_id, ingested["document_id"], table_document_id, bulk_document_id):
                 deleted = _payload(await client.call_tool("delete_document", {"document_id": doc_id}))
                 if not deleted or not deleted.get("deleted"):
                     raise RuntimeError(f"delete_document failed: {deleted}")
-            print("P3.2 lifecycle PASS", digest)
+            print("P3.4 lifecycle PASS", digest)
 
 
 if __name__ == "__main__":

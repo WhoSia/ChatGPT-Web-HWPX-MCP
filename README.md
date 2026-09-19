@@ -61,6 +61,19 @@ ChatGPT Web
 
 There are no password, passphrase, API-key, or access-token fields in MCP tool schemas. Authentication happens at the HTTP/MCP transport layer.
 
+## P3.8 cross-format style canonicalization and native nested-flow promotion
+
+P3.8 closes the previous run-style exact HOLD and expands nested HWP text-flow promotion.
+
+- HWP FaceName references and HWPX fontRef values are compared through canonical font-face names rather than raw document-local IDs.
+- Canonical run-style axes are text, bold, italic, underline, strike, size, color, font and superscript/subscript state.
+- On the real `para-001.hwp/.hwpx` equivalence pair, all 11 comparable paragraphs are exact on every canonical run-style axis.
+- Paragraph-style comparison is reported separately. Zero-valued missing/explicit margins are canonicalized as semantic zero, but genuine numeric differences remain visible.
+- The same real pair reaches 10/11 exact paragraph styles; one paragraph retains a genuine left-margin difference (7.0556 mm in HWP vs 3.5278 mm in HWPX).
+- Header, footer, footnote and endnote text flows with closed owner/anchor semantics can be promoted to native HWPX structures.
+- Text-box/object-text promotion remains deferred until native container/anchor fidelity is independently certified.
+- Mixed text-box fixtures may partially promote note controls when only a subset of owner anchors closes.
+
 ## P3.7 run/style recovery, nested text flows and round-trip fidelity oracle
 
 P3.7 extends HWP 5.x authority from object-family reconstruction into paragraph/run style provenance and nested text-flow ownership.

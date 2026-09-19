@@ -16,7 +16,7 @@ from p28_tables import apply_table_edits_atomic, build_table_map
 from p29_objects import apply_object_edits_atomic, build_object_map
 from p210_equations import apply_equation_edits_atomic, build_equation_map
 
-P2_VERSION = "0.4.1-p3.1"
+P2_VERSION = "0.4.2-p3.2"
 core.VERSION = P2_VERSION
 
 _original_metadata = core._metadata
@@ -246,6 +246,86 @@ def set_document_retention(document_id: str, retention_seconds: int) -> dict:
         "retention_seconds": seconds,
         "expires_at": metadata["expires_at"],
         "storage": core.DOCUMENT_STORE.mode,
+    }
+
+
+@core.mcp.tool()
+def pin_document_revision(
+    document_id: str,
+    revision: int,
+    reason: str = "restore-anchor",
+) -> dict:
+    """Protect one retained historical revision from compaction."""
+    metadata, _path = _owned_document(document_id)
+    receipt = core.DOCUMENT_STORE.pin_revision(
+        document_id,
+        int(revision),
+        reason=reason,
+    )
+    return {
+        "ok": True,
+        **receipt,
+        "current_revision": int(metadata["revision"]),
+        "semantics": "pinned revision remains restore-reachable and DB-protected from byte-snapshot GC",
+    }
+
+
+@core.mcp.tool()
+def unpin_document_revision(document_id: str, revision: int) -> dict:
+    """Remove a historical restore-anchor pin; current revision remains protected independently."""
+    metadata, _path = _owned_document(document_id)
+    released = core.DOCUMENT_STORE.unpin_revision(document_id, int(revision))
+    return {
+        "ok": True,
+        "document_id": document_id,
+        "revision": int(revision),
+        "current_revision": int(metadata["revision"]),
+        "unpinned": released,
+    }
+
+
+@core.mcp.tool()
+def compact_document_history(
+    document_id: str,
+    expected_revision: int,
+    keep_last: int = 3,
+    dry_run: bool = True,
+) -> dict:
+    """Prune unpinned historical byte snapshots without deleting the commit audit ledger."""
+    metadata, _path = _owned_document(document_id)
+    current_revision = int(metadata["revision"])
+    if int(expected_revision) != current_revision:
+        raise ValueError(
+            f"Stale revision: expected {expected_revision}, current {current_revision}"
+        )
+    receipt = core.DOCUMENT_STORE.compact_revisions(
+        document_id,
+        expected_revision=current_revision,
+        keep_last=keep_last,
+        dry_run=dry_run,
+    )
+    lineage = core.DOCUMENT_STORE.verify_audit_chain(document_id)
+    if not lineage["audit_chain_valid"] or not lineage["restore_reachability_valid"]:
+        raise RuntimeError("Post-compaction lineage verification failed")
+    return {
+        "ok": True,
+        **receipt,
+        "audit_head": lineage["audit_head"],
+        "audit_chain_valid": lineage["audit_chain_valid"],
+        "restore_reachability_valid": lineage["restore_reachability_valid"],
+    }
+
+
+@core.mcp.tool()
+def verify_document_lineage(document_id: str) -> dict:
+    """Verify commit hash-chain integrity and restore reachability of current/pinned snapshots."""
+    metadata, _path = _owned_document(document_id)
+    report = core.DOCUMENT_STORE.verify_audit_chain(document_id)
+    return {
+        "ok": bool(report["audit_chain_valid"] and report["restore_reachability_valid"]),
+        **report,
+        "metadata_revision": int(metadata["revision"]),
+        "audit_semantics": "commit ledger is append-only authority; byte-snapshot compaction does not erase commit receipts",
     }
 
 
@@ -886,7 +966,7 @@ def p2_capabilities() -> dict:
     return {
         "project": core.PROJECT,
         "version": core.VERSION,
-        "phase": "P3.1",
+        "phase": "P3.2",
         "authenticated_subject": subject,
         "tools_added": [
             "acquire_document_lease",
@@ -895,6 +975,10 @@ def p2_capabilities() -> dict:
             "get_document_versions",
             "restore_document_revision",
             "set_document_retention",
+            "pin_document_revision",
+            "unpin_document_revision",
+            "compact_document_history",
+            "verify_document_lineage",
             "get_document_map",
             "get_text",
             "apply_edits",
@@ -1011,10 +1095,13 @@ def p2_capabilities() -> dict:
         },
         "durable_document_storage": {
             "authority": "encrypted Postgres revision snapshots; local filesystem is a rehydratable execution cache",
-            "versioning": "every committed content revision is stored by document_id + monotonic revision",
+            "versioning": "every committed content revision receives an append-only commit receipt; byte snapshots may later compact",
             "restart_recovery": "local cache miss or mismatch rehydrates current durable revision automatically",
-            "historical_recovery": "restore historical bytes only by promoting them as current_revision+1",
-            "retention": "bounded 1 hour..30 days; default 7 days unless configured",
+            "historical_recovery": "restore only retained historical bytes, promoted as current_revision+1",
+            "retention": "document TTL bounded 1 hour..30 days; revision compaction separately retains current + pinned + recent K",
+            "revision_pins": "DB-level restore anchors protected from snapshot deletion",
+            "compaction": "active durable lease blocks maintenance; commit ledger is never removed by revision compaction",
+            "audit_chain": "SHA-256 hash chain over ordered commit receipts; current pointer and pinned reachability are revalidated after compaction",
             "encryption": "AES-GCM with document-specific domain-separated key/AAD from OAuth-state secret",
             "oauth_separation": "separate tables, payload format, AAD, and derived key from OAuth authority",
         },

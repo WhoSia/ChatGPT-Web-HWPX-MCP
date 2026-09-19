@@ -265,6 +265,19 @@ def parse_hwp5_bytes(
             }
 
         streams = ["/".join(parts) for parts in ole.listdir(streams=True, storages=False)]
+        binary_items = []
+        for stream_name in streams:
+            if not stream_name.startswith("BinData/"):
+                continue
+            try:
+                binary = ole.openstream(stream_name).read()
+            except Exception:
+                continue
+            binary_items.append({
+                "stream": stream_name,
+                "bytes": len(binary),
+                "sha256": hashlib.sha256(binary).hexdigest(),
+            })
         section_names = [
             name for name in streams if name.startswith("BodyText/Section")
         ]
@@ -349,6 +362,7 @@ def parse_hwp5_bytes(
             "tables": tables,
             "equations": equations,
             "objects": objects,
+            "binary_items": binary_items,
             "text": "\n".join(item["text"] for item in paragraphs),
             "preview_text": preview_text[:20000],
             "preview_text_truncated": len(preview_text) > 20000,
@@ -363,6 +377,7 @@ def parse_hwp5_bytes(
                 "tables": "structural" if tables else "not-present",
                 "equations": "semantic" if equations else "not-present",
                 "pictures": "inventory" if any(item["kind"] == "picture" for item in objects) else "not-present",
+                "binary_items": "inventory" if binary_items else "not-present",
                 "shapes": "raw-preserved" if any(item["kind"] == "shape" for item in objects) else "not-present",
             },
             "authority": "READ_ONLY_LOSS_AWARE",

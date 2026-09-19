@@ -462,6 +462,58 @@ The same head passed focused picture lifecycle/geometry/custody regressions and 
 
 The public receipt confirms P2.9 is live behind the existing durable OAuth/public boundary.
 
+## P2.10 equation semantics, EqEdit custody, evidence-gated authoring and rich-object closure receipt
+
+Current extended server version: `0.3.10-p2.10`.
+
+P2.10 promotes `hp:equation` to a first-class rich object with independent identity, script custody, and geometry receipts.
+
+Positive mutation lanes:
+
+- `get_equation_map` — equation locator/intrinsic id, owning paragraph, verbatim EqEdit script, script SHA-256, baseUnit/baseline/font/version, size and position;
+- `insert_equation` — verified LaTeX only, converted through `hwpx.equation.latex_to_eqedit`, then authored with the upstream native equation builder;
+- `replace_equation` — verified LaTeX only; preserves equation identity and replaces the script, re-estimating geometry unless `preserve_size=true`;
+- `remove_equation` — removes the equation object/run while leaving surrounding paragraph content intact;
+- `resize_equation` — explicit `hp:sz` width/height mutation.
+
+Independent receipts:
+
+- `equation_structure_sha256`;
+- `equation_geometry_sha256`;
+- `equation_script_custody_sha256`;
+- equation create/delete/stable rebinding.
+
+### Raw EqEdit authoring evidence gate
+
+Existing raw EqEdit scripts are introspected and preserved. New raw EqEdit authoring/replacement is **not** promoted: callers must use the verified LaTeX conversion lane. An `eqedit_script` write request is rejected before candidate mutation and regression coverage asserts byte identity on refusal.
+
+This is recorded as **CLOSED_NEGATIVE**, not as a generic implementation gap.
+
+The evidence basis is upstream real-Hancom render verification: native `add_equation` is render-verified and `latex_to_eqedit` permits only the verified token set while unsupported commands raise typed errors rather than silent approximations.
+
+### Canonical P2.10 lifecycle receipt
+
+- workflow: `P2.10 Equation rich-object HWPX CI`
+- run: `35411278410`
+- commit: `d53bb49a076a0014b6204121b95eedd4421dbbce`
+- conclusion: **SUCCESS**
+
+Confirmed coverage includes legacy P2.1–P2.9 regressions, verified equation insert → map → remove through the OAuth-native MCP, script replacement, geometry resize, and byte-identical refusal of raw EqEdit authoring.
+
+Earlier P2.10 runs failed only because the workflow/server version advanced before the matching client version assertion was updated; the equation unit suite itself had already passed. The corrected canonical head passes the full native lifecycle.
+
+### Canonical P2.10 Render/public receipt
+
+- service: `chatgpt-web-hwpx-mcp-p0`
+- deploy: `dep-damtttp42hec73cg6kdg`
+- commit: `d53bb49a076a0014b6204121b95eedd4421dbbce`
+- deploy status: **live**
+- public workflow: `P2.10 Render public boundary verification`
+- run: `35411278378`
+- conclusion: **SUCCESS**
+
+P2.10 closes the principal P2 rich-object families: paragraph/text structure, formatting, inline/control semantics, tables, pictures/media, and equations. Remaining gaps are intentionally outside this closure: arbitrary raw EqEdit authoring, picture crop/effect/group-member semantics, column insertion without an evidence-backed primitive, cross-container paragraph transport, durable document-byte storage, and native Hancom fidelity.
+
 ## Current verdict
 
 ```text
@@ -523,15 +575,27 @@ P2_9_OBJECT_REBINDING = PASS
 P2_9_OAUTH_NATIVE_LIFECYCLE = PASS
 P2_9_RENDER_DEPLOYMENT = PASS
 P2_9_PUBLIC_BOUNDARY = PASS
+P2_10_EQUATION_SEMANTIC_INTROSPECTION = PASS
+P2_10_EQEDIT_SCRIPT_CUSTODY = PASS
+P2_10_VERIFIED_EQUATION_INSERTION = PASS
+P2_10_VERIFIED_EQUATION_REPLACEMENT = PASS
+P2_10_EQUATION_REMOVAL = PASS
+P2_10_EQUATION_GEOMETRY = PASS
+P2_10_RAW_EQEDIT_AUTHORING_GATE = CLOSED_NEGATIVE
+P2_10_EQUATION_REBINDING = PASS
+P2_10_OAUTH_NATIVE_LIFECYCLE = PASS
+P2_10_RENDER_DEPLOYMENT = PASS
+P2_10_PUBLIC_BOUNDARY = PASS
+P2_RICH_OBJECT_CLOSURE = CLOSED_PASS
 
 COLUMN_INSERTION = EVIDENCE_GATE_CLOSED
 ARBITRARY_FIELD_TYPE_MUTATION = HOLD
 BOOKMARK_SHAPE_OBJECT_CROSS_SEMANTIC_MUTATION = HOLD
 CROSS_CONTAINER_PARAGRAPH_MOVES = HOLD
 PICTURE_EFFECT_CROP_GROUP_OPERATIONS = HOLD
-EQUATION_OPERATIONS = HOLD
+RAW_EQEDIT_AUTHORING = EVIDENCE_GATE_CLOSED
 DURABLE_DOCUMENT_OBJECT_STORAGE = HOLD
 HANCOM_RENDERER_FIDELITY_ORACLE = HOLD
 ```
 
-P2.9 is **IMPLEMENTATION PASS / NATIVE-CI PASS / PUBLIC PASS**. Column insertion remains **CLOSED_NEGATIVE** pending an evidence-backed primitive. The remaining control gap is now beyond the confirmed hyperlink/typed-field/bookmark lanes: arbitrary field-type reinterpretation, richer object/shape reference semantics, cross-container editing, tables/images/equations, durable document-byte storage, and native Hancom fidelity.
+P2.10 is **IMPLEMENTATION PASS / NATIVE-CI PASS / PUBLIC PASS / RICH-OBJECT CLOSED**. Raw EqEdit authoring remains **CLOSED_NEGATIVE** outside the verified LaTeX conversion lane. Column insertion remains **CLOSED_NEGATIVE** pending an evidence-backed primitive. The remaining control gap is now beyond the confirmed hyperlink/typed-field/bookmark lanes: arbitrary field-type reinterpretation, richer object/shape reference semantics, cross-container editing, tables/images/equations, durable document-byte storage, and native Hancom fidelity.

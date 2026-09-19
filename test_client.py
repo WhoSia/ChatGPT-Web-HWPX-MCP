@@ -5,6 +5,7 @@ import base64
 import hashlib
 import json
 import os
+from pathlib import Path
 from urllib.parse import parse_qs, urljoin, urlparse
 
 import httpx2
@@ -102,7 +103,7 @@ async def main() -> None:
     oauth = OAuthClientProvider(
         server_url=URL,
         client_metadata=OAuthClientMetadata(
-            client_name="ChatGPT Web HWPX MCP P2.10 CI",
+            client_name="ChatGPT Web HWPX MCP P3.0 CI",
             redirect_uris=[AnyUrl("http://127.0.0.1:8765/callback")],
             scope="hwpx offline_access",
         ),
@@ -127,6 +128,9 @@ async def main() -> None:
                 "inspect_document",
                 "export_document",
                 "delete_document",
+                "get_document_versions",
+                "restore_document_revision",
+                "set_document_retention",
                 "get_document_map",
                 "get_text",
                 "apply_edits",
@@ -153,11 +157,11 @@ async def main() -> None:
                     raise RuntimeError(f"secret-bearing field leaked into tool schema: {tool.name}")
 
             read_payload = _payload(await client.call_tool("probe_read", {"message": "P2 OAuth smoke test"}))
-            if not read_payload or not read_payload.get("ok") or read_payload.get("version") != "0.3.10-p2.10":
+            if not read_payload or not read_payload.get("ok") or read_payload.get("version") != "0.4.0-p3.0":
                 raise RuntimeError(f"probe_read did not expose P2: {read_payload}")
 
             p2_caps = _payload(await client.call_tool("p2_capabilities", {}))
-            if not p2_caps or p2_caps.get("phase") != "P2.10":
+            if not p2_caps or p2_caps.get("phase") != "P3.0":
                 raise RuntimeError(f"p2_capabilities failed: {p2_caps}")
 
             if not RUN_WRITE_TEST:
@@ -590,6 +594,64 @@ async def main() -> None:
             if equation_map_after.get("equation_count") != 0:
                 raise RuntimeError(f"P2.10 equation lifecycle did not close: {equation_map_after}")
 
+            # Simulate a Render restart/local-cache loss without deleting durable custody.
+            object_dir = Path(os.environ.get("P1_OBJECT_DIR", "/tmp/chatgpt-web-hwpx-mcp-p1"))
+            for suffix in (".hwpx", ".json"):
+                try:
+                    (object_dir / f"{document_id}{suffix}").unlink()
+                except FileNotFoundError:
+                    pass
+
+            recovered_inspect = _payload(await client.call_tool("inspect_document", {
+                "document_id": document_id,
+            }))
+            if (
+                not recovered_inspect
+                or recovered_inspect.get("revision") != 14
+                or recovered_inspect.get("storage") != "postgres-encrypted-versioned"
+            ):
+                raise RuntimeError(f"P3.0 restart rehydration failed: {recovered_inspect}")
+
+            versions = _payload(await client.call_tool("get_document_versions", {
+                "document_id": document_id,
+            }))
+            if (
+                not versions
+                or versions.get("version_count", 0) < 14
+                or versions.get("versions", [])[-1].get("revision") != 14
+            ):
+                raise RuntimeError(f"P3.0 durable version history failed: {versions}")
+
+            restored = _payload(await client.call_tool("restore_document_revision", {
+                "document_id": document_id,
+                "revision": 1,
+                "expected_revision": 14,
+            }))
+            if (
+                not restored
+                or restored.get("transaction") != "RECOVERED_AS_NEW_REVISION"
+                or restored.get("revision_after") != 15
+                or restored.get("recovered_from_revision") != 1
+            ):
+                raise RuntimeError(f"P3.0 historical recovery failed: {restored}")
+
+            restored_text = _payload(await client.call_tool("get_text", {
+                "document_id": document_id,
+            }))
+            if not restored_text or restored_text.get("revision") != 15:
+                raise RuntimeError(f"P3.0 recovered document read failed: {restored_text}")
+
+            retention = _payload(await client.call_tool("set_document_retention", {
+                "document_id": document_id,
+                "retention_seconds": 604800,
+            }))
+            if (
+                not retention
+                or retention.get("revision") != 15
+                or retention.get("retention_seconds") != 604800
+            ):
+                raise RuntimeError(f"P3.0 retention update failed: {retention}")
+
             exported = _payload(await client.call_tool("export_document", {"document_id": document_id, "link_ttl_seconds": 120}))
             if not exported or not exported.get("download_url"):
                 raise RuntimeError(f"export_document failed: {exported}")
@@ -615,7 +677,7 @@ async def main() -> None:
                 deleted = _payload(await client.call_tool("delete_document", {"document_id": doc_id}))
                 if not deleted or not deleted.get("deleted"):
                     raise RuntimeError(f"delete_document failed: {deleted}")
-            print("P2.10 lifecycle PASS", digest)
+            print("P3.0 lifecycle PASS", digest)
 
 
 if __name__ == "__main__":

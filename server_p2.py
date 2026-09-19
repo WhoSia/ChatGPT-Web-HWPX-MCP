@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import secrets
 import tempfile
 import time
 from pathlib import Path
@@ -15,7 +16,7 @@ from p28_tables import apply_table_edits_atomic, build_table_map
 from p29_objects import apply_object_edits_atomic, build_object_map
 from p210_equations import apply_equation_edits_atomic, build_equation_map
 
-P2_VERSION = "0.4.0-p3.0"
+P2_VERSION = "0.4.1-p3.1"
 core.VERSION = P2_VERSION
 
 _original_metadata = core._metadata
@@ -80,6 +81,63 @@ def _refresh_metadata(
 
 
 @core.mcp.tool()
+def acquire_document_lease(
+    document_id: str,
+    expected_revision: int,
+    ttl_seconds: int = 30,
+    holder_id: str = "mcp-client",
+) -> dict:
+    """Acquire a short durable coordination lease for one revision."""
+    metadata, _path = _owned_document(document_id)
+    current_revision = int(metadata["revision"])
+    if int(expected_revision) != current_revision:
+        raise ValueError(
+            f"Stale revision: expected {expected_revision}, current {current_revision}"
+        )
+    token = secrets.token_urlsafe(32)
+    receipt = core.DOCUMENT_STORE.acquire_lease(
+        document_id,
+        holder_id=holder_id,
+        expected_revision=current_revision,
+        lease_token=token,
+        ttl_seconds=ttl_seconds,
+    )
+    return {
+        "ok": True,
+        **receipt,
+        "lease_token": token,
+        "lease_semantics": "coordination layer; CAS remains final authority",
+    }
+
+
+@core.mcp.tool()
+def release_document_lease(document_id: str, lease_token: str) -> dict:
+    """Release a durable document lease held by its opaque token."""
+    metadata, _path = _owned_document(document_id)
+    released = core.DOCUMENT_STORE.release_lease(
+        document_id,
+        lease_token=lease_token,
+    )
+    return {
+        "ok": True,
+        "document_id": document_id,
+        "revision": int(metadata["revision"]),
+        "released": released,
+    }
+
+
+@core.mcp.tool()
+def get_document_commit_receipt(document_id: str, revision: int = 0) -> dict:
+    """Return the deterministic durable commit receipt for one revision."""
+    metadata, _path = _owned_document(document_id)
+    target_revision = int(revision) or int(metadata["revision"])
+    receipt = core.DOCUMENT_STORE.get_commit_receipt(document_id, target_revision)
+    if receipt is None:
+        raise FileNotFoundError("Commit receipt not found")
+    return {"ok": True, **receipt}
+
+
+@core.mcp.tool()
 def get_document_versions(document_id: str) -> dict:
     """Return durable revision history for one owned document."""
     metadata, _path = _owned_document(document_id)
@@ -99,6 +157,7 @@ def restore_document_revision(
     document_id: str,
     revision: int,
     expected_revision: int,
+    lease_token: str = "",
 ) -> dict:
     """Promote one durable historical snapshot as a new monotonic revision."""
     metadata, path = _owned_document(document_id)
@@ -136,6 +195,8 @@ def restore_document_revision(
         restored["bytes"] = validation["bytes"]
         restored["recovered_from_revision"] = source_revision
         restored["recovered_at"] = core._utc_iso()
+        if lease_token:
+            restored["_commit_lease_token"] = lease_token
         os.replace(candidate, path)
         core._write_metadata(document_id, restored)
     except Exception:
@@ -160,18 +221,28 @@ def restore_document_revision(
 
 @core.mcp.tool()
 def set_document_retention(document_id: str, retention_seconds: int) -> dict:
-    """Extend or shorten durable retention within the P3.0 bounded window."""
+    """Extend or shorten durable retention under a revision CAS guard."""
     metadata, _path = _owned_document(document_id)
+    revision = int(metadata["revision"])
     seconds = max(3600, min(int(retention_seconds), 2_592_000))
     expires = time.time() + seconds
+    core.DOCUMENT_STORE.update_retention(
+        document_id,
+        expected_revision=revision,
+        expires_at_epoch=expires,
+    )
     metadata["expires_at_epoch"] = expires
     metadata["expires_at"] = core._utc_iso(expires)
     metadata["retention_seconds"] = seconds
-    core._write_metadata(document_id, metadata)
+    _hwpx_path, metadata_path = core._paths(document_id)
+    metadata_path.write_text(
+        __import__("json").dumps(metadata, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
     return {
         "ok": True,
         "document_id": document_id,
-        "revision": int(metadata["revision"]),
+        "revision": revision,
         "retention_seconds": seconds,
         "expires_at": metadata["expires_at"],
         "storage": core.DOCUMENT_STORE.mode,
@@ -385,7 +456,7 @@ def get_formatting(document_id: str, locator: str = "") -> dict:
 
 
 @core.mcp.tool()
-def apply_inline_edits(document_id: str, expected_revision: int, operations: list[dict]) -> dict:
+def apply_inline_edits(document_id: str, expected_revision: int, operations: list[dict], lease_token: str = "") -> dict:
     """Apply one revision-guarded control-aware inline text transaction."""
     metadata, path = _owned_document(document_id)
     current_revision = int(metadata["revision"])
@@ -403,6 +474,8 @@ def apply_inline_edits(document_id: str, expected_revision: int, operations: lis
     after_inline = build_inline_map(path)
     metadata["revision"] = current_revision + 1
     metadata["last_edit_at"] = core._utc_iso()
+    if lease_token:
+        metadata["_commit_lease_token"] = lease_token
     _refresh_metadata(
         document_id,
         metadata,
@@ -428,7 +501,7 @@ def apply_inline_edits(document_id: str, expected_revision: int, operations: lis
 
 
 @core.mcp.tool()
-def apply_control_edits(document_id: str, expected_revision: int, operations: list[dict]) -> dict:
+def apply_control_edits(document_id: str, expected_revision: int, operations: list[dict], lease_token: str = "") -> dict:
     """Apply one revision-guarded field/hyperlink/special-atom transaction."""
     metadata, path = _owned_document(document_id)
     current_revision = int(metadata["revision"])
@@ -446,6 +519,8 @@ def apply_control_edits(document_id: str, expected_revision: int, operations: li
     after_inline = build_inline_map(path)
     metadata["revision"] = current_revision + 1
     metadata["last_edit_at"] = core._utc_iso()
+    if lease_token:
+        metadata["_commit_lease_token"] = lease_token
     _refresh_metadata(
         document_id,
         metadata,
@@ -471,7 +546,7 @@ def apply_control_edits(document_id: str, expected_revision: int, operations: li
 
 
 @core.mcp.tool()
-def apply_table_edits(document_id: str, expected_revision: int, operations: list[dict]) -> dict:
+def apply_table_edits(document_id: str, expected_revision: int, operations: list[dict], lease_token: str = "") -> dict:
     """Apply one revision-guarded table structure/geometry/cell-format transaction."""
     metadata, path = _owned_document(document_id)
     current_revision = int(metadata["revision"])
@@ -490,6 +565,8 @@ def apply_table_edits(document_id: str, expected_revision: int, operations: list
     after_tables = build_table_map(path)
     metadata["revision"] = current_revision + 1
     metadata["last_edit_at"] = core._utc_iso()
+    if lease_token:
+        metadata["_commit_lease_token"] = lease_token
     _refresh_metadata(
         document_id,
         metadata,
@@ -516,7 +593,7 @@ def apply_table_edits(document_id: str, expected_revision: int, operations: list
 
 
 @core.mcp.tool()
-def apply_object_edits(document_id: str, expected_revision: int, operations: list[dict]) -> dict:
+def apply_object_edits(document_id: str, expected_revision: int, operations: list[dict], lease_token: str = "") -> dict:
     """Apply one revision-guarded picture/media/geometry transaction."""
     metadata, path = _owned_document(document_id)
     current_revision = int(metadata["revision"])
@@ -536,6 +613,8 @@ def apply_object_edits(document_id: str, expected_revision: int, operations: lis
     after_objects = build_object_map(path)
     metadata["revision"] = current_revision + 1
     metadata["last_edit_at"] = core._utc_iso()
+    if lease_token:
+        metadata["_commit_lease_token"] = lease_token
     _refresh_metadata(
         document_id,
         metadata,
@@ -563,7 +642,7 @@ def apply_object_edits(document_id: str, expected_revision: int, operations: lis
 
 
 @core.mcp.tool()
-def apply_equation_edits(document_id: str, expected_revision: int, operations: list[dict]) -> dict:
+def apply_equation_edits(document_id: str, expected_revision: int, operations: list[dict], lease_token: str = "") -> dict:
     """Apply one revision-guarded equation script/geometry/lifecycle transaction."""
     metadata, path = _owned_document(document_id)
     current_revision = int(metadata["revision"])
@@ -584,6 +663,8 @@ def apply_equation_edits(document_id: str, expected_revision: int, operations: l
     after_equations = build_equation_map(path)
     metadata["revision"] = current_revision + 1
     metadata["last_edit_at"] = core._utc_iso()
+    if lease_token:
+        metadata["_commit_lease_token"] = lease_token
     _refresh_metadata(
         document_id,
         metadata,
@@ -612,7 +693,7 @@ def apply_equation_edits(document_id: str, expected_revision: int, operations: l
 
 
 @core.mcp.tool()
-def apply_formatting(document_id: str, expected_revision: int, operations: list[dict]) -> dict:
+def apply_formatting(document_id: str, expected_revision: int, operations: list[dict], lease_token: str = "") -> dict:
     """Apply one revision-guarded formatting-only transaction."""
     metadata, path = _owned_document(document_id)
     current_revision = int(metadata["revision"])
@@ -630,6 +711,8 @@ def apply_formatting(document_id: str, expected_revision: int, operations: list[
     after_inline = build_inline_map(path)
     metadata["revision"] = current_revision + 1
     metadata["last_edit_at"] = core._utc_iso()
+    if lease_token:
+        metadata["_commit_lease_token"] = lease_token
     _refresh_metadata(
         document_id,
         metadata,
@@ -654,7 +737,7 @@ def apply_formatting(document_id: str, expected_revision: int, operations: list[
 
 
 @core.mcp.tool()
-def apply_edits(document_id: str, expected_revision: int, operations: list[dict]) -> dict:
+def apply_edits(document_id: str, expected_revision: int, operations: list[dict], lease_token: str = "") -> dict:
     """Apply one revision-guarded atomic text/paragraph-structure transaction."""
     metadata, path = _owned_document(document_id)
     current_revision = int(metadata["revision"])
@@ -672,6 +755,8 @@ def apply_edits(document_id: str, expected_revision: int, operations: list[dict]
     after_inline = build_inline_map(path)
     metadata["revision"] = current_revision + 1
     metadata["last_edit_at"] = core._utc_iso()
+    if lease_token:
+        metadata["_commit_lease_token"] = lease_token
     _refresh_metadata(
         document_id, metadata, validation, after_map, after_formatting, after_inline
     )
@@ -801,9 +886,12 @@ def p2_capabilities() -> dict:
     return {
         "project": core.PROJECT,
         "version": core.VERSION,
-        "phase": "P3.0",
+        "phase": "P3.1",
         "authenticated_subject": subject,
         "tools_added": [
+            "acquire_document_lease",
+            "release_document_lease",
+            "get_document_commit_receipt",
             "get_document_versions",
             "restore_document_revision",
             "set_document_retention",
@@ -911,6 +999,15 @@ def p2_capabilities() -> dict:
             "replacement_removal": "asset replacement with optional orphan cleanup + picture removal",
             "geometry": "picture resize + floating offset mutation",
             "diff": "object_structure_sha256 + object_geometry_sha256 + media_custody_sha256",
+        },
+        "durable_transaction_concurrency": {
+            "cas": "database row lock + expected_revision; only N->N+1 may advance current authority",
+            "same_revision_replay": "same revision + same SHA-256 returns deterministic IDEMPOTENT_REPLAY",
+            "conflicting_same_revision": "same revision + different SHA-256 is rejected",
+            "lease": "optional 5..300 second durable TTL lease; active lease token is mandatory for revision advancement",
+            "lease_failure": "lease expiry/release never weakens CAS authority",
+            "crash_consistency": "durable commit precedes local-cache acceptance; cache is rehydrated after commit/cache crash windows",
+            "receipt": "deterministic SHA-256 receipt_id over document_id/revision/content SHA",
         },
         "durable_document_storage": {
             "authority": "encrypted Postgres revision snapshots; local filesystem is a rehydratable execution cache",

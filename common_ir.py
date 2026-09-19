@@ -61,13 +61,27 @@ def hwp5_to_common_ir(parsed: dict, *, source_sha256: str, filename: str = "") -
                 "tag_id",
             )
         }
+        flow_kind = str(paragraph.get("flow_kind") or "body")
+        block_kind = "paragraph" if flow_kind == "body" else flow_kind
         blocks.append(
             _block(
                 block_id=f"hwp5:p:{paragraph.get('paragraph_index', len(blocks))}",
-                kind="paragraph",
+                kind=block_kind,
                 fidelity="semantic",
                 text=paragraph.get("text", ""),
-                source=source,
+                source={
+                    **source,
+                    "flow_kind": flow_kind,
+                    "control_index": paragraph.get("control_index"),
+                    "control_id": paragraph.get("control_id"),
+                },
+                data={
+                    "paragraph_style": paragraph.get("paragraph_style", {}),
+                    "runs": paragraph.get("runs", []),
+                    "run_visible_span_fidelity": paragraph.get(
+                        "run_visible_span_fidelity", "none"
+                    ),
+                },
             )
         )
 
@@ -168,12 +182,13 @@ def hwp5_to_common_ir(parsed: dict, *, source_sha256: str, filename: str = "") -
     for block in blocks:
         inventory[block["kind"]] = inventory.get(block["kind"], 0) + 1
     return {
-        "schema": "who-common-document-ir/0.1",
+        "schema": "who-common-document-ir/0.2",
         "source_format": "hwp5",
         "source_filename": filename,
         "source_sha256": source_sha256,
         "source_version": parsed.get("version"),
         "source_flags": parsed.get("flags", {}),
+        "char_shapes": parsed.get("char_shapes", []),
         "readable": bool(parsed.get("readable")),
         "block_count": len(blocks),
         "inventory": inventory,
@@ -312,7 +327,7 @@ def hwpx_to_common_ir(
     for block in blocks:
         inventory[block["kind"]] = inventory.get(block["kind"], 0) + 1
     return {
-        "schema": "who-common-document-ir/0.1",
+        "schema": "who-common-document-ir/0.2",
         "source_format": "hwpx",
         "document_id": document_id,
         "revision": revision,

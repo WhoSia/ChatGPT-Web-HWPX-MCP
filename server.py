@@ -144,6 +144,17 @@ def _new_document_id() -> str:
     return "doc_" + secrets.token_urlsafe(18)
 
 
+def _idempotent_document_id(owner_subject: str, request_id: str) -> str:
+    key = _download_secret()
+    digest = hmac.new(
+        key,
+        f"create-document\0{owner_subject}\0{request_id}".encode("utf-8"),
+        hashlib.sha256,
+    ).digest()
+    token = base64.urlsafe_b64encode(digest[:18]).decode("ascii").rstrip("=")
+    return "doc_" + token
+
+
 def _paths(document_id: str) -> tuple[Path, Path]:
     if not DOC_ID_RE.fullmatch(document_id):
         raise ValueError("Invalid document_id")
@@ -439,12 +450,54 @@ def probe_capabilities() -> dict:
 
 
 @mcp.tool()
-def create_document(text: str, title: str = "", filename: str = "document.hwpx") -> dict:
+def create_document(
+    text: str,
+    title: str = "",
+    filename: str = "document.hwpx",
+    request_id: str = "",
+) -> dict:
+    """Create one document; optional request_id makes creation replay-safe across lost responses."""
     owner_subject = _caller_subject()
     _cleanup_expired()
-    document_id = _new_document_id()
-    hwpx_path, _ = _paths(document_id)
     safe_filename = sanitize_filename(filename)
+    normalized_request_id = str(request_id or "").strip()
+    if normalized_request_id and len(normalized_request_id) > 160:
+        raise ValueError("request_id exceeds 160 characters")
+    request_fingerprint = hashlib.sha256(
+        json.dumps(
+            {"text": text, "title": title, "filename": safe_filename},
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    ).hexdigest()
+    document_id = (
+        _idempotent_document_id(owner_subject, normalized_request_id)
+        if normalized_request_id
+        else _new_document_id()
+    )
+    if normalized_request_id:
+        try:
+            existing = _load_metadata(document_id)
+        except FileNotFoundError:
+            existing = None
+        if existing is not None:
+            _require_owner(existing)
+            if existing.get("create_request_sha256") != request_fingerprint:
+                raise RuntimeError("Idempotency conflict: request_id already used with different create payload")
+            return {
+                "ok": True,
+                **existing,
+                "validation": {
+                    "sha256": existing["sha256"],
+                    "bytes": existing["bytes"],
+                },
+                "idempotent_replay": True,
+                "request_id": normalized_request_id,
+                "next": "Call export_document for a signed download URL.",
+            }
+
+    hwpx_path, _ = _paths(document_id)
     validation = materialize_hwpx(hwpx_path, text, title)
     metadata = _metadata(
         document_id,
@@ -454,8 +507,20 @@ def create_document(text: str, title: str = "", filename: str = "document.hwpx")
         title=title,
         source="generated",
     )
+    if normalized_request_id:
+        metadata["create_request_sha256"] = request_fingerprint
+        metadata["create_request_id_sha256"] = hashlib.sha256(
+            normalized_request_id.encode("utf-8")
+        ).hexdigest()
     _write_metadata(document_id, metadata)
-    return {"ok": True, **metadata, "validation": validation, "next": "Call export_document for a signed download URL."}
+    return {
+        "ok": True,
+        **metadata,
+        "validation": validation,
+        "idempotent_replay": False,
+        "request_id": normalized_request_id or None,
+        "next": "Call export_document for a signed download URL.",
+    }
 
 
 @mcp.tool()

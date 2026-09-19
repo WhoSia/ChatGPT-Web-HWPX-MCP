@@ -16,7 +16,7 @@ from p28_tables import apply_table_edits_atomic, build_table_map
 from p29_objects import apply_object_edits_atomic, build_object_map
 from p210_equations import apply_equation_edits_atomic, build_equation_map
 
-P2_VERSION = "0.4.2-p3.2"
+P2_VERSION = "0.4.3-p3.3"
 core.VERSION = P2_VERSION
 
 _original_metadata = core._metadata
@@ -359,6 +359,100 @@ def get_document_map(document_id: str) -> dict:
             "intrinsic-id": "stable across text edits and same-section moves while the paragraph intrinsic id survives",
             "revision-bound-ordinal": "valid only for the current structural revision; reacquire after structural edits",
         },
+    }
+
+
+@core.mcp.tool()
+def search_document_text(
+    document_id: str,
+    query: str,
+    case_sensitive: bool = False,
+    max_results: int = 50,
+    context_chars: int = 120,
+) -> dict:
+    """Search paragraph text and return compact revision-bound hits without emitting the full document."""
+    metadata, path = _owned_document(document_id)
+    needle = str(query)
+    if not needle:
+        raise ValueError("query must not be empty")
+    limit = max(1, min(int(max_results), 200))
+    context = max(0, min(int(context_chars), 500))
+    document_map = build_document_map(path)
+    hits = []
+    folded_needle = needle if case_sensitive else needle.casefold()
+    for index, paragraph in enumerate(document_map["paragraphs"]):
+        text_value = paragraph.get("text", "")
+        haystack = text_value if case_sensitive else text_value.casefold()
+        start = 0
+        while len(hits) < limit:
+            pos = haystack.find(folded_needle, start)
+            if pos < 0:
+                break
+            left = max(0, pos - context)
+            right = min(len(text_value), pos + len(needle) + context)
+            hits.append({
+                "paragraph_index": index,
+                "locator": paragraph["locator"],
+                "address_stability": paragraph["address_stability"],
+                "match_start": pos,
+                "match_end": pos + len(needle),
+                "text_sha256": paragraph["text_sha256"],
+                "context": text_value[left:right],
+                "context_start": left,
+            })
+            start = pos + max(1, len(folded_needle))
+        if len(hits) >= limit:
+            break
+    return {
+        "ok": True,
+        "document_id": document_id,
+        "revision": int(metadata["revision"]),
+        "query": needle,
+        "case_sensitive": bool(case_sensitive),
+        "match_count": len(hits),
+        "truncated": len(hits) >= limit,
+        "semantic_sha256": document_map["semantic_sha256"],
+        "hits": hits,
+    }
+
+
+@core.mcp.tool()
+def get_document_slice(
+    document_id: str,
+    start_paragraph: int = 0,
+    paragraph_count: int = 20,
+    include_locators: bool = True,
+) -> dict:
+    """Return a bounded paragraph window for large-document reading and agent navigation."""
+    metadata, path = _owned_document(document_id)
+    document_map = build_document_map(path)
+    total = len(document_map["paragraphs"])
+    start = max(0, int(start_paragraph))
+    count = max(1, min(int(paragraph_count), 200))
+    end = min(total, start + count)
+    paragraphs = []
+    for absolute_index, paragraph in enumerate(document_map["paragraphs"][start:end], start=start):
+        item = {
+            "paragraph_index": absolute_index,
+            "text": paragraph.get("text", ""),
+            "text_sha256": paragraph["text_sha256"],
+        }
+        if include_locators:
+            item["locator"] = paragraph["locator"]
+            item["address_stability"] = paragraph["address_stability"]
+        paragraphs.append(item)
+    return {
+        "ok": True,
+        "document_id": document_id,
+        "revision": int(metadata["revision"]),
+        "semantic_sha256": document_map["semantic_sha256"],
+        "start_paragraph": start,
+        "end_paragraph_exclusive": end,
+        "returned_paragraphs": len(paragraphs),
+        "paragraph_count": total,
+        "has_more": end < total,
+        "next_start_paragraph": end if end < total else None,
+        "paragraphs": paragraphs,
     }
 
 
@@ -966,7 +1060,7 @@ def p2_capabilities() -> dict:
     return {
         "project": core.PROJECT,
         "version": core.VERSION,
-        "phase": "P3.2",
+        "phase": "P3.3",
         "authenticated_subject": subject,
         "tools_added": [
             "acquire_document_lease",
@@ -980,6 +1074,8 @@ def p2_capabilities() -> dict:
             "compact_document_history",
             "verify_document_lineage",
             "get_document_map",
+            "search_document_text",
+            "get_document_slice",
             "get_text",
             "apply_edits",
             "compare_document",

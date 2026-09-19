@@ -23,6 +23,7 @@ RUN_WRITE_TEST = os.environ.get(
     os.environ.get("RUN_P12_WRITE_TEST", os.environ.get("RUN_P11_WRITE_TEST", "")),
 ) == "1"
 P11_OAUTH_PASSPHRASE = os.environ.get("P11_OAUTH_PASSPHRASE", "")
+MCP_CLIENT_MODE = os.environ.get("MCP_CLIENT_MODE", "auto")
 
 
 class InMemoryTokenStorage:
@@ -114,7 +115,7 @@ async def main() -> None:
 
     async with httpx2.AsyncClient(auth=oauth, timeout=60.0) as http_client:
         transport = streamable_http_client(URL, http_client=http_client)
-        async with Client(transport) as client:
+        async with Client(transport, mode=MCP_CLIENT_MODE) as client:
             print("protocol:", client.protocol_version)
             print("server:", client.server_info)
             tools = await client.list_tools()

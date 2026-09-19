@@ -56,6 +56,20 @@ async def main() -> None:
                 if not graph or not graph.get("readable"):
                     raise RuntimeError(f"{family}: control graph unreadable: {graph}")
                 closure = assessment.get("closure", {}) if assessment else {}
+                if family == "picture":
+                    print("P3.6 picture-link diagnostics:", json.dumps([
+                        {
+                            "record_index": item.get("record_index"),
+                            "control_index": item.get("control_index"),
+                            "anchor_paragraph_ordinal": item.get("anchor_paragraph_ordinal"),
+                            "bin_item_id": item.get("bin_item_id"),
+                            "binary_stream": (item.get("binary_link") or {}).get("stream"),
+                            "binary_link_fidelity": item.get("binary_link_fidelity"),
+                            "has_control_geometry": bool(item.get("control_geometry")),
+                            "payload_bytes": item.get("payload_bytes"),
+                        }
+                        for item in graph.get("pictures", [])
+                    ], ensure_ascii=False, sort_keys=True))
 
                 if family == "table":
                     if not graph.get("tables"):

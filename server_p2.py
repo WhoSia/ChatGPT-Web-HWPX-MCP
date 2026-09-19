@@ -421,6 +421,102 @@ def inspect_hwp5_document(
 
 
 @core.mcp.tool()
+def materialize_hwp5_text_derivative(
+    content_base64: str,
+    filename: str = "document.hwp",
+    title: str = "",
+    request_id: str = "",
+    max_text_chars: int = 500000,
+) -> dict:
+    """Create an editable HWPX text derivative from one readable HWP 5.x source without mutating the source."""
+    owner_subject = core._caller_subject()
+    encoded_limit = ((core.MAX_INGEST_BYTES + 2) // 3) * 4 + 16
+    if len(content_base64) > encoded_limit:
+        raise ValueError("Encoded HWP exceeds the bounded ingress limit")
+    try:
+        payload = base64.b64decode(content_base64, validate=True)
+    except (binascii.Error, ValueError) as exc:
+        raise ValueError("content_base64 is not valid base64") from exc
+    if len(payload) > core.MAX_INGEST_BYTES:
+        raise ValueError(f"HWP ingress exceeds {core.MAX_INGEST_BYTES} bytes")
+
+    parsed = parse_hwp5_bytes(
+        payload,
+        max_text_chars=max(1000, min(int(max_text_chars), 500000)),
+    )
+    if not parsed.get("readable"):
+        raise ValueError(
+            f"HWP source is not readable by the native lane: {parsed.get('block_reason')}"
+        )
+    text = parsed.get("text", "")
+    if not text.strip():
+        raise ValueError("HWP source yielded no readable body text")
+
+    source_sha256 = hashlib.sha256(payload).hexdigest()
+    source_name = Path(filename or "document.hwp").name[:128]
+    normalized_request_id = str(request_id or "").strip()
+    derivative_request = (
+        f"hwp5-derivative:{source_sha256}:{normalized_request_id}"
+        if normalized_request_id
+        else ""
+    )
+    document_id = (
+        core._idempotent_document_id(owner_subject, derivative_request)
+        if derivative_request
+        else core._new_document_id()
+    )
+    if derivative_request:
+        try:
+            existing = core._load_metadata(document_id)
+        except FileNotFoundError:
+            existing = None
+        if existing is not None:
+            core._require_owner(existing)
+            if existing.get("source_hwp_sha256") != source_sha256:
+                raise RuntimeError("Derivative request id conflicts with a different HWP source")
+            return {
+                "ok": True,
+                **existing,
+                "idempotent_replay": True,
+                "source_hwp_sha256": source_sha256,
+                "fidelity": existing.get("hwp_derivative_fidelity", "text-only"),
+            }
+
+    hwpx_path, _ = core._paths(document_id)
+    derivative_title = title or Path(source_name).stem
+    validation = core.materialize_hwpx(hwpx_path, text, derivative_title)
+    metadata = core._metadata(
+        document_id,
+        filename=core.sanitize_filename(Path(source_name).stem + ".hwpx"),
+        owner_subject=owner_subject,
+        validation=validation,
+        title=derivative_title,
+        source="hwp5-text-derivative",
+    )
+    metadata.update({
+        "source_hwp_filename": source_name,
+        "source_hwp_sha256": source_sha256,
+        "source_hwp_version": parsed.get("version"),
+        "source_hwp_flags": parsed.get("flags", {}),
+        "source_hwp_paragraph_count": parsed.get("paragraph_count", 0),
+        "hwp_derivative_fidelity": "text-only",
+        "hwp_derivative_warnings": parsed.get("warnings", []),
+        "hwp_original_mutated": False,
+    })
+    core._write_metadata(document_id, metadata)
+    return {
+        "ok": True,
+        **metadata,
+        "validation": validation,
+        "idempotent_replay": False,
+        "source_hwp_sha256": source_sha256,
+        "fidelity": "text-only",
+        "authority": "EDITABLE_HWPX_DERIVATIVE / ORIGINAL_HWP_READ_ONLY",
+        "next": "Use HWPX navigation/edit/export tools on this derivative document_id.",
+    }
+
+
+@core.mcp.tool()
 def search_document_text(
     document_id: str,
     query: str,

@@ -31,7 +31,7 @@ async def main() -> None:
     oauth = OAuthClientProvider(
         server_url=URL,
         client_metadata=OAuthClientMetadata(
-            client_name="P3.8 Nested HWP Flow Probe",
+            client_name="P3.9 Nested HWP Flow Probe",
             redirect_uris=[AnyUrl("http://127.0.0.1:8765/callback")],
             scope="hwpx offline_access",
         ),
@@ -74,7 +74,7 @@ async def main() -> None:
                 rich = _payload(await client.call_tool("materialize_hwp5_rich_derivative", {
                     "content_base64": encoded,
                     "filename": path.name,
-                    "request_id": f"p38-nested-{expected_flow}-v2",
+                    "request_id": f"p39-nested-{expected_flow}-v2",
                     "promote_tables": False,
                     "promote_equations": False,
                     "promote_pictures": False,
@@ -98,9 +98,36 @@ async def main() -> None:
                             f"{expected_flow}: native promotion did not close: {rich}"
                         )
                 elif expected_flow == "object-text":
-                    if family_receipt.get("status") != "DEFERRED":
+                    control_graph = _payload(await client.call_tool(
+                        "get_hwp5_control_graph",
+                        {
+                            "content_base64": encoded,
+                            "filename": path.name,
+                        },
+                    ))
+                    object_control_indexes = {
+                        int(item.get("control_index"))
+                        for item in (flows.get("flows") or {}).get("object-text", [])
+                        if item.get("control_index") is not None
+                    }
+                    rectangle_controls = [
+                        item for item in (control_graph or {}).get("controls", [])
+                        if item.get("control_index") is not None
+                        and int(item.get("control_index")) in object_control_indexes
+                        and item.get("shape_family") == "rectangle"
+                    ]
+                    if rectangle_controls:
+                        if family_receipt.get("status") not in {"PROMOTED_NATIVE", "PARTIAL"}:
+                            raise RuntimeError(
+                                f"{expected_flow}: rectangle-certified textbox was not promoted: {rich}"
+                            )
+                        if int(family_receipt.get("promoted_controls", 0)) < 1:
+                            raise RuntimeError(
+                                f"{expected_flow}: no rectangle textbox promotion receipt: {rich}"
+                            )
+                    elif family_receipt.get("status") != "DEFERRED":
                         raise RuntimeError(
-                            f"{expected_flow}: text-box promotion overstated: {rich}"
+                            f"{expected_flow}: non-rectangle textbox promotion overstated: {rich}"
                         )
 
                 oracle = _payload(await client.call_tool(
@@ -135,9 +162,19 @@ async def main() -> None:
                             f"{expected_flow}: oracle promotion receipt did not close: {oracle}"
                         )
                 elif expected_flow == "object-text":
-                    if oracle_family.get("status") != "DEFERRED":
+                    textbox_oracle = (oracle.get("families") or {}).get("textboxes", {})
+                    if rectangle_controls:
+                        if oracle_family.get("status") not in {"PROMOTED_NATIVE", "PARTIAL"}:
+                            raise RuntimeError(
+                                f"{expected_flow}: oracle lost native textbox promotion: {oracle}"
+                            )
+                        if not textbox_oracle.get("structural_geometry_exact"):
+                            raise RuntimeError(
+                                f"{expected_flow}: structural textbox geometry did not round-trip: {oracle}"
+                            )
+                    elif oracle_family.get("status") != "DEFERRED":
                         raise RuntimeError(
-                            f"{expected_flow}: oracle overstated text-box promotion: {oracle}"
+                            f"{expected_flow}: oracle overstated non-rectangle text-box promotion: {oracle}"
                         )
 
                 report[expected_flow] = {
@@ -155,7 +192,7 @@ async def main() -> None:
                 if not deleted or not deleted.get("deleted"):
                     raise RuntimeError(f"cleanup failed: {document_id}: {deleted}")
 
-    print("P3.8 REAL_NESTED_HWP_FLOW_PASS")
+    print("P3.9 REAL_NESTED_HWP_FLOW_PASS")
     print(json.dumps(report, ensure_ascii=False, sort_keys=True))
 
 

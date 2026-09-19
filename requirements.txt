@@ -3,3 +3,4 @@ python-hwpx>=6.4.0,<7
 lxml>=5.0,<7
 psycopg[binary]>=3.2,<4
 cryptography>=45,<47
+olefile>=0.47,<1

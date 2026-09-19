@@ -6,7 +6,7 @@
 
 ## Verdict
 
-`IMPLEMENTATION_PASS / NATIVE_CI_PASS / REAL_NESTED_FLOW_PASS / BODY_TEXT_EQUIVALENCE_PASS / RICH_FAMILY_REGRESSION_PASS / RUN_STYLE_RECOVERY_PASS / CROSS_FORMAT_STYLE_EXACT_HOLD / PRODUCTION_DEPLOY_PENDING_AT_SEAL`
+`IMPLEMENTATION_PASS / NATIVE_CI_PASS / REAL_NESTED_FLOW_PASS / BODY_TEXT_EQUIVALENCE_PASS / RICH_FAMILY_REGRESSION_PASS / RUN_STYLE_RECOVERY_PASS / CROSS_FORMAT_STYLE_EXACT_HOLD / PUBLIC_BOUNDARY_PASS / PRODUCTION_DEPLOYED`
 
 ## Server
 
@@ -126,3 +126,18 @@ Latest canonical head before production seal:
 ## Successor
 
 **ChatGPT Web HWPX MCP P3.8 — Cross-Format Style Canonicalization, Font/FaceName Resolution, Paragraph-Style Semantics, Native Header/Footer/Note Promotion & Round-Trip Fidelity Expansion**
+
+
+## Final production closure
+
+The canonical P3.7 seal was materialized publicly and re-verified without changing the server implementation.
+
+- canonical commit: `6a206e0c6a6ecf41ac592d03b33166595e3c56bd`
+- Render deploy: `dep-dan9v9142hec73dpb6fg`
+- Render status: `live`
+- final native lifecycle: `35449617864` — SUCCESS
+- final public boundary rerun: `35449617707` attempt 2 — SUCCESS
+- rich-family real-HWP regression: `35449499901` — SUCCESS
+- nested-flow + HWP/HWPX equivalence oracle: `35449499943` — SUCCESS
+
+The only retained HOLD is exact cross-format run/style equality for the external HWP/HWPX equivalence pair. Body-text semantic equivalence and the tested nested-flow/control families are closed independently.

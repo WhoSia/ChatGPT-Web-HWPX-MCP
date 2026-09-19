@@ -2439,10 +2439,22 @@ def compare_hwp5_roundtrip_fidelity(
         if item.get("container") == "section-body"
     ]
     source_text = [str(item.get("text", "")) for item in source_top]
-    target_text = [str(item.get("direct_text", item.get("text", ""))) for item in target_top[:len(source_top)]]
-    text_exact = source_text == target_text
+    target_text_all = [
+        str(item.get("direct_text", item.get("text", "")))
+        for item in target_top
+    ]
+    target_text = target_text_all[:len(source_top)]
+    strict_text_exact = source_text == target_text
+
+    # HWP and HWPX may encode visually empty/space-only paragraphs differently.
+    # Preserve that as a strict-structure diagnostic, but compare body-text
+    # semantics on the nonblank paragraph stream without changing nonblank text.
+    source_semantic_text = [item for item in source_text if item.strip()]
+    target_semantic_text = [item for item in target_text_all if item.strip()]
+    semantic_text_exact = source_semantic_text == target_semantic_text
+
     text_mismatches = []
-    for paragraph_index, (left, right) in enumerate(zip(source_text, target_text)):
+    for paragraph_index, (left, right) in enumerate(zip(source_semantic_text, target_semantic_text)):
         if left == right:
             continue
         prefix = 0
@@ -2464,14 +2476,17 @@ def compare_hwp5_roundtrip_fidelity(
             break
 
     source_style_runs = []
-    for paragraph in source_top:
+    for paragraph in [item for item in source_top if str(item.get("text", "")).strip()]:
         source_style_runs.append([
             _hwp_style_signature(run)
             for run in paragraph.get("runs", [])
             if run.get("visible_span_certified") and str(run.get("text", ""))
         ])
     target_style_runs = []
-    for paragraph in target_top[:len(source_top)]:
+    for paragraph in [
+        item for item in target_top
+        if str(item.get("direct_text", item.get("text", ""))).strip()
+    ][:len(source_style_runs)]:
         runs = []
         for run in paragraph.get("runs", []):
             if not str(run.get("text", "")):
@@ -2550,8 +2565,13 @@ def compare_hwp5_roundtrip_fidelity(
         "families": {
             "body_text": {
                 "source_paragraphs": len(source_text),
-                "target_paragraphs_compared": len(target_text),
-                "exact": text_exact,
+                "target_paragraphs": len(target_text_all),
+                "strict_paragraph_exact": strict_text_exact,
+                "source_nonblank_paragraphs": len(source_semantic_text),
+                "target_nonblank_paragraphs": len(target_semantic_text),
+                "semantic_exact": semantic_text_exact,
+                "exact": semantic_text_exact,
+                "normalization": "drop whitespace-only paragraphs; preserve every nonblank code point exactly",
                 "mismatch_count_bounded": len(text_mismatches),
                 "mismatches": text_mismatches,
             },
@@ -2773,7 +2793,7 @@ def p2_capabilities() -> dict:
         "hwp5_run_style_and_flows": {
             "paragraph_style": "PARA_HEADER shape/style/control-mask/instance references",
             "run_style": "PARA_CHAR_SHAPE source-coordinate transitions resolved through DocInfo CHAR_SHAPE",
-            "visible_span": "certified only for control-free paragraphs; controlled paragraphs remain source-coordinate-only",
+            "visible_span": "certified through source-WCHAR→visible mapping when control decoding closes; control-free paragraphs use identity coordinates",
             "nested_flows": "header/footer/footnote/endnote/object-text paragraph ownership is explicit in Common IR",
             "promotion": "safe body run subset uses existing formatting transaction; nested flow native promotion remains deferred",
             "oracle": "source HWP versus promoted HWPX family-by-family fidelity receipt",

@@ -13,6 +13,7 @@ jobs:
     env:
       MCP_URL: https://chatgpt-web-hwpx-mcp-p0.onrender.com/mcp
       RUN_P2_WRITE_TEST: "1"
+      MCP_CLIENT_MODE: "2026-07-28"
       P11_OAUTH_PASSPHRASE: ${{ secrets.P11_OAUTH_PASSPHRASE }}
     steps:
       - uses: actions/checkout@v4

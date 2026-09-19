@@ -102,7 +102,7 @@ async def main() -> None:
     oauth = OAuthClientProvider(
         server_url=URL,
         client_metadata=OAuthClientMetadata(
-            client_name="ChatGPT Web HWPX MCP P2.9 CI",
+            client_name="ChatGPT Web HWPX MCP P2.10 CI",
             redirect_uris=[AnyUrl("http://127.0.0.1:8765/callback")],
             scope="hwpx offline_access",
         ),
@@ -141,6 +141,8 @@ async def main() -> None:
                 "apply_table_edits",
                 "get_object_map",
                 "apply_object_edits",
+                "get_equation_map",
+                "apply_equation_edits",
             }
             missing = expected - set(names)
             if missing:
@@ -151,11 +153,11 @@ async def main() -> None:
                     raise RuntimeError(f"secret-bearing field leaked into tool schema: {tool.name}")
 
             read_payload = _payload(await client.call_tool("probe_read", {"message": "P2 OAuth smoke test"}))
-            if not read_payload or not read_payload.get("ok") or read_payload.get("version") != "0.3.9-p2.9":
+            if not read_payload or not read_payload.get("ok") or read_payload.get("version") != "0.3.10-p2.10":
                 raise RuntimeError(f"probe_read did not expose P2: {read_payload}")
 
             p2_caps = _payload(await client.call_tool("p2_capabilities", {}))
-            if not p2_caps or p2_caps.get("phase") != "P2.9":
+            if not p2_caps or p2_caps.get("phase") != "P2.10":
                 raise RuntimeError(f"p2_capabilities failed: {p2_caps}")
 
             if not RUN_WRITE_TEST:
@@ -543,6 +545,51 @@ async def main() -> None:
             if object_map_after.get("picture_count") != 0 or object_map_after.get("media_item_count") != 0:
                 raise RuntimeError(f"P2.9 picture/media lifecycle did not close: {object_map_after}")
 
+            inserted_equation = _payload(await client.call_tool("apply_equation_edits", {
+                "document_id": document_id,
+                "expected_revision": 12,
+                "operations": [{
+                    "op": "insert_equation",
+                    "paragraph": locator,
+                    "latex": "\\frac{a}{b}",
+                }],
+            }))
+            if (
+                not inserted_equation
+                or inserted_equation.get("transaction") != "COMMITTED"
+                or inserted_equation.get("revision_after") != 13
+                or inserted_equation.get("equation_script_custody_changed") is not True
+            ):
+                raise RuntimeError(f"P2.10 insert_equation failed: {inserted_equation}")
+
+            equation_map = _payload(await client.call_tool("get_equation_map", {
+                "document_id": document_id,
+            }))
+            if not equation_map or equation_map.get("equation_count") != 1:
+                raise RuntimeError(f"P2.10 get_equation_map failed: {equation_map}")
+            equation_locator = equation_map["equations"][0]["locator"]
+
+            removed_equation = _payload(await client.call_tool("apply_equation_edits", {
+                "document_id": document_id,
+                "expected_revision": 13,
+                "operations": [{
+                    "op": "remove_equation",
+                    "equation": equation_locator,
+                }],
+            }))
+            if (
+                not removed_equation
+                or removed_equation.get("transaction") != "COMMITTED"
+                or removed_equation.get("revision_after") != 14
+            ):
+                raise RuntimeError(f"P2.10 remove_equation failed: {removed_equation}")
+
+            equation_map_after = _payload(await client.call_tool("get_equation_map", {
+                "document_id": document_id,
+            }))
+            if equation_map_after.get("equation_count") != 0:
+                raise RuntimeError(f"P2.10 equation lifecycle did not close: {equation_map_after}")
+
             exported = _payload(await client.call_tool("export_document", {"document_id": document_id, "link_ttl_seconds": 120}))
             if not exported or not exported.get("download_url"):
                 raise RuntimeError(f"export_document failed: {exported}")
@@ -568,7 +615,7 @@ async def main() -> None:
                 deleted = _payload(await client.call_tool("delete_document", {"document_id": doc_id}))
                 if not deleted or not deleted.get("deleted"):
                     raise RuntimeError(f"delete_document failed: {deleted}")
-            print("P2.9 lifecycle PASS", digest)
+            print("P2.10 lifecycle PASS", digest)
 
 
 if __name__ == "__main__":

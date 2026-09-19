@@ -385,6 +385,11 @@ class DurableDocumentStoreTests(unittest.TestCase):
             damaged,
         )
 
+        # Restart must not auto-heal a non-NULL tampered audit chain.
+        restarted = DurableDocumentStore(self.database_url, self.state_secret)
+        damaged_after_restart = restarted.verify_audit_chain(self.document_id)
+        self.assertFalse(damaged_after_restart["audit_chain_valid"])
+
 
 
 if __name__ == "__main__":

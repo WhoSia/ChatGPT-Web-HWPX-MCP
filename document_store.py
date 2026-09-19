@@ -134,6 +134,7 @@ class DurableDocumentStore:
         data: bytes,
         expires_at_epoch: float | int,
         expected_revision: int | None = None,
+        lease_token: str | None = None,
     ) -> dict:
         """CAS-commit one revision or return an idempotent replay receipt.
 
@@ -171,6 +172,28 @@ class DurableDocumentStore:
                     (document_id,),
                 )
                 current = cur.fetchone()
+
+                cur.execute(
+                    """
+                    SELECT lease_token_hash, expected_revision, expires_at
+                    FROM hwpx_document_leases
+                    WHERE document_id = %s AND expires_at > NOW()
+                    """,
+                    (document_id,),
+                )
+                active_lease = cur.fetchone()
+                if active_lease is not None:
+                    if not lease_token:
+                        conn.rollback()
+                        raise RuntimeError("Document lease required for commit")
+                    if self._lease_hash(lease_token) != str(active_lease[0]):
+                        conn.rollback()
+                        raise RuntimeError("Document lease token mismatch")
+                    if int(active_lease[1]) != expected_revision:
+                        conn.rollback()
+                        raise RuntimeError(
+                            f"Document lease revision mismatch: lease={active_lease[1]}, expected={expected_revision}"
+                        )
 
                 if current is None:
                     if revision != 1 or expected_revision != 0:
@@ -274,6 +297,14 @@ class DurableDocumentStore:
                     WHERE document_id = %s
                     """,
                     (self._expiry(expires_at_epoch), document_id),
+                )
+            if lease_token:
+                cur.execute(
+                    """
+                    DELETE FROM hwpx_document_leases
+                    WHERE document_id = %s AND lease_token_hash = %s
+                    """,
+                    (document_id, self._lease_hash(lease_token)),
                 )
             conn.commit()
 

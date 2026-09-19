@@ -174,6 +174,20 @@ def _scan_para_text(payload: bytes) -> dict:
                 "source_width": 1,
                 "visible_width": 0,
             })
+        elif 0xD800 <= code <= 0xDBFF:
+            if source_index + 1 < len(units) and 0xDC00 <= units[source_index + 1] <= 0xDFFF:
+                low = units[source_index + 1]
+                scalar = 0x10000 + ((code - 0xD800) << 10) + (low - 0xDC00)
+                chars.append(chr(scalar))
+                visible_index += 1
+                source_index += 1
+                visible_offsets[source_index] = visible_index
+            else:
+                chars.append("\uFFFD")
+                visible_index += 1
+        elif 0xDC00 <= code <= 0xDFFF:
+            chars.append("\uFFFD")
+            visible_index += 1
         elif code != 0xFFFF:
             chars.append(chr(code))
             visible_index += 1

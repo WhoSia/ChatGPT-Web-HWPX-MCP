@@ -1189,6 +1189,13 @@ def p2_capabilities() -> dict:
             "crash_consistency": "durable commit precedes local-cache acceptance; cache is rehydrated after commit/cache crash windows",
             "receipt": "deterministic SHA-256 receipt_id over document_id/revision/content SHA",
         },
+        "large_document_navigation": {
+            "search": "case-sensitive/insensitive paragraph search with bounded result count and compact context windows",
+            "slice": "bounded paragraph windows with continuation cursor and optional revision-bound locators",
+            "token_economy": "agents can locate and read relevant regions without materializing the full document map",
+            "revision_binding": "all search/slice receipts expose the current revision and semantic SHA-256",
+            "create_replay": "optional request_id makes create_document recoverable after a lost response; payload mismatch is rejected",
+        },
         "durable_document_storage": {
             "authority": "encrypted Postgres revision snapshots; local filesystem is a rehydratable execution cache",
             "versioning": "every committed content revision receives an append-only commit receipt; byte snapshots may later compact",

@@ -299,7 +299,13 @@ def _flow_kind_for_control(ctrl_id: str | None) -> str:
     }.get(str(ctrl_id or ""), "body")
 
 
-def _build_run_receipts(text: str, header: dict, changes: list[dict], char_shapes: list[dict]) -> dict:
+def _build_run_receipts(
+    text: str,
+    header: dict,
+    changes: list[dict],
+    char_shapes: list[dict],
+    scan: dict | None = None,
+) -> dict:
     normalized = sorted(changes, key=lambda item: int(item["source_position"]))
     if not normalized:
         return {
@@ -307,14 +313,29 @@ def _build_run_receipts(text: str, header: dict, changes: list[dict], char_shape
             "visible_span_fidelity": "none",
             "source_coordinate_authority": "none",
         }
-    control_free = int(header.get("control_mask", 0) or 0) == 0
+    offsets = None if scan is None else scan.get("visible_offsets")
+    source_limit = int(
+        header.get(
+            "char_count",
+            0 if scan is None else scan.get("source_wchar_count", len(text)),
+        )
+        or (0 if scan is None else scan.get("source_wchar_count", len(text)))
+        or len(text)
+    )
+
+    def to_visible(source_position: int) -> int | None:
+        if offsets is None:
+            return None
+        pos = max(0, min(int(source_position), len(offsets) - 1))
+        return max(0, min(int(offsets[pos]), len(text)))
+
     runs = []
     for index, change in enumerate(normalized):
         start = int(change["source_position"])
         end = (
             int(normalized[index + 1]["source_position"])
             if index + 1 < len(normalized)
-            else int(header.get("char_count", len(text)) or len(text))
+            else source_limit
         )
         shape_id = int(change["char_shape_id"])
         shape = char_shapes[shape_id] if 0 <= shape_id < len(char_shapes) else None
@@ -326,9 +347,10 @@ def _build_run_receipts(text: str, header: dict, changes: list[dict], char_shape
             "char_shape": shape,
             "fidelity": "semantic" if shape and shape.get("fidelity") == "semantic" else "structural",
         }
-        if control_free:
-            visible_start = max(0, min(start, len(text)))
-            visible_end = max(visible_start, min(end, len(text)))
+        visible_start = to_visible(start)
+        visible_end = to_visible(end)
+        if visible_start is not None and visible_end is not None:
+            visible_end = max(visible_start, visible_end)
             item.update({
                 "visible_start": visible_start,
                 "visible_end": visible_end,
@@ -338,9 +360,11 @@ def _build_run_receipts(text: str, header: dict, changes: list[dict], char_shape
         else:
             item["visible_span_certified"] = False
         runs.append(item)
+
+    certified = all(item.get("visible_span_certified") for item in runs)
     return {
         "runs": runs,
-        "visible_span_fidelity": "semantic" if control_free else "source-coordinate-only",
+        "visible_span_fidelity": "semantic" if certified else "source-coordinate-only",
         "source_coordinate_authority": "structural",
     }
 
@@ -1038,9 +1062,8 @@ def parse_hwp5_bytes(
                 ctrl = None if ctrl_record is None else ctrl_by_record.get(ctrl_record)
 
                 if tag_id == HWPTAG_PARA_TEXT:
-                    text = _clean_para_text(record)
-                    if not text:
-                        continue
+                    scan = _scan_para_text(record)
+                    text = scan["text"]
                     remaining = max_text_chars - total_chars
                     if remaining <= 0:
                         warnings.append("Text extraction stopped at max_text_chars.")
@@ -1064,6 +1087,7 @@ def parse_hwp5_bytes(
                         header_meta,
                         [] if para_header_record is None else para_char_changes.get(para_header_record, []),
                         char_shapes,
+                        scan,
                     )
                     flow_kind = _flow_kind_for_control(
                         None if ctrl is None else ctrl.get("ctrl_id")

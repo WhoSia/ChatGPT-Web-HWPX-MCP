@@ -22,8 +22,14 @@ from p28_tables import apply_table_edits_atomic, build_table_map
 from p29_objects import apply_object_edits_atomic, build_object_map
 from p210_equations import apply_equation_edits_atomic, build_equation_map
 from hwp5_reader import Hwp5ReadError, parse_hwp5_bytes
+from common_ir import (
+    hwp5_to_common_ir,
+    hwpx_to_common_ir,
+    search_common_ir,
+    slice_common_ir,
+)
 
-P2_VERSION = "0.4.4-p3.4"
+P2_VERSION = "0.5.0-p3.5"
 core.VERSION = P2_VERSION
 
 _original_metadata = core._metadata
@@ -406,6 +412,15 @@ def inspect_hwp5_document(
         "section_count": result.get("section_count", 0),
         "paragraph_count": result.get("paragraph_count", 0),
         "text_chars": result.get("text_chars", 0),
+        "table_count": len(result.get("tables", [])),
+        "equation_count": len(result.get("equations", [])),
+        "object_count": len(result.get("objects", [])),
+        "binary_item_count": len(result.get("binary_items", [])),
+        "fidelity": result.get("fidelity", {}),
+        "tables": result.get("tables", []),
+        "equations": result.get("equations", []),
+        "objects": result.get("objects", []),
+        "binary_items": result.get("binary_items", []),
         "preview_text": result.get("preview_text", ""),
         "preview_text_truncated": result.get("preview_text_truncated", False),
         "warnings": result.get("warnings", []),
@@ -499,7 +514,12 @@ def materialize_hwp5_text_derivative(
         "source_hwp_version": parsed.get("version"),
         "source_hwp_flags": parsed.get("flags", {}),
         "source_hwp_paragraph_count": parsed.get("paragraph_count", 0),
-        "hwp_derivative_fidelity": "text-only",
+        "source_hwp_table_count": len(parsed.get("tables", [])),
+        "source_hwp_equation_count": len(parsed.get("equations", [])),
+        "source_hwp_object_count": len(parsed.get("objects", [])),
+        "source_hwp_binary_item_count": len(parsed.get("binary_items", [])),
+        "hwp_derivative_fidelity": "text-semantic / object-families-provenance-only",
+        "hwp_fidelity_grades": parsed.get("fidelity", {}),
         "hwp_derivative_warnings": parsed.get("warnings", []),
         "hwp_original_mutated": False,
     })
@@ -510,9 +530,209 @@ def materialize_hwp5_text_derivative(
         "validation": validation,
         "idempotent_replay": False,
         "source_hwp_sha256": source_sha256,
-        "fidelity": "text-only",
+        "fidelity": {
+            "derivative_text": "editable-native",
+            "source_families": parsed.get("fidelity", {}),
+            "tables_promoted": False,
+            "equations_promoted": False,
+            "pictures_promoted": False,
+        },
+        "promotion_report": {
+            "paragraph_text": "PROMOTED",
+            "tables": "PROVENANCE_ONLY",
+            "equations": "PROVENANCE_ONLY",
+            "pictures": "PROVENANCE_ONLY",
+            "reason": "P3.5 does not synthesize richer HWPX objects until position/cell/media linkage is independently verified.",
+        },
         "authority": "EDITABLE_HWPX_DERIVATIVE / ORIGINAL_HWP_READ_ONLY",
         "next": "Use HWPX navigation/edit/export tools on this derivative document_id.",
+    }
+
+
+def _decode_hwp5_payload(content_base64: str) -> bytes:
+    encoded_limit = ((core.MAX_INGEST_BYTES + 2) // 3) * 4 + 16
+    if len(content_base64) > encoded_limit:
+        raise ValueError("Encoded HWP exceeds the bounded ingress limit")
+    try:
+        payload = base64.b64decode(content_base64, validate=True)
+    except (binascii.Error, ValueError) as exc:
+        raise ValueError("content_base64 is not valid base64") from exc
+    if len(payload) > core.MAX_INGEST_BYTES:
+        raise ValueError(f"HWP ingress exceeds {core.MAX_INGEST_BYTES} bytes")
+    return payload
+
+
+def _common_ir_from_source(
+    document_id: str = "",
+    content_base64: str = "",
+    filename: str = "document.hwp",
+) -> dict:
+    has_hwpx = bool(str(document_id or "").strip())
+    has_hwp = bool(str(content_base64 or "").strip())
+    if has_hwpx == has_hwp:
+        raise ValueError("Provide exactly one of document_id or content_base64")
+
+    if has_hwpx:
+        metadata, path = _owned_document(document_id)
+        document_map = build_document_map(path)
+        table_map = build_table_map(path)
+        equation_map = build_equation_map(path)
+        object_map = build_object_map(path)
+        return hwpx_to_common_ir(
+            document_id=document_id,
+            revision=int(metadata["revision"]),
+            semantic_sha256=document_map["semantic_sha256"],
+            paragraphs=document_map["paragraphs"],
+            tables=table_map.get("tables", []),
+            equations=equation_map.get("equations", []),
+            pictures=object_map.get("pictures", []),
+            media_items=object_map.get("media_items", []),
+        )
+
+    payload = _decode_hwp5_payload(content_base64)
+    parsed = parse_hwp5_bytes(payload)
+    if not parsed.get("readable"):
+        raise ValueError(
+            f"HWP source is not readable by the native lane: {parsed.get('block_reason')}"
+        )
+    return hwp5_to_common_ir(
+        parsed,
+        source_sha256=hashlib.sha256(payload).hexdigest(),
+        filename=Path(filename or "document.hwp").name[:128],
+    )
+
+
+@core.mcp.tool()
+def get_common_document_ir(
+    document_id: str = "",
+    content_base64: str = "",
+    filename: str = "document.hwp",
+    include_blocks: bool = True,
+    max_blocks: int = 200,
+) -> dict:
+    """Return one format-neutral IR for either an owned HWPX document or one bounded HWP 5.x payload."""
+    ir = _common_ir_from_source(document_id, content_base64, filename)
+    limit = max(1, min(int(max_blocks), 1000))
+    response = {key: value for key, value in ir.items() if key != "blocks"}
+    response["ok"] = True
+    if include_blocks:
+        blocks = ir.get("blocks", [])
+        response["blocks"] = blocks[:limit]
+        response["blocks_truncated"] = len(blocks) > limit
+    return response
+
+
+@core.mcp.tool()
+def search_common_document(
+    query: str,
+    document_id: str = "",
+    content_base64: str = "",
+    filename: str = "document.hwp",
+    case_sensitive: bool = False,
+    kinds: list[str] = [],
+    max_results: int = 100,
+) -> dict:
+    """Search paragraph, table, equation, and other textual IR blocks across HWPX or HWP 5.x."""
+    ir = _common_ir_from_source(document_id, content_base64, filename)
+    result = search_common_ir(
+        ir,
+        query,
+        case_sensitive=case_sensitive,
+        kinds=kinds or None,
+        max_results=max_results,
+    )
+    return {
+        "ok": True,
+        "source_format": ir["source_format"],
+        "ir_sha256": ir["ir_sha256"],
+        "inventory": ir["inventory"],
+        **result,
+    }
+
+
+@core.mcp.tool()
+def get_common_document_slice(
+    document_id: str = "",
+    content_base64: str = "",
+    filename: str = "document.hwp",
+    start_block: int = 0,
+    block_count: int = 50,
+    kinds: list[str] = [],
+) -> dict:
+    """Return one bounded block window from the common IR for HWPX or HWP 5.x."""
+    ir = _common_ir_from_source(document_id, content_base64, filename)
+    result = slice_common_ir(
+        ir,
+        start_block=start_block,
+        block_count=block_count,
+        kinds=kinds or None,
+    )
+    return {
+        "ok": True,
+        "source_format": ir["source_format"],
+        "ir_sha256": ir["ir_sha256"],
+        "inventory": ir["inventory"],
+        **result,
+    }
+
+
+@core.mcp.tool()
+def assess_hwp5_promotion(
+    content_base64: str,
+    filename: str = "document.hwp",
+) -> dict:
+    """Grade which HWP 5.x object families can currently be promoted to editable HWPX without overstating fidelity."""
+    payload = _decode_hwp5_payload(content_base64)
+    parsed = parse_hwp5_bytes(payload)
+    if not parsed.get("readable"):
+        return {
+            "ok": True,
+            "filename": Path(filename or "document.hwp").name[:128],
+            "sha256": hashlib.sha256(payload).hexdigest(),
+            "readable": False,
+            "block_reason": parsed.get("block_reason"),
+            "promotion_allowed": False,
+            "grades": parsed.get("fidelity", {}),
+        }
+
+    grades = parsed.get("fidelity", {})
+    return {
+        "ok": True,
+        "filename": Path(filename or "document.hwp").name[:128],
+        "sha256": hashlib.sha256(payload).hexdigest(),
+        "version": parsed.get("version"),
+        "readable": True,
+        "promotion_allowed": True,
+        "grades": grades,
+        "inventory": {
+            "paragraphs": len(parsed.get("paragraphs", [])),
+            "tables": len(parsed.get("tables", [])),
+            "equations": len(parsed.get("equations", [])),
+            "objects": len(parsed.get("objects", [])),
+            "binary_items": len(parsed.get("binary_items", [])),
+        },
+        "promotion": {
+            "paragraph_text": {
+                "grade": "A",
+                "authority": "PROMOTE_TO_EDITABLE_HWPX_TEXT",
+            },
+            "tables": {
+                "grade": "C" if parsed.get("tables") else "N/A",
+                "authority": "STRUCTURAL_PROVENANCE_ONLY",
+                "reason": "row/column geometry is parsed, but cell-content association and merged-cell mapping are not yet certified",
+            },
+            "equations": {
+                "grade": "B" if parsed.get("equations") else "N/A",
+                "authority": "SEMANTIC_SCRIPT_RECOVERED / POSITION_PROMOTION_DEFERRED",
+                "reason": "EqEdit script is decoded, but exact paragraph/object placement is not yet certified for synthesis",
+            },
+            "pictures": {
+                "grade": "D" if any(item.get("kind") == "picture" for item in parsed.get("objects", [])) else "N/A",
+                "authority": "INVENTORY_ONLY",
+                "reason": "picture component and BinData custody are inventoried, but binary linkage/geometry promotion is not yet certified",
+            },
+        },
+        "recommended_mode": "TEXT_DERIVATIVE_WITH_OBJECT_PROVENANCE",
     }
 
 
@@ -1466,7 +1686,7 @@ def p2_capabilities() -> dict:
     return {
         "project": core.PROJECT,
         "version": core.VERSION,
-        "phase": "P3.4",
+        "phase": "P3.5",
         "authenticated_subject": subject,
         "tools_added": [
             "acquire_document_lease",
@@ -1617,6 +1837,18 @@ def p2_capabilities() -> dict:
             "security": "password/DRM/certificate-encrypted content is blocked rather than bypassed",
             "fidelity": "text-first, loss-aware; layout/table/object fidelity is not yet claimed",
             "edit_boundary": "legacy HWP binary is never mutated by the HWPX edit engine",
+        },
+        "common_document_ir": {
+            "formats": ["hwpx", "hwp5"],
+            "blocks": ["paragraph", "table", "equation", "picture", "shape", "binary"],
+            "search": "one query contract across HWPX document custody and bounded HWP 5.x payloads",
+            "fidelity": "every block carries source-native receipts and an explicit fidelity grade",
+        },
+        "hwp5_promotion": {
+            "text": "promotable to editable HWPX derivative",
+            "tables": "structural provenance only until cell association is certified",
+            "equations": "semantic EqEdit script recovered; exact position synthesis deferred",
+            "pictures": "inventory/BinData custody only until linkage and geometry are certified",
         },
         "durable_document_storage": {
             "authority": "encrypted Postgres revision snapshots; local filesystem is a rehydratable execution cache",

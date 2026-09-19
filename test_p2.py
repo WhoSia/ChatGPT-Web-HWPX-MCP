@@ -15,6 +15,7 @@ from p25_controls import apply_control_edits_atomic as apply_control_edits_p25_a
 from p26_controls import apply_control_edits_atomic
 from p28_tables import apply_table_edits_atomic, build_table_map
 from p29_objects import apply_object_edits_atomic, build_object_map
+from p210_equations import apply_equation_edits_atomic, build_equation_map
 
 
 class P2DocumentTests(unittest.TestCase):
@@ -1162,6 +1163,110 @@ class P2DocumentTests(unittest.TestCase):
                     }],
                     expected_revision=3,
                     current_revision=3,
+                    validator=lambda candidate: server.validate_hwpx_package(candidate),
+                )
+            self.assertEqual(path.read_bytes(), before)
+
+    def test_p210_verified_equation_insert_replace_remove_lifecycle(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = self._document(tmp)
+            paragraph = build_document_map(path)["paragraphs"][-1]
+
+            inserted = apply_equation_edits_atomic(
+                path,
+                [{
+                    "op": "insert_equation",
+                    "paragraph": paragraph["locator"],
+                    "latex": r"\frac{a}{b}",
+                    "base_unit": 1100,
+                }],
+                expected_revision=1,
+                current_revision=1,
+                validator=lambda candidate: server.validate_hwpx_package(candidate),
+            )
+            mapped = build_equation_map(path)
+            self.assertEqual(mapped["equation_count"], 1)
+            equation = mapped["equations"][0]
+            self.assertIn("over", equation["script"])
+            self.assertTrue(inserted["equation_structure_changed"])
+            self.assertTrue(inserted["equation_script_custody_changed"])
+
+            replaced = apply_equation_edits_atomic(
+                path,
+                [{
+                    "op": "replace_equation",
+                    "equation": equation["locator"],
+                    "latex": r"\sqrt{x^2+y^2}",
+                }],
+                expected_revision=2,
+                current_revision=2,
+                validator=lambda candidate: server.validate_hwpx_package(candidate),
+            )
+            after_replace = build_equation_map(path)
+            self.assertEqual(after_replace["equation_count"], 1)
+            current = after_replace["equations"][0]
+            self.assertEqual(current["locator"], equation["locator"])
+            self.assertNotEqual(current["script_sha256"], equation["script_sha256"])
+            self.assertTrue(replaced["equation_script_custody_changed"])
+
+            removed = apply_equation_edits_atomic(
+                path,
+                [{"op": "remove_equation", "equation": current["locator"]}],
+                expected_revision=3,
+                current_revision=3,
+                validator=lambda candidate: server.validate_hwpx_package(candidate),
+            )
+            self.assertEqual(build_equation_map(path)["equation_count"], 0)
+            self.assertTrue(removed["equation_rebinding"]["deleted_equations"])
+
+    def test_p210_equation_geometry_resize(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = self._document(tmp)
+            paragraph = build_document_map(path)["paragraphs"][-1]
+            apply_equation_edits_atomic(
+                path,
+                [{
+                    "op": "insert_equation",
+                    "paragraph": paragraph["locator"],
+                    "latex": r"x+y",
+                }],
+                expected_revision=1,
+                current_revision=1,
+                validator=lambda candidate: server.validate_hwpx_package(candidate),
+            )
+            equation = build_equation_map(path)["equations"][0]
+            resized = apply_equation_edits_atomic(
+                path,
+                [{
+                    "op": "resize_equation",
+                    "equation": equation["locator"],
+                    "width": 12000,
+                    "height": 4200,
+                }],
+                expected_revision=2,
+                current_revision=2,
+                validator=lambda candidate: server.validate_hwpx_package(candidate),
+            )
+            current = build_equation_map(path)["equations"][0]
+            self.assertEqual((current["width"], current["height"]), (12000, 4200))
+            self.assertTrue(resized["equation_geometry_changed"])
+            self.assertFalse(resized["equation_structure_changed"])
+
+    def test_p210_raw_eqedit_authoring_gate_is_fail_closed(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = self._document(tmp)
+            paragraph = build_document_map(path)["paragraphs"][-1]
+            before = path.read_bytes()
+            with self.assertRaisesRegex(ValueError, "raw EqEdit authoring evidence gate is closed"):
+                apply_equation_edits_atomic(
+                    path,
+                    [{
+                        "op": "insert_equation",
+                        "paragraph": paragraph["locator"],
+                        "eqedit_script": "{a} over {b}",
+                    }],
+                    expected_revision=1,
+                    current_revision=1,
                     validator=lambda candidate: server.validate_hwpx_package(candidate),
                 )
             self.assertEqual(path.read_bytes(), before)

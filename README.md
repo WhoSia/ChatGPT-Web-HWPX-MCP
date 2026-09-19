@@ -61,6 +61,16 @@ ChatGPT Web
 
 There are no password, passphrase, API-key, or access-token fields in MCP tool schemas. Authentication happens at the HTTP/MCP transport layer.
 
+## P3.4 atomic bulk text plans
+
+P3.4 turns bounded search hits into revision-bound edit plans instead of forcing an agent to issue one mutation per hit.
+
+- `plan_bulk_text_replace` enumerates literal hits, allows explicit hit-index selection, constructs exact inline ranges, and validates the full candidate HWPX without durable mutation.
+- The returned `plan_id` is HMAC-bound to document id, revision, semantic digest, query, replacement, and selected hit receipts.
+- `commit_bulk_text_replace` recomputes the plan against the current revision and rejects stale or altered plans before mutation.
+- Selected spans are committed through the inline-range engine in one CAS-guarded revision, preserving unaffected rich formatting and inline structure.
+- Bounded post-edit paragraph receipts are returned so agents can verify the changed region without rematerializing the whole document.
+
 ## P3.3 large-document navigation and replay-safe creation
 
 P3.3 reduces agent cost and lost-response fragility without changing the HWPX editing authority model.
@@ -70,6 +80,16 @@ P3.3 reduces agent cost and lost-response fragility without changing the HWPX ed
 - Both surfaces expose the current revision and semantic SHA-256, making a navigation result explicitly stale after later edits.
 - `create_document(request_id=...)` is replay-safe: the same owner + request id + payload resolves to the same durable document after a lost response. Reusing the key with a different payload is rejected.
 - The existing full `get_document_map` remains available when complete structural materialization is actually needed.
+
+## Legacy HWP 5.x read lane
+
+The server now has an explicitly separate legacy-binary lane for `.hwp` files.
+
+- `inspect_hwp5_document` accepts one bounded HWP 5.x payload and parses the OLE/CFB FileHeader plus BodyText paragraph-text records.
+- Password-, DRM-, and certificate-encrypted sources are reported as unreadable; the server does not bypass those protections.
+- The current reader is text-first and loss-aware. It does **not** claim layout, table, object, or equation fidelity.
+- `materialize_hwp5_text_derivative` can create an editable HWPX derivative whose metadata records the source HWP SHA-256, version, flags, paragraph count, and fidelity warnings.
+- The original HWP binary is never mutated by the HWPX edit engine.
 
 ## P3.2 durable revision-lineage contract
 

@@ -7,6 +7,7 @@ import zlib
 from dataclasses import dataclass
 
 import olefile
+from PIL import Image
 
 HWP5_SIGNATURE = b"HWP Document File" + (b"\x00" * 15)
 HWPTAG_BIN_DATA = 0x12
@@ -321,6 +322,59 @@ def _decode_bindata_payload(payload: bytes, compression: int) -> tuple[bytes, st
         if _detect_image_format(candidate):
             return candidate, mode
     return payload, "opaque"
+
+
+def prepare_hwp5_image_for_hwpx(
+    asset: dict,
+    *,
+    max_pixels: int = 20_000_000,
+) -> dict:
+    """Return PNG/JPEG bytes acceptable to the HWPX engine with an explicit transform receipt."""
+    source = bytes(asset.get("data") or b"")
+    source_format = str(asset.get("format") or "").lower()
+    source_sha256 = hashlib.sha256(source).hexdigest()
+    if source_format in {"png", "jpeg"}:
+        return {
+            "data": source,
+            "format": source_format,
+            "transform": "passthrough",
+            "source_format": source_format,
+            "source_sha256": source_sha256,
+            "output_sha256": source_sha256,
+            "width": None,
+            "height": None,
+        }
+    if source_format != "bmp":
+        raise Hwp5ReadError(f"Unsupported image format for HWPX promotion: {source_format or 'unknown'}")
+
+    try:
+        with Image.open(io.BytesIO(source)) as image:
+            width, height = image.size
+            if width <= 0 or height <= 0 or width * height > int(max_pixels):
+                raise Hwp5ReadError(
+                    f"BMP pixel count exceeds promotion bound: {width}x{height}"
+                )
+            mode = image.mode
+            if mode not in {"RGB", "RGBA"}:
+                image = image.convert("RGBA" if "A" in image.getbands() else "RGB")
+            output = io.BytesIO()
+            image.save(output, format="PNG", optimize=False)
+            promoted = output.getvalue()
+    except Hwp5ReadError:
+        raise
+    except Exception as exc:
+        raise Hwp5ReadError("BMP image could not be safely transcoded to PNG") from exc
+
+    return {
+        "data": promoted,
+        "format": "png",
+        "transform": "bmp-to-png",
+        "source_format": "bmp",
+        "source_sha256": source_sha256,
+        "output_sha256": hashlib.sha256(promoted).hexdigest(),
+        "width": width,
+        "height": height,
+    }
 
 
 def extract_hwp5_binary_assets(data: bytes) -> dict[int, dict]:

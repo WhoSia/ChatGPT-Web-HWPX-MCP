@@ -10,8 +10,11 @@ import olefile
 from PIL import Image
 
 HWP5_SIGNATURE = b"HWP Document File" + (b"\x00" * 15)
+HWPTAG_ID_MAPPINGS = 0x11
 HWPTAG_BIN_DATA = 0x12
+HWPTAG_FACE_NAME = 0x13
 HWPTAG_CHAR_SHAPE = 0x15
+HWPTAG_PARA_SHAPE = 0x19
 HWPTAG_PARA_HEADER = 0x42
 HWPTAG_PARA_TEXT = 0x43
 HWPTAG_PARA_CHAR_SHAPE = 0x44
@@ -249,6 +252,157 @@ def _parse_para_char_shapes(payload: bytes) -> list[dict]:
             "source_position": position,
             "char_shape_id": char_shape_id,
         })
+    return result
+
+
+HWP_FONT_LANGUAGES = ("hangul", "latin", "hanja", "japanese", "other", "symbol", "user")
+
+
+def _parse_id_mappings(payload: bytes) -> dict:
+    count = min(len(payload) // 4, 18)
+    values = list(struct.unpack_from(f"<{count}i", payload, 0)) if count else []
+    while len(values) < 18:
+        values.append(0)
+    return {
+        "binary_data": max(0, values[0]),
+        "font_counts": {
+            language: max(0, values[index + 1])
+            for index, language in enumerate(HWP_FONT_LANGUAGES)
+        },
+        "border_fill": max(0, values[8]),
+        "char_shape": max(0, values[9]),
+        "tab_def": max(0, values[10]),
+        "numbering": max(0, values[11]),
+        "bullet": max(0, values[12]),
+        "para_shape": max(0, values[13]),
+        "style": max(0, values[14]),
+        "memo_shape": max(0, values[15]),
+        "track_change": max(0, values[16]),
+        "track_change_author": max(0, values[17]),
+        "payload_sha256": hashlib.sha256(payload).hexdigest(),
+    }
+
+
+def _parse_face_name(payload: bytes) -> dict:
+    if len(payload) < 3:
+        return {
+            "fidelity": "inventory",
+            "parse_error": "face_name_too_short",
+            "payload_sha256": hashlib.sha256(payload).hexdigest(),
+        }
+    attributes = payload[0]
+    name_len = struct.unpack_from("<H", payload, 1)[0]
+    name_end = 3 + (2 * name_len)
+    if name_end > len(payload):
+        return {
+            "fidelity": "inventory",
+            "parse_error": "face_name_truncated",
+            "payload_sha256": hashlib.sha256(payload).hexdigest(),
+        }
+    face = payload[3:name_end].decode("utf-16le", errors="replace").rstrip("\x00")
+    result = {
+        "fidelity": "semantic",
+        "attributes": attributes,
+        "face": face,
+        "has_alternative": bool(attributes & 0x80),
+        "has_type_info": bool(attributes & 0x40),
+        "has_default": bool(attributes & 0x20),
+        "payload_sha256": hashlib.sha256(payload).hexdigest(),
+    }
+    offset = name_end
+    if result["has_alternative"] and offset + 3 <= len(payload):
+        result["alternative_type"] = payload[offset]
+        alt_len = struct.unpack_from("<H", payload, offset + 1)[0]
+        offset += 3
+        alt_end = offset + (2 * alt_len)
+        if alt_end <= len(payload):
+            result["alternative_face"] = payload[offset:alt_end].decode(
+                "utf-16le", errors="replace"
+            ).rstrip("\x00")
+            offset = alt_end
+    if result["has_type_info"] and offset + 10 <= len(payload):
+        result["type_info"] = list(payload[offset:offset + 10])
+        offset += 10
+    if result["has_default"] and offset + 2 <= len(payload):
+        default_len = struct.unpack_from("<H", payload, offset)[0]
+        offset += 2
+        default_end = offset + (2 * default_len)
+        if default_end <= len(payload):
+            result["default_face"] = payload[offset:default_end].decode(
+                "utf-16le", errors="replace"
+            ).rstrip("\x00")
+    return result
+
+
+def _parse_docinfo_para_shape(payload: bytes, index: int) -> dict:
+    # The first 34 bytes are stable across HWP5 revisions and carry the
+    # paragraph semantics needed for P3.8 canonicalization.
+    if len(payload) < 34:
+        return {
+            "para_shape_id": index,
+            "fidelity": "inventory",
+            "parse_error": "para_shape_record_too_short",
+            "payload_bytes": len(payload),
+            "payload_sha256": hashlib.sha256(payload).hexdigest(),
+        }
+    attributes = struct.unpack_from("<I", payload, 0)[0]
+    left, right, indent, before, after, line_spacing = struct.unpack_from(
+        "<iiiiii", payload, 4
+    )
+    tab_id, numbering_id, border_fill_id = struct.unpack_from("<HHH", payload, 28)
+    alignment_code = (attributes >> 2) & 0b111
+    alignment = {
+        0: "JUSTIFY",
+        1: "LEFT",
+        2: "RIGHT",
+        3: "CENTER",
+        4: "DISTRIBUTE",
+        5: "DISTRIBUTE_SPACE",
+    }.get(alignment_code, "UNKNOWN")
+    return {
+        "para_shape_id": index,
+        "fidelity": "semantic",
+        "attributes": attributes,
+        "alignment_code": alignment_code,
+        "alignment": alignment,
+        "left_margin_hwpunit": left,
+        "right_margin_hwpunit": right,
+        "indent_hwpunit": indent,
+        "spacing_before_hwpunit": before,
+        "spacing_after_hwpunit": after,
+        "line_spacing": line_spacing,
+        "tab_def_id": tab_id,
+        "numbering_id": numbering_id,
+        "border_fill_id": border_fill_id,
+        "payload_bytes": len(payload),
+        "payload_sha256": hashlib.sha256(payload).hexdigest(),
+    }
+
+
+def _resolve_char_shape_faces(
+    char_shape: dict,
+    face_names: dict[str, list[dict]],
+) -> dict:
+    result = dict(char_shape)
+    resolved: dict[str, str | None] = {}
+    face_ids = list(result.get("face_ids") or [])
+    for index, language in enumerate(HWP_FONT_LANGUAGES):
+        face_id = int(face_ids[index]) if index < len(face_ids) else -1
+        faces = face_names.get(language, [])
+        resolved[language] = (
+            str(faces[face_id].get("face"))
+            if 0 <= face_id < len(faces) and faces[face_id].get("face")
+            else None
+        )
+    result["font_faces"] = resolved
+    result["primary_font_face"] = (
+        resolved.get("hangul")
+        or resolved.get("latin")
+        or next((value for value in resolved.values() if value), None)
+    )
+    result["font_resolution_fidelity"] = (
+        "semantic" if result["primary_font_face"] else "id-only"
+    )
     return result
 
 
@@ -907,13 +1061,51 @@ def parse_hwp5_bytes(
             }
 
         char_shapes: list[dict] = []
+        para_shapes: list[dict] = []
+        id_mappings: dict = {}
+        face_names: dict[str, list[dict]] = {
+            language: [] for language in HWP_FONT_LANGUAGES
+        }
         if ole.exists("DocInfo"):
             docinfo_raw = ole.openstream("DocInfo").read()
             if header.compressed:
                 docinfo_raw = _decompress_stream(docinfo_raw)
-            for tag_id, _level, record in _iter_records(docinfo_raw):
-                if tag_id == HWPTAG_CHAR_SHAPE:
+            docinfo_records = list(_iter_records(docinfo_raw))
+            for tag_id, _level, record in docinfo_records:
+                if tag_id == HWPTAG_ID_MAPPINGS:
+                    id_mappings = _parse_id_mappings(record)
+                    break
+
+            face_cursor = 0
+            face_boundaries: list[tuple[str, int, int]] = []
+            for language in HWP_FONT_LANGUAGES:
+                amount = int((id_mappings.get("font_counts") or {}).get(language, 0))
+                face_boundaries.append((language, face_cursor, face_cursor + amount))
+                face_cursor += amount
+            seen_faces = 0
+            for tag_id, _level, record in docinfo_records:
+                if tag_id == HWPTAG_FACE_NAME:
+                    parsed_face = _parse_face_name(record)
+                    language = next(
+                        (
+                            name for name, start, end in face_boundaries
+                            if start <= seen_faces < end
+                        ),
+                        "user",
+                    )
+                    parsed_face["language"] = language
+                    parsed_face["font_id"] = len(face_names[language])
+                    face_names[language].append(parsed_face)
+                    seen_faces += 1
+                elif tag_id == HWPTAG_CHAR_SHAPE:
                     char_shapes.append(_parse_docinfo_char_shape(record, len(char_shapes)))
+                elif tag_id == HWPTAG_PARA_SHAPE:
+                    para_shapes.append(_parse_docinfo_para_shape(record, len(para_shapes)))
+
+            char_shapes = [
+                _resolve_char_shape_faces(item, face_names)
+                for item in char_shapes
+            ]
 
         streams = ["/".join(parts) for parts in ole.listdir(streams=True, storages=False)]
         binary_items = []
@@ -1102,6 +1294,13 @@ def parse_hwp5_bytes(
                     header_meta = (
                         {} if para_header_record is None
                         else dict(para_header_meta.get(para_header_record, {}))
+                    )
+                    para_shape_id = header_meta.get("para_shape_id")
+                    header_meta["resolved_para_shape"] = (
+                        para_shapes[int(para_shape_id)]
+                        if para_shape_id is not None
+                        and 0 <= int(para_shape_id) < len(para_shapes)
+                        else None
                     )
                     run_receipts = _build_run_receipts(
                         text,
@@ -1300,7 +1499,10 @@ def parse_hwp5_bytes(
             "paragraph_count": len(paragraphs),
             "text_chars": total_chars,
             "paragraphs": paragraphs,
+            "id_mappings": id_mappings,
+            "face_names": face_names,
             "char_shapes": char_shapes,
+            "para_shapes": para_shapes,
             "tables": tables,
             "equations": equations,
             "objects": objects,

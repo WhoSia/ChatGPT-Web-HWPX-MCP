@@ -9,6 +9,7 @@ from dataclasses import dataclass
 import olefile
 
 HWP5_SIGNATURE = b"HWP Document File" + (b"\x00" * 15)
+HWPTAG_BIN_DATA = 0x12
 HWPTAG_PARA_HEADER = 0x42
 HWPTAG_PARA_TEXT = 0x43
 HWPTAG_CTRL_HEADER = 0x47
@@ -155,7 +156,7 @@ def _parse_ctrl_header(payload: bytes) -> dict:
         return result
 
     attributes = struct.unpack_from("<I", payload, 4)[0]
-    vert_offset, horz_offset, width, height, z_order = struct.unpack_from("<iiiiI", payload, 8)
+    vert_offset, horz_offset, width, height, z_order = struct.unpack_from("<iiiii", payload, 8)
     margins = struct.unpack_from("<HHHH", payload, 28)
     instance_id = struct.unpack_from("<I", payload, 36)[0]
     prevent_page_break = struct.unpack_from("<i", payload, 40)[0]
@@ -236,6 +237,141 @@ def _parse_table_cell_from_list_header(payload: bytes) -> dict | None:
         "border_fill_id": border_fill_id,
         "fidelity": "structural",
     }
+
+
+def _parse_bindata_record(payload: bytes) -> dict:
+    if len(payload) < 2:
+        return {
+            "fidelity": "inventory",
+            "parse_error": "bindata_record_too_short",
+            "payload_sha256": hashlib.sha256(payload).hexdigest(),
+        }
+    attributes = struct.unpack_from("<H", payload, 0)[0]
+    data_type = attributes & 0x000F
+    compression = attributes & 0x0030
+    status = attributes & 0x0300
+    result = {
+        "attributes": attributes,
+        "data_type": data_type,
+        "compression": compression,
+        "status": status,
+        "fidelity": "structural",
+        "payload_sha256": hashlib.sha256(payload).hexdigest(),
+    }
+    offset = 2
+    if data_type == 0:  # LINK
+        if offset + 2 > len(payload):
+            return {**result, "parse_error": "bindata_link_truncated"}
+        len1 = struct.unpack_from("<H", payload, offset)[0]
+        offset += 2
+        end1 = offset + (2 * len1)
+        if end1 > len(payload):
+            return {**result, "parse_error": "bindata_link_abs_path_truncated"}
+        result["absolute_path"] = payload[offset:end1].decode("utf-16le", errors="replace")
+        offset = end1
+        if offset + 2 > len(payload):
+            return {**result, "parse_error": "bindata_link_rel_len_truncated"}
+        len2 = struct.unpack_from("<H", payload, offset)[0]
+        offset += 2
+        end2 = offset + (2 * len2)
+        if end2 > len(payload):
+            return {**result, "parse_error": "bindata_link_rel_path_truncated"}
+        result["relative_path"] = payload[offset:end2].decode("utf-16le", errors="replace")
+        return result
+
+    if offset + 2 > len(payload):
+        return {**result, "parse_error": "bindata_storage_id_truncated"}
+    storage_id = struct.unpack_from("<H", payload, offset)[0]
+    offset += 2
+    result["storage_id"] = storage_id
+    if data_type == 1:  # EMBEDDING
+        if offset + 2 > len(payload):
+            return {**result, "parse_error": "bindata_extension_len_truncated"}
+        ext_len = struct.unpack_from("<H", payload, offset)[0]
+        offset += 2
+        ext_end = offset + (2 * ext_len)
+        if ext_end > len(payload):
+            return {**result, "parse_error": "bindata_extension_truncated"}
+        result["extension"] = payload[offset:ext_end].decode(
+            "utf-16le", errors="replace"
+        ).rstrip("\x00").lower()
+    return result
+
+
+def _detect_image_format(payload: bytes) -> str | None:
+    if payload.startswith(b"\x89PNG\r\n\x1a\n"):
+        return "png"
+    if payload.startswith(b"\xff\xd8\xff"):
+        return "jpeg"
+    if payload.startswith((b"GIF87a", b"GIF89a")):
+        return "gif"
+    if payload.startswith(b"BM"):
+        return "bmp"
+    return None
+
+
+def _decode_bindata_payload(payload: bytes, compression: int) -> tuple[bytes, str]:
+    candidates: list[tuple[bytes, str]] = [(payload, "stored")]
+    if compression in {0x0000, 0x0010}:
+        try:
+            candidates.append((zlib.decompress(payload, -15), "raw-deflate"))
+        except zlib.error:
+            pass
+    for candidate, mode in candidates:
+        if _detect_image_format(candidate):
+            return candidate, mode
+    return payload, "opaque"
+
+
+def extract_hwp5_binary_assets(data: bytes) -> dict[int, dict]:
+    """Return bounded embedded BinData assets keyed by HWP storage id for promotion use."""
+    try:
+        ole = olefile.OleFileIO(io.BytesIO(data))
+    except Exception as exc:
+        raise Hwp5ReadError("Payload is not a valid OLE/CFB HWP container") from exc
+    try:
+        metadata: dict[int, dict] = {}
+        if ole.exists("DocInfo"):
+            raw = ole.openstream("DocInfo").read()
+            header = _parse_header(ole.openstream("FileHeader").read(256))
+            if header.compressed:
+                raw = _decompress_stream(raw)
+            for tag_id, _level, payload in _iter_records(raw):
+                if tag_id != HWPTAG_BIN_DATA:
+                    continue
+                item = _parse_bindata_record(payload)
+                storage_id = item.get("storage_id")
+                if storage_id is not None:
+                    metadata[int(storage_id)] = item
+
+        result: dict[int, dict] = {}
+        for parts in ole.listdir(streams=True, storages=False):
+            stream_name = "/".join(parts)
+            if not stream_name.startswith("BinData/"):
+                continue
+            stream_id = _bindata_numeric_id(stream_name)
+            if stream_id is None:
+                continue
+            raw = ole.openstream(stream_name).read()
+            meta = metadata.get(int(stream_id), {})
+            decoded, storage_mode = _decode_bindata_payload(
+                raw, int(meta.get("compression", 0))
+            )
+            result[int(stream_id)] = {
+                "stream": stream_name,
+                "storage_id": int(stream_id),
+                "extension": meta.get("extension"),
+                "compression": meta.get("compression"),
+                "storage_mode": storage_mode,
+                "raw_sha256": hashlib.sha256(raw).hexdigest(),
+                "sha256": hashlib.sha256(decoded).hexdigest(),
+                "bytes": len(decoded),
+                "format": _detect_image_format(decoded),
+                "data": decoded,
+            }
+        return result
+    finally:
+        ole.close()
 
 
 def _parse_picture_record(payload: bytes) -> dict:

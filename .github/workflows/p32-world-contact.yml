@@ -1,4 +1,4 @@
-name: P3.2-R1 Public OAuth world-contact
+name: P3.2-R3 Restart-aware public world-contact
 
 on:
   push:
@@ -26,7 +26,7 @@ jobs:
             echo "::error::P11_OAUTH_PASSPHRASE repository secret is not configured"
             exit 2
           fi
-      - name: Install dependencies
-        run: pip install -r requirements.txt
-      - name: Public OAuth-native P3.2 raw MCP lifecycle
+      - name: Install probe dependency
+        run: pip install httpx2==2.13.0
+      - name: Restart-aware OAuth-native P3.2/P3.3 lifecycle
         run: python p32_public_world_contact.py

@@ -30,6 +30,7 @@ from hwp5_reader import (
     Hwp5ReadError,
     extract_hwp5_binary_assets,
     parse_hwp5_bytes,
+    prepare_hwp5_image_for_hwpx,
 )
 from common_ir import (
     hwp5_to_common_ir,
@@ -888,23 +889,20 @@ def materialize_hwp5_rich_derivative(
                     None if bin_item_id is None
                     else assets.get(int(bin_item_id))
                 )
-                if (
-                    not anchor_locator
-                    or asset is None
-                    or asset.get("format") not in {"png", "jpeg"}
-                ):
+                if not anchor_locator or asset is None:
                     promotion_report["pictures"]["deferred"].append({
                         "picture_index": picture_index,
-                        "reason": "anchor_media_or_supported_format_incomplete",
+                        "reason": "anchor_or_media_link_incomplete",
                         "bin_item_id": bin_item_id,
                     })
                     continue
                 try:
+                    prepared_asset = prepare_hwp5_image_for_hwpx(asset)
                     paragraph, _target = _resolve_hwpx_paragraph(
                         document, hwpx_path, anchor_locator
                     )
                     media_item = document.media.add_image(
-                        asset["data"], str(asset["format"])
+                        prepared_asset["data"], str(prepared_asset["format"])
                     )
                     geometry = picture.get("control_geometry") or {}
                     width = max(1, int(geometry.get("width") or 14400))
@@ -935,6 +933,17 @@ def materialize_hwp5_rich_derivative(
                         treat_as_char=treat_as_char,
                         pos_overrides=pos_overrides,
                     )
+                    promotion_report["pictures"].setdefault("media_transforms", []).append({
+                        "picture_index": picture_index,
+                        "bin_item_id": bin_item_id,
+                        "transform": prepared_asset["transform"],
+                        "source_format": prepared_asset["source_format"],
+                        "target_format": prepared_asset["format"],
+                        "source_sha256": prepared_asset["source_sha256"],
+                        "output_sha256": prepared_asset["output_sha256"],
+                        "width": prepared_asset.get("width"),
+                        "height": prepared_asset.get("height"),
+                    })
                     promotion_report["pictures"]["promoted"] += 1
                 except Exception as exc:
                     promotion_report["pictures"]["deferred"].append({
@@ -1205,14 +1214,25 @@ def assess_hwp5_promotion(
         and bool(item.get("script"))
         for item in equations
     )
-    picture_closed = bool(pictures) and all(
-        item.get("anchor_paragraph_ordinal") is not None
-        and item.get("binary_link") is not None
-        and item.get("control_geometry") is not None
-        and assets.get(int(item.get("bin_item_id") or -1), {}).get("format")
-        in {"png", "jpeg"}
-        for item in pictures
-    )
+    picture_prepared: dict[int, dict] = {}
+    picture_closed = bool(pictures)
+    if picture_closed:
+        for item in pictures:
+            bin_item_id = int(item.get("bin_item_id") or -1)
+            asset = assets.get(bin_item_id)
+            if (
+                item.get("anchor_paragraph_ordinal") is None
+                or item.get("binary_link") is None
+                or item.get("control_geometry") is None
+                or asset is None
+            ):
+                picture_closed = False
+                break
+            try:
+                picture_prepared[bin_item_id] = prepare_hwp5_image_for_hwpx(asset)
+            except Hwp5ReadError:
+                picture_closed = False
+                break
 
     return {
         "ok": True,
@@ -1272,7 +1292,7 @@ def assess_hwp5_promotion(
                     if picture_closed else "INVENTORY_OR_PARTIAL_LINKAGE"
                 ),
                 "reason": (
-                    "picture record, unique BinData asset, supported media format, and control geometry are bound"
+                    "picture record, unique BinData asset, bounded promotable media transform, and control geometry are bound"
                     if picture_closed
                     else "one or more media/anchor/geometry links remain incomplete"
                 ),

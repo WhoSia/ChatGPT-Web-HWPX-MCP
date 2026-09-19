@@ -112,27 +112,86 @@ def _iter_records(payload: bytes):
         offset = end
 
 
-def _clean_para_text(payload: bytes) -> str:
-    # HWP PARA_TEXT stores UTF-16LE text mixed with control code units.
-    # This first read lane intentionally strips C0 control units instead of
-    # interpreting embedded object/control payloads as visible text.
+_HWP8_CONTROL_CODES = set(range(1, 10)) | {11, 12} | set(range(14, 24))
+
+
+def _scan_para_text(payload: bytes) -> dict:
+    """Decode HWP PARA_TEXT while preserving source-WCHAR to visible-text coordinates."""
     if len(payload) % 2:
         payload = payload[:-1]
-    decoded = payload.decode("utf-16le", errors="replace")
+    units = [
+        struct.unpack_from("<H", payload, offset)[0]
+        for offset in range(0, len(payload), 2)
+    ]
     chars: list[str] = []
-    for ch in decoded:
-        code = ord(ch)
-        if code == 0x0009:
-            chars.append("\t")
-        elif code in {0x000A, 0x000D}:
+    # visible_offsets[n] = visible character offset after consuming n source WCHARs.
+    visible_offsets = [0] * (len(units) + 1)
+    controls: list[dict] = []
+    source_index = 0
+    visible_index = 0
+
+    while source_index < len(units):
+        visible_offsets[source_index] = visible_index
+        code = units[source_index]
+
+        if code in _HWP8_CONTROL_CODES:
+            width = min(8, len(units) - source_index)
+            if code == 9:
+                chars.append("\t")
+                visible_index += 1
+            controls.append({
+                "source_position": source_index,
+                "code": code,
+                "source_width": width,
+                "visible_width": 1 if code == 9 else 0,
+            })
+            for skipped in range(1, width + 1):
+                if source_index + skipped <= len(units):
+                    visible_offsets[source_index + skipped] = visible_index
+            source_index += width
+            continue
+
+        if code == 10:  # line break
             chars.append("\n")
-        elif code < 0x0020:
-            continue
-        elif ch == "\uffff":
-            continue
-        else:
-            chars.append(ch)
-    return "".join(chars).replace("\r\n", "\n").replace("\r", "\n").strip("\x00")
+            visible_index += 1
+        elif code == 13:
+            # PARA_TEXT already belongs to one paragraph; paragraph-end is
+            # structural and must not become visible paragraph text.
+            pass
+        elif code == 24:
+            chars.append("-")
+            visible_index += 1
+        elif code in {30, 31}:
+            chars.append(" ")
+            visible_index += 1
+        elif code in {0, 25, 26, 27, 28, 29}:
+            pass
+        elif code < 0x20:
+            # Defensive fail-closed handling for currently unknown 1-WCHAR controls.
+            controls.append({
+                "source_position": source_index,
+                "code": code,
+                "source_width": 1,
+                "visible_width": 0,
+            })
+        elif code != 0xFFFF:
+            chars.append(chr(code))
+            visible_index += 1
+
+        source_index += 1
+        visible_offsets[source_index] = visible_index
+
+    return {
+        "text": "".join(chars).replace("\r\n", "\n").replace("\r", "\n").strip("\x00"),
+        "visible_offsets": visible_offsets,
+        "controls": controls,
+        "source_wchar_count": len(units),
+        "visible_char_count": visible_index,
+    }
+
+
+def _clean_para_text(payload: bytes) -> str:
+    return _scan_para_text(payload)["text"]
 
 
 def _parse_para_header(payload: bytes) -> dict:

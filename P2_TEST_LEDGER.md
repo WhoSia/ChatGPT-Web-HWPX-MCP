@@ -580,6 +580,69 @@ An earlier P3.0 run failed only because one historical-revision SQL query omitte
 
 The public health gate now requires both OAuth durable authority and document custody to be reachable, including `store="postgres-encrypted-versioned"`.
 
+## P3.1 durable transaction concurrency, CAS/lease semantics and crash-consistency receipt
+
+Current server version: `0.4.1-p3.1`.
+
+P3.1 replaces permissive revision promotion with a strict durable concurrency contract.
+
+### Revision CAS and multi-worker conflict
+
+Each revision-advancing commit is serialized under a database row lock and must satisfy:
+
+```text
+durable_current == expected_revision
+attempted_revision == expected_revision + 1
+```
+
+Two independent store instances were raced from the same durable revision with different candidate bytes. Exactly one worker committed revision 2; the other received an explicit revision-CAS conflict. The durable current bytes matched the winner.
+
+The core commit boundary was then tested separately with a simulated losing local candidate after another worker had already promoted the same revision. The losing `_write_metadata` call rejected the conflicting SHA and immediately rehydrated both local HWPX bytes and local metadata from the durable winner.
+
+### Idempotent commit receipts
+
+Every successful revision promotion writes one immutable row in `hwpx_document_commits` containing document id, expected revision, committed revision, content SHA-256, deterministic receipt id, and commit timestamp.
+
+The receipt id is deterministic over `document_id + revision + content_sha256`. An exact replay of the already-current revision with the same SHA returns `IDEMPOTENT_REPLAY` and the exact same receipt id. Same revision + different SHA is rejected.
+
+### TTL lease semantics
+
+`hwpx_document_leases` provides optional 5–300 second durable coordination leases.
+
+- lease acquisition is revision-guarded;
+- a live lease blocks revision advancement unless the matching opaque lease token is supplied;
+- successful lease-backed commit deletes the lease in the same database transaction;
+- explicit release is supported;
+- lease expiry/release does not weaken revision CAS;
+- same-revision metadata refreshes remain read-safe and do not require the lease.
+
+All existing P2 write tools accept optional `lease_token` while preserving backward compatibility when no lease exists.
+
+### Crash consistency
+
+Durable commit authority precedes local-cache acceptance. Tested recovery windows cover pre-commit failure, concurrent losing commits, post-commit cache loss, and uncertain exact retries resolved by deterministic idempotent receipts. Retention updates are revision-CAS guarded independently, and durable current retention remains authoritative during cache rehydration.
+
+### Canonical P3.1 lifecycle receipt
+
+- workflow: `P3.1 Durable concurrency HWPX CI`
+- run: `35412857164`
+- commit: `d8cba2b9c594275f028ea9f93368f2910ac09201`
+- conclusion: **SUCCESS**
+
+Confirmed coverage includes the full legacy P1/P2/P3.0 suite, two-store concurrent CAS race, idempotent replay receipt identity, active-lease enforcement and auto-release, explicit lease release, OAuth-native lease-backed historical recovery, commit receipt retrieval, cache-loss recovery, and post-conflict durable-winner rehydration.
+
+### Canonical P3.1 Render/public receipt
+
+- service: `chatgpt-web-hwpx-mcp-p0`
+- deploy: `dep-damubeek1f9s73eopfeg`
+- commit: `d8cba2b9c594275f028ea9f93368f2910ac09201`
+- deploy status: **live**
+- public workflow: `P3.1 Render public boundary verification`
+- run: `35412857190`
+- conclusion: **SUCCESS**
+
+One immediately preceding public run on `bb1053f883e44b314070f1669d49b3fd47b83c99` reached the P3.1 health surface successfully but encountered transient Render 502 responses at the authorization-server metadata endpoint. The public workflow was hardened with a bounded retry window; server authority semantics were unchanged.
+
 ## Current verdict
 
 ```text
@@ -663,6 +726,17 @@ P3_0_OAUTH_DOCUMENT_AUTHORITY_SEPARATION = PASS
 P3_0_OAUTH_NATIVE_LIFECYCLE = PASS
 P3_0_RENDER_DEPLOYMENT = PASS
 P3_0_PUBLIC_BOUNDARY = PASS
+P3_1_REVISION_CAS = PASS
+P3_1_MULTI_WORKER_CONFLICT_RECOVERY = PASS
+P3_1_TTL_LEASE_SEMANTICS = PASS
+P3_1_IDEMPOTENT_COMMIT_RECEIPTS = PASS
+P3_1_CRASH_CONSISTENCY = PASS
+P3_1_DURABLE_WINNER_REHYDRATION = PASS
+P3_1_RETENTION_CAS = PASS
+P3_1_OAUTH_NATIVE_LIFECYCLE = PASS
+P3_1_RENDER_DEPLOYMENT = PASS
+P3_1_PUBLIC_BOUNDARY = PASS
+P3_DURABLE_TRANSACTION_CLOSURE = CLOSED_PASS
 
 COLUMN_INSERTION = EVIDENCE_GATE_CLOSED
 ARBITRARY_FIELD_TYPE_MUTATION = HOLD
@@ -673,4 +747,4 @@ RAW_EQEDIT_AUTHORING = EVIDENCE_GATE_CLOSED
 HANCOM_RENDERER_FIDELITY_ORACLE = HOLD
 ```
 
-P3.0 is **IMPLEMENTATION PASS / NATIVE-CI PASS / PUBLIC PASS / DURABLE-CUSTODY CLOSED**. Raw EqEdit authoring remains **CLOSED_NEGATIVE** outside the verified LaTeX conversion lane. Column insertion remains **CLOSED_NEGATIVE** pending an evidence-backed primitive. The remaining gaps are now outside durable custody itself: arbitrary field-type reinterpretation, richer object/shape semantics, cross-container editing, evidence-backed column insertion, advanced picture effects/crops/groups, raw EqEdit authoring, large-file streaming ingress, and native Hancom fidelity.
+P3.1 is **IMPLEMENTATION PASS / NATIVE-CI PASS / PUBLIC PASS / DURABLE-TRANSACTION CLOSED**. Raw EqEdit authoring remains **CLOSED_NEGATIVE** outside the verified LaTeX conversion lane. Column insertion remains **CLOSED_NEGATIVE** pending an evidence-backed primitive. The remaining gaps are now outside durable custody itself: arbitrary field-type reinterpretation, richer object/shape semantics, cross-container editing, evidence-backed column insertion, advanced picture effects/crops/groups, raw EqEdit authoring, large-file streaming ingress, and native Hancom fidelity.

@@ -800,7 +800,7 @@ def materialize_hwp5_rich_derivative(
     if normalized_request_id and len(normalized_request_id) > 160:
         raise ValueError("request_id exceeds 160 characters")
     derivative_request = (
-        f"hwp5-rich-v1:{source_sha256}:{normalized_request_id}"
+        f"hwp5-rich-v2:{source_sha256}:{normalized_request_id}"
         if normalized_request_id else ""
     )
     document_id = (
@@ -838,7 +838,7 @@ def materialize_hwp5_rich_derivative(
 
     hwpx_path, _ = core._paths(document_id)
     derivative_title = title or Path(source_name).stem
-    core.materialize_hwpx(hwpx_path, base_text, derivative_title)
+    core.materialize_hwpx(hwpx_path, base_text, "")
 
     promotion_report = {
         "paragraph_text": {"status": "PROMOTED", "count": len(top_level)},
@@ -850,7 +850,13 @@ def materialize_hwp5_rich_derivative(
                 if item.get("flow_kind") != "body"
             ),
             "promoted": 0,
-            "authority": "RECOVERED_GRAPH / NATIVE_PROMOTION_DEFERRED",
+            "authority": "RECOVERED_GRAPH / FAMILY_GRADED_PROMOTION",
+            "families": {
+                "object-text": {
+                    "status": "DEFERRED",
+                    "reason": "native_textbox_container_and_anchor_fidelity_not_certified",
+                }
+            },
         },
         "tables": {"promoted": 0, "deferred": []},
         "equations": {"promoted": 0, "deferred": []},
@@ -2766,27 +2772,48 @@ def compare_hwp5_roundtrip_fidelity(
 
     comparable_style_paragraphs = 0
     exact_style_paragraphs = 0
+    segmentation_exact_paragraphs = 0
+    run_style_axis_matches = {
+        "text": 0,
+        "bold": 0,
+        "italic": 0,
+        "underline": 0,
+        "strike": 0,
+        "size": 0,
+        "color": 0,
+        "font": 0,
+        "script": 0,
+    }
+    run_style_axis_comparisons = {key: 0 for key in run_style_axis_matches}
     for expected, observed in zip(source_style_runs, target_style_runs):
         if not expected:
             continue
         comparable_style_paragraphs += 1
         if len(expected) != len(observed):
             continue
+        segmentation_exact_paragraphs += 1
         ok = True
         for left, right in zip(expected, observed):
-            if left["text"] != right["text"]:
+            for key in ("text", "bold", "italic", "underline", "strike", "color", "font", "script"):
+                run_style_axis_comparisons[key] += 1
+                if left.get(key) == right.get(key):
+                    run_style_axis_matches[key] += 1
+                else:
+                    ok = False
+            left_size = left.get("size")
+            right_size = right.get("size")
+            if left_size is not None and right_size is not None:
+                run_style_axis_comparisons["size"] += 1
+                if abs(float(left_size) - float(right_size)) <= 0.02:
+                    run_style_axis_matches["size"] += 1
+                else:
+                    ok = False
+            elif left_size is None and right_size is None:
+                run_style_axis_comparisons["size"] += 1
+                run_style_axis_matches["size"] += 1
+            else:
+                run_style_axis_comparisons["size"] += 1
                 ok = False
-                break
-            for key in ("bold", "italic", "underline", "strike", "color", "font", "script"):
-                if left.get(key) != right.get(key):
-                    ok = False
-                    break
-            if not ok:
-                break
-            if left.get("size") is not None and right.get("size") is not None:
-                if abs(float(left["size"]) - float(right["size"])) > 0.02:
-                    ok = False
-                    break
         if ok:
             exact_style_paragraphs += 1
 
@@ -2883,6 +2910,9 @@ def compare_hwp5_roundtrip_fidelity(
             "run_style": {
                 "comparable_paragraphs": comparable_style_paragraphs,
                 "exact_paragraphs": exact_style_paragraphs,
+                "segmentation_exact_paragraphs": segmentation_exact_paragraphs,
+                "axis_match_counts": run_style_axis_matches,
+                "axis_comparison_counts": run_style_axis_comparisons,
                 "exact": (
                     comparable_style_paragraphs > 0
                     and comparable_style_paragraphs == exact_style_paragraphs
@@ -2924,6 +2954,10 @@ def compare_hwp5_roundtrip_fidelity(
                     for kind in sorted({str(item.get("flow_kind")) for item in nested})
                 },
                 "native_promotion": "FAMILY_GRADED",
+                "promotion_receipt": (
+                    metadata.get("hwp_rich_promotion_report", {})
+                    .get("nested_text_flows", {})
+                ),
             },
         },
         "authority": (

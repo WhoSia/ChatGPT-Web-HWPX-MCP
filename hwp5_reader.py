@@ -9,8 +9,10 @@ from dataclasses import dataclass
 import olefile
 
 HWP5_SIGNATURE = b"HWP Document File" + (b"\x00" * 15)
+HWPTAG_PARA_HEADER = 0x42
 HWPTAG_PARA_TEXT = 0x43
 HWPTAG_CTRL_HEADER = 0x47
+HWPTAG_LIST_HEADER = 0x48
 HWPTAG_TABLE = 0x4D
 HWPTAG_SHAPE_COMPONENT = 0x4C
 HWPTAG_SHAPE_COMPONENT_PICTURE = 0x55
@@ -127,6 +129,199 @@ def _clean_para_text(payload: bytes) -> str:
         else:
             chars.append(ch)
     return "".join(chars).replace("\r\n", "\n").replace("\r", "\n").strip("\x00")
+
+
+def _ctrl_id_text(value: int) -> str:
+    return "".join(chr((value >> shift) & 0xFF) for shift in (24, 16, 8, 0))
+
+
+def _parse_ctrl_header(payload: bytes) -> dict:
+    if len(payload) < 4:
+        return {
+            "ctrl_id": None,
+            "fidelity": "inventory",
+            "parse_error": "ctrl_header_too_short",
+            "payload_sha256": hashlib.sha256(payload).hexdigest(),
+        }
+    ctrl_value = struct.unpack_from("<I", payload, 0)[0]
+    result = {
+        "ctrl_id": _ctrl_id_text(ctrl_value),
+        "ctrl_id_uint32": ctrl_value,
+        "fidelity": "inventory",
+        "payload_bytes": len(payload),
+        "payload_sha256": hashlib.sha256(payload).hexdigest(),
+    }
+    if len(payload) < 46:
+        return result
+
+    attributes = struct.unpack_from("<I", payload, 4)[0]
+    vert_offset, horz_offset, width, height, z_order = struct.unpack_from("<iiiiI", payload, 8)
+    margins = struct.unpack_from("<HHHH", payload, 28)
+    instance_id = struct.unpack_from("<I", payload, 36)[0]
+    prevent_page_break = struct.unpack_from("<i", payload, 40)[0]
+    description_length = struct.unpack_from("<H", payload, 44)[0]
+    description_end = 46 + (2 * description_length)
+    description = ""
+    if description_end <= len(payload) and description_length:
+        description = payload[46:description_end].decode("utf-16le", errors="replace").rstrip("\x00")
+    result.update({
+        "fidelity": "structural",
+        "attributes": attributes,
+        "treat_as_char": bool(attributes & 1),
+        "vert_rel_to": (attributes >> 3) & 0b11,
+        "horz_rel_to": (attributes >> 8) & 0b11,
+        "text_wrap": (attributes >> 21) & 0b111,
+        "number_category": (attributes >> 26) & 0b111,
+        "vertical_offset": vert_offset,
+        "horizontal_offset": horz_offset,
+        "width": width,
+        "height": height,
+        "z_order": z_order,
+        "outer_margins": {
+            "left": margins[0],
+            "right": margins[1],
+            "top": margins[2],
+            "bottom": margins[3],
+        },
+        "instance_id": instance_id,
+        "prevent_page_break": bool(prevent_page_break),
+        "description": description,
+    })
+    return result
+
+
+def _parse_list_header(payload: bytes) -> dict:
+    if len(payload) < 6:
+        return {
+            "paragraph_count": None,
+            "fidelity": "inventory",
+            "parse_error": "list_header_too_short",
+            "payload_sha256": hashlib.sha256(payload).hexdigest(),
+        }
+    paragraph_count = struct.unpack_from("<h", payload, 0)[0]
+    attributes = struct.unpack_from("<I", payload, 2)[0]
+    return {
+        "paragraph_count": paragraph_count,
+        "attributes": attributes,
+        "text_direction": attributes & 0b111,
+        "line_break_mode": (attributes >> 3) & 0b11,
+        "vertical_alignment": (attributes >> 5) & 0b11,
+        "fidelity": "structural",
+        "payload_bytes": len(payload),
+        "payload_sha256": hashlib.sha256(payload).hexdigest(),
+    }
+
+
+def _parse_table_cell_from_list_header(payload: bytes) -> dict | None:
+    # Table cell LIST_HEADER = 6-byte paragraph-list header + 26-byte cell properties.
+    if len(payload) < 32:
+        return None
+    column, row, col_span, row_span = struct.unpack_from("<HHHH", payload, 6)
+    width, height = struct.unpack_from("<ii", payload, 14)
+    margins = struct.unpack_from("<HHHH", payload, 22)
+    border_fill_id = struct.unpack_from("<H", payload, 30)[0]
+    return {
+        "column": column,
+        "row": row,
+        "col_span": col_span,
+        "row_span": row_span,
+        "width": width,
+        "height": height,
+        "margins": {
+            "left": margins[0],
+            "right": margins[1],
+            "top": margins[2],
+            "bottom": margins[3],
+        },
+        "border_fill_id": border_fill_id,
+        "fidelity": "structural",
+    }
+
+
+def _parse_picture_record(payload: bytes) -> dict:
+    # HWPTAG_SHAPE_COMPONENT_PICTURE body is table 107; picture-info begins at byte 68.
+    base = _opaque_object_record("picture", payload)
+    if len(payload) < 78:
+        base["parse_error"] = "picture_record_too_short"
+        return base
+    border_color = struct.unpack_from("<I", payload, 0)[0]
+    border_thickness = struct.unpack_from("<i", payload, 4)[0]
+    border_attributes = struct.unpack_from("<I", payload, 8)[0]
+    initial_x = list(struct.unpack_from("<iiii", payload, 12))
+    initial_y = list(struct.unpack_from("<iiii", payload, 28))
+    crop = struct.unpack_from("<iiii", payload, 44)
+    inner_margins = struct.unpack_from("<HHHH", payload, 60)
+    brightness = struct.unpack_from("<b", payload, 68)[0]
+    contrast = struct.unpack_from("<b", payload, 69)[0]
+    effect = payload[70]
+    bin_item_id = struct.unpack_from("<H", payload, 71)[0]
+    border_transparency = payload[73]
+    instance_id = struct.unpack_from("<I", payload, 74)[0]
+    base.update({
+        "fidelity": "structural",
+        "border_color": border_color,
+        "border_thickness": border_thickness,
+        "border_attributes": border_attributes,
+        "initial_x": initial_x,
+        "initial_y": initial_y,
+        "crop": {
+            "left": crop[0],
+            "top": crop[1],
+            "right": crop[2],
+            "bottom": crop[3],
+        },
+        "inner_margins": {
+            "left": inner_margins[0],
+            "right": inner_margins[1],
+            "top": inner_margins[2],
+            "bottom": inner_margins[3],
+        },
+        "brightness": brightness,
+        "contrast": contrast,
+        "effect": effect,
+        "bin_item_id": bin_item_id,
+        "border_transparency": border_transparency,
+        "instance_id": instance_id,
+    })
+    return base
+
+
+def _parent_indexes(records: list[tuple[int, int, bytes]]) -> list[int | None]:
+    parents: list[int | None] = []
+    stack: list[int] = []
+    for index, (_tag_id, level, _payload) in enumerate(records):
+        while stack and records[stack[-1]][1] >= level:
+            stack.pop()
+        parents.append(stack[-1] if stack else None)
+        stack.append(index)
+    return parents
+
+
+def _nearest_ancestor(
+    records: list[tuple[int, int, bytes]],
+    parents: list[int | None],
+    index: int,
+    tag_ids: set[int],
+) -> int | None:
+    current = parents[index]
+    while current is not None:
+        if records[current][0] in tag_ids:
+            return current
+        current = parents[current]
+    return None
+
+
+def _bindata_numeric_id(stream_name: str) -> int | None:
+    name = stream_name.rsplit("/", 1)[-1]
+    if not name.upper().startswith("BIN"):
+        return None
+    digits = []
+    for ch in name[3:]:
+        if ch.isdigit():
+            digits.append(ch)
+        else:
+            break
+    return int("".join(digits)) if digits else None
 
 
 def _parse_table_record(payload: bytes) -> dict:

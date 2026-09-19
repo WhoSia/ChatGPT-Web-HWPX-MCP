@@ -61,6 +61,20 @@ ChatGPT Web
 
 There are no password, passphrase, API-key, or access-token fields in MCP tool schemas. Authentication happens at the HTTP/MCP transport layer.
 
+## P3.6 HWP control graph and fidelity-preserving rich promotion
+
+P3.6 closes the main structural gap between native HWP parsing and editable HWPX derivatives.
+
+- `get_hwp5_control_graph` reconstructs HWP `CTRL_HEADER` ownership, paragraph anchors, shared object geometry, table-cell containment, equation positioning, and picture-to-BinData references.
+- Table reconstruction binds `TABLE → cell LIST_HEADER → paragraph`; caption/list headers are explicitly excluded and covered subordinate cells are normalized before merged-cell synthesis.
+- Equation recovery binds the EqEdit script to its owning control, paragraph anchor, object size/offset, and instance receipt before native HWPX equation promotion.
+- Picture recovery binds the picture record's BinItem id to DocInfo/BinData storage, source media SHA-256, paragraph anchor, and object geometry.
+- PNG/JPEG media are passed through. BMP media may be promoted through a bounded pixel-preserving BMP→PNG transcode whose source/output hashes and dimensions remain in the promotion receipt.
+- `materialize_hwp5_rich_derivative` promotes only families whose linkage closes. Ambiguous or unsupported families are deferred rather than fabricated.
+- The original HWP binary is never mutated.
+
+Real HWP world-contact covers an official Hancom HWP 5.x document plus independent table, equation, and picture fixtures. External fixture bytes are downloaded only into CI temporary storage and removed after the run.
+
 ## P3.5 common document IR and fidelity-graded HWP promotion
 
 P3.5 promotes legacy HWP 5.x from a text-only side lane into the same format-neutral document model used for HWPX.

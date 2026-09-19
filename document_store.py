@@ -32,6 +32,7 @@ class DurableDocumentStore:
         ).digest()
         self._cipher = AESGCM(key)
         self._ensure_schema()
+        self._backfill_audit_hashes()
 
     @property
     def mode(self) -> str:
@@ -102,6 +103,27 @@ class DurableDocumentStore:
             )
             cur.execute(
                 """
+                ALTER TABLE hwpx_document_commits
+                    ADD COLUMN IF NOT EXISTS previous_audit_hash TEXT,
+                    ADD COLUMN IF NOT EXISTS audit_hash TEXT
+                """
+            )
+            cur.execute(
+                """
+                CREATE TABLE IF NOT EXISTS hwpx_document_revision_pins (
+                    document_id TEXT NOT NULL REFERENCES hwpx_documents(document_id) ON DELETE CASCADE,
+                    revision INTEGER NOT NULL,
+                    pin_reason TEXT NOT NULL,
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    PRIMARY KEY (document_id, revision),
+                    FOREIGN KEY (document_id, revision)
+                        REFERENCES hwpx_document_revisions(document_id, revision)
+                        ON DELETE RESTRICT
+                )
+                """
+            )
+            cur.execute(
+                """
                 CREATE TABLE IF NOT EXISTS hwpx_document_leases (
                     document_id TEXT PRIMARY KEY REFERENCES hwpx_documents(document_id) ON DELETE CASCADE,
                     lease_token_hash TEXT NOT NULL,
@@ -119,6 +141,75 @@ class DurableDocumentStore:
                 "CREATE INDEX IF NOT EXISTS hwpx_document_revisions_created_idx "
                 "ON hwpx_document_revisions (document_id, created_at)"
             )
+
+    @staticmethod
+    def _audit_hash(
+        *,
+        document_id: str,
+        revision: int,
+        expected_revision: int,
+        sha256: str,
+        receipt_id: str,
+        previous_audit_hash: str,
+    ) -> str:
+        payload = "\0".join(
+            [
+                "p3.2-audit",
+                document_id,
+                str(int(revision)),
+                str(int(expected_revision)),
+                sha256,
+                receipt_id,
+                previous_audit_hash,
+            ]
+        )
+        return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+    def _backfill_audit_hashes(self) -> None:
+        """Backfill the deterministic audit chain for pre-P3.2 commit rows."""
+        with self._connect(autocommit=False) as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT DISTINCT document_id
+                    FROM hwpx_document_commits
+                    ORDER BY document_id
+                    """
+                )
+                document_ids = [row[0] for row in cur.fetchall()]
+                for document_id in document_ids:
+                    cur.execute(
+                        """
+                        SELECT revision, expected_revision, sha256, receipt_id,
+                               previous_audit_hash, audit_hash
+                        FROM hwpx_document_commits
+                        WHERE document_id = %s
+                        ORDER BY revision ASC
+                        FOR UPDATE
+                        """,
+                        (document_id,),
+                    )
+                    previous = "GENESIS"
+                    for revision, expected_revision, sha256, receipt_id, stored_previous, stored_audit in cur.fetchall():
+                        audit = self._audit_hash(
+                            document_id=document_id,
+                            revision=int(revision),
+                            expected_revision=int(expected_revision),
+                            sha256=str(sha256),
+                            receipt_id=str(receipt_id),
+                            previous_audit_hash=previous,
+                        )
+                        if stored_previous != previous or stored_audit != audit:
+                            cur.execute(
+                                """
+                                UPDATE hwpx_document_commits
+                                SET previous_audit_hash=%s, audit_hash=%s
+                                WHERE document_id=%s AND revision=%s
+                                """,
+                                (previous, audit, document_id, int(revision)),
+                            )
+                        previous = audit
+            conn.commit()
 
     @staticmethod
     def _expiry(value: float | int):
@@ -285,11 +376,42 @@ class DurableDocumentStore:
                     )
                     cur.execute(
                         """
-                        INSERT INTO hwpx_document_commits
-                            (document_id, revision, expected_revision, sha256, receipt_id, committed_at)
-                        VALUES (%s, %s, %s, %s, %s, NOW())
+                        SELECT audit_hash
+                        FROM hwpx_document_commits
+                        WHERE document_id = %s AND revision = %s
                         """,
-                        (document_id, revision, expected_revision, sha256, receipt_id),
+                        (document_id, expected_revision),
+                    )
+                    previous_row = cur.fetchone()
+                    previous_audit_hash = (
+                        str(previous_row[0])
+                        if previous_row is not None and previous_row[0]
+                        else "GENESIS"
+                    )
+                    audit_hash = self._audit_hash(
+                        document_id=document_id,
+                        revision=revision,
+                        expected_revision=expected_revision,
+                        sha256=sha256,
+                        receipt_id=receipt_id,
+                        previous_audit_hash=previous_audit_hash,
+                    )
+                    cur.execute(
+                        """
+                        INSERT INTO hwpx_document_commits
+                            (document_id, revision, expected_revision, sha256, receipt_id,
+                             previous_audit_hash, audit_hash, committed_at)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, NOW())
+                        """,
+                        (
+                            document_id,
+                            revision,
+                            expected_revision,
+                            sha256,
+                            receipt_id,
+                            previous_audit_hash,
+                            audit_hash,
+                        ),
                     )
 
                 cur.execute(
@@ -602,6 +724,263 @@ class DurableDocumentStore:
             for revision, sha256, byte_count, created_at, is_current in rows
         ]
 
+    def pin_revision(self, document_id: str, revision: int, *, reason: str = "restore-anchor") -> dict:
+        revision = int(revision)
+        reason = (reason or "restore-anchor")[:240]
+        with self._connect(autocommit=False) as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT d.current_revision
+                    FROM hwpx_documents d
+                    JOIN hwpx_document_revisions r
+                      ON r.document_id=d.document_id AND r.revision=%s
+                    WHERE d.document_id=%s AND d.expires_at > NOW()
+                    FOR UPDATE
+                    """,
+                    (revision, document_id),
+                )
+                row = cur.fetchone()
+                if row is None:
+                    conn.rollback()
+                    raise FileNotFoundError("Durable revision not found")
+                cur.execute(
+                    """
+                    INSERT INTO hwpx_document_revision_pins
+                        (document_id, revision, pin_reason, created_at)
+                    VALUES (%s, %s, %s, NOW())
+                    ON CONFLICT (document_id, revision)
+                    DO UPDATE SET pin_reason=EXCLUDED.pin_reason
+                    """,
+                    (document_id, revision, reason),
+                )
+            conn.commit()
+        return {
+            "document_id": document_id,
+            "revision": revision,
+            "pin_reason": reason,
+            "pinned": True,
+        }
+
+    def unpin_revision(self, document_id: str, revision: int) -> bool:
+        with self._connect() as conn, conn.cursor() as cur:
+            cur.execute(
+                """
+                DELETE FROM hwpx_document_revision_pins
+                WHERE document_id=%s AND revision=%s
+                """,
+                (document_id, int(revision)),
+            )
+            return cur.rowcount > 0
+
+    def list_revision_pins(self, document_id: str) -> list[dict[str, Any]]:
+        with self._connect() as conn, conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT revision, pin_reason, created_at
+                FROM hwpx_document_revision_pins
+                WHERE document_id=%s
+                ORDER BY revision ASC
+                """,
+                (document_id,),
+            )
+            rows = cur.fetchall()
+        return [
+            {
+                "revision": int(revision),
+                "pin_reason": reason,
+                "created_at": created_at.astimezone(timezone.utc).isoformat(),
+            }
+            for revision, reason, created_at in rows
+        ]
+
+    def compact_revisions(
+        self,
+        document_id: str,
+        *,
+        expected_revision: int,
+        keep_last: int = 3,
+        dry_run: bool = True,
+    ) -> dict:
+        """Prune unpinned historical byte snapshots while retaining the commit audit chain."""
+        keep_last = max(1, min(int(keep_last), 100))
+        with self._connect(autocommit=False) as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT current_revision
+                    FROM hwpx_documents
+                    WHERE document_id=%s AND expires_at > NOW()
+                    FOR UPDATE
+                    """,
+                    (document_id,),
+                )
+                row = cur.fetchone()
+                if row is None:
+                    conn.rollback()
+                    raise FileNotFoundError("Unknown document_id")
+                current_revision = int(row[0])
+                if current_revision != int(expected_revision):
+                    conn.rollback()
+                    raise RuntimeError(
+                        f"Revision CAS conflict: durable current={current_revision}, expected={expected_revision}"
+                    )
+                cur.execute(
+                    """
+                    SELECT holder_id, expected_revision
+                    FROM hwpx_document_leases
+                    WHERE document_id=%s AND expires_at > NOW()
+                    """,
+                    (document_id,),
+                )
+                lease = cur.fetchone()
+                if lease is not None:
+                    conn.rollback()
+                    raise RuntimeError(
+                        f"Active document lease blocks compaction: holder={lease[0]}, revision={lease[1]}"
+                    )
+                cur.execute(
+                    """
+                    SELECT revision FROM hwpx_document_revision_pins
+                    WHERE document_id=%s
+                    """,
+                    (document_id,),
+                )
+                pinned = {int(r[0]) for r in cur.fetchall()}
+                floor = max(1, current_revision - keep_last + 1)
+                protected = pinned | set(range(floor, current_revision + 1)) | {current_revision}
+                cur.execute(
+                    """
+                    SELECT revision
+                    FROM hwpx_document_revisions
+                    WHERE document_id=%s
+                    ORDER BY revision ASC
+                    """,
+                    (document_id,),
+                )
+                existing = [int(r[0]) for r in cur.fetchall()]
+                candidates = [r for r in existing if r not in protected]
+                if not dry_run and candidates:
+                    cur.execute(
+                        """
+                        DELETE FROM hwpx_document_revisions
+                        WHERE document_id=%s AND revision = ANY(%s)
+                        """,
+                        (document_id, candidates),
+                    )
+                    if cur.rowcount != len(candidates):
+                        conn.rollback()
+                        raise RuntimeError("Compaction row-count mismatch")
+            if dry_run:
+                conn.rollback()
+            else:
+                conn.commit()
+        return {
+            "document_id": document_id,
+            "revision": current_revision,
+            "keep_last": keep_last,
+            "pinned_revisions": sorted(pinned),
+            "protected_revisions": sorted(protected),
+            "prunable_revisions": candidates,
+            "deleted_revisions": [] if dry_run else candidates,
+            "dry_run": bool(dry_run),
+            "commit_ledger_preserved": True,
+        }
+
+    def verify_audit_chain(self, document_id: str) -> dict:
+        with self._connect() as conn, conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT current_revision, current_sha256
+                FROM hwpx_documents
+                WHERE document_id=%s
+                """,
+                (document_id,),
+            )
+            document = cur.fetchone()
+            if document is None:
+                raise FileNotFoundError("Unknown document_id")
+            current_revision, current_sha = int(document[0]), str(document[1])
+            cur.execute(
+                """
+                SELECT revision, expected_revision, sha256, receipt_id,
+                       previous_audit_hash, audit_hash
+                FROM hwpx_document_commits
+                WHERE document_id=%s
+                ORDER BY revision ASC
+                """,
+                (document_id,),
+            )
+            commits = cur.fetchall()
+            cur.execute(
+                """
+                SELECT revision
+                FROM hwpx_document_revisions
+                WHERE document_id=%s
+                ORDER BY revision ASC
+                """,
+                (document_id,),
+            )
+            retained = [int(r[0]) for r in cur.fetchall()]
+            cur.execute(
+                """
+                SELECT revision
+                FROM hwpx_document_revision_pins
+                WHERE document_id=%s
+                ORDER BY revision ASC
+                """,
+                (document_id,),
+            )
+            pinned = [int(r[0]) for r in cur.fetchall()]
+
+        previous = "GENESIS"
+        failures: list[dict[str, Any]] = []
+        last_revision = 0
+        last_sha = None
+        for revision, expected_revision, sha256, receipt_id, stored_previous, stored_audit in commits:
+            revision = int(revision)
+            expected_revision = int(expected_revision)
+            calculated = self._audit_hash(
+                document_id=document_id,
+                revision=revision,
+                expected_revision=expected_revision,
+                sha256=str(sha256),
+                receipt_id=str(receipt_id),
+                previous_audit_hash=previous,
+            )
+            if expected_revision != revision - 1:
+                failures.append({"revision": revision, "reason": "non-monotonic expected_revision"})
+            if stored_previous != previous:
+                failures.append({"revision": revision, "reason": "previous audit hash mismatch"})
+            if stored_audit != calculated:
+                failures.append({"revision": revision, "reason": "audit hash mismatch"})
+            previous = calculated
+            last_revision = revision
+            last_sha = str(sha256)
+
+        if last_revision != current_revision or last_sha != current_sha:
+            failures.append({"revision": current_revision, "reason": "current pointer/commit mismatch"})
+        if current_revision not in retained:
+            failures.append({"revision": current_revision, "reason": "current revision bytes missing"})
+        missing_pins = [r for r in pinned if r not in retained]
+        for revision in missing_pins:
+            failures.append({"revision": revision, "reason": "pinned restore anchor missing"})
+
+        return {
+            "document_id": document_id,
+            "current_revision": current_revision,
+            "commit_count": len(commits),
+            "retained_revisions": retained,
+            "compacted_revisions": [
+                r for r in range(1, current_revision + 1) if r not in retained
+            ],
+            "pinned_revisions": pinned,
+            "audit_head": previous if commits else "GENESIS",
+            "audit_chain_valid": not failures,
+            "restore_reachability_valid": not missing_pins and current_revision in retained,
+            "failures": failures,
+        }
+
     def delete_document(self, document_id: str) -> bool:
         with self._connect() as conn, conn.cursor() as cur:
             cur.execute("DELETE FROM hwpx_documents WHERE document_id = %s", (document_id,))
@@ -609,7 +988,16 @@ class DurableDocumentStore:
 
     def cleanup_expired(self) -> int:
         with self._connect() as conn, conn.cursor() as cur:
-            cur.execute("DELETE FROM hwpx_documents WHERE expires_at <= NOW()")
+            cur.execute(
+                """
+                DELETE FROM hwpx_documents d
+                WHERE d.expires_at <= NOW()
+                  AND NOT EXISTS (
+                      SELECT 1 FROM hwpx_document_leases l
+                      WHERE l.document_id=d.document_id AND l.expires_at > NOW()
+                  )
+                """
+            )
             return cur.rowcount
 
     def counts(self) -> dict[str, int]:

@@ -1,0 +1,49 @@
+name: P3.6 Official HWP real-world parser probe
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/p36-real-hwp-trigger"
+      - ".github/workflows/p36-real-hwp-contact.yml"
+      - "p36_real_hwp_probe.py"
+      - "hwp5_reader.py"
+      - "common_ir.py"
+  workflow_dispatch:
+
+jobs:
+  real-hwp:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install parser dependencies
+        run: pip install olefile
+
+      - name: Download official Hancom HWP 5.0 specification sample ephemerally
+        env:
+          HWP_URL: "https://cdn.hancom.com/link/docs/%ED%95%9C%EA%B8%80%EB%AC%B8%EC%84%9C%ED%8C%8C%EC%9D%BC%ED%98%95%EC%8B%9D_5.0_revision1.3.hwp"
+        run: |
+          curl --fail --location --retry 4 --retry-all-errors --connect-timeout 15 --max-time 90             "$HWP_URL" -o /tmp/hancom-hwp5-spec.hwp
+          test -s /tmp/hancom-hwp5-spec.hwp
+          python - <<'PY'
+          from pathlib import Path
+          p = Path("/tmp/hancom-hwp5-spec.hwp")
+          print("ephemeral_hwp_bytes:", p.stat().st_size)
+          print("cfb_signature:", p.read_bytes()[:8].hex())
+          PY
+
+      - name: Native HWP5 control-graph and Common-IR probe
+        env:
+          P36_REAL_HWP: /tmp/hancom-hwp5-spec.hwp
+        run: python p36_real_hwp_probe.py
+
+      - name: Remove source sample
+        if: always()
+        run: rm -f /tmp/hancom-hwp5-spec.hwp

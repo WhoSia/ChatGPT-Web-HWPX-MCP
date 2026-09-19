@@ -53,9 +53,23 @@ def _property_tables(header_root: ElementTree.Element) -> dict:
     char_props: dict[str, dict] = {}
     para_props: dict[str, dict] = {}
     styles: dict[str, dict] = {}
+    font_faces: dict[str, dict[str, str]] = {}
     for node in header_root.iter():
         name = _local(node.tag)
         ident = node.attrib.get("id")
+        if name == "fontface":
+            language = str(node.attrib.get("lang") or "").lower()
+            family: dict[str, str] = {}
+            for child in list(node):
+                if _local(child.tag) != "font":
+                    continue
+                font_id = child.attrib.get("id")
+                face = child.attrib.get("face")
+                if font_id is not None and face:
+                    family[str(font_id)] = str(face)
+            if language:
+                font_faces[language] = family
+            continue
         if not ident:
             continue
         if name == "charPr":
@@ -64,7 +78,12 @@ def _property_tables(header_root: ElementTree.Element) -> dict:
             para_props[str(ident)] = _element_snapshot(node)
         elif name == "style":
             styles[str(ident)] = _element_snapshot(node)
-    return {"char": char_props, "para": para_props, "style": styles}
+    return {
+        "char": char_props,
+        "para": para_props,
+        "style": styles,
+        "font_faces": font_faces,
+    }
 
 
 def _char_summary(style_id: str | None, tables: dict) -> dict | None:
@@ -83,6 +102,25 @@ def _char_summary(style_id: str | None, tables: dict) -> dict | None:
         size_pt = int(height) / 100 if height is not None else None
     except ValueError:
         size_pt = None
+    resolved_fonts: dict[str, str | None] = {}
+    language_aliases = {
+        "hangul": "hangul",
+        "latin": "latin",
+        "hanja": "hanja",
+        "japanese": "japanese",
+        "other": "other",
+        "symbol": "symbol",
+        "user": "user",
+    }
+    for ref_name, normalized_name in language_aliases.items():
+        ref = font_ref.get(ref_name)
+        family = tables.get("font_faces", {}).get(ref_name, {})
+        resolved_fonts[normalized_name] = family.get(str(ref)) if ref is not None else None
+    primary_font_face = (
+        resolved_fonts.get("hangul")
+        or resolved_fonts.get("latin")
+        or next((value for value in resolved_fonts.values() if value), None)
+    )
     return {
         "id": str(style_id),
         "resolved": True,
@@ -97,6 +135,8 @@ def _char_summary(style_id: str | None, tables: dict) -> dict | None:
         "strike": bool(strike) and strike.get("shape", "").upper() != "NONE",
         "strike_shape": strike.get("shape"),
         "font_ref": font_ref or None,
+        "font_faces": resolved_fonts,
+        "primary_font_face": primary_font_face,
         "script": "sup" if "supscript" in children else ("sub" if "subscript" in children else None),
         "outline": children.get("outline", {}).get("attrs", {}).get("type"),
         "emboss": "emboss" in children,

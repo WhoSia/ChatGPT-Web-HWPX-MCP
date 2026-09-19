@@ -1,4 +1,4 @@
-name: P3.8 HWP real-world control-graph and rich-promotion probe
+name: P3.9 HWP real-world control-graph and rich-promotion probe
 
 on:
   push:
@@ -77,13 +77,13 @@ jobs:
           P36_REAL_HWP: /tmp/hancom-hwp5-spec.hwp
         run: python p36_real_hwp_probe.py
 
-      - name: Start local P3.8 OAuth MCP
+      - name: Start local P3.9 OAuth MCP
         run: |
           python server_p2.py > /tmp/p36-mcp.log 2>&1 &
           echo $! > /tmp/p36-mcp.pid
           for i in {1..40}; do
             body="$(curl --fail --silent http://127.0.0.1:8000/health || true)"
-            if echo "$body" | grep -q '0.8.0-p3.8'; then
+            if echo "$body" | grep -q '0.9.0-p3.9'; then
               echo "$body"
               exit 0
             fi

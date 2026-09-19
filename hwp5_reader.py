@@ -15,6 +15,7 @@ HWPTAG_BIN_DATA = 0x12
 HWPTAG_FACE_NAME = 0x13
 HWPTAG_CHAR_SHAPE = 0x15
 HWPTAG_PARA_SHAPE = 0x19
+HWPTAG_STYLE = 0x1A
 HWPTAG_PARA_HEADER = 0x42
 HWPTAG_PARA_TEXT = 0x43
 HWPTAG_PARA_CHAR_SHAPE = 0x44
@@ -374,6 +375,63 @@ def _parse_docinfo_para_shape(payload: bytes, index: int) -> dict:
         "tab_def_id": tab_id,
         "numbering_id": numbering_id,
         "border_fill_id": border_fill_id,
+        "payload_bytes": len(payload),
+        "payload_sha256": hashlib.sha256(payload).hexdigest(),
+    }
+
+
+def _read_hwp_string(payload: bytes, offset: int) -> tuple[str, int]:
+    if offset + 2 > len(payload):
+        raise Hwp5ReadError("HWP string length is truncated")
+    length = struct.unpack_from("<H", payload, offset)[0]
+    offset += 2
+    end = offset + (2 * length)
+    if end > len(payload):
+        raise Hwp5ReadError("HWP string payload is truncated")
+    return payload[offset:end].decode("utf-16le", errors="replace").rstrip("\x00"), end
+
+
+def _parse_docinfo_style(payload: bytes, index: int) -> dict:
+    try:
+        local_name, offset = _read_hwp_string(payload, 0)
+        english_name, offset = _read_hwp_string(payload, offset)
+    except Hwp5ReadError as exc:
+        return {
+            "style_id": index,
+            "fidelity": "inventory",
+            "parse_error": str(exc),
+            "payload_sha256": hashlib.sha256(payload).hexdigest(),
+        }
+    if offset + 8 > len(payload):
+        return {
+            "style_id": index,
+            "fidelity": "inventory",
+            "local_name": local_name,
+            "english_name": english_name,
+            "parse_error": "style_record_too_short",
+            "payload_sha256": hashlib.sha256(payload).hexdigest(),
+        }
+    style_type = payload[offset]
+    next_style_id = payload[offset + 1]
+    lang_id = struct.unpack_from("<h", payload, offset + 2)[0]
+    para_shape_id = struct.unpack_from("<H", payload, offset + 4)[0]
+    char_shape_id = struct.unpack_from("<H", payload, offset + 6)[0]
+    trailing = (
+        struct.unpack_from("<H", payload, offset + 8)[0]
+        if offset + 10 <= len(payload)
+        else None
+    )
+    return {
+        "style_id": index,
+        "fidelity": "semantic",
+        "local_name": local_name,
+        "english_name": english_name,
+        "style_type": style_type,
+        "next_style_id": next_style_id,
+        "lang_id": lang_id,
+        "para_shape_id": para_shape_id,
+        "char_shape_id": char_shape_id,
+        "trailing": trailing,
         "payload_bytes": len(payload),
         "payload_sha256": hashlib.sha256(payload).hexdigest(),
     }
@@ -1110,6 +1168,7 @@ def parse_hwp5_bytes(
 
         char_shapes: list[dict] = []
         para_shapes: list[dict] = []
+        styles: list[dict] = []
         id_mappings: dict = {}
         face_names: dict[str, list[dict]] = {
             language: [] for language in HWP_FONT_LANGUAGES
@@ -1149,6 +1208,8 @@ def parse_hwp5_bytes(
                     char_shapes.append(_parse_docinfo_char_shape(record, len(char_shapes)))
                 elif tag_id == HWPTAG_PARA_SHAPE:
                     para_shapes.append(_parse_docinfo_para_shape(record, len(para_shapes)))
+                elif tag_id == HWPTAG_STYLE:
+                    styles.append(_parse_docinfo_style(record, len(styles)))
 
             char_shapes = [
                 _resolve_char_shape_faces(item, face_names)
@@ -1369,6 +1430,26 @@ def parse_hwp5_bytes(
                         and 0 <= int(para_shape_id) < len(para_shapes)
                         else None
                     )
+                    para_style_id = header_meta.get("para_style_id")
+                    header_meta["resolved_style"] = (
+                        styles[int(para_style_id)]
+                        if para_style_id is not None
+                        and 0 <= int(para_style_id) < len(styles)
+                        else None
+                    )
+                    resolved_style = header_meta.get("resolved_style") or {}
+                    header_meta["style_para_shape"] = (
+                        para_shapes[int(resolved_style["para_shape_id"])]
+                        if resolved_style.get("para_shape_id") is not None
+                        and 0 <= int(resolved_style["para_shape_id"]) < len(para_shapes)
+                        else None
+                    )
+                    header_meta["style_char_shape"] = (
+                        char_shapes[int(resolved_style["char_shape_id"])]
+                        if resolved_style.get("char_shape_id") is not None
+                        and 0 <= int(resolved_style["char_shape_id"]) < len(char_shapes)
+                        else None
+                    )
                     run_receipts = _build_run_receipts(
                         text,
                         header_meta,
@@ -1570,6 +1651,7 @@ def parse_hwp5_bytes(
             "face_names": face_names,
             "char_shapes": char_shapes,
             "para_shapes": para_shapes,
+            "styles": styles,
             "tables": tables,
             "equations": equations,
             "objects": objects,

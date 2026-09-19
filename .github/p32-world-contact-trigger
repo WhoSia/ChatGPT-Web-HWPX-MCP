@@ -7,3 +7,4 @@ replay-raw-mcp-wire
 r2-auth-vs-transport-matrix
 r2-authorization-header-matrix
 r2-fresh-post-token-transport
+r2-http11-close

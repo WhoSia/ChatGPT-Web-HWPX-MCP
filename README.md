@@ -6,7 +6,7 @@ Remote Streamable-HTTP MCP for authenticated HWPX document creation, custody, va
 
 **P0 / P1 / P1.1 / P1.2 are closed / PASS.** The project has established native ChatGPT MCP discovery and actions, opaque document custody, signed HWPX delivery, OAuth-native secret-free invocation, durable restart-safe OAuth authority, and bounded existing-HWPX ingress. See the corresponding test ledgers.
 
-**P2 is CLOSED / PASS. P2.1–P2.8 are implemented. P2.9 is active.** P2.9 promotes embedded pictures and their BinData assets to first-class, revision-safe MCP objects.
+**P2 is CLOSED / PASS. P2.1–P2.9 are implemented. P2.10 is active.** P2.10 promotes equations and their EqEdit scripts to first-class, revision-safe rich objects.
 
 ```text
 ChatGPT Web
@@ -43,6 +43,8 @@ ChatGPT Web
 | `apply_table_edits` | Yes | Apply one revision-guarded table structure/geometry/cell-format transaction |
 | `get_object_map` | No | Return picture objects, package-owned media items, geometry and custody receipts |
 | `apply_object_edits` | Yes | Apply one revision-guarded picture/media/geometry transaction |
+| `get_equation_map` | No | Return equation identities, EqEdit scripts, geometry and custody receipts |
+| `apply_equation_edits` | Yes | Apply one revision-guarded verified-equation lifecycle/geometry transaction |
 | `compare_document` | No | Compare semantic/structure/formatting/inline/table receipts with the current revision |
 | `export_document` | No* | Return a short-lived signed download URL |
 | `delete_document` | Yes | Delete the caller-owned HWPX and metadata |

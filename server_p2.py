@@ -2400,6 +2400,7 @@ def compare_hwp5_roundtrip_fidelity(
     content_base64: str,
     document_id: str,
     filename: str = "document.hwp",
+    require_provenance: bool = True,
 ) -> dict:
     """Compare a source HWP5 payload with one owned promoted HWPX derivative by family."""
     payload = _decode_hwp5_payload(content_base64)
@@ -2411,6 +2412,16 @@ def compare_hwp5_roundtrip_fidelity(
     metadata, path = _owned_document(document_id)
     source_sha256 = hashlib.sha256(payload).hexdigest()
     provenance_match = metadata.get("source_hwp_sha256") == source_sha256
+    if require_provenance and not provenance_match:
+        return {
+            "ok": False,
+            "document_id": document_id,
+            "source_filename": Path(filename or "document.hwp").name[:128],
+            "source_sha256": source_sha256,
+            "provenance_match": False,
+            "authority": "SOURCE_PROVENANCE_MISMATCH",
+            "families": {},
+        }
 
     document_map = build_document_map(path)
     formatting_map = build_formatting_map(path)
@@ -2556,8 +2567,13 @@ def compare_hwp5_roundtrip_fidelity(
         "authority": (
             "ROUNDTRIP_FIDELITY_RECEIPT"
             if provenance_match
-            else "SOURCE_PROVENANCE_MISMATCH"
+            else (
+                "CROSS_FORMAT_EQUIVALENCE_RECEIPT"
+                if not require_provenance
+                else "SOURCE_PROVENANCE_MISMATCH"
+            )
         ),
+        "provenance_required": bool(require_provenance),
     }
     return result
 

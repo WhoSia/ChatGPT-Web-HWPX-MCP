@@ -173,27 +173,29 @@ class DurableDocumentStore:
                 )
                 current = cur.fetchone()
 
-                cur.execute(
-                    """
-                    SELECT lease_token_hash, expected_revision, expires_at
-                    FROM hwpx_document_leases
-                    WHERE document_id = %s AND expires_at > NOW()
-                    """,
-                    (document_id,),
-                )
-                active_lease = cur.fetchone()
-                if active_lease is not None:
-                    if not lease_token:
-                        conn.rollback()
-                        raise RuntimeError("Document lease required for commit")
-                    if self._lease_hash(lease_token) != str(active_lease[0]):
-                        conn.rollback()
-                        raise RuntimeError("Document lease token mismatch")
-                    if int(active_lease[1]) != expected_revision:
-                        conn.rollback()
-                        raise RuntimeError(
-                            f"Document lease revision mismatch: lease={active_lease[1]}, expected={expected_revision}"
-                        )
+                active_lease = None
+                if current is not None and revision != int(current[0]):
+                    cur.execute(
+                        """
+                        SELECT lease_token_hash, expected_revision, expires_at
+                        FROM hwpx_document_leases
+                        WHERE document_id = %s AND expires_at > NOW()
+                        """,
+                        (document_id,),
+                    )
+                    active_lease = cur.fetchone()
+                    if active_lease is not None:
+                        if not lease_token:
+                            conn.rollback()
+                            raise RuntimeError("Document lease required for commit")
+                        if self._lease_hash(lease_token) != str(active_lease[0]):
+                            conn.rollback()
+                            raise RuntimeError("Document lease token mismatch")
+                        if int(active_lease[1]) != expected_revision:
+                            conn.rollback()
+                            raise RuntimeError(
+                                f"Document lease revision mismatch: lease={active_lease[1]}, expected={expected_revision}"
+                            )
 
                 if current is None:
                     if revision != 1 or expected_revision != 0:

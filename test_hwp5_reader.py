@@ -194,19 +194,25 @@ class Hwp5ReaderPrimitiveTests(unittest.TestCase):
         self.assertTrue(ctrl["treat_as_char"])
 
     def test_table_cell_list_header_decode(self):
-        raw = bytearray(32)
-        struct.pack_into("<hI", raw, 0, 2, 0)
-        struct.pack_into("<HHHH", raw, 6, 3, 4, 2, 1)
-        struct.pack_into("<ii", raw, 14, 7200, 1800)
-        struct.pack_into("<HHHH", raw, 22, 10, 20, 30, 40)
-        struct.pack_into("<H", raw, 30, 9)
+        raw = bytearray(34)
+        # Real writer layout: LIST_HEADER6 + width_ref2 + cell_property26.
+        struct.pack_into("<hI", raw, 0, 2, 0x00210000)
+        struct.pack_into("<H", raw, 6, 1)
+        struct.pack_into("<HHHH", raw, 8, 3, 4, 2, 1)
+        struct.pack_into("<ii", raw, 16, 7200, 1800)
+        struct.pack_into("<HHHH", raw, 24, 10, 20, 30, 40)
+        struct.pack_into("<H", raw, 32, 9)
         header = _parse_list_header(bytes(raw))
         cell = _parse_table_cell_from_list_header(bytes(raw))
         self.assertEqual(header["paragraph_count"], 2)
+        self.assertEqual(header["vertical_alignment"], 1)
+        self.assertEqual(cell["width_ref"], 1)
+        self.assertTrue(cell["apply_inner_margin"])
         self.assertEqual(cell["column"], 3)
         self.assertEqual(cell["row"], 4)
         self.assertEqual(cell["col_span"], 2)
         self.assertEqual(cell["width"], 7200)
+        self.assertEqual(cell["height"], 1800)
         self.assertEqual(cell["border_fill_id"], 9)
 
     def test_picture_bindata_reference_decode(self):

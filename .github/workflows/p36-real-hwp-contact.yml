@@ -1,4 +1,4 @@
-name: P3.7 HWP real-world control-graph and rich-promotion probe
+name: P3.8 HWP real-world control-graph and rich-promotion probe
 
 on:
   push:
@@ -77,7 +77,7 @@ jobs:
           P36_REAL_HWP: /tmp/hancom-hwp5-spec.hwp
         run: python p36_real_hwp_probe.py
 
-      - name: Start local P3.7 OAuth MCP
+      - name: Start local P3.8 OAuth MCP
         run: |
           python server_p2.py > /tmp/p36-mcp.log 2>&1 &
           echo $! > /tmp/p36-mcp.pid

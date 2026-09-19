@@ -1143,65 +1143,135 @@ def materialize_hwp5_rich_derivative(
                 continue
             nested_groups.setdefault(flow, []).append(item)
 
-        # Header/footer are section-level stories and therefore do not need a
-        # body-text anchor. The current native API preserves the master-page link.
+        # Header/footer controls carry a page-scope code. Group paragraphs by
+        # owning control so multiple stories (BOTH/EVEN/ODD) are not collapsed.
         for flow, setter_name in (("header", "set_header_text"), ("footer", "set_footer_text")):
             items = nested_groups.get(flow, [])
             if not items:
                 continue
-            text_value = "\n".join(str(item.get("text", "")) for item in items)
-            try:
-                section = document.sections[0]
-                setter = getattr(section.properties, setter_name)
-                setter(text_value, page_type="BOTH")
-                promotion_report["nested_text_flows"]["promoted"] += len(items)
-                promotion_report["nested_text_flows"].setdefault("families", {})[flow] = {
-                    "status": "PROMOTED_NATIVE",
-                    "paragraph_count": len(items),
-                }
-            except Exception as exc:
-                promotion_report["nested_text_flows"].setdefault("families", {})[flow] = {
-                    "status": "DEFERRED",
-                    "paragraph_count": len(items),
-                    "reason": f"{type(exc).__name__}:{str(exc)[:180]}",
-                }
+            by_control: dict[int, list[dict]] = {}
+            unbound: list[dict] = []
+            for item in items:
+                control_index = item.get("control_index")
+                if control_index is None:
+                    unbound.append(item)
+                    continue
+                by_control.setdefault(int(control_index), []).append(item)
+            promoted_controls = 0
+            deferred: list[dict] = []
+            for control_index, owned in sorted(by_control.items()):
+                control = controls.get(control_index) or {}
+                page_type = str(control.get("apply_page_type") or "")
+                if page_type not in {"BOTH", "EVEN", "ODD"}:
+                    deferred.append({
+                        "control_index": control_index,
+                        "reason": "page_scope_not_resolved",
+                    })
+                    continue
+                section_indexes = {int(item.get("section_index", 0)) for item in owned}
+                if len(section_indexes) != 1:
+                    deferred.append({
+                        "control_index": control_index,
+                        "reason": "cross_section_story_ambiguous",
+                    })
+                    continue
+                section_index = next(iter(section_indexes))
+                try:
+                    section = document.sections[section_index]
+                    setter = getattr(section.properties, setter_name)
+                    setter(
+                        "\n".join(str(item.get("text", "")) for item in owned),
+                        page_type=page_type,
+                    )
+                    promoted_controls += 1
+                except Exception as exc:
+                    deferred.append({
+                        "control_index": control_index,
+                        "reason": f"{type(exc).__name__}:{str(exc)[:180]}",
+                    })
+            if unbound:
+                deferred.append({
+                    "reason": "paragraph_without_owner_control",
+                    "paragraph_count": len(unbound),
+                })
+            promoted_paragraphs = sum(
+                len(by_control[index])
+                for index in by_control
+                if not any(
+                    item.get("control_index") == index
+                    for item in deferred
+                )
+            )
+            promotion_report["nested_text_flows"]["promoted"] += promoted_paragraphs
+            promotion_report["nested_text_flows"].setdefault("families", {})[flow] = {
+                "status": (
+                    "PROMOTED_NATIVE"
+                    if promoted_controls and not deferred
+                    else ("PARTIAL" if promoted_controls else "DEFERRED")
+                ),
+                "promoted_controls": promoted_controls,
+                "paragraph_count": len(items),
+                "deferred": deferred[:20],
+            }
 
-        # Footnote/endnote authoring requires a body anchor. We bind each nested
-        # note family to its recovered owning control paragraph when available.
+        # One HWP note control can own several paragraphs. Preserve that unit:
+        # one recovered control becomes one native HWPX footnote/endnote.
         for flow, method_name in (("footnote", "add_footnote"), ("endnote", "add_endnote")):
             items = nested_groups.get(flow, [])
             if not items:
                 continue
-            promoted = 0
-            deferred: list[dict] = []
+            by_control: dict[int, list[dict]] = {}
+            unbound: list[dict] = []
             for item in items:
                 control_index = item.get("control_index")
-                control = controls.get(int(control_index)) if control_index is not None else None
+                if control_index is None:
+                    unbound.append(item)
+                    continue
+                by_control.setdefault(int(control_index), []).append(item)
+            promoted_controls = 0
+            deferred: list[dict] = []
+            for control_index, owned in sorted(by_control.items()):
+                control = controls.get(control_index)
                 ordinal = None if control is None else control.get("anchor_paragraph_ordinal")
-                locator = (
-                    None
-                    if ordinal is None
-                    else anchor_map.get((int(item.get("section_index", 0)), int(ordinal)))
-                )
+                section_indexes = {int(item.get("section_index", 0)) for item in owned}
+                locator = None
+                if ordinal is not None and len(section_indexes) == 1:
+                    locator = anchor_map.get((next(iter(section_indexes)), int(ordinal)))
                 if not locator:
-                    deferred.append({"reason": "owner_anchor_missing"})
+                    deferred.append({
+                        "control_index": control_index,
+                        "reason": "owner_anchor_missing",
+                    })
                     continue
                 try:
                     paragraph, _target = _resolve_hwpx_paragraph(
                         document, hwpx_path, locator
                     )
-                    getattr(paragraph, method_name)(str(item.get("text", "")))
-                    promoted += 1
+                    note_text = "\n".join(str(item.get("text", "")) for item in owned)
+                    getattr(paragraph, method_name)(note_text)
+                    promoted_controls += 1
                 except Exception as exc:
                     deferred.append({
-                        "reason": f"{type(exc).__name__}:{str(exc)[:180]}"
+                        "control_index": control_index,
+                        "reason": f"{type(exc).__name__}:{str(exc)[:180]}",
                     })
-            promotion_report["nested_text_flows"]["promoted"] += promoted
+            if unbound:
+                deferred.append({
+                    "reason": "paragraph_without_owner_control",
+                    "paragraph_count": len(unbound),
+                })
+            promotion_report["nested_text_flows"]["promoted"] += sum(
+                len(value) for key, value in by_control.items()
+                if not any(item.get("control_index") == key for item in deferred)
+            )
             promotion_report["nested_text_flows"].setdefault("families", {})[flow] = {
-                "status": "PROMOTED_NATIVE" if promoted and not deferred else (
-                    "PARTIAL" if promoted else "DEFERRED"
+                "status": (
+                    "PROMOTED_NATIVE"
+                    if promoted_controls and not deferred
+                    else ("PARTIAL" if promoted_controls else "DEFERRED")
                 ),
-                "promoted": promoted,
+                "promoted_controls": promoted_controls,
+                "source_paragraph_count": len(items),
                 "deferred": deferred[:20],
             }
 

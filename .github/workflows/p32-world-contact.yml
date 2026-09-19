@@ -1,0 +1,32 @@
+name: P3.2-R1 Public OAuth world-contact
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/p32-world-contact-trigger"
+
+jobs:
+  world-contact:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      MCP_URL: https://chatgpt-web-hwpx-mcp-p0.onrender.com/mcp
+      RUN_P2_WRITE_TEST: "1"
+      P11_OAUTH_PASSPHRASE: ${{ secrets.P11_OAUTH_PASSPHRASE }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Require configured OAuth world-contact secret
+        run: |
+          if [ -z "$P11_OAUTH_PASSPHRASE" ]; then
+            echo "::error::P11_OAUTH_PASSPHRASE repository secret is not configured"
+            exit 2
+          fi
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Public OAuth-native P3.2 lifecycle
+        run: python test_client.py

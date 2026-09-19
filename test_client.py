@@ -103,7 +103,7 @@ async def main() -> None:
     oauth = OAuthClientProvider(
         server_url=URL,
         client_metadata=OAuthClientMetadata(
-            client_name="ChatGPT Web HWPX MCP P3.1 CI",
+            client_name="ChatGPT Web HWPX MCP P3.2 CI",
             redirect_uris=[AnyUrl("http://127.0.0.1:8765/callback")],
             scope="hwpx offline_access",
         ),
@@ -160,11 +160,11 @@ async def main() -> None:
                     raise RuntimeError(f"secret-bearing field leaked into tool schema: {tool.name}")
 
             read_payload = _payload(await client.call_tool("probe_read", {"message": "P2 OAuth smoke test"}))
-            if not read_payload or not read_payload.get("ok") or read_payload.get("version") != "0.4.1-p3.1":
+            if not read_payload or not read_payload.get("ok") or read_payload.get("version") != "0.4.2-p3.2":
                 raise RuntimeError(f"probe_read did not expose P2: {read_payload}")
 
             p2_caps = _payload(await client.call_tool("p2_capabilities", {}))
-            if not p2_caps or p2_caps.get("phase") != "P3.1":
+            if not p2_caps or p2_caps.get("phase") != "P3.2":
                 raise RuntimeError(f"p2_capabilities failed: {p2_caps}")
 
             if not RUN_WRITE_TEST:
@@ -632,7 +632,7 @@ async def main() -> None:
                 "holder_id": "ci-worker-a",
             }))
             if not lease or not lease.get("lease_token"):
-                raise RuntimeError(f"P3.1 lease acquisition failed: {lease}")
+                raise RuntimeError(f"P3.2 lease acquisition failed: {lease}")
 
             restored = _payload(await client.call_tool("restore_document_revision", {
                 "document_id": document_id,
@@ -646,7 +646,7 @@ async def main() -> None:
                 or restored.get("revision_after") != 15
                 or restored.get("recovered_from_revision") != 1
             ):
-                raise RuntimeError(f"P3.1 historical recovery under lease failed: {restored}")
+                raise RuntimeError(f"P3.2 historical recovery under lease failed: {restored}")
 
             commit_receipt = _payload(await client.call_tool("get_document_commit_receipt", {
                 "document_id": document_id,
@@ -658,14 +658,14 @@ async def main() -> None:
                 or len(commit_receipt.get("receipt_id", "")) != 64
                 or commit_receipt.get("sha256") != restored.get("sha256")
             ):
-                raise RuntimeError(f"P3.1 commit receipt failed: {commit_receipt}")
+                raise RuntimeError(f"P3.2 commit receipt failed: {commit_receipt}")
 
             release_after_commit = _payload(await client.call_tool("release_document_lease", {
                 "document_id": document_id,
                 "lease_token": lease["lease_token"],
             }))
             if not release_after_commit or release_after_commit.get("released") is not False:
-                raise RuntimeError(f"P3.1 commit should auto-release lease: {release_after_commit}")
+                raise RuntimeError(f"P3.2 commit should auto-release lease: {release_after_commit}")
 
             release_lease = _payload(await client.call_tool("acquire_document_lease", {
                 "document_id": document_id,
@@ -678,7 +678,75 @@ async def main() -> None:
                 "lease_token": release_lease["lease_token"],
             }))
             if not released or released.get("released") is not True:
-                raise RuntimeError(f"P3.1 explicit lease release failed: {released}")
+                raise RuntimeError(f"P3.2 explicit lease release failed: {released}")
+
+            pinned_revision = _payload(await client.call_tool("pin_document_revision", {
+                "document_id": document_id,
+                "revision": 1,
+                "reason": "ci-restore-anchor",
+            }))
+            if not pinned_revision or pinned_revision.get("revision") != 1:
+                raise RuntimeError(f"P3.2 revision pin failed: {pinned_revision}")
+
+            maintenance_lease = _payload(await client.call_tool("acquire_document_lease", {
+                "document_id": document_id,
+                "expected_revision": 15,
+                "ttl_seconds": 30,
+                "holder_id": "ci-p32-maintenance-race",
+            }))
+            blocked_compaction = None
+            try:
+                blocked_compaction = await client.call_tool("compact_document_history", {
+                    "document_id": document_id,
+                    "expected_revision": 15,
+                    "keep_last": 2,
+                    "dry_run": False,
+                })
+            except Exception:
+                blocked_compaction = "blocked"
+            if blocked_compaction != "blocked":
+                payload = _payload(blocked_compaction)
+                if payload and payload.get("ok"):
+                    raise RuntimeError(f"P3.2 active lease failed to block compaction: {payload}")
+            await client.call_tool("release_document_lease", {
+                "document_id": document_id,
+                "lease_token": maintenance_lease["lease_token"],
+            })
+
+            preview_compaction = _payload(await client.call_tool("compact_document_history", {
+                "document_id": document_id,
+                "expected_revision": 15,
+                "keep_last": 2,
+                "dry_run": True,
+            }))
+            if not preview_compaction or 1 in preview_compaction.get("prunable_revisions", []):
+                raise RuntimeError(f"P3.2 dry-run endangered pinned revision: {preview_compaction}")
+
+            compacted = _payload(await client.call_tool("compact_document_history", {
+                "document_id": document_id,
+                "expected_revision": 15,
+                "keep_last": 2,
+                "dry_run": False,
+            }))
+            if (
+                not compacted
+                or not compacted.get("audit_chain_valid")
+                or not compacted.get("restore_reachability_valid")
+                or 1 in compacted.get("deleted_revisions", [])
+            ):
+                raise RuntimeError(f"P3.2 compaction failed: {compacted}")
+
+            lineage = _payload(await client.call_tool("verify_document_lineage", {
+                "document_id": document_id,
+            }))
+            if (
+                not lineage
+                or not lineage.get("audit_chain_valid")
+                or not lineage.get("restore_reachability_valid")
+                or lineage.get("commit_count") != 15
+                or 1 not in lineage.get("pinned_revisions", [])
+            ):
+                raise RuntimeError(f"P3.2 lineage verification failed: {lineage}")
 
             restored_text = _payload(await client.call_tool("get_text", {
                 "document_id": document_id,
@@ -722,7 +790,7 @@ async def main() -> None:
                 deleted = _payload(await client.call_tool("delete_document", {"document_id": doc_id}))
                 if not deleted or not deleted.get("deleted"):
                     raise RuntimeError(f"delete_document failed: {deleted}")
-            print("P3.1 lifecycle PASS", digest)
+            print("P3.2 lifecycle PASS", digest)
 
 
 if __name__ == "__main__":

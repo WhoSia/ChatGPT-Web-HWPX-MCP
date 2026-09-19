@@ -148,6 +148,7 @@ async def main() -> None:
                 "materialize_hwp5_rich_derivative",
                 "get_hwp5_control_graph",
                 "compare_hwp5_roundtrip_fidelity",
+                "get_hwp5_style_map",
                 "get_hwp5_text_flows",
                 "materialize_hwp5_text_derivative",
                 "get_common_document_ir",

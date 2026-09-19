@@ -494,7 +494,8 @@ class DurableDocumentStore:
         with self._connect() as conn, conn.cursor() as cur:
             cur.execute(
                 """
-                SELECT expected_revision, sha256, receipt_id, committed_at
+                SELECT expected_revision, sha256, receipt_id,
+                       previous_audit_hash, audit_hash, committed_at
                 FROM hwpx_document_commits
                 WHERE document_id = %s AND revision = %s
                 """,
@@ -503,13 +504,15 @@ class DurableDocumentStore:
             row = cur.fetchone()
         if row is None:
             return None
-        expected_revision, sha256, receipt_id, committed_at = row
+        expected_revision, sha256, receipt_id, previous_audit_hash, audit_hash, committed_at = row
         return {
             "document_id": document_id,
             "revision": int(revision),
             "expected_revision": int(expected_revision),
             "sha256": sha256,
             "receipt_id": receipt_id,
+            "previous_audit_hash": previous_audit_hash,
+            "audit_hash": audit_hash,
             "committed_at": committed_at.astimezone(timezone.utc).isoformat(),
         }
 

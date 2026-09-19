@@ -144,6 +144,7 @@ async def main() -> None:
                 "get_document_slice",
                 "plan_bulk_text_replace",
                 "commit_bulk_text_replace",
+                "inspect_hwp5_document",
                 "get_text",
                 "apply_edits",
                 "compare_document",

@@ -461,6 +461,7 @@ def parse_hwp5_bytes(
 
         streams = ["/".join(parts) for parts in ole.listdir(streams=True, storages=False)]
         binary_items = []
+        binary_by_id: dict[int, dict] = {}
         for stream_name in streams:
             if not stream_name.startswith("BinData/"):
                 continue
@@ -468,11 +469,16 @@ def parse_hwp5_bytes(
                 binary = ole.openstream(stream_name).read()
             except Exception:
                 continue
-            binary_items.append({
+            item = {
                 "stream": stream_name,
+                "bin_item_id": _bindata_numeric_id(stream_name),
                 "bytes": len(binary),
                 "sha256": hashlib.sha256(binary).hexdigest(),
-            })
+            }
+            binary_items.append(item)
+            if item["bin_item_id"] is not None:
+                binary_by_id[int(item["bin_item_id"])] = item
+
         section_names = [
             name for name in streams if name.startswith("BodyText/Section")
         ]
@@ -488,14 +494,75 @@ def parse_hwp5_bytes(
         tables: list[dict] = []
         equations: list[dict] = []
         objects: list[dict] = []
+        controls: list[dict] = []
+        control_edges: list[dict] = []
         warnings: list[str] = []
         total_chars = 0
+
         for section_index, section_name in enumerate(section_names):
             raw = ole.openstream(section_name).read()
             if header.compressed:
                 raw = _decompress_stream(raw)
-            record_index = 0
-            for tag_id, level, record in _iter_records(raw):
+            records = list(_iter_records(raw))
+            parents = _parent_indexes(records)
+
+            para_header_ord: dict[int, int] = {}
+            local_para_ord = 0
+            for record_index, (tag_id, _level, _record) in enumerate(records):
+                if tag_id == HWPTAG_PARA_HEADER:
+                    para_header_ord[record_index] = local_para_ord
+                    local_para_ord += 1
+
+            ctrl_by_record: dict[int, dict] = {}
+            for record_index, (tag_id, level, record) in enumerate(records):
+                if tag_id != HWPTAG_CTRL_HEADER:
+                    continue
+                parsed_ctrl = _parse_ctrl_header(record)
+                para_header_record = _nearest_ancestor(
+                    records, parents, record_index, {HWPTAG_PARA_HEADER}
+                )
+                ctrl = {
+                    "control_index": len(controls),
+                    "section_index": section_index,
+                    "section_stream": section_name,
+                    "record_index": record_index,
+                    "record_level": level,
+                    "anchor_paragraph_ordinal": (
+                        None
+                        if para_header_record is None
+                        else para_header_ord.get(para_header_record)
+                    ),
+                    **parsed_ctrl,
+                }
+                controls.append(ctrl)
+                ctrl_by_record[record_index] = ctrl
+
+            cell_by_list_record: dict[int, dict] = {}
+            for record_index, (tag_id, level, record) in enumerate(records):
+                if tag_id != HWPTAG_LIST_HEADER:
+                    continue
+                ctrl_record = _nearest_ancestor(
+                    records, parents, record_index, {HWPTAG_CTRL_HEADER}
+                )
+                ctrl = None if ctrl_record is None else ctrl_by_record.get(ctrl_record)
+                if not ctrl or ctrl.get("ctrl_id") != "tbl ":
+                    continue
+                cell = _parse_table_cell_from_list_header(record)
+                if cell is None:
+                    continue
+                cell.update({
+                    "cell_index": len(cell_by_list_record),
+                    "section_index": section_index,
+                    "list_record_index": record_index,
+                    "list_record_level": level,
+                    "control_index": ctrl["control_index"],
+                    "paragraph_indexes": [],
+                    "paragraph_text": [],
+                })
+                cell_by_list_record[record_index] = cell
+
+            table_by_control: dict[int, dict] = {}
+            for record_index, (tag_id, level, record) in enumerate(records):
                 source = {
                     "section_index": section_index,
                     "section_stream": section_name,
@@ -503,36 +570,190 @@ def parse_hwp5_bytes(
                     "record_level": level,
                     "tag_id": tag_id,
                 }
+                ctrl_record = _nearest_ancestor(
+                    records, parents, record_index, {HWPTAG_CTRL_HEADER}
+                )
+                ctrl = None if ctrl_record is None else ctrl_by_record.get(ctrl_record)
+
                 if tag_id == HWPTAG_PARA_TEXT:
                     text = _clean_para_text(record)
-                    if text:
-                        remaining = max_text_chars - total_chars
-                        if remaining <= 0:
-                            warnings.append("Text extraction stopped at max_text_chars.")
-                            break
-                        if len(text) > remaining:
-                            text = text[:remaining]
-                            warnings.append("Final paragraph was truncated at max_text_chars.")
-                        paragraphs.append(
-                            {
-                                "paragraph_index": len(paragraphs),
-                                **source,
-                                "text": text,
-                            }
-                        )
-                        total_chars += len(text)
-                        if len(paragraphs) >= max_paragraphs:
-                            warnings.append("Paragraph extraction stopped at max_paragraphs.")
-                            break
+                    if not text:
+                        continue
+                    remaining = max_text_chars - total_chars
+                    if remaining <= 0:
+                        warnings.append("Text extraction stopped at max_text_chars.")
+                        break
+                    if len(text) > remaining:
+                        text = text[:remaining]
+                        warnings.append("Final paragraph was truncated at max_text_chars.")
+                    para_header_record = _nearest_ancestor(
+                        records, parents, record_index, {HWPTAG_PARA_HEADER}
+                    )
+                    list_header_record = _nearest_ancestor(
+                        records, parents, record_index, {HWPTAG_LIST_HEADER}
+                    )
+                    paragraph_index = len(paragraphs)
+                    paragraph = {
+                        "paragraph_index": paragraph_index,
+                        "paragraph_header_record_index": para_header_record,
+                        "source_paragraph_ordinal": (
+                            None
+                            if para_header_record is None
+                            else para_header_ord.get(para_header_record)
+                        ),
+                        "list_header_record_index": list_header_record,
+                        "control_index": None if ctrl is None else ctrl["control_index"],
+                        **source,
+                        "text": text,
+                    }
+                    paragraphs.append(paragraph)
+                    total_chars += len(text)
+                    cell = (
+                        None
+                        if list_header_record is None
+                        else cell_by_list_record.get(list_header_record)
+                    )
+                    if cell is not None:
+                        cell["paragraph_indexes"].append(paragraph_index)
+                        cell["paragraph_text"].append(text)
+                    if len(paragraphs) >= max_paragraphs:
+                        warnings.append("Paragraph extraction stopped at max_paragraphs.")
+                        break
+
                 elif tag_id == HWPTAG_TABLE:
-                    tables.append({**source, **_parse_table_record(record)})
+                    table = {
+                        **source,
+                        **_parse_table_record(record),
+                        "control_index": None if ctrl is None else ctrl["control_index"],
+                        "control_id": None if ctrl is None else ctrl.get("ctrl_id"),
+                        "anchor_paragraph_ordinal": (
+                            None if ctrl is None else ctrl.get("anchor_paragraph_ordinal")
+                        ),
+                        "cells": [],
+                    }
+                    tables.append(table)
+                    if ctrl is not None:
+                        table_by_control[int(ctrl["control_index"])] = table
+                        control_edges.append({
+                            "from": f"ctrl:{ctrl['control_index']}",
+                            "to": f"table:{len(tables)-1}",
+                            "relation": "owns-family-record",
+                        })
+
                 elif tag_id == HWPTAG_EQEDIT:
-                    equations.append({**source, **_parse_equation_record(record)})
+                    equation = {
+                        **source,
+                        **_parse_equation_record(record),
+                        "control_index": None if ctrl is None else ctrl["control_index"],
+                        "control_id": None if ctrl is None else ctrl.get("ctrl_id"),
+                        "anchor_paragraph_ordinal": (
+                            None if ctrl is None else ctrl.get("anchor_paragraph_ordinal")
+                        ),
+                        "position": None if ctrl is None else {
+                            "treat_as_char": ctrl.get("treat_as_char"),
+                            "vertical_offset": ctrl.get("vertical_offset"),
+                            "horizontal_offset": ctrl.get("horizontal_offset"),
+                            "width": ctrl.get("width"),
+                            "height": ctrl.get("height"),
+                            "z_order": ctrl.get("z_order"),
+                            "instance_id": ctrl.get("instance_id"),
+                            "vert_rel_to": ctrl.get("vert_rel_to"),
+                            "horz_rel_to": ctrl.get("horz_rel_to"),
+                        },
+                        "position_fidelity": (
+                            "structural"
+                            if ctrl is not None and ctrl.get("fidelity") == "structural"
+                            else "inventory"
+                        ),
+                    }
+                    equations.append(equation)
+                    if ctrl is not None:
+                        control_edges.append({
+                            "from": f"ctrl:{ctrl['control_index']}",
+                            "to": f"equation:{len(equations)-1}",
+                            "relation": "owns-family-record",
+                        })
+
                 elif tag_id == HWPTAG_SHAPE_COMPONENT_PICTURE:
-                    objects.append({**source, **_opaque_object_record("picture", record)})
+                    picture = {
+                        **source,
+                        **_parse_picture_record(record),
+                        "control_index": None if ctrl is None else ctrl["control_index"],
+                        "control_id": None if ctrl is None else ctrl.get("ctrl_id"),
+                        "anchor_paragraph_ordinal": (
+                            None if ctrl is None else ctrl.get("anchor_paragraph_ordinal")
+                        ),
+                    }
+                    bin_item_id = picture.get("bin_item_id")
+                    linked_binary = (
+                        None
+                        if bin_item_id is None
+                        else binary_by_id.get(int(bin_item_id))
+                    )
+                    picture["binary_link"] = (
+                        None if linked_binary is None else dict(linked_binary)
+                    )
+                    picture["binary_link_fidelity"] = (
+                        "structural" if linked_binary is not None else "inventory"
+                    )
+                    if ctrl is not None and ctrl.get("fidelity") == "structural":
+                        picture["control_geometry"] = {
+                            "treat_as_char": ctrl.get("treat_as_char"),
+                            "vertical_offset": ctrl.get("vertical_offset"),
+                            "horizontal_offset": ctrl.get("horizontal_offset"),
+                            "width": ctrl.get("width"),
+                            "height": ctrl.get("height"),
+                            "z_order": ctrl.get("z_order"),
+                            "instance_id": ctrl.get("instance_id"),
+                        }
+                    objects.append(picture)
+                    if ctrl is not None:
+                        control_edges.append({
+                            "from": f"ctrl:{ctrl['control_index']}",
+                            "to": f"object:{len(objects)-1}",
+                            "relation": "owns-family-record",
+                        })
+                    if linked_binary is not None:
+                        control_edges.append({
+                            "from": f"object:{len(objects)-1}",
+                            "to": f"bindata:{bin_item_id}",
+                            "relation": "references-binary",
+                        })
+
                 elif tag_id == HWPTAG_SHAPE_COMPONENT:
-                    objects.append({**source, **_opaque_object_record("shape", record, fidelity="raw-preserved")})
-                record_index += 1
+                    shape = {
+                        **source,
+                        **_opaque_object_record(
+                            "shape", record, fidelity="raw-preserved"
+                        ),
+                        "control_index": None if ctrl is None else ctrl["control_index"],
+                        "control_id": None if ctrl is None else ctrl.get("ctrl_id"),
+                    }
+                    objects.append(shape)
+
+            for list_record_index, cell in cell_by_list_record.items():
+                table = table_by_control.get(int(cell["control_index"]))
+                if table is None:
+                    continue
+                table["cells"].append(cell)
+                control_edges.append({
+                    "from": f"table:{tables.index(table)}",
+                    "to": (
+                        f"cell:{cell['row']}:{cell['column']}:"
+                        f"{cell['control_index']}:{list_record_index}"
+                    ),
+                    "relation": "contains-cell",
+                })
+                for paragraph_index in cell["paragraph_indexes"]:
+                    control_edges.append({
+                        "from": (
+                            f"cell:{cell['row']}:{cell['column']}:"
+                            f"{cell['control_index']}:{list_record_index}"
+                        ),
+                        "to": f"paragraph:{paragraph_index}",
+                        "relation": "contains-paragraph",
+                    })
+
             if len(paragraphs) >= max_paragraphs or total_chars >= max_text_chars:
                 break
 
@@ -558,6 +779,8 @@ def parse_hwp5_bytes(
             "equations": equations,
             "objects": objects,
             "binary_items": binary_items,
+            "controls": controls,
+            "control_edges": control_edges,
             "text": "\n".join(item["text"] for item in paragraphs),
             "preview_text": preview_text[:20000],
             "preview_text_truncated": len(preview_text) > 20000,
@@ -569,9 +792,10 @@ def parse_hwp5_bytes(
             ],
             "fidelity": {
                 "paragraph_text": "semantic",
-                "tables": "structural" if tables else "not-present",
-                "equations": "semantic" if equations else "not-present",
-                "pictures": "inventory" if any(item["kind"] == "picture" for item in objects) else "not-present",
+                "tables": ("semantic" if tables and all(item.get("cells") for item in tables) else "structural") if tables else "not-present",
+                "equations": ("semantic" if equations else "not-present"),
+                "equation_position": ("structural" if equations and all(item.get("position_fidelity") == "structural" for item in equations) else "inventory") if equations else "not-present",
+                "pictures": ("structural" if any(item.get("kind") == "picture" and item.get("binary_link") for item in objects) else "inventory") if any(item["kind"] == "picture" for item in objects) else "not-present",
                 "binary_items": "inventory" if binary_items else "not-present",
                 "shapes": "raw-preserved" if any(item["kind"] == "shape" for item in objects) else "not-present",
             },

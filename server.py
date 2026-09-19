@@ -23,6 +23,7 @@ from mcp.server.transport_security import TransportSecuritySettings
 from starlette.responses import FileResponse, HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse
 
 from auth_store import DurableOAuthStore
+from document_store import DurableDocumentStore
 from oauth_provider import HWPX_SCOPE, SUBJECT, SingleUserOAuthProvider, build_auth_settings
 
 PROJECT = "ChatGPT Web HWPX MCP"
@@ -44,7 +45,9 @@ MCP_RESOURCE_URL = f"{PUBLIC_BASE_URL}/mcp"
 OAUTH_PASSPHRASE = os.environ.get("P11_OAUTH_PASSPHRASE", "")
 AUTH_DATABASE_URL = os.environ.get("P12_AUTH_DATABASE_URL", "")
 STATE_SECRET = os.environ.get("P12_STATE_SECRET", "")
+DOCUMENT_DATABASE_URL = os.environ.get("P30_DOCUMENT_DATABASE_URL", "").strip() or AUTH_DATABASE_URL
 OAUTH_STORE = DurableOAuthStore(AUTH_DATABASE_URL, STATE_SECRET)
+DOCUMENT_STORE = DurableDocumentStore(DOCUMENT_DATABASE_URL, STATE_SECRET)
 OAUTH_PROVIDER = SingleUserOAuthProvider(
     base_url=PUBLIC_BASE_URL,
     resource_url=MCP_RESOURCE_URL,
@@ -66,7 +69,18 @@ mcp = MCPServer(
 OBJECT_DIR = Path(os.environ.get("P1_OBJECT_DIR", "/tmp/chatgpt-web-hwpx-mcp-p1"))
 OBJECT_DIR.mkdir(parents=True, exist_ok=True)
 DOWNLOAD_SECRET = os.environ.get("P1_DOWNLOAD_SECRET", "")
-DOC_TTL_SECONDS = max(300, min(int(os.environ.get("P1_DOC_TTL_SECONDS", "1800")), 86400))
+DOC_TTL_SECONDS = max(
+    3600,
+    min(
+        int(
+            os.environ.get(
+                "P30_DOC_RETENTION_SECONDS",
+                os.environ.get("P1_DOC_TTL_SECONDS", "604800"),
+            )
+        ),
+        2_592_000,
+    ),
+)
 MAX_TEXT_CHARS = max(1000, min(int(os.environ.get("P1_MAX_TEXT_CHARS", "100000")), 500000))
 MAX_PACKAGE_BYTES = 8_000_000
 MAX_INGEST_BYTES = 2_000_000
@@ -136,16 +150,80 @@ def _paths(document_id: str) -> tuple[Path, Path]:
     return OBJECT_DIR / f"{document_id}.hwpx", OBJECT_DIR / f"{document_id}.json"
 
 
+def _hydrate_local(document_id: str, durable: dict) -> dict:
+    hwpx_path, metadata_path = _paths(document_id)
+    metadata = dict(durable["metadata"])
+    metadata["revision"] = int(durable["revision"])
+    metadata["sha256"] = durable["sha256"]
+    metadata["bytes"] = len(durable["bytes"])
+    metadata["storage"] = DOCUMENT_STORE.mode
+    hwpx_path.write_bytes(durable["bytes"])
+    metadata_path.write_text(
+        json.dumps(metadata, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    return metadata
+
+
 def _write_metadata(document_id: str, metadata: dict) -> None:
-    _, metadata_path = _paths(document_id)
-    metadata_path.write_text(json.dumps(metadata, ensure_ascii=False, indent=2), encoding="utf-8")
+    hwpx_path, metadata_path = _paths(document_id)
+    if not hwpx_path.is_file():
+        raise FileNotFoundError("Document bytes missing before durable commit")
+    metadata = dict(metadata)
+    metadata["storage"] = DOCUMENT_STORE.mode
+    metadata.setdefault("revision", 1)
+    raw = hwpx_path.read_bytes()
+    digest = hashlib.sha256(raw).hexdigest()
+    metadata["sha256"] = digest
+    metadata["bytes"] = len(raw)
+    try:
+        DOCUMENT_STORE.put_revision(
+            document_id=document_id,
+            owner_subject=str(metadata["owner_subject"]),
+            revision=int(metadata["revision"]),
+            metadata=metadata,
+            data=raw,
+            expires_at_epoch=float(metadata["expires_at_epoch"]),
+        )
+    except Exception:
+        durable = DOCUMENT_STORE.load_current(document_id, allow_expired=True)
+        if durable is None:
+            for path in (hwpx_path, metadata_path):
+                try:
+                    path.unlink()
+                except FileNotFoundError:
+                    pass
+        else:
+            _hydrate_local(document_id, durable)
+        raise
+    metadata_path.write_text(
+        json.dumps(metadata, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
 
 
 def _load_metadata(document_id: str, *, allow_expired: bool = False) -> dict:
     hwpx_path, metadata_path = _paths(document_id)
-    if not hwpx_path.is_file() or not metadata_path.is_file():
+    durable = DOCUMENT_STORE.load_current(document_id, allow_expired=allow_expired)
+    if durable is None:
         raise FileNotFoundError("Unknown document_id")
-    metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+
+    needs_hydration = True
+    if hwpx_path.is_file() and metadata_path.is_file():
+        try:
+            local = json.loads(metadata_path.read_text(encoding="utf-8"))
+            local_revision = int(local.get("revision", 1))
+            local_sha = hashlib.sha256(hwpx_path.read_bytes()).hexdigest()
+            needs_hydration = not (
+                local_revision == int(durable["revision"])
+                and local_sha == durable["sha256"]
+            )
+        except (OSError, ValueError, TypeError, json.JSONDecodeError):
+            needs_hydration = True
+
+    metadata = _hydrate_local(document_id, durable) if needs_hydration else json.loads(
+        metadata_path.read_text(encoding="utf-8")
+    )
     if not allow_expired and float(metadata["expires_at_epoch"]) <= time.time():
         _delete_document_files(document_id)
         raise FileNotFoundError("Document expired")
@@ -154,7 +232,7 @@ def _load_metadata(document_id: str, *, allow_expired: bool = False) -> dict:
 
 def _delete_document_files(document_id: str) -> bool:
     hwpx_path, metadata_path = _paths(document_id)
-    removed = False
+    removed = DOCUMENT_STORE.delete_document(document_id)
     for path in (hwpx_path, metadata_path):
         try:
             path.unlink()
@@ -165,6 +243,7 @@ def _delete_document_files(document_id: str) -> bool:
 
 
 def _cleanup_expired() -> None:
+    DOCUMENT_STORE.cleanup_expired()
     now = time.time()
     for metadata_path in OBJECT_DIR.glob("doc_*.json"):
         try:
@@ -172,7 +251,12 @@ def _cleanup_expired() -> None:
             if float(metadata.get("expires_at_epoch", 0)) <= now:
                 document_id = metadata_path.stem
                 if DOC_ID_RE.fullmatch(document_id):
-                    _delete_document_files(document_id)
+                    hwpx_path, _ = _paths(document_id)
+                    for path in (hwpx_path, metadata_path):
+                        try:
+                            path.unlink()
+                        except FileNotFoundError:
+                            pass
         except (OSError, ValueError, TypeError, json.JSONDecodeError):
             continue
 
@@ -283,7 +367,7 @@ def _metadata(document_id: str, *, filename: str, owner_subject: str, validation
         "expires_at_epoch": expires,
         "sha256": validation["sha256"],
         "bytes": validation["bytes"],
-        "storage": "ephemeral-filesystem",
+        "storage": DOCUMENT_STORE.mode,
         "format": "hwpx",
         "source": source,
     }

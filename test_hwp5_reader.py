@@ -23,6 +23,8 @@ from hwp5_reader import (
     _parse_id_mappings,
     _parse_face_name,
     _parse_docinfo_para_shape,
+    _parse_docinfo_style,
+    _parse_rectangle_record,
     _resolve_char_shape_faces,
     _build_run_receipts,
     _parse_ctrl_header,
@@ -316,6 +318,35 @@ class Hwp5ReaderPrimitiveTests(unittest.TestCase):
         self.assertEqual(shape["left_margin_hwpunit"], 720)
         self.assertEqual(shape["spacing_after_hwpunit"], 200)
         self.assertEqual(shape["border_fill_id"], 7)
+
+    def test_p39_style_record_and_rectangle_family(self):
+        def hwp_string(value: str) -> bytes:
+            return struct.pack("<H", len(value)) + value.encode("utf-16le")
+
+        style_payload = (
+            hwp_string("본문")
+            + hwp_string("Body")
+            + bytes([0, 2])
+            + struct.pack("<hHHH", 1042, 7, 9, 0)
+        )
+        style = _parse_docinfo_style(style_payload, 3)
+        self.assertEqual(style["fidelity"], "semantic")
+        self.assertEqual(style["style_id"], 3)
+        self.assertEqual(style["local_name"], "본문")
+        self.assertEqual(style["para_shape_id"], 7)
+        self.assertEqual(style["char_shape_id"], 9)
+
+        rectangle_payload = (
+            bytes([12])
+            + struct.pack("<iiii", 0, 4000, 4000, 0)
+            + struct.pack("<iiii", 0, 0, 1800, 1800)
+        )
+        rect = _parse_rectangle_record(rectangle_payload)
+        self.assertEqual(rect["kind"], "rectangle")
+        self.assertEqual(rect["fidelity"], "structural")
+        self.assertEqual(rect["curvature"], 12)
+        self.assertEqual(rect["x"], [0, 4000, 4000, 0])
+        self.assertEqual(rect["y"], [0, 0, 1800, 1800])
 
     def test_p38_header_footer_scope_and_note_control(self):
         ctrl_value = int.from_bytes(b"head", "big")

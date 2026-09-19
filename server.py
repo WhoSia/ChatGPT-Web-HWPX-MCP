@@ -609,7 +609,7 @@ async def health(_request):
             "status": "ok" if durable_ok else "degraded",
             "project": PROJECT,
             "version": VERSION,
-            "phase": "P3.0",
+            "phase": "P3.1",
             "oauth": {
                 "enabled": True,
                 "configured": OAUTH_PROVIDER.configured,
@@ -626,6 +626,12 @@ async def health(_request):
                 "local_cache": str(OBJECT_DIR),
                 "retention_seconds_default": DOC_TTL_SECONDS,
                 "restart_rehydration": True,
+                "concurrency": {
+                    "revision_cas": True,
+                    "ttl_leases": True,
+                    "idempotent_commit_receipts": True,
+                    "crash_consistent_cache_rehydration": True,
+                },
             },
             "ingress": {
                 "enabled": True,

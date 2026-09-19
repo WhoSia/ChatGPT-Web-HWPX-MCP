@@ -31,7 +31,7 @@ async def main() -> None:
     oauth = OAuthClientProvider(
         server_url=URL,
         client_metadata=OAuthClientMetadata(
-            client_name="P3.8 HWP-HWPX Equivalence Probe",
+            client_name="P3.9 HWP-HWPX Equivalence Probe",
             redirect_uris=[AnyUrl("http://127.0.0.1:8765/callback")],
             scope="hwpx offline_access",
         ),
@@ -78,6 +78,31 @@ async def main() -> None:
             if not target_ir or target_ir.get("source_format") != "hwpx":
                 raise RuntimeError(f"HWPX common IR failed: {target_ir}")
 
+            source_style_provenance = _payload(await client.call_tool(
+                "get_paragraph_style_provenance",
+                {
+                    "content_base64": hwp_b64,
+                    "filename": HWP.name,
+                    "max_paragraphs": 100,
+                },
+            ))
+            target_style_provenance = _payload(await client.call_tool(
+                "get_paragraph_style_provenance",
+                {
+                    "document_id": document_id,
+                    "max_paragraphs": 100,
+                },
+            ))
+            if (
+                not source_style_provenance
+                or source_style_provenance.get("source_format") != "hwp5"
+                or not target_style_provenance
+                or target_style_provenance.get("source_format") != "hwpx"
+            ):
+                raise RuntimeError(
+                    f"style provenance graph failed: {source_style_provenance} / {target_style_provenance}"
+                )
+
             oracle = _payload(await client.call_tool("compare_hwp5_roundtrip_fidelity", {
                 "content_base64": hwp_b64,
                 "document_id": document_id,
@@ -90,6 +115,13 @@ async def main() -> None:
             if not (families.get("body_text") or {}).get("exact"):
                 raise RuntimeError(f"known-equivalent pair body text mismatch: {oracle}")
 
+            paragraph_style = families.get("paragraph_style") or {}
+            for mismatch in paragraph_style.get("mismatches", []):
+                if not mismatch.get("source_provenance") or not mismatch.get("target_provenance"):
+                    raise RuntimeError(
+                        f"paragraph style mismatch lacks provenance decomposition: {oracle}"
+                    )
+
             report = {
                 "hwp_bytes": len(hwp_raw),
                 "hwpx_bytes": len(hwpx_raw),
@@ -100,6 +132,11 @@ async def main() -> None:
                 "body_text": families.get("body_text"),
                 "run_style": families.get("run_style"),
                 "paragraph_style": families.get("paragraph_style"),
+                "style_provenance": {
+                    "source_returned": source_style_provenance.get("returned_paragraphs"),
+                    "target_returned": target_style_provenance.get("returned_paragraphs"),
+                    "authority": source_style_provenance.get("authority"),
+                },
                 "tables": families.get("tables"),
                 "equations": families.get("equations"),
                 "pictures": families.get("pictures"),
@@ -113,7 +150,7 @@ async def main() -> None:
                 raise RuntimeError(f"pair cleanup failed: {deleted}")
             document_id = None
 
-    print("P3.8 REAL_HWP_HWPX_EQUIVALENCE_PASS")
+    print("P3.9 REAL_HWP_HWPX_EQUIVALENCE_PASS")
     print(json.dumps(report, ensure_ascii=False, sort_keys=True))
 
 

@@ -25,6 +25,7 @@ from hwp5_reader import Hwp5ReadError, parse_hwp5_bytes
 from common_ir import (
     hwp5_to_common_ir,
     hwpx_to_common_ir,
+    extract_common_ir,
     search_common_ir,
     slice_common_ir,
 )
@@ -620,6 +621,36 @@ def get_common_document_ir(
         response["blocks"] = blocks[:limit]
         response["blocks_truncated"] = len(blocks) > limit
     return response
+
+
+@core.mcp.tool()
+def extract_common_document(
+    document_id: str = "",
+    content_base64: str = "",
+    filename: str = "document.hwp",
+    kinds: list[str] = [],
+    minimum_fidelity: str = "inventory",
+    include_text: bool = True,
+    include_data: bool = True,
+    max_blocks: int = 200,
+) -> dict:
+    """Extract only common-IR blocks meeting an explicit minimum fidelity grade."""
+    ir = _common_ir_from_source(document_id, content_base64, filename)
+    result = extract_common_ir(
+        ir,
+        kinds=kinds or None,
+        minimum_fidelity=minimum_fidelity,
+        include_text=include_text,
+        include_data=include_data,
+        max_blocks=max_blocks,
+    )
+    return {
+        "ok": True,
+        "source_format": ir["source_format"],
+        "ir_sha256": ir["ir_sha256"],
+        "inventory": ir["inventory"],
+        **result,
+    }
 
 
 @core.mcp.tool()
@@ -1700,6 +1731,13 @@ def p2_capabilities() -> dict:
             "compact_document_history",
             "verify_document_lineage",
             "get_document_map",
+            "assess_hwp5_promotion",
+            "get_common_document_slice",
+            "search_common_document",
+            "extract_common_document",
+            "get_common_document_ir",
+            "materialize_hwp5_text_derivative",
+            "inspect_hwp5_document",
             "search_document_text",
             "get_document_slice",
             "plan_bulk_text_replace",
@@ -1842,6 +1880,7 @@ def p2_capabilities() -> dict:
             "formats": ["hwpx", "hwp5"],
             "blocks": ["paragraph", "table", "equation", "picture", "shape", "binary"],
             "search": "one query contract across HWPX document custody and bounded HWP 5.x payloads",
+            "extract": "kind-filtered blocks gated by an explicit minimum fidelity threshold",
             "fidelity": "every block carries source-native receipts and an explicit fidelity grade",
         },
         "hwp5_promotion": {

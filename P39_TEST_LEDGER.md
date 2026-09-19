@@ -6,7 +6,7 @@
 
 ## Verdict
 
-`IMPLEMENTATION_PASS / NATIVE_CI_PASS / STYLE_PROVENANCE_GRAPH_PASS / NATIVE_RECTANGLE_TEXTBOX_PROMOTION_PASS / TABLE_CELL_GEOMETRY_EXACT_PASS / EQUATION_GEOMETRY_EXACT_PASS / PICTURE_GEOMETRY_EXACT_PASS / STRUCTURAL_HWPUNIT_LAYOUT_PASS / PIXEL_RENDER_FIDELITY_HOLD / PRODUCTION_DEPLOY_PENDING_AT_SEAL`
+`IMPLEMENTATION_PASS / NATIVE_CI_PASS / STYLE_PROVENANCE_GRAPH_PASS / NATIVE_RECTANGLE_TEXTBOX_PROMOTION_PASS / TABLE_CELL_GEOMETRY_EXACT_PASS / EQUATION_GEOMETRY_EXACT_PASS / PICTURE_GEOMETRY_EXACT_PASS / STRUCTURAL_HWPUNIT_LAYOUT_PASS / PIXEL_RENDER_FIDELITY_HOLD / PUBLIC_BOUNDARY_PASS / PRODUCTION_DEPLOYED`
 
 ## Canonical code evidence
 
@@ -215,3 +215,26 @@ P3.9 preserves:
 ## Successor
 
 **ChatGPT Web HWPX MCP P3.10 — Page/Section Geometry Constitution, Pagination & Line-Break Receipts, External Render-Control World Contact, Raster-Diff Fidelity Oracle & Layout-Authority Calibration**
+
+
+## Final production closure
+
+Runtime canonical code head:
+
+`69477f547c9e4890e588ae6c457f4f3591200d79`
+
+This head contains the P3.9 implementation plus the production-image fix that copies `p39_textbox.py` into the Docker image.
+
+Production receipt:
+
+- Render deploy: `dep-dancnnbbc2fs73dvebi0`
+- status: `live`
+- server version: `0.9.0-p3.9`
+- native lifecycle: `35459385849` — SUCCESS
+- public boundary: `35459385798`, attempt 2 — SUCCESS
+
+The first production attempt exposed a deployment-only packaging defect: GitHub Actions could import `p39_textbox.py` from the repository, while the Dockerfile omitted that module from its explicit COPY list. The image contract was corrected; no textbox semantics were weakened.
+
+The first public-boundary attempt after successful deployment reached the expected P3.9 version and OAuth metadata but hit a Render-branded 502 on the final unauthenticated MCP probe. Re-running the same code after the edge stabilized passed without application changes.
+
+Therefore P3.9 production authority is closed for the implemented structural/document semantics. Pixel-render fidelity remains intentionally open.

@@ -156,6 +156,8 @@ def _hydrate_local(document_id: str, durable: dict) -> dict:
     metadata["revision"] = int(durable["revision"])
     metadata["sha256"] = durable["sha256"]
     metadata["bytes"] = len(durable["bytes"])
+    metadata["expires_at_epoch"] = float(durable["expires_at_epoch"])
+    metadata["expires_at"] = _utc_iso(float(durable["expires_at_epoch"]))
     metadata["storage"] = DOCUMENT_STORE.mode
     hwpx_path.write_bytes(durable["bytes"])
     metadata_path.write_text(

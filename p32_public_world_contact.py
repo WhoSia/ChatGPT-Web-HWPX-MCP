@@ -121,15 +121,39 @@ async def main() -> None:
         access_token = token_data["access_token"]
         print("oauth: DCR+PKCE+token PASS")
 
+        async def safe_probe(label: str, method: str, url: str, headers: dict | None = None) -> int:
+            response = await client.request(method, url, headers=headers or {})
+            print(
+                f"http-probe {label}:",
+                response.status_code,
+                response.headers.get("content-type", ""),
+                response.text[:220].replace("\n", " "),
+            )
+            return response.status_code
+
+        await safe_probe("health-no-auth", "GET", f"{BASE_URL}/health")
+        await safe_probe(
+            "health-valid-bearer",
+            "GET",
+            f"{BASE_URL}/health",
+            {"Authorization": f"Bearer {access_token}"},
+        )
+        await safe_probe("auth-probe-no-auth", "POST", f"{BASE_URL}/p32-r2/auth-probe")
+        await safe_probe(
+            "auth-probe-bogus-bearer",
+            "POST",
+            f"{BASE_URL}/p32-r2/auth-probe",
+            {"Authorization": "Bearer at_invalid"},
+        )
         auth_probe = await client.post(
             f"{BASE_URL}/p32-r2/auth-probe",
             headers={"Authorization": f"Bearer {access_token}"},
         )
         print(
-            "auth-probe:",
+            "http-probe auth-probe-valid-bearer:",
             auth_probe.status_code,
             auth_probe.headers.get("content-type", ""),
-            auth_probe.text[:300],
+            auth_probe.text[:300].replace("\n", " "),
         )
         if auth_probe.status_code != 200:
             raise RuntimeError(

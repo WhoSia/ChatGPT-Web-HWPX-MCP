@@ -61,6 +61,19 @@ ChatGPT Web
 
 There are no password, passphrase, API-key, or access-token fields in MCP tool schemas. Authentication happens at the HTTP/MCP transport layer.
 
+## P3.5 common document IR and fidelity-graded HWP promotion
+
+P3.5 promotes legacy HWP 5.x from a text-only side lane into the same format-neutral document model used for HWPX.
+
+- `get_common_document_ir` materializes a shared block model for either owned HWPX custody or one bounded HWP 5.x payload.
+- Common block kinds currently include paragraph, table, equation, picture/shape, and binary custody items.
+- Every block carries source receipts plus an explicit fidelity grade: `inventory < raw-preserved < structural < semantic < editable-native`.
+- `search_common_document` and `get_common_document_slice` work across HWPX and HWP through the same contract.
+- `extract_common_document` can require a minimum fidelity threshold, so agents can exclude low-authority object families instead of silently treating them as equivalent.
+- HWP paragraph text is semantic-grade; table geometry is structural-grade; EqEdit script is semantic-grade; picture/BinData linkage remains inventory/raw-preserved until stronger linkage evidence is implemented.
+- `assess_hwp5_promotion` reports object-family promotion grades before any derivative is created.
+- HWP→HWPX promotion remains provenance-preserving: text becomes editable HWPX, while lower-fidelity object families remain explicit provenance rather than being fabricated into native HWPX objects.
+
 ## P3.4 atomic bulk text plans
 
 P3.4 turns bounded search hits into revision-bound edit plans instead of forcing an agent to issue one mutation per hit.

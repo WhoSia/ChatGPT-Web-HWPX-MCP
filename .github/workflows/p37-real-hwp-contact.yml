@@ -57,6 +57,8 @@ jobs:
           ENDNOTE_HWP_URL: "https://raw.githubusercontent.com/myeolinmalchi/hangulang/main/tests/fixtures/footnotes/endnote-01.hwp"
           FOOTER_HWP_URL: "https://raw.githubusercontent.com/myeolinmalchi/hangulang/main/tests/fixtures/mixed/sub-superscript.hwp"
           TEXTBOX_HWP_URL: "https://raw.githubusercontent.com/edwardkim/rhwp/main/samples/footnote-tbox-01.hwp"
+          PAIR_HWP_URL: "https://raw.githubusercontent.com/myeolinmalchi/hangulang/main/tests/fixtures/pairs/para-001.hwp"
+          PAIR_HWPX_URL: "https://raw.githubusercontent.com/myeolinmalchi/hangulang/main/tests/fixtures/pairs/para-001.hwpx"
         run: |
           set -euo pipefail
           curl --fail --location --retry 4 --retry-all-errors --connect-timeout 15 --max-time 60 "$HEADER_HWP_URL" -o /tmp/pic-in-head-01.hwp
@@ -64,9 +66,11 @@ jobs:
           curl --fail --location --retry 4 --retry-all-errors --connect-timeout 15 --max-time 60 "$ENDNOTE_HWP_URL" -o /tmp/endnote-01.hwp
           curl --fail --location --retry 4 --retry-all-errors --connect-timeout 15 --max-time 60 "$FOOTER_HWP_URL" -o /tmp/sub-superscript.hwp
           curl --fail --location --retry 4 --retry-all-errors --connect-timeout 15 --max-time 60 "$TEXTBOX_HWP_URL" -o /tmp/footnote-tbox-01.hwp
+          curl --fail --location --retry 4 --retry-all-errors --connect-timeout 15 --max-time 60 "$PAIR_HWP_URL" -o /tmp/para-001.hwp
+          curl --fail --location --retry 4 --retry-all-errors --connect-timeout 15 --max-time 60 "$PAIR_HWPX_URL" -o /tmp/para-001.hwpx
           python - <<'PY'
           from pathlib import Path
-          for name in ("pic-in-head-01.hwp", "footnote-01.hwp", "endnote-01.hwp", "sub-superscript.hwp", "footnote-tbox-01.hwp"):
+          for name in ("pic-in-head-01.hwp", "footnote-01.hwp", "endnote-01.hwp", "sub-superscript.hwp", "footnote-tbox-01.hwp", "para-001.hwp"):
               data = (Path("/tmp") / name).read_bytes()
               assert data[:8] == bytes.fromhex("d0cf11e0a1b11ae1"), (name, data[:8].hex())
               print("fixture:", name, "bytes=", len(data))
@@ -96,10 +100,16 @@ jobs:
           P37_TEXTBOX_HWP: /tmp/footnote-tbox-01.hwp
         run: python p37_nested_flow_probe.py
 
+      - name: OAuth-native HWP-HWPX equivalence-pair differential oracle
+        env:
+          P37_PAIR_HWP: /tmp/para-001.hwp
+          P37_PAIR_HWPX: /tmp/para-001.hwpx
+        run: python p37_equivalence_probe.py
+
       - name: Show MCP log on failure
         if: failure()
         run: cat /tmp/p37-mcp.log || true
 
       - name: Remove external HWP fixtures
         if: always()
-        run: rm -f /tmp/pic-in-head-01.hwp /tmp/footnote-01.hwp /tmp/endnote-01.hwp /tmp/sub-superscript.hwp /tmp/footnote-tbox-01.hwp
+        run: rm -f /tmp/pic-in-head-01.hwp /tmp/footnote-01.hwp /tmp/endnote-01.hwp /tmp/sub-superscript.hwp /tmp/footnote-tbox-01.hwp /tmp/para-001.hwp /tmp/para-001.hwpx

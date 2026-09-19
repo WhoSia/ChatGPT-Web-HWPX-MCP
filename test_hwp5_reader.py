@@ -17,6 +17,10 @@ from hwp5_reader import (
     _parse_header,
     _parse_table_record,
     _parse_equation_record,
+    _parse_para_header,
+    _parse_para_char_shapes,
+    _parse_docinfo_char_shape,
+    _build_run_receipts,
     _parse_ctrl_header,
     _parse_list_header,
     _parse_table_cell_from_list_header,
@@ -89,6 +93,82 @@ class Hwp5ReaderPrimitiveTests(unittest.TestCase):
         self.assertEqual(eq["script"], script)
         self.assertEqual(eq["font_size"], 1200)
         self.assertEqual(eq["baseline"], -7)
+
+    def test_paragraph_header_and_char_shape_runs(self):
+        raw = bytearray(22)
+        struct.pack_into("<II", raw, 0, 6, 0)
+        struct.pack_into("<H", raw, 8, 12)
+        raw[10] = 3
+        raw[11] = 0
+        struct.pack_into("<HHH", raw, 12, 2, 0, 1)
+        struct.pack_into("<I", raw, 18, 77)
+        header = _parse_para_header(bytes(raw))
+        self.assertEqual(header["para_shape_id"], 12)
+        self.assertEqual(header["para_style_id"], 3)
+        self.assertEqual(header["char_shape_count"], 2)
+        self.assertEqual(header["instance_id"], 77)
+
+        changes = _parse_para_char_shapes(
+            struct.pack("<IIII", 0, 0, 2, 1)
+        )
+        shape0 = {
+            "char_shape_id": 0,
+            "fidelity": "semantic",
+            "bold": False,
+        }
+        shape1 = {
+            "char_shape_id": 1,
+            "fidelity": "semantic",
+            "bold": True,
+        }
+        receipts = _build_run_receipts(
+            "abcdef",
+            header,
+            changes,
+            [shape0, shape1],
+        )
+        self.assertEqual(receipts["visible_span_fidelity"], "semantic")
+        self.assertEqual(receipts["runs"][0]["text"], "ab")
+        self.assertEqual(receipts["runs"][1]["text"], "cdef")
+        self.assertTrue(receipts["runs"][1]["char_shape"]["bold"])
+
+    def test_controlled_paragraph_keeps_source_coordinate_only(self):
+        header = {
+            "char_count": 8,
+            "control_mask": 1,
+        }
+        receipts = _build_run_receipts(
+            "abcd",
+            header,
+            [{"source_position": 0, "char_shape_id": 0}],
+            [{"char_shape_id": 0, "fidelity": "semantic"}],
+        )
+        self.assertEqual(
+            receipts["visible_span_fidelity"],
+            "source-coordinate-only",
+        )
+        self.assertFalse(receipts["runs"][0]["visible_span_certified"])
+
+    def test_docinfo_char_shape_semantic_decode(self):
+        raw = bytearray(74)
+        struct.pack_into("<7H", raw, 0, 1, 2, 3, 4, 5, 6, 7)
+        raw[14:21] = bytes([100] * 7)
+        struct.pack_into("<7b", raw, 21, *([0] * 7))
+        raw[28:35] = bytes([100] * 7)
+        struct.pack_into("<7b", raw, 35, *([0] * 7))
+        struct.pack_into("<I", raw, 42, 1200)
+        struct.pack_into("<I", raw, 46, 0b11)
+        struct.pack_into("<bb", raw, 50, 1, -1)
+        struct.pack_into("<IIII", raw, 52, 0x00112233, 0, 0x00FFFFFF, 0)
+        struct.pack_into("<H", raw, 68, 9)
+        struct.pack_into("<I", raw, 70, 0x00010203)
+        shape = _parse_docinfo_char_shape(bytes(raw), 4)
+        self.assertEqual(shape["char_shape_id"], 4)
+        self.assertEqual(shape["height"], 1200)
+        self.assertTrue(shape["italic"])
+        self.assertTrue(shape["bold"])
+        self.assertEqual(shape["face_ids"][0], 1)
+        self.assertEqual(shape["border_fill_id"], 9)
 
     def test_ctrl_header_geometry_decode(self):
         ctrl_id = (ord("e") << 24) | (ord("q") << 16) | (ord("e") << 8) | ord("d")

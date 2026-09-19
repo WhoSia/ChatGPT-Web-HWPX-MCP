@@ -121,8 +121,11 @@ async def main() -> None:
         access_token = token_data["access_token"]
         print("oauth: DCR+PKCE+token PASS")
 
+        transport_client = httpx2.AsyncClient(follow_redirects=False, timeout=60.0)
+        print("transport: fresh post-token HTTP connection")
+
         async def safe_probe(label: str, method: str, url: str, headers: dict | None = None) -> int:
-            response = await client.request(method, url, headers=headers or {})
+            response = await transport_client.request(method, url, headers=headers or {})
             print(
                 f"http-probe {label}:",
                 response.status_code,
@@ -145,7 +148,7 @@ async def main() -> None:
             f"{BASE_URL}/p32-r2/auth-probe",
             {"Authorization": "Bearer at_invalid"},
         )
-        auth_probe = await client.post(
+        auth_probe = await transport_client.post(
             f"{BASE_URL}/p32-r2/auth-probe",
             headers={"Authorization": f"Bearer {access_token}"},
         )
@@ -161,7 +164,7 @@ async def main() -> None:
             )
 
         async def wire_probe(label: str, headers: dict, payload: dict) -> int:
-            response = await client.post(MCP_URL, headers=headers, json=payload)
+            response = await transport_client.post(MCP_URL, headers=headers, json=payload)
             print(
                 f"wire-probe {label}:",
                 response.status_code,
@@ -199,7 +202,7 @@ async def main() -> None:
             }
             if tool_name:
                 headers["MCP-Name"] = tool_name
-            response = await client.post(
+            response = await transport_client.post(
                 MCP_URL,
                 headers=headers,
                 json={"jsonrpc": "2.0", "id": rpc_id, "method": method, "params": params or {}},
@@ -336,6 +339,7 @@ async def main() -> None:
             if document_id:
                 deleted = await call_tool("delete_document", {"document_id": document_id}, allow_error=True)
                 print("cleanup:", bool(deleted and deleted.get("deleted")))
+            await transport_client.aclose()
 
 
 if __name__ == "__main__":

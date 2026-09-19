@@ -722,19 +722,8 @@ def materialize_hwp5_rich_derivative(
                         "reason": "anchor_or_cell_binding_incomplete",
                     })
                     continue
+                created_table = None
                 try:
-                    paragraph, _target = _resolve_hwpx_paragraph(
-                        document, hwpx_path, anchor_locator
-                    )
-                    control = controls.get(int(source_table.get("control_index", -1)))
-                    width = None if not control else int(control.get("width") or 0)
-                    height = None if not control else int(control.get("height") or 0)
-                    table = paragraph.add_table(
-                        rows,
-                        cols,
-                        width=width if width and width > 0 else None,
-                        height=height if height and height > 0 else None,
-                    )
                     normalized_cells: list[dict] = []
                     anchors_seen: set[tuple[int, int]] = set()
                     for cell in sorted(
@@ -762,29 +751,61 @@ def materialize_hwp5_rich_derivative(
                             ),
                         })
 
-                    # Write content before merge so every physical source address
-                    # is still addressable. Merge changes logical grid lookup.
+                    # HWP may retain physical cell records that are covered by a
+                    # spanning anchor. Treat them as subordinate storage, not as
+                    # independent logical cells. Any visible subordinate text is
+                    # an ambiguity and therefore blocks promotion.
+                    coverage_owner: dict[tuple[int, int], tuple[int, int]] = {}
                     for cell in normalized_cells:
-                        table.set_cell_text(
+                        if cell["row_span"] == 1 and cell["col_span"] == 1:
+                            continue
+                        anchor = (cell["row"], cell["col"])
+                        for r in range(cell["row"], cell["row"] + cell["row_span"]):
+                            for col in range(cell["col"], cell["col"] + cell["col_span"]):
+                                coord = (r, col)
+                                if coord == anchor:
+                                    continue
+                                previous = coverage_owner.get(coord)
+                                if previous is not None and previous != anchor:
+                                    raise ValueError("overlapping merged-cell anchors")
+                                coverage_owner[coord] = anchor
+
+                    material_cells: list[dict] = []
+                    for cell in normalized_cells:
+                        coord = (cell["row"], cell["col"])
+                        if coord in coverage_owner:
+                            if cell["text"].strip():
+                                raise ValueError(
+                                    "covered subordinate cell contains visible text"
+                                )
+                            continue
+                        material_cells.append(cell)
+
+                    paragraph, _target = _resolve_hwpx_paragraph(
+                        document, hwpx_path, anchor_locator
+                    )
+                    control = controls.get(int(source_table.get("control_index", -1)))
+                    width = None if not control else int(control.get("width") or 0)
+                    height = None if not control else int(control.get("height") or 0)
+                    created_table = paragraph.add_table(
+                        rows,
+                        cols,
+                        width=width if width and width > 0 else None,
+                        height=height if height and height > 0 else None,
+                    )
+
+                    for cell in material_cells:
+                        created_table.set_cell_text(
                             cell["row"],
                             cell["col"],
                             cell["text"],
                             logical=False,
                         )
 
-                    merged_coverage: set[tuple[int, int]] = set()
-                    for cell in normalized_cells:
+                    for cell in material_cells:
                         if cell["row_span"] == 1 and cell["col_span"] == 1:
                             continue
-                        covered = {
-                            (r, col)
-                            for r in range(cell["row"], cell["row"] + cell["row_span"])
-                            for col in range(cell["col"], cell["col"] + cell["col_span"])
-                        }
-                        if merged_coverage & covered:
-                            raise ValueError("source merged-cell topology overlaps")
-                        merged_coverage |= covered
-                        table.merge_cells(
+                        created_table.merge_cells(
                             cell["row"],
                             cell["col"],
                             cell["row"] + cell["row_span"] - 1,
@@ -792,6 +813,15 @@ def materialize_hwp5_rich_derivative(
                         )
                     promotion_report["tables"]["promoted"] += 1
                 except Exception as exc:
+                    if created_table is not None:
+                        try:
+                            element = created_table.element
+                            parent = element.getparent()
+                            if parent is not None:
+                                parent.remove(element)
+                                paragraph.section.mark_dirty()
+                        except Exception:
+                            pass
                     promotion_report["tables"]["deferred"].append({
                         "table_index": table_index,
                         "reason": f"promotion_refused:{type(exc).__name__}",

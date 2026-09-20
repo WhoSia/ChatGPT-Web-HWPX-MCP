@@ -23,6 +23,8 @@ from p26_controls import apply_control_edits_atomic
 from p28_tables import apply_table_edits_atomic, build_table_map
 from p29_objects import apply_object_edits_atomic, build_object_map
 from p39_textbox import build_textbox_map, inject_textbox
+from p311_layout_fidelity import build_hwpx_layout_receipt
+from p312_render_harness import adjudicate_fixture_world_contact
 from p210_equations import (
     apply_equation_edits_atomic,
     build_equation_map,
@@ -42,7 +44,7 @@ from common_ir import (
     slice_common_ir,
 )
 
-P2_VERSION = "0.9.0-p3.9"
+P2_VERSION = "0.9.0-p3.12"
 core.VERSION = P2_VERSION
 
 _original_metadata = core._metadata
@@ -352,6 +354,36 @@ def verify_document_lineage(document_id: str) -> dict:
         **report,
         "metadata_revision": int(metadata["revision"]),
         "audit_semantics": "commit ledger is append-only authority; byte-snapshot compaction does not erase commit receipts",
+    }
+
+
+@core.mcp.tool()
+def get_layout_fidelity_receipt(document_id: str) -> dict:
+    """Return renderer-independent page/section, explicit-break and font receipts."""
+    metadata, path = _owned_document(document_id)
+    receipt = build_hwpx_layout_receipt(path)
+    return {
+        "ok": True,
+        "document_id": document_id,
+        "revision": int(metadata["revision"]),
+        **receipt,
+    }
+
+
+@core.mcp.tool()
+def adjudicate_render_world_contact(
+    document_id: str,
+    render_receipt: dict,
+) -> dict:
+    """Validate one externally measured Hancom render receipt against the owned HWPX."""
+    metadata, path = _owned_document(document_id)
+    structural = build_hwpx_layout_receipt(path)
+    result = adjudicate_fixture_world_contact(structural, render_receipt)
+    return {
+        "ok": True,
+        "document_id": document_id,
+        "revision": int(metadata["revision"]),
+        **result,
     }
 
 

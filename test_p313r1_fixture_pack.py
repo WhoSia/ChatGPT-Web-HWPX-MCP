@@ -6,8 +6,11 @@ import unittest
 import zipfile
 from pathlib import Path
 
-import server
-from p313r1_fixture_pack import materialize_pre_hancom_pack, select_boundary_candidate
+from p313r1_fixture_pack import (
+    _validate_minimal_hwpx,
+    materialize_pre_hancom_pack,
+    select_boundary_candidate,
+)
 
 
 class P313R1FixturePackTests(unittest.TestCase):
@@ -43,8 +46,8 @@ class P313R1FixturePackTests(unittest.TestCase):
             for fixture in manifest["fixtures"]:
                 source = root / fixture["source"]
                 target = root / fixture["target"]
-                self.assertTrue(server.validate_hwpx_package(source)["valid"])
-                self.assertTrue(server.validate_hwpx_package(target)["valid"])
+                self.assertTrue(_validate_minimal_hwpx(source)["valid"])
+                self.assertTrue(_validate_minimal_hwpx(target)["valid"])
 
             base = next(x for x in manifest["fixtures"] if x["fixture_id"] == "near-wrap-base")
             plus = next(x for x in manifest["fixtures"] if x["fixture_id"] == "near-wrap-plus-advance")

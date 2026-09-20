@@ -6,7 +6,9 @@ on:
     paths:
       - "p313r1_fixture_pack.py"
       - "test_p313r1_fixture_pack.py"
-      - "scripts/p313r1_materialize_pack.py"
+      - "scripts/p313r1_*.py"
+      - "scripts/p313r1_*.ps1"
+      - "requirements-capture.txt"
       - ".github/workflows/p313r1-fixture-pack.yml"
   workflow_dispatch:
 

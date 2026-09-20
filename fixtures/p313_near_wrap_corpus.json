@@ -1,0 +1,29 @@
+{
+  "schema": "chatgpt-web-hwpx-mcp/near-wrap-corpus/p3.13/v1",
+  "fixtures": [
+    {
+      "fixture_id": "near-wrap-base",
+      "role": "baseline",
+      "construction": "single paragraph whose final token sits within one glyph advance of the soft-wrap boundary",
+      "expected": "stable one-version source/target line-break topology under identical geometry and font environment"
+    },
+    {
+      "fixture_id": "near-wrap-plus-advance",
+      "role": "positive-control",
+      "construction": "same semantic text; increase one run's effective advance just enough to cross the soft-wrap threshold",
+      "expected": "line-break topology must diverge"
+    },
+    {
+      "fixture_id": "near-wrap-minus-frame",
+      "role": "positive-control",
+      "construction": "same semantic text; reduce effective text-frame width just enough to cross the soft-wrap threshold",
+      "expected": "line-break topology must diverge"
+    }
+  ],
+  "promotion_rule": {
+    "baseline_must_remain_exact": true,
+    "all_positive_controls_must_be_detected": true,
+    "required_positive_controls": 2,
+    "cross_version_trial_requires_distinct_hancom_versions": true
+  }
+}

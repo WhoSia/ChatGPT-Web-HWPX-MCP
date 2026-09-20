@@ -25,6 +25,12 @@ from p29_objects import apply_object_edits_atomic, build_object_map
 from p39_textbox import build_textbox_map, inject_textbox
 from p311_layout_fidelity import build_hwpx_layout_receipt
 from p312_render_harness import adjudicate_fixture_world_contact
+from p313_capture_custody import (
+    near_wrap_positive_sensitivity_spec,
+    validate_artifact_custody,
+    verify_custody_chain,
+    adjudicate_cross_version_replay,
+)
 from p210_equations import (
     apply_equation_edits_atomic,
     build_equation_map,
@@ -44,7 +50,7 @@ from common_ir import (
     slice_common_ir,
 )
 
-P2_VERSION = "0.9.0-p3.12"
+P2_VERSION = "0.9.0-p3.13"
 core.VERSION = P2_VERSION
 
 _original_metadata = core._metadata
@@ -379,6 +385,46 @@ def adjudicate_render_world_contact(
     metadata, path = _owned_document(document_id)
     structural = build_hwpx_layout_receipt(path)
     result = adjudicate_fixture_world_contact(structural, render_receipt)
+    return {
+        "ok": True,
+        "document_id": document_id,
+        "revision": int(metadata["revision"]),
+        **result,
+    }
+
+
+@core.mcp.tool()
+def get_near_wrap_sensitivity_spec() -> dict:
+    """Return the canonical P3.13 positive-sensitivity corpus specification."""
+    return {"ok": True, **near_wrap_positive_sensitivity_spec()}
+
+
+@core.mcp.tool()
+def validate_render_capture_custody(bundle: dict) -> dict:
+    """Validate one externally produced Windows/Hancom capture custody bundle."""
+    return {"ok": True, **validate_artifact_custody(bundle)}
+
+
+@core.mcp.tool()
+def verify_render_capture_chain(bundles: list[dict]) -> dict:
+    """Verify an append-only sequence of Windows/Hancom capture bundles."""
+    return {"ok": True, **verify_custody_chain(bundles)}
+
+
+@core.mcp.tool()
+def adjudicate_cross_version_render_replay(
+    document_id: str,
+    trials: list[dict],
+    sensitivity: dict = {},
+) -> dict:
+    """Adjudicate at least two distinct Hancom render versions against one HWPX."""
+    metadata, path = _owned_document(document_id)
+    structural = build_hwpx_layout_receipt(path)
+    result = adjudicate_cross_version_replay(
+        structural,
+        trials,
+        sensitivity or None,
+    )
     return {
         "ok": True,
         "document_id": document_id,

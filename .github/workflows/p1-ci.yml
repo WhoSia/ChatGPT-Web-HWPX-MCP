@@ -1,4 +1,4 @@
-name: P3.12 Hancom render world-contact HWPX CI
+name: P3.13 Trusted Hancom capture and replay HWPX CI
 
 on:
   push:
@@ -43,19 +43,19 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Compile Python sources
-        run: python -m compileall -q server.py server_p2.py p2_document.py p22_formatting.py p23_richtext.py p24_inline.py p25_controls.py p26_controls.py p27_tables.py p28_tables.py p29_objects.py p210_equations.py hwp5_reader.py common_ir.py p311_layout_fidelity.py p312_render_harness.py document_store.py oauth_provider.py auth_store.py test_client.py test_p1.py test_p2.py test_hwp5_reader.py test_common_ir.py test_p311_layout_fidelity.py test_p312_render_harness.py test_auth_store.py test_document_store.py
+        run: python -m compileall -q server.py server_p2.py p2_document.py p22_formatting.py p23_richtext.py p24_inline.py p25_controls.py p26_controls.py p27_tables.py p28_tables.py p29_objects.py p210_equations.py hwp5_reader.py common_ir.py p311_layout_fidelity.py p312_render_harness.py p313_capture_custody.py document_store.py oauth_provider.py auth_store.py test_client.py test_p1.py test_p2.py test_hwp5_reader.py test_common_ir.py test_p311_layout_fidelity.py test_p312_render_harness.py test_p313_capture_custody.py test_auth_store.py test_document_store.py
 
-      - name: HWPX admission, durable auth, and P3.12 render-world-contact unit tests
-        run: python -m unittest -v test_p1.py test_p2.py test_hwp5_reader.py test_common_ir.py test_p311_layout_fidelity.py test_p312_render_harness.py test_auth_store.py test_document_store.py
+      - name: HWPX admission, durable auth, and P3.13 capture-custody and cross-version replay unit tests
+        run: python -m unittest -v test_p1.py test_p2.py test_hwp5_reader.py test_common_ir.py test_p311_layout_fidelity.py test_p312_render_harness.py test_p313_capture_custody.py test_auth_store.py test_document_store.py
 
-      - name: Start P3.12 OAuth-protected Streamable HTTP MCP server
+      - name: Start P3.13 OAuth-protected Streamable HTTP MCP server
         run: |
           python server_p2.py > /tmp/mcp.log 2>&1 &
           echo $! > /tmp/mcp.pid
           for i in {1..40}; do
             if curl --fail --silent http://127.0.0.1:8000/health >/tmp/health.json; then
               cat /tmp/health.json
-              grep -q '0.9.0-p3.12' /tmp/health.json
+              grep -q '0.9.0-p3.13' /tmp/health.json
               grep -q 'postgres-encrypted' /tmp/health.json
               exit 0
             fi

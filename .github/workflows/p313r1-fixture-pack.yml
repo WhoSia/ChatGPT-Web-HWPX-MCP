@@ -1,0 +1,56 @@
+name: P3.13-R1 Self-materialized Hancom capture pack
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "p313r1_fixture_pack.py"
+      - "test_p313r1_fixture_pack.py"
+      - "scripts/p313r1_materialize_pack.py"
+      - ".github/workflows/p313r1-fixture-pack.yml"
+  workflow_dispatch:
+
+jobs:
+  materialize:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run P3.13-R1 fixture-pack tests
+        run: python -m unittest -v test_p313r1_fixture_pack.py
+
+      - name: Materialize capture-ready pack
+        run: python scripts/p313r1_materialize_pack.py --out artifacts/p313r1-hancom-capture-pack
+
+      - name: Verify manifest and ZIP
+        run: |
+          test -f artifacts/p313r1-hancom-capture-pack/capture-ready-manifest.json
+          test -f artifacts/p313r1-hancom-capture-pack.zip
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p = Path("artifacts/p313r1-hancom-capture-pack/capture-ready-manifest.json")
+          m = json.loads(p.read_text(encoding="utf-8"))
+          assert m["fixture_count"] == 3
+          assert len(m["boundary_calibration_ladder"]["advance"]) == 8
+          assert len(m["boundary_calibration_ladder"]["frame"]) == 8
+          assert m["manual_fixture_authoring_required"] is False
+          print(m["authority"])
+          PY
+
+      - name: Upload capture-ready pack
+        uses: actions/upload-artifact@v4
+        with:
+          name: p313r1-hancom-capture-pack
+          path: artifacts/p313r1-hancom-capture-pack.zip
+          if-no-files-found: error
+          retention-days: 14

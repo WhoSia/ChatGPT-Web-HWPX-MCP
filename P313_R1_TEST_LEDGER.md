@@ -162,6 +162,7 @@ The main lifecycle workflow also compiles and executes `test_p313r1_fixture_pack
 - Hancom-PDF capture extractor: `1c5755d648088b3bb50487dfcd3ecb4d01f3f414`
 - boundary finalizer: `e68fd4e31920c639f7fdf4f0074890e4d4bfcdef`
 - one-command Windows Hancom runner: `853d145e8bb78cfdde8532531787ebd5f5042233`
+- upload-ready captured evidence ZIP emission: `d6fbfa8395943b1c142ea6ab8a5c038f676b835a`
 - expanded artifact workflow: `e769581cb6dc43484bdde017a8fd7255fd14090e`
 - main CI regression binding: `d9fbf94338076f97898ea27b75df84d9ac6d0bb6`
 

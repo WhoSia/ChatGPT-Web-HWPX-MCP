@@ -185,12 +185,29 @@ def normalize_render_receipt(packet: dict) -> dict:
     return normalized
 
 
+def _line_topology_signature(capture: dict) -> list:
+    signature = []
+    for page in capture["pages"]:
+        lines = page["line_boxes"]
+        rich = [
+            (
+                str(line.get("text_sha256") or ""),
+                str(line.get("paragraph_locator") or ""),
+            )
+            for line in lines
+        ]
+        if any(text_hash or locator for text_hash, locator in rich):
+            signature.append(rich)
+        else:
+            signature.append(len(lines))
+    return signature
+
+
 def _capture_equal(left: dict, right: dict) -> tuple[bool, bool]:
     pagination_equal = left["page_count"] == right["page_count"]
     line_break_equal = (
         pagination_equal
-        and [len(p["line_boxes"]) for p in left["pages"]]
-        == [len(p["line_boxes"]) for p in right["pages"]]
+        and _line_topology_signature(left) == _line_topology_signature(right)
     )
     return pagination_equal, line_break_equal
 

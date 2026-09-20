@@ -122,6 +122,25 @@ def _fixture_text() -> str:
     return " ".join([sentence] * 8)
 
 
+def select_boundary_candidate(candidates: list[dict]) -> dict:
+    """Select the smallest perturbation whose captured line topology diverges."""
+    if not candidates:
+        raise ValueError("boundary candidate list is empty")
+    ordered = sorted(candidates, key=lambda x: float(x["magnitude"]))
+    for item in ordered:
+        if item.get("line_break_diverged") is True:
+            return {
+                "selected": item,
+                "selection_rule": "SMALLEST_OBSERVED_LINE_BREAK_DIVERGENCE",
+                "authority": "HANCOM_OBSERVED_BOUNDARY_SELECTION",
+            }
+    return {
+        "selected": None,
+        "selection_rule": "NO_OBSERVED_TRANSITION",
+        "authority": "BOUNDARY_SELECTION_HOLD",
+    }
+
+
 def materialize_pre_hancom_pack(out_dir: Path) -> dict:
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -236,11 +255,55 @@ def materialize_pre_hancom_pack(out_dir: Path) -> dict:
             ],
         })
 
+    # Calibration ladders avoid guessing the exact Hancom wrap threshold.
+    calibration = {"advance": [], "frame": []}
+    ladder_root = out_dir / "calibration"
+    ladder_root.mkdir(exist_ok=True)
+
+    base_source = out_dir / "near-wrap-base" / "source.hwpx"
+    for basis_points in (10020, 10040, 10060, 10080, 10100, 10120, 10160, 10200):
+        candidate_dir = ladder_root / f"advance-{basis_points}"
+        candidate_dir.mkdir(parents=True, exist_ok=True)
+        source = candidate_dir / "source.hwpx"
+        target = candidate_dir / "target.hwpx"
+        shutil.copy2(base_source, source)
+        shutil.copy2(base_source, target)
+        mutation = _scale_primary_char_height(target, basis_points)
+        calibration["advance"].append({
+            "candidate_id": f"advance-{basis_points}",
+            "magnitude": basis_points - 10000,
+            "source": str(source.relative_to(out_dir)).replace("\\", "/"),
+            "target": str(target.relative_to(out_dir)).replace("\\", "/"),
+            "source_sha256": _sha256_file(source),
+            "target_sha256": _sha256_file(target),
+            "mutation_receipt": mutation,
+        })
+
+    for delta in (71, 142, 213, 283, 354, 425, 567, 709):
+        candidate_dir = ladder_root / f"frame-{delta}"
+        candidate_dir.mkdir(parents=True, exist_ok=True)
+        source = candidate_dir / "source.hwpx"
+        target = candidate_dir / "target.hwpx"
+        shutil.copy2(base_source, source)
+        shutil.copy2(base_source, target)
+        mutation = _contract_text_frame(target, delta)
+        calibration["frame"].append({
+            "candidate_id": f"frame-{delta}",
+            "magnitude": delta,
+            "source": str(source.relative_to(out_dir)).replace("\\", "/"),
+            "target": str(target.relative_to(out_dir)).replace("\\", "/"),
+            "source_sha256": _sha256_file(source),
+            "target_sha256": _sha256_file(target),
+            "mutation_receipt": mutation,
+        })
+
     manifest = {
         "schema": PACK_SCHEMA,
         "fixture_count": len(fixtures),
         "text_sha256": hashlib.sha256(text.encode("utf-8")).hexdigest(),
         "fixtures": fixtures,
+        "boundary_calibration_ladder": calibration,
+        "boundary_selection_rule": "choose the smallest Hancom-observed line-break divergence separately for advance and frame ladders",
         "hancom_step_remaining": True,
         "manual_fixture_authoring_required": False,
         "authority": "CAPTURE_READY_PRE_HANCOM_FIXTURE_PACK",

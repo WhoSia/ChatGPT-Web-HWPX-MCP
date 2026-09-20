@@ -8,8 +8,7 @@ from pathlib import Path
 from typing import Callable
 
 from lxml import etree
-
-import server
+from hwpx import HwpxDocument
 
 
 PACK_SCHEMA = "chatgpt-web-hwpx-mcp/pre-hancom-pack/p3.13-r1/v1"
@@ -105,11 +104,41 @@ def _contract_text_frame(path: Path, right_margin_delta: int) -> dict:
     return changed
 
 
+def _validate_minimal_hwpx(path: Path) -> dict:
+    required = {
+        "mimetype",
+        "version.xml",
+        "META-INF/container.xml",
+        "Contents/content.hpf",
+        "Contents/header.xml",
+        "Contents/section0.xml",
+    }
+    if not path.is_file():
+        raise FileNotFoundError(path)
+    with zipfile.ZipFile(path, "r") as archive:
+        names = set(archive.namelist())
+        missing = sorted(required - names)
+        if missing:
+            raise ValueError(f"HWPX missing required entries: {missing}")
+        if archive.read("mimetype") != b"application/hwp+zip":
+            raise ValueError("invalid HWPX mimetype")
+        for name in ("version.xml", "META-INF/container.xml", "Contents/content.hpf", "Contents/header.xml", "Contents/section0.xml"):
+            etree.fromstring(archive.read(name))
+    return {
+        "valid": True,
+        "bytes": path.stat().st_size,
+        "sha256": _sha256_file(path),
+    }
+
+
 def _make_document(path: Path, text: str, title: str) -> dict:
-    result = server.materialize_hwpx(path, text, title)
-    if not result.get("valid"):
-        raise RuntimeError("self-materialized HWPX failed package validation")
-    return result
+    document = HwpxDocument.new()
+    if title.strip():
+        document.add_paragraph(title.strip())
+    for paragraph in text.replace("\r\n", "\n").replace("\r", "\n").split("\n"):
+        document.add_paragraph(paragraph)
+    document.save_to_path(str(path))
+    return _validate_minimal_hwpx(path)
 
 
 def _fixture_text() -> str:
@@ -188,8 +217,8 @@ def materialize_pre_hancom_pack(out_dir: Path) -> dict:
                 **_contract_text_frame(target, int(spec["right_margin_delta"])),
             }
 
-        source_validation = server.validate_hwpx_package(source)
-        target_validation = server.validate_hwpx_package(target)
+        source_validation = _validate_minimal_hwpx(source)
+        target_validation = _validate_minimal_hwpx(target)
         if not source_validation["valid"] or not target_validation["valid"]:
             raise RuntimeError("fixture mutation produced an invalid HWPX package")
 

@@ -152,9 +152,14 @@ $Summary.boundary_ready = ($BoundaryExit -eq 0)
 $SummaryPath = Join-Path $ResolvedOut "windows-hancom-run-summary.json"
 $Summary | ConvertTo-Json -Depth 8 | Set-Content -Encoding UTF8 $SummaryPath
 
+$CapturedZip = "$ResolvedOut-captured.zip"
+if (Test-Path $CapturedZip) { Remove-Item -Force $CapturedZip }
+Compress-Archive -Path (Join-Path $ResolvedOut "*") -DestinationPath $CapturedZip -CompressionLevel Optimal
+
 Write-Host ""
 Write-Host "P3.13-R1 Hancom capture bootstrap complete."
 Write-Host "Summary: $SummaryPath"
+Write-Host "Upload this ZIP for P3.14: $CapturedZip"
 Write-Host "Succeeded: $($Summary.succeeded.Count)"
 Write-Host "Failed: $($Summary.failed.Count)"
 Write-Host "Boundary ready: $($Summary.boundary_ready)"

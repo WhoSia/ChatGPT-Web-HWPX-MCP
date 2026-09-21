@@ -4306,7 +4306,7 @@ def p2_capabilities() -> dict:
     return {
         "project": core.PROJECT,
         "version": core.VERSION,
-        "phase": "P3.22",
+        "phase": "P3.23",
         "authenticated_subject": subject,
         "tools_added": [
             "acquire_document_lease",
@@ -4363,6 +4363,9 @@ def p2_capabilities() -> dict:
             "create_document_from_plan",
             "get_review_workflow",
             "apply_review_workflow",
+            "get_advanced_table_contract",
+            "get_advanced_tables",
+            "apply_advanced_table_edits",
         ],
         "operations": [
             "replace_paragraph_text",
@@ -4435,15 +4438,18 @@ def p2_capabilities() -> dict:
             "diff": "inline_structure_sha256 + control_rebinding",
         },
         "table_editing": {
-            "introspection": "table/cell semantic map + merge geometry + structure/format/object receipts",
+            "introspection": "table/cell semantic map + merge geometry + structure/format/object + P3.23 advanced-layout receipts",
             "table_address": "intrinsic hp:tbl id when present; revision-bound ordinal fallback",
             "cell_address": "revision-bound grid-anchor locator with rebinding receipts",
             "object_lifecycle": "create_table + delete_table",
-            "row_structure": "insert_row_by_clone + delete_row",
+            "row_structure": "insert_row_by_clone + delete_row + explicit row-height/header properties",
             "column_structure": "delete_column + width/autofit; insert_column evidence gate closed",
             "merge_split": "rectangular merge + merged-cell split",
-            "cell_content_format": "text, shading, borders, gradient, margins, size, header/protect/editable/name",
-            "diff": "table_structure_sha256 + table_format_sha256 + table_object_sha256",
+            "cell_content_format": "text, shading, borders, gradient, margins, size, header/protect/editable/name + vertical alignment",
+            "repeating_headers": "hp:tbl repeatHeader + designated header-row hp:tc header semantics",
+            "table_wide_format": "border/shading fan-out over anchor cells + CELL/TABLE/NONE page-break mode",
+            "authority": "STRUCTURAL_AUTHORITY_ONLY until Hancom-native P3.23 render batch",
+            "diff": "table_structure_sha256 + table_format_sha256 + table_object_sha256 + advanced_table_layout_sha256",
         },
         "object_editing": {
             "introspection": "picture objects + paragraph anchors + package-owned media items",

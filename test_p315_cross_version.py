@@ -87,6 +87,17 @@ class P315CrossVersionTests(unittest.TestCase):
         self.assertFalse(result["promotion_reopened"])
         self.assertEqual(result["verdict"], "CROSS_VERSION_PIXEL_FIDELITY_HOLD")
 
+    def test_os_delta_keeps_environment_isolation_closed(self):
+        second = version_record("14.0.0.1000", "2" * 64)
+        second["os_version"] = "10.0.99999"
+        packet = {
+            "schema": "chatgpt-web-hwpx-mcp/cross-version-replay/p3.15/v1",
+            "versions": [version_record("13.0.0.3622", "1" * 64), second],
+        }
+        result = adjudicate_cross_version_replay(packet)
+        self.assertFalse(result["promotion_reopened"])
+        self.assertIn("NON_RENDERER_ENVIRONMENT_DELTA_PRESENT", result["reason_chain"])
+
     def test_same_version_is_not_cross_version_evidence(self):
         packet = {
             "schema": "chatgpt-web-hwpx-mcp/cross-version-replay/p3.15/v1",

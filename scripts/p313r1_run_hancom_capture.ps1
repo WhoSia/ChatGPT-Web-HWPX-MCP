@@ -59,7 +59,21 @@ function Export-HancomPdf {
     throw "Hancom export timed out after $TimeoutSeconds s for $InputPath"
   }
 
-  if ($proc.ExitCode -ne 0 -or -not (Test-Path $OutputPath)) {
+  # Flush redirected stdout/stderr and refresh process state before reading ExitCode.
+  try { $proc.WaitForExit() } catch {}
+  try { $proc.Refresh() } catch {}
+
+  $exitCode = $null
+  try { $exitCode = [int]$proc.ExitCode } catch {}
+
+  $outputValid = $false
+  if (Test-Path $OutputPath) {
+    try {
+      $outputValid = ((Get-Item $OutputPath).Length -gt 0)
+    } catch {}
+  }
+
+  if (-not $outputValid -or ($null -ne $exitCode -and $exitCode -ne 0)) {
     $detailParts = @()
     if (Test-Path $stderr) {
       $stderrText = Get-Content $stderr -Raw -ErrorAction SilentlyContinue
@@ -71,7 +85,12 @@ function Export-HancomPdf {
     }
     $detail = [string]::Join(" | ", $detailParts)
     if (-not $detail) { $detail = "helper exited without diagnostic output" }
-    throw "Hancom export failed for $InputPath. ExitCode=$($proc.ExitCode). $detail"
+    $exitLabel = if ($null -eq $exitCode) { "unavailable" } else { [string]$exitCode }
+    throw "Hancom export failed for $InputPath. ExitCode=$exitLabel. OutputValid=$outputValid. $detail"
+  }
+
+  if ($null -eq $exitCode) {
+    Write-Host "WARN: helper ExitCode unavailable, but non-empty PDF exists; accepting output by artifact evidence."
   }
 }
 

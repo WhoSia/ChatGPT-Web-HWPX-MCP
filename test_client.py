@@ -182,6 +182,8 @@ async def main() -> None:
                 "get_document_plan_contract",
                 "validate_document_plan",
                 "create_document_from_plan",
+                "get_review_workflow",
+                "apply_review_workflow",
             }
             missing = expected - set(names)
             if missing:
@@ -192,11 +194,11 @@ async def main() -> None:
                     raise RuntimeError(f"secret-bearing field leaked into tool schema: {tool.name}")
 
             read_payload = _payload(await client.call_tool("probe_read", {"message": "P2 OAuth smoke test"}))
-            if not read_payload or not read_payload.get("ok") or read_payload.get("version") != "0.9.0-p3.21":
+            if not read_payload or not read_payload.get("ok") or read_payload.get("version") != "0.9.0-p3.22":
                 raise RuntimeError(f"probe_read did not expose P2: {read_payload}")
 
             p2_caps = _payload(await client.call_tool("p2_capabilities", {}))
-            if not p2_caps or p2_caps.get("phase") != "P3.21":
+            if not p2_caps or p2_caps.get("phase") != "P3.22":
                 raise RuntimeError(f"p2_capabilities failed: {p2_caps}")
 
             if not RUN_WRITE_TEST:
@@ -253,6 +255,86 @@ async def main() -> None:
             ):
                 raise RuntimeError(f"P3.21 one-shot create failed: {planned}")
             planned_document_id = planned["document_id"]
+
+            planned_map = _payload(await client.call_tool("get_document_map", {
+                "document_id": planned_document_id,
+            }))
+            planned_body = next(
+                (
+                    p for p in planned_map.get("paragraphs", [])
+                    if p.get("text") == "one-shot authenticated creation"
+                ),
+                None,
+            )
+            planned_ref = next(
+                (
+                    p for p in planned_map.get("paragraphs", [])
+                    if p.get("text") == "reference target verification"
+                ),
+                None,
+            )
+            if planned_body is None or planned_ref is None:
+                raise RuntimeError(f"P3.22 review targets missing: {planned_map}")
+
+            reviewed = _payload(await client.call_tool("apply_review_workflow", {
+                "document_id": planned_document_id,
+                "expected_revision": 1,
+                "operations": [
+                    {
+                        "op": "tracked_replace",
+                        "paragraph": planned_body["locator"],
+                        "old": "authenticated",
+                        "new": "reviewed",
+                        "author": "CI Reviewer",
+                    },
+                    {
+                        "op": "add_form_field",
+                        "paragraph": planned_ref["locator"],
+                        "name": "reviewer_name",
+                        "prompt": "검토자",
+                    },
+                    {
+                        "op": "add_check_box",
+                        "paragraph": planned_ref["locator"],
+                        "caption": "검토 완료",
+                        "name": "review_done",
+                        "checked": True,
+                    },
+                    {
+                        "op": "add_highlight",
+                        "paragraph": planned_body["locator"],
+                        "match": "one-shot",
+                        "color": "#FFFF00",
+                    },
+                    {
+                        "op": "set_document_metadata",
+                        "title": "P3.22 Transport Review Smoke",
+                        "creator": "CI Reviewer",
+                    },
+                ],
+            }))
+            if (
+                not reviewed
+                or reviewed.get("revision_after") != 2
+                or reviewed.get("transaction") != "COMMITTED"
+            ):
+                raise RuntimeError(f"P3.22 review workflow failed: {reviewed}")
+
+            review_map = _payload(await client.call_tool("get_review_workflow", {
+                "document_id": planned_document_id,
+            }))
+            review_counts = (review_map or {}).get("counts", {})
+            if (
+                not review_map
+                or review_map.get("revision") != 2
+                or review_counts.get("tracked_changes") != 2
+                or review_counts.get("form_fields") != 1
+                or review_counts.get("check_boxes") != 1
+                or review_counts.get("highlights") != 1
+                or not review_map.get("metadata")
+                or review_map["metadata"].get("title") != "P3.22 Transport Review Smoke"
+            ):
+                raise RuntimeError(f"P3.22 review read-back failed: {review_map}")
 
             planned_export = _payload(await client.call_tool("export_document", {
                 "document_id": planned_document_id,

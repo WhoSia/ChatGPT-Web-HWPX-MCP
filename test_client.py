@@ -187,6 +187,9 @@ async def main() -> None:
                 "get_advanced_table_contract",
                 "get_advanced_tables",
                 "apply_advanced_table_edits",
+                "get_story_layer_contract",
+                "get_story_layer",
+                "apply_story_layer",
             }
             missing = expected - set(names)
             if missing:
@@ -197,11 +200,11 @@ async def main() -> None:
                     raise RuntimeError(f"secret-bearing field leaked into tool schema: {tool.name}")
 
             read_payload = _payload(await client.call_tool("probe_read", {"message": "P2 OAuth smoke test"}))
-            if not read_payload or not read_payload.get("ok") or read_payload.get("version") != "0.9.0-p3.23":
+            if not read_payload or not read_payload.get("ok") or read_payload.get("version") != "0.9.0-p3.24":
                 raise RuntimeError(f"probe_read did not expose P2: {read_payload}")
 
             p2_caps = _payload(await client.call_tool("p2_capabilities", {}))
-            if not p2_caps or p2_caps.get("phase") != "P3.23":
+            if not p2_caps or p2_caps.get("phase") != "P3.24":
                 raise RuntimeError(f"p2_capabilities failed: {p2_caps}")
 
             if not RUN_WRITE_TEST:
@@ -433,6 +436,99 @@ async def main() -> None:
                 or readback_cell.get("vertical_alignment") != "BOTTOM"
             ):
                 raise RuntimeError(f"P3.23 advanced table state mismatch: {advanced_readback}")
+
+            story_contract = _payload(await client.call_tool("get_story_layer_contract", {}))
+            if (
+                not story_contract
+                or story_contract.get("phase") != "P3.24"
+                or story_contract.get("authority") != "STRUCTURAL_STORY_LAYER_AUTHORITY_ONLY"
+                or story_contract.get("native_page_types") != ["BOTH", "EVEN", "ODD"]
+                or "set_first_page_story" not in story_contract.get("deferred_operations", {})
+            ):
+                raise RuntimeError(f"P3.24 story-layer contract failed: {story_contract}")
+
+            story_edited = _payload(await client.call_tool("apply_story_layer", {
+                "document_id": planned_document_id,
+                "expected_revision": 3,
+                "operations": [
+                    {
+                        "op": "set_story_variant",
+                        "section_index": 0,
+                        "kind": "header",
+                        "page_type": "ODD",
+                        "text": "Odd CI Header",
+                    },
+                    {
+                        "op": "set_story_variant",
+                        "section_index": 0,
+                        "kind": "header",
+                        "page_type": "EVEN",
+                        "text": "Even CI Header",
+                    },
+                    {
+                        "op": "set_page_number_variant",
+                        "section_index": 0,
+                        "target": "footer",
+                        "page_type": "ODD",
+                        "prefix": "O-",
+                    },
+                    {
+                        "op": "set_first_page_policy",
+                        "section_index": 0,
+                        "hide_header": True,
+                        "hide_page_number": True,
+                    },
+                    {
+                        "op": "add_section_boundary",
+                        "after": 0,
+                        "text": "P3.24 second section",
+                        "stories": [
+                            {
+                                "kind": "footer",
+                                "page_type": "BOTH",
+                                "text": "Section 2 Footer",
+                            }
+                        ],
+                    },
+                ],
+            }))
+            if (
+                not story_edited
+                or story_edited.get("revision_after") != 4
+                or story_edited.get("transaction") != "COMMITTED"
+                or story_edited.get("authority") != "STRUCTURAL_STORY_LAYER_AUTHORITY_ONLY"
+            ):
+                raise RuntimeError(f"P3.24 story-layer edit failed: {story_edited}")
+
+            story_readback = _payload(await client.call_tool("get_story_layer", {
+                "document_id": planned_document_id,
+            }))
+            if (
+                not story_readback
+                or story_readback.get("revision") != 4
+                or story_readback.get("section_count") != 2
+            ):
+                raise RuntimeError(f"P3.24 story-layer read-back failed: {story_readback}")
+            first_story_section = story_readback["sections"][0]
+            first_story_map = {
+                (story.get("kind"), story.get("page_type")): story
+                for story in first_story_section.get("stories", [])
+            }
+            if (
+                first_story_section.get("first_page_policy") != {
+                    "hide_header": True,
+                    "hide_footer": False,
+                    "hide_page_number": True,
+                }
+                or first_story_map.get(("header", "ODD"), {}).get("text") != "Odd CI Header"
+                or first_story_map.get(("header", "EVEN"), {}).get("text") != "Even CI Header"
+                or not all(
+                    story.get("linkage_exact")
+                    for story in first_story_section.get("stories", [])
+                )
+                or story_readback["sections"][1].get("story_count", 0) < 1
+            ):
+                raise RuntimeError(f"P3.24 story-layer state mismatch: {story_readback}")
 
             planned_export = _payload(await client.call_tool("export_document", {
                 "document_id": planned_document_id,

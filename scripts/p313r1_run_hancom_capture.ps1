@@ -102,19 +102,26 @@ function Export-HancomPdfWithRetry {
   )
 
   $lastError = $null
+  $timeouts = @(90, 150, 240)
   for ($attempt = 1; $attempt -le $MaxAttempts; $attempt++) {
     try {
       if ($attempt -gt 1) {
         Write-Host "RETRY Hancom export ${attempt}/${MaxAttempts}: ${InputPath}"
-        Start-Sleep -Seconds 2
+        Start-Sleep -Seconds 3
       }
-      Export-HancomPdf -InputPath $InputPath -OutputPath $OutputPath
+      $timeout = $timeouts[[Math]::Min($attempt - 1, $timeouts.Count - 1)]
+      Export-HancomPdf -InputPath $InputPath -OutputPath $OutputPath -TimeoutSeconds $timeout
       return
     }
     catch {
       $lastError = $_
       if ($attempt -ge $MaxAttempts) { throw }
       Write-Host "Transient Hancom export failure: $($_.Exception.Message)"
+      Write-Host "RECOVER: clearing leftover Hwp processes before retry."
+      Get-Process -Name Hwp -ErrorAction SilentlyContinue | ForEach-Object {
+        try { Stop-Process -Id $_.Id -Force -ErrorAction SilentlyContinue } catch {}
+      }
+      Start-Sleep -Seconds 2
     }
   }
   if ($lastError) { throw $lastError }

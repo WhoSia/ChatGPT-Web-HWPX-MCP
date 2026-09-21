@@ -279,7 +279,7 @@ def materialize_p317_regression_corpus(out_dir: Path) -> dict:
     )
     fixtures.append(
         _pair_receipt(
-            "page-geometry", "page_section_geometry", source, target, op
+            "page-geometry", "page_margin_geometry", source, target, op
         )
     )
 
@@ -312,7 +312,7 @@ def materialize_p317_regression_corpus(out_dir: Path) -> dict:
         "fixture_count": len(fixtures),
         "fixtures": fixtures,
         "inherited_native_certification": {
-            "page_section_geometry": {
+            "page_margin_geometry": {
                 "source": "P3.16",
                 "renderer_version": "13.0.0.3622",
                 "advance_boundary": "advance-10120",

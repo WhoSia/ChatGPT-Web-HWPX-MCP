@@ -39,6 +39,10 @@ Historical phase ledgers, support packets, adjudication narratives, and long-for
 - pictures/objects
 - equations
 - page-margin geometry with revision/CAS protection
+- paper size/orientation and section page setup
+- section creation/removal
+- header/footer stories and automatic page numbers
+- multi-column layout and page-number restart controls
 - bounded search/slice and bulk text plans
 
 ### Legacy HWP 5.x
@@ -65,13 +69,14 @@ Current harness components include:
 
 Fidelity authority is layered. Renderer-independent HWPX structural evidence is kept separate from renderer evidence. P3.16 established version-indexed exact authority for Hancom 13.0.0.3622 under the sealed environment; global cross-version promotion remains fail-closed until a second Hancom version is captured under the same non-renderer environment.
 
-P3.17 turns that evidence into product behavior:
+P3.17-P3.18 turn that evidence into product behavior:
 
 - `get_production_fidelity_contract` exposes the current edit-class authority envelope.
 - `assess_edit_plan_fidelity` classifies a planned edit before mutation.
 - `get_document_fidelity_profile` composes document-specific structural receipts with the production contract.
 - `get_page_geometry` and `apply_page_geometry` expose revision-safe page-margin editing.
-- CI materializes a document-level regression corpus for text, run formatting, paragraph formatting, tables, pictures, text boxes, page geometry, and equations.
+- `get_document_setup` and `apply_document_setup` expose atomic paper/orientation, header/footer, page-number, section, and multi-column editing.
+- CI materializes document-level regression corpora for general editing plus document-setup composition.
 
 ## Local run
 
@@ -99,13 +104,7 @@ Secrets are deployment-only and are not stored in this repository.
 
 Native Hancom replay is an evidence batch, not a requirement for every feature commit. Normal feature development and regression run in Python/Linux CI; Windows PowerShell is used only when a group of edit classes is ready for native-render certification or when renderer-specific behavior must be diagnosed.
 
-P3.16 uses the current captured Hancom executable for repeated single-version stability replay:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\p316_run_single_version_stability.ps1
-```
-
-The default is three fresh full-fixture repetitions. Each repetition reuses exact frozen fixture bytes, captures Windows font-file SHA-256 custody before and after rendering, reruns the near-wrap boundary ladders, and compares baseline raster hashes and selected boundaries. The resulting authority is explicitly version-indexed; it does not imply other Hancom versions behave identically.
+The completed P3.16 single-version stability runner is archived in the project Drive rather than kept on the active runtime surface. Its promoted authority remains recorded in the canonical Drive receipt.
 
 Cross-version reopening remains available through the P3.15 runner:
 

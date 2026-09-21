@@ -56,7 +56,7 @@ function Export-HancomPdf {
         try { Stop-Process -Id $_.Id -Force -ErrorAction SilentlyContinue } catch {}
       }
     }
-    throw "Hancom export timed out after $TimeoutSeconds s for $InputPath"
+    throw "Hancom export timed out after $TimeoutSeconds s for ${InputPath}"
   }
 
   # Flush redirected stdout/stderr and refresh process state before reading ExitCode.
@@ -105,7 +105,7 @@ function Export-HancomPdfWithRetry {
   for ($attempt = 1; $attempt -le $MaxAttempts; $attempt++) {
     try {
       if ($attempt -gt 1) {
-        Write-Host "RETRY Hancom export $attempt/$MaxAttempts: $InputPath"
+        Write-Host "RETRY Hancom export ${attempt}/${MaxAttempts}: ${InputPath}"
         Start-Sleep -Seconds 2
       }
       Export-HancomPdf -InputPath $InputPath -OutputPath $OutputPath

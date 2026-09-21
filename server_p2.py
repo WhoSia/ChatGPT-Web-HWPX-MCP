@@ -64,6 +64,11 @@ from p324_story_layer import (
     build_story_layer_map,
     apply_story_layer_atomic,
 )
+from p325_drawing_layer import (
+    drawing_layer_contract,
+    build_drawing_layer_map,
+    apply_drawing_layer_atomic,
+)
 from p313_capture_custody import (
     near_wrap_positive_sensitivity_spec,
     validate_artifact_custody,
@@ -89,9 +94,9 @@ from common_ir import (
     slice_common_ir,
 )
 
-P2_VERSION = "0.9.0-p3.24"
+P2_VERSION = "0.9.0-p3.25"
 core.VERSION = P2_VERSION
-core.PHASE = "P3.24"
+core.PHASE = "P3.25"
 
 _original_metadata = core._metadata
 
@@ -4383,12 +4388,93 @@ def apply_story_layer(
 
 
 @core.mcp.tool()
+def get_drawing_layer_contract() -> dict:
+    """Return the admitted P3.25 drawing-layer contract and evidence gates."""
+    core._caller_subject()
+    return {"ok": True, **drawing_layer_contract()}
+
+
+@core.mcp.tool()
+def get_drawing_layer(document_id: str) -> dict:
+    """Return anchored drawing objects, geometry, wrap/z-order and grouping inventory."""
+    metadata, path = _owned_document(document_id)
+    mapped = build_drawing_layer_map(path)
+    return {
+        "ok": True,
+        "document_id": document_id,
+        "revision": int(metadata["revision"]),
+        **mapped,
+    }
+
+
+@core.mcp.tool()
+def apply_drawing_layer(
+    document_id: str,
+    expected_revision: int,
+    operations: list[dict],
+    lease_token: str = "",
+) -> dict:
+    """Apply one revision-guarded P3.25 drawing-layer transaction."""
+    metadata, path = _owned_document(document_id)
+    current_revision = int(metadata["revision"])
+    ingress = metadata.get("source") == "existing-ingress"
+    fidelity = assess_edit_fidelity_envelope(operations)
+    transaction = apply_drawing_layer_atomic(
+        path,
+        operations,
+        expected_revision=int(expected_revision),
+        current_revision=current_revision,
+        validator=lambda candidate: core.validate_hwpx_package(candidate, ingress=ingress),
+    )
+    validation = transaction["validation"]
+    after_document = build_document_map(path)
+    after_formatting = build_formatting_map(path)
+    after_inline = build_inline_map(path)
+    after_tables = build_table_map(path)
+    after_objects = build_object_map(path)
+    after_equations = build_equation_map(path)
+    drawing = build_drawing_layer_map(path)
+    metadata["revision"] = current_revision + 1
+    metadata["last_edit_at"] = core._utc_iso()
+    if lease_token:
+        metadata["_commit_lease_token"] = lease_token
+    _refresh_metadata(
+        document_id,
+        metadata,
+        validation,
+        after_document,
+        after_formatting,
+        after_inline,
+        after_tables,
+        after_objects,
+        after_equations,
+    )
+    metadata["drawing_structure_sha256"] = drawing["drawing_structure_sha256"]
+    metadata["drawing_geometry_sha256"] = drawing["drawing_geometry_sha256"]
+    core._write_metadata(document_id, metadata)
+    return {
+        "ok": True,
+        "document_id": document_id,
+        "revision_before": current_revision,
+        "revision_after": int(metadata["revision"]),
+        "sha256": validation["sha256"],
+        "drawing_layer_diff": transaction,
+        "drawing_layer": drawing,
+        "fidelity": fidelity,
+        "validation": validation,
+        "transaction": "COMMITTED",
+        "authority": "STRUCTURAL_DRAWING_LAYER_AUTHORITY_ONLY",
+        "native_render_batch_status": "DEFERRED_BY_DESIGN",
+    }
+
+
+@core.mcp.tool()
 def p2_capabilities() -> dict:
     subject = core._caller_subject()
     return {
         "project": core.PROJECT,
         "version": core.VERSION,
-        "phase": "P3.24",
+        "phase": "P3.25",
         "authenticated_subject": subject,
         "tools_added": [
             "acquire_document_lease",
@@ -4451,6 +4537,9 @@ def p2_capabilities() -> dict:
             "get_story_layer_contract",
             "get_story_layer",
             "apply_story_layer",
+            "get_drawing_layer_contract",
+            "get_drawing_layer",
+            "apply_drawing_layer",
         ],
         "operations": [
             "replace_paragraph_text",
@@ -4530,6 +4619,16 @@ def p2_capabilities() -> dict:
             "synthetic_first_story": "EVIDENCE_GATE_CLOSED",
             "authority": "STRUCTURAL_STORY_LAYER_AUTHORITY_ONLY until native P3.24 render batch",
             "diff": "story_layer_sha256",
+        },
+        "drawing_layer": {
+            "ancestry": "P2.9 picture/object primitives + P3.9 native textbox/geometry re-promoted into P3.25",
+            "inventory": "pic/rect/ellipse/line/polygon/arc/container",
+            "authoring": "textbox + rectangle only; generic raw shapes fail closed",
+            "layout": "anchor position + wrap/text-flow + z-order + lock",
+            "geometry": "rect/pic resize + rotation/flip when native elements exist",
+            "grouping": "existing containers inventoried; group/ungroup authoring evidence gate closed",
+            "authority": "STRUCTURAL_DRAWING_LAYER_AUTHORITY_ONLY until native P3.25 render batch",
+            "diff": "drawing_structure_sha256 + drawing_geometry_sha256",
         },
         "table_editing": {
             "introspection": "table/cell semantic map + merge geometry + structure/format/object + P3.23 advanced-layout receipts",

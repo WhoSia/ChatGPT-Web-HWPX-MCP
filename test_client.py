@@ -262,14 +262,16 @@ async def main() -> None:
             planned_body = next(
                 (
                     p for p in planned_map.get("paragraphs", [])
-                    if p.get("text") == "one-shot authenticated creation"
+                    if p.get("container") == "section-body"
+                    and p.get("text") == "one-shot authenticated creation"
                 ),
                 None,
             )
             planned_ref = next(
                 (
-                    p for p in planned_map.get("paragraphs", [])
-                    if p.get("text") == "reference target verification"
+                    p for p in reversed(planned_map.get("paragraphs", []))
+                    if p.get("container") == "section-body"
+                    and str(p.get("text") or "").startswith("reference target verification")
                 ),
                 None,
             )

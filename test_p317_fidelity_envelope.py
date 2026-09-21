@@ -42,11 +42,11 @@ class P317FidelityEnvelopeTests(unittest.TestCase):
     def test_regression_corpus_materializes_real_hwpx_pairs(self):
         with tempfile.TemporaryDirectory() as tmp:
             manifest = materialize_p317_regression_corpus(Path(tmp) / "p317")
-            self.assertEqual(manifest["fixture_count"], 7)
+            self.assertEqual(manifest["fixture_count"], 8)
             classes = {item["edit_class"] for item in manifest["fixtures"]}
             self.assertEqual(classes, {
                 "text_content", "run_format", "paragraph_format", "table",
-                "object_picture", "textbox", "equation",
+                "object_picture", "textbox", "page_section_geometry", "equation",
             })
             for item in manifest["fixtures"]:
                 root = Path(tmp) / "p317" / item["fixture_id"]
@@ -57,6 +57,7 @@ class P317FidelityEnvelopeTests(unittest.TestCase):
             self.assertIn("formatting_sha256", by_class["run_format"]["changed_runtime_dimensions"])
             self.assertIn("table_structure_sha256", by_class["table"]["changed_runtime_dimensions"])
             self.assertIn("object_structure_sha256", by_class["object_picture"]["changed_runtime_dimensions"])
+            self.assertIn("page_geometry_sha256", by_class["page_section_geometry"]["changed_runtime_dimensions"])
             self.assertIn("equation_structure_sha256", by_class["equation"]["changed_runtime_dimensions"])
 
 

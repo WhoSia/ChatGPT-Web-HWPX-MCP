@@ -93,7 +93,7 @@ Current harness components include:
 
 Fidelity authority is layered. Renderer-independent HWPX structural evidence is kept separate from renderer evidence. P3.16 established version-indexed exact authority for Hancom 13.0.0.3622 under the sealed environment; global cross-version promotion remains fail-closed until a second Hancom version is captured under the same non-renderer environment.
 
-P3.17-P3.21 turn that evidence into product behavior:
+P3.17-P3.22 turn that evidence into product behavior:
 
 - `get_production_fidelity_contract` exposes the current edit-class authority envelope.
 - `assess_edit_plan_fidelity` classifies a planned edit before mutation.
@@ -105,7 +105,9 @@ P3.17-P3.21 turn that evidence into product behavior:
 - `get_annotation_apparatus` and `apply_annotation_apparatus` expose footnotes/endnotes, memos, index marks, hyperlinks/bookmarks, and measured rich reference fields for academic/report publishing.
 - Annotation authoring delegates to public `python-hwpx` note/reference/field APIs where available; unsupported field grammars remain fail-closed rather than guessed.
 - `create_document_from_plan` is the high-level ChatGPT-native composition surface: the LLM supplies a declarative block plan and the MCP resolves block identities, dependency order, native objects, publishing fields, validation and atomic commit.
-- CI materializes document-level regression corpora for general editing, document setup, structured publishing, annotation apparatus, and one-shot composition.
+- `get_review_workflow` and `apply_review_workflow` expose native tracked insert/delete/replace, CLICKHERE form fields, check boxes, highlights/proofreading marks, and document metadata through the same revision/CAS transaction boundary.
+- Review support is deliberately fail-closed: tracked-change accept/reject, tracking-only toggles/protection passwords, radio/command-button authoring, and document-history-part authoring are not guessed.
+- CI materializes document-level regression corpora for general editing, document setup, structured publishing, annotation apparatus, one-shot composition, and review workflow.
 
 ## Local run
 

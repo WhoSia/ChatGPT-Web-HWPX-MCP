@@ -148,11 +148,14 @@ def _section_payload(root: etree._Element, section_index: int, name: str) -> dic
 
 def build_document_setup_map(path: Path) -> dict:
     path = Path(path)
-    sections = []
-    with zipfile.ZipFile(path, "r") as archive:
-        for section_index, name in enumerate(_section_names(archive)):
-            root = etree.fromstring(archive.read(name))
-            sections.append(_section_payload(root, section_index, name))
+    document = HwpxDocument.open(str(path))
+    try:
+        sections = [
+            _section_payload(section.element, section_index, section.part_name)
+            for section_index, section in enumerate(document.sections)
+        ]
+    finally:
+        document.close()
 
     result = {
         "schema": SETUP_SCHEMA,
@@ -178,7 +181,10 @@ def _paragraph_target(document: HwpxDocument, candidate: Path, locator: Any):
     if target is None:
         raise ValueError(f"Unknown paragraph locator: {wanted}")
     section = document.sections[int(target["section_index"])]
-    paragraph_index = int(target["paragraph_index"])
+    body_index = target.get("body_paragraph_index")
+    if body_index is None:
+        raise ValueError("document-setup paragraph target must be a section-body paragraph")
+    paragraph_index = int(body_index)
     paragraphs = section.paragraphs
     if paragraph_index < 0 or paragraph_index >= len(paragraphs):
         raise ValueError("paragraph locator no longer resolves")

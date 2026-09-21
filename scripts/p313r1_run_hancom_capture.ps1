@@ -186,14 +186,24 @@ foreach ($dir in $FixtureDirs) {
       error = $_.Exception.Message
     }
     $Summary.failed += $Failure
+    $FailurePath = Join-Path $capture "capture-failure.json"
     $Failure | ConvertTo-Json -Depth 5 |
-      Set-Content -Encoding UTF8 (Join-Path $capture "capture-failure.json")
+      Set-Content -Encoding UTF8 $FailurePath
+    Write-Host "FAILED fixture: $fixtureId"
+    Write-Host "Reason: $($_.Exception.Message)"
+    Write-Host "Failure receipt: $FailurePath"
   }
 }
 
-& $VenvPython scripts/p313r1_select_boundary.py --pack $ResolvedOut
-$BoundaryExit = $LASTEXITCODE
-$Summary.boundary_ready = ($BoundaryExit -eq 0)
+if ($Summary.succeeded.Count -gt 0 -or $Summary.skipped.Count -gt 0) {
+  & $VenvPython scripts/p313r1_select_boundary.py --pack $ResolvedOut
+  $BoundaryExit = $LASTEXITCODE
+  $Summary.boundary_ready = ($BoundaryExit -eq 0)
+} else {
+  $BoundaryExit = 2
+  $Summary.boundary_ready = $false
+  Write-Host "Boundary selection skipped: no successful fixture captures."
+}
 
 $SummaryPath = Join-Path $ResolvedOut "windows-hancom-run-summary.json"
 $Summary | ConvertTo-Json -Depth 8 | Set-Content -Encoding UTF8 $SummaryPath

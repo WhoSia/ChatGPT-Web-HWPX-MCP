@@ -77,13 +77,37 @@ EDIT_CLASSES: dict[str, dict[str, Any]] = {
         "render": "CERTIFICATION_PENDING",
         "structural_dimensions": ["equation_topology", "equation_geometry", "equation_script"],
     },
-    "page_section_geometry": {
-        "ops": {
-            "set_page_geometry", "set_page_margin", "set_section_page_geometry",
-        },
+    "page_margin_geometry": {
+        "ops": {"set_page_margin"},
         "structural": "SUPPORTED",
         "render": "BOUNDARY_CERTIFIED",
         "structural_dimensions": ["page_geometry"],
+    },
+    "page_composition": {
+        "ops": {"set_page_setup", "set_page_size", "set_columns"},
+        "structural": "SUPPORTED",
+        "render": "CERTIFICATION_PENDING",
+        "structural_dimensions": ["page_geometry", "column_layout"],
+    },
+    "header_footer": {
+        "ops": {"set_header", "set_footer", "remove_header", "remove_footer"},
+        "structural": "SUPPORTED",
+        "render": "CERTIFICATION_PENDING",
+        "structural_dimensions": ["section_story"],
+    },
+    "page_numbering": {
+        "ops": {
+            "set_page_number", "restart_page_number", "set_section_start_numbering",
+        },
+        "structural": "SUPPORTED",
+        "render": "CERTIFICATION_PENDING",
+        "structural_dimensions": ["section_story", "numbering_controls"],
+    },
+    "section_structure": {
+        "ops": {"add_section", "remove_section"},
+        "structural": "SUPPORTED",
+        "render": "CERTIFICATION_PENDING",
+        "structural_dimensions": ["section_topology", "page_geometry"],
     },
     "no_op_replay": {
         "ops": {"no_op"},

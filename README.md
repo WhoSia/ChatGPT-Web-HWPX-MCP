@@ -38,6 +38,7 @@ Historical phase ledgers, support packets, adjudication narratives, and long-for
 - tables
 - pictures/objects
 - equations
+- page-margin geometry with revision/CAS protection
 - bounded search/slice and bulk text plans
 
 ### Legacy HWP 5.x
@@ -62,7 +63,15 @@ Current harness components include:
 - cross-version environment isolation
 - cross-version boundary transport adjudication
 
-Fidelity authority is layered. Renderer-independent HWPX structural evidence is kept separate from renderer evidence. P3.16 can earn version-indexed authority through repeated fresh replays of one exact Hancom executable, while global cross-version promotion remains fail-closed until a second Hancom version is captured under the same non-renderer environment.
+Fidelity authority is layered. Renderer-independent HWPX structural evidence is kept separate from renderer evidence. P3.16 established version-indexed exact authority for Hancom 13.0.0.3622 under the sealed environment; global cross-version promotion remains fail-closed until a second Hancom version is captured under the same non-renderer environment.
+
+P3.17 turns that evidence into product behavior:
+
+- `get_production_fidelity_contract` exposes the current edit-class authority envelope.
+- `assess_edit_plan_fidelity` classifies a planned edit before mutation.
+- `get_document_fidelity_profile` composes document-specific structural receipts with the production contract.
+- `get_page_geometry` and `apply_page_geometry` expose revision-safe page-margin editing.
+- CI materializes a document-level regression corpus for text, run formatting, paragraph formatting, tables, pictures, text boxes, page geometry, and equations.
 
 ## Local run
 
@@ -87,6 +96,8 @@ https://chatgpt-web-hwpx-mcp-p0.onrender.com
 Secrets are deployment-only and are not stored in this repository.
 
 ## Windows/Hancom replay
+
+Native Hancom replay is an evidence batch, not a requirement for every feature commit. Normal feature development and regression run in Python/Linux CI; Windows PowerShell is used only when a group of edit classes is ready for native-render certification or when renderer-specific behavior must be diagnosed.
 
 P3.16 uses the current captured Hancom executable for repeated single-version stability replay:
 

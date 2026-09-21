@@ -62,7 +62,7 @@ jobs:
           python scripts/p324_release_smoke.py > /dev/null
 
       - name: HWPX lifecycle and fidelity unit tests
-        run: python -m unittest -v test_p1.py test_p2.py test_hwp5_reader.py test_common_ir.py test_p311_layout_fidelity.py test_p312_render_harness.py test_p313_capture_custody.py test_p313r1_fixture_pack.py test_p314_capture_intake.py test_p315_cross_version.py test_p316_version_indexed.py test_p317_fidelity_envelope.py test_p318_document_setup.py test_p319_structured_publishing.py test_p320_annotation_apparatus.py test_p321_document_composer.py test_p323_advanced_tables.py test_p324_story_layer.py test_auth_store.py test_document_store.py
+        run: python -m unittest -v test_p1.py test_p2.py test_hwp5_reader.py test_common_ir.py test_p311_layout_fidelity.py test_p312_render_harness.py test_p313_capture_custody.py test_p313r1_fixture_pack.py test_p314_capture_intake.py test_p315_cross_version.py test_p316_version_indexed.py test_p317_fidelity_envelope.py test_p318_document_setup.py test_p319_structured_publishing.py test_p320_annotation_apparatus.py test_p321_document_composer.py test_p322_review_workflow.py test_p323_advanced_tables.py test_p324_story_layer.py test_auth_store.py test_document_store.py
 
       - name: Materialize product regression corpora
         run: |

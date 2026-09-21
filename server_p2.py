@@ -77,6 +77,7 @@ from common_ir import (
 
 P2_VERSION = "0.9.0-p3.21"
 core.VERSION = P2_VERSION
+core.PHASE = "P3.21"
 
 _original_metadata = core._metadata
 

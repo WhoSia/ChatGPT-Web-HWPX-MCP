@@ -77,6 +77,21 @@ if (($CurrentVersion -ne $HancomVersion) -or ($CurrentHash -ne $HancomHash)) {
 $OutResolved = Resolve-RepoPath $OutRoot
 New-Item -ItemType Directory -Force -Path $OutResolved | Out-Null
 
+$PreflightDir = Join-Path $OutResolved "_preflight"
+New-Item -ItemType Directory -Force -Path $PreflightDir | Out-Null
+$PreflightInput = Join-Path $FirstPackResolved "calibration\advance-10020\source.hwpx"
+$PreflightPdf = Join-Path $PreflightDir "advance-10020-source.pdf"
+if (-not (Test-Path $PreflightInput)) {
+  throw "P3.16 preflight fixture missing: $PreflightInput"
+}
+if (Test-Path $PreflightPdf) { Remove-Item -Force $PreflightPdf }
+Write-Host "P3.16 Hancom export preflight..."
+& (Join-Path $PSScriptRoot "p313r1_hancom_export_once.ps1") -InputPath $PreflightInput -OutputPath $PreflightPdf
+if (-not $? -or -not (Test-Path $PreflightPdf)) {
+  throw "P3.16 Hancom export preflight failed. Full repeated capture was not started."
+}
+Write-Host "P3.16 Hancom export preflight PASS."
+
 $Venv = Join-Path $RepoRoot ".venv-p313r1"
 $VenvPython = Join-Path $Venv "Scripts\python.exe"
 

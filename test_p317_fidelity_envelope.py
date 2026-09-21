@@ -17,7 +17,8 @@ class P317FidelityEnvelopeTests(unittest.TestCase):
         names = {item["edit_class"] for item in contract["edit_classes"]}
         self.assertTrue({
             "text_content", "run_format", "paragraph_format", "table",
-            "object_picture", "textbox", "equation", "page_section_geometry",
+            "object_picture", "textbox", "equation", "page_margin_geometry",
+            "page_composition", "header_footer", "page_numbering", "section_structure",
         }.issubset(names))
 
     def test_mixed_uncertified_plan_is_structural_only(self):
@@ -39,6 +40,17 @@ class P317FidelityEnvelopeTests(unittest.TestCase):
         self.assertEqual(result["overall_authority_ceiling"], "VERSION_INDEXED_BOUNDARY")
         self.assertFalse(result["native_render_check_required"])
 
+    def test_new_document_setup_classes_are_structural_until_native_batch(self):
+        result = assess_edit_fidelity_envelope([
+            {"op": "set_page_size"},
+            {"op": "set_header"},
+            {"op": "set_page_number"},
+            {"op": "add_section"},
+            {"op": "set_columns"},
+        ])
+        self.assertEqual(result["overall_authority_ceiling"], "STRUCTURAL_AUTHORITY_ONLY")
+        self.assertTrue(result["native_render_check_required"])
+
     def test_regression_corpus_materializes_real_hwpx_pairs(self):
         with tempfile.TemporaryDirectory() as tmp:
             manifest = materialize_p317_regression_corpus(Path(tmp) / "p317")
@@ -46,7 +58,7 @@ class P317FidelityEnvelopeTests(unittest.TestCase):
             classes = {item["edit_class"] for item in manifest["fixtures"]}
             self.assertEqual(classes, {
                 "text_content", "run_format", "paragraph_format", "table",
-                "object_picture", "textbox", "page_section_geometry", "equation",
+                "object_picture", "textbox", "page_margin_geometry", "equation",
             })
             for item in manifest["fixtures"]:
                 root = Path(tmp) / "p317" / item["fixture_id"]

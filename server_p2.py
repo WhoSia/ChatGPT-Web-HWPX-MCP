@@ -59,6 +59,11 @@ from p323_advanced_tables import (
     build_advanced_table_map,
     apply_advanced_table_edits_atomic,
 )
+from p324_story_layer import (
+    story_layer_contract,
+    build_story_layer_map,
+    apply_story_layer_atomic,
+)
 from p313_capture_custody import (
     near_wrap_positive_sensitivity_spec,
     validate_artifact_custody,
@@ -84,9 +89,9 @@ from common_ir import (
     slice_common_ir,
 )
 
-P2_VERSION = "0.9.0-p3.23"
+P2_VERSION = "0.9.0-p3.24"
 core.VERSION = P2_VERSION
-core.PHASE = "P3.23"
+core.PHASE = "P3.24"
 
 _original_metadata = core._metadata
 
@@ -4301,12 +4306,89 @@ def get_textbox_map(document_id: str) -> dict:
 
 
 @core.mcp.tool()
+def get_story_layer_contract() -> dict:
+    """Return the admitted P3.24 section-story contract and evidence gates."""
+    core._caller_subject()
+    return {"ok": True, **story_layer_contract()}
+
+
+@core.mcp.tool()
+def get_story_layer(document_id: str) -> dict:
+    """Return section-scoped header/footer story ownership, variants and first-page policy."""
+    metadata, path = _owned_document(document_id)
+    mapped = build_story_layer_map(path)
+    return {
+        "ok": True,
+        "document_id": document_id,
+        "revision": int(metadata["revision"]),
+        **mapped,
+    }
+
+
+@core.mcp.tool()
+def apply_story_layer(
+    document_id: str,
+    expected_revision: int,
+    operations: list[dict],
+    lease_token: str = "",
+) -> dict:
+    """Apply one revision-guarded P3.24 section-story transaction."""
+    metadata, path = _owned_document(document_id)
+    current_revision = int(metadata["revision"])
+    ingress = metadata.get("source") == "existing-ingress"
+    fidelity = assess_edit_fidelity_envelope(operations)
+    transaction = apply_story_layer_atomic(
+        path,
+        operations,
+        expected_revision=int(expected_revision),
+        current_revision=current_revision,
+        validator=lambda candidate: core.validate_hwpx_package(candidate, ingress=ingress),
+    )
+    validation = transaction["validation"]
+    after_document = build_document_map(path)
+    after_formatting = build_formatting_map(path)
+    after_inline = build_inline_map(path)
+    after_tables = build_table_map(path)
+    after_objects = build_object_map(path)
+    after_equations = build_equation_map(path)
+    metadata["revision"] = current_revision + 1
+    metadata["last_edit_at"] = core._utc_iso()
+    if lease_token:
+        metadata["_commit_lease_token"] = lease_token
+    _refresh_metadata(
+        document_id,
+        metadata,
+        validation,
+        after_document,
+        after_formatting,
+        after_inline,
+        after_tables,
+        after_objects,
+        after_equations,
+    )
+    return {
+        "ok": True,
+        "document_id": document_id,
+        "revision_before": current_revision,
+        "revision_after": int(metadata["revision"]),
+        "sha256": validation["sha256"],
+        "story_layer_diff": transaction,
+        "story_layer": build_story_layer_map(path),
+        "fidelity": fidelity,
+        "validation": validation,
+        "transaction": "COMMITTED",
+        "authority": "STRUCTURAL_STORY_LAYER_AUTHORITY_ONLY",
+        "native_render_batch_status": "DEFERRED_BY_DESIGN",
+    }
+
+
+@core.mcp.tool()
 def p2_capabilities() -> dict:
     subject = core._caller_subject()
     return {
         "project": core.PROJECT,
         "version": core.VERSION,
-        "phase": "P3.23",
+        "phase": "P3.24",
         "authenticated_subject": subject,
         "tools_added": [
             "acquire_document_lease",
@@ -4366,6 +4448,9 @@ def p2_capabilities() -> dict:
             "get_advanced_table_contract",
             "get_advanced_tables",
             "apply_advanced_table_edits",
+            "get_story_layer_contract",
+            "get_story_layer",
+            "apply_story_layer",
         ],
         "operations": [
             "replace_paragraph_text",
@@ -4436,6 +4521,15 @@ def p2_capabilities() -> dict:
             "identity_rebinding": "intrinsic field ids where available; revision-scoped bookmark rebinding otherwise",
             "transaction": "paragraph structure invariant; inline/control structure may change intentionally",
             "diff": "inline_structure_sha256 + control_rebinding",
+        },
+        "story_layer": {
+            "ancestry": "P3.18 document-setup primitives re-promoted into P3.24 story ownership contract",
+            "native_variants": ["BOTH", "EVEN", "ODD"],
+            "first_page": "hp:visibility hideFirstHeader/hideFirstFooter/hideFirstPageNum",
+            "section_boundary": "story policy is section-scoped and revision/CAS guarded",
+            "synthetic_first_story": "EVIDENCE_GATE_CLOSED",
+            "authority": "STRUCTURAL_STORY_LAYER_AUTHORITY_ONLY until native P3.24 render batch",
+            "diff": "story_layer_sha256",
         },
         "table_editing": {
             "introspection": "table/cell semantic map + merge geometry + structure/format/object + P3.23 advanced-layout receipts",

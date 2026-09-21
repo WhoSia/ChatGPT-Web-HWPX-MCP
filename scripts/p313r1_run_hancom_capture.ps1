@@ -30,24 +30,40 @@ function Find-HancomExe {
 function Export-HancomPdf {
   param(
     [Parameter(Mandatory=$true)][string]$InputPath,
-    [Parameter(Mandatory=$true)][string]$OutputPath
+    [Parameter(Mandatory=$true)][string]$OutputPath,
+    [int]$TimeoutSeconds = 90
   )
-  $hwp = $null
-  try {
-    $hwp = New-Object -ComObject HWPFrame.HwpObject
-    try { $hwp.XHwpWindows.Item(0).Visible = $false } catch {}
-    $opened = $hwp.Open((Resolve-Path $InputPath).Path, "", "")
-    if ($opened -eq $false) { throw "Hancom Open returned false for $InputPath" }
-    $saved = $hwp.SaveAs($OutputPath, "PDF", "")
-    if ($saved -eq $false -or -not (Test-Path $OutputPath)) {
-      throw "Hancom PDF SaveAs failed for $InputPath"
-    }
+
+  $helper = Join-Path $PSScriptRoot "p313r1_hancom_export_once.ps1"
+  $stdout = "$OutputPath.stdout.log"
+  $stderr = "$OutputPath.stderr.log"
+  foreach ($path in @($stdout, $stderr)) {
+    if (Test-Path $path) { Remove-Item -Force $path }
   }
-  finally {
-    if ($hwp -ne $null) {
-      try { $hwp.Quit() } catch {}
-      try { [void][Runtime.InteropServices.Marshal]::FinalReleaseComObject($hwp) } catch {}
+
+  $before = @{}
+  Get-Process -Name Hwp -ErrorAction SilentlyContinue | ForEach-Object { $before[$_.Id] = $true }
+
+  $args = @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $helper, "-InputPath", $InputPath, "-OutputPath", $OutputPath)
+  $proc = Start-Process -FilePath "powershell.exe" -ArgumentList $args -PassThru -RedirectStandardOutput $stdout -RedirectStandardError $stderr
+
+  if (-not $proc.WaitForExit($TimeoutSeconds * 1000)) {
+    try { $proc.Kill() } catch {}
+    Start-Sleep -Milliseconds 500
+    Get-Process -Name Hwp -ErrorAction SilentlyContinue | ForEach-Object {
+      if (-not $before.ContainsKey($_.Id)) {
+        try { Stop-Process -Id $_.Id -Force -ErrorAction SilentlyContinue } catch {}
+      }
     }
+    throw "Hancom export timed out after $TimeoutSeconds s for $InputPath"
+  }
+
+  if ($proc.ExitCode -ne 0 -or -not (Test-Path $OutputPath)) {
+    $detail = ""
+    if (Test-Path $stderr) {
+      $detail = (Get-Content $stderr -Raw -ErrorAction SilentlyContinue).Trim()
+    }
+    throw "Hancom export failed for $InputPath. $detail"
   }
 }
 
@@ -79,6 +95,7 @@ $Summary = @{
   hancom_executable_sha256 = $HancomHash
   dpi = $Dpi
   succeeded = @()
+  skipped = @()
   failed = @()
 }
 
@@ -97,6 +114,22 @@ foreach ($dir in $FixtureDirs) {
   $target = Join-Path $dir.FullName "target.hwpx"
   $sourcePdf = Join-Path $capture "source.pdf"
   $targetPdf = Join-Path $capture "target.pdf"
+  $receiptPath = Join-Path $capture "render-receipt.json"
+
+  if ((Test-Path $receiptPath) -and (Test-Path $sourcePdf) -and (Test-Path $targetPdf)) {
+    try {
+      $existing = Get-Content $receiptPath -Raw | ConvertFrom-Json
+      $sourceHashNow = (Get-FileHash -Algorithm SHA256 -Path $source).Hash.ToLowerInvariant()
+      $targetHashNow = (Get-FileHash -Algorithm SHA256 -Path $target).Hash.ToLowerInvariant()
+      if (($existing.source_sha256 -eq $sourceHashNow) -and ($existing.target_sha256 -eq $targetHashNow)) {
+        Write-Host "SKIP completed fixture: $fixtureId"
+        $Summary.skipped += @{ fixture_id = $fixtureId; directory = $dir.FullName; reason = "existing receipt matches source/target hashes" }
+        continue
+      }
+    } catch {}
+  }
+
+  Write-Host "CAPTURE fixture: $fixtureId"
 
   try {
     Export-HancomPdf -InputPath $source -OutputPath $sourcePdf
@@ -161,6 +194,7 @@ Write-Host "P3.13-R1 Hancom capture bootstrap complete."
 Write-Host "Summary: $SummaryPath"
 Write-Host "Upload this ZIP for P3.14: $CapturedZip"
 Write-Host "Succeeded: $($Summary.succeeded.Count)"
+Write-Host "Skipped: $($Summary.skipped.Count)"
 Write-Host "Failed: $($Summary.failed.Count)"
 Write-Host "Boundary ready: $($Summary.boundary_ready)"
 

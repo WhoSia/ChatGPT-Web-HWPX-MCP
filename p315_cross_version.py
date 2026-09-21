@@ -89,24 +89,15 @@ def isolate_environment_delta(first: dict, second: dict) -> dict:
         b = second.get(key)
         if a != b:
             deltas[key] = {"first": a, "second": b}
-    renderer_only = set(deltas).issubset({"os_version"}) and (
-        first.get("fixture_set_sha256") == second.get("fixture_set_sha256")
-        and first.get("font_file_custody_sha256") == second.get("font_file_custody_sha256")
-        and first.get("dpi") == second.get("dpi")
-        and first.get("rasterizer") == second.get("rasterizer")
-        and first.get("rasterizer_version") == second.get("rasterizer_version")
-    )
-    if not deltas:
-        authority = "ENVIRONMENT_EXACT_MATCH"
-    elif renderer_only:
-        authority = "ENVIRONMENT_RENDERER_VERSION_ISOLATED"
-    else:
-        authority = "ENVIRONMENT_DELTA_PRESENT"
+    exact_match = not deltas
     return {
         "delta_fields": deltas,
         "delta_count": len(deltas),
-        "renderer_version_isolated": renderer_only or not deltas,
-        "authority": authority,
+        "renderer_version_isolated": exact_match,
+        "authority": (
+            "ENVIRONMENT_EXACT_MATCH"
+            if exact_match else "ENVIRONMENT_DELTA_PRESENT"
+        ),
     }
 
 
@@ -191,6 +182,18 @@ def adjudicate_cross_version_replay(packet: dict) -> dict:
         verdict = "CROSS_VERSION_PIXEL_FIDELITY_HOLD"
         authority = "CROSS_VERSION_REPLAY_HOLD"
 
+    reason_chain = []
+    if not distinct_versions:
+        reason_chain.append("DISTINCT_HANCOM_VERSION_REQUIRED")
+    if not distinct_executables:
+        reason_chain.append("DISTINCT_HANCOM_EXECUTABLE_REQUIRED")
+    if not same_fixture_set:
+        reason_chain.append("FIXTURE_SET_MISMATCH")
+    if not same_fonts:
+        reason_chain.append("FONT_FILE_CUSTODY_MISMATCH")
+    if not environment["renderer_version_isolated"]:
+        reason_chain.append("NON_RENDERER_ENVIRONMENT_DELTA_PRESENT")
+
     result = {
         "distinct_versions": distinct_versions,
         "distinct_renderer_executables": distinct_executables,
@@ -202,6 +205,7 @@ def adjudicate_cross_version_replay(packet: dict) -> dict:
         "promotion_reopened": replay_ready,
         "verdict": verdict,
         "authority": authority,
+        "reason_chain": reason_chain,
     }
     result["adjudication_sha256"] = _sha(result)
     return result

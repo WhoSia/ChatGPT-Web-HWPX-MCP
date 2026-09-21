@@ -45,9 +45,9 @@ EDIT_CLASSES: dict[str, dict[str, Any]] = {
     },
     "table": {
         "ops": {
-            "insert_table", "delete_table", "set_cell_text", "set_cell_format",
-            "merge_cells", "split_cell", "resize_table", "resize_column",
-            "resize_row",
+            "create_table", "delete_table", "set_cell_text", "set_cell_shading",
+            "set_cell_borders", "set_cell_properties", "set_cell_margin",
+            "set_cell_size", "set_cell_border_fill", "set_cell_gradient",
         },
         "structural": "SUPPORTED",
         "render": "CERTIFICATION_PENDING",
@@ -55,8 +55,8 @@ EDIT_CLASSES: dict[str, dict[str, Any]] = {
     },
     "object_picture": {
         "ops": {
-            "insert_picture", "replace_picture", "delete_picture",
-            "set_object_geometry", "set_picture_geometry",
+            "insert_picture", "replace_picture", "remove_picture",
+            "resize_picture", "set_picture_position",
         },
         "structural": "SUPPORTED",
         "render": "CERTIFICATION_PENDING",
@@ -70,7 +70,7 @@ EDIT_CLASSES: dict[str, dict[str, Any]] = {
     },
     "equation": {
         "ops": {
-            "insert_equation", "replace_equation", "delete_equation",
+            "insert_equation", "replace_equation", "remove_equation",
             "resize_equation",
         },
         "structural": "SUPPORTED",

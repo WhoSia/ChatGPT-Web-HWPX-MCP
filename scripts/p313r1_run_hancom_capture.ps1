@@ -1,7 +1,8 @@
 param(
   [string]$HancomExe = "",
   [string]$OutDir = "artifacts/p313r1-hancom-capture-pack",
-  [int]$Dpi = 144
+  [int]$Dpi = 144,
+  [switch]$ReuseExistingPack
 )
 
 $ErrorActionPreference = "Stop"
@@ -78,8 +79,16 @@ if (-not (Test-Path $VenvPython)) {
 & $VenvPython -m pip install --disable-pip-version-check -q -r requirements.txt -r requirements-capture.txt
 
 $ResolvedOut = Join-Path $RepoRoot $OutDir
-& $VenvPython scripts/p313r1_materialize_pack.py --out $ResolvedOut
-if ($LASTEXITCODE -ne 0) { throw "P3.13-R1 fixture materialization failed." }
+if ($ReuseExistingPack) {
+  $manifest = Join-Path $ResolvedOut "capture-ready-manifest.json"
+  if (-not (Test-Path $manifest)) {
+    throw "ReuseExistingPack requested but capture-ready-manifest.json is missing: $manifest"
+  }
+  Write-Host "REUSE existing frozen fixture pack: $ResolvedOut"
+} else {
+  & $VenvPython scripts/p313r1_materialize_pack.py --out $ResolvedOut
+  if ($LASTEXITCODE -ne 0) { throw "P3.13-R1 fixture materialization failed." }
+}
 
 $HancomExe = Find-HancomExe $HancomExe
 $HancomInfo = Get-Item $HancomExe

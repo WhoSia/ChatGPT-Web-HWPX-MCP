@@ -68,6 +68,23 @@ class P317FidelityEnvelopeTests(unittest.TestCase):
         self.assertEqual(result["overall_authority_ceiling"], "STRUCTURAL_AUTHORITY_ONLY")
         self.assertTrue(result["native_render_check_required"])
 
+    def test_review_workflow_classes_are_structural_until_project_native_batch(self):
+        contract = production_fidelity_contract()
+        names = {item["edit_class"] for item in contract["edit_classes"]}
+        self.assertTrue({
+            "tracked_review", "form_fields", "check_box_controls",
+            "text_highlight", "document_metadata",
+        }.issubset(names))
+        result = assess_edit_fidelity_envelope([
+            {"op": "tracked_replace"},
+            {"op": "add_form_field"},
+            {"op": "add_check_box"},
+            {"op": "add_highlight"},
+            {"op": "set_document_metadata"},
+        ])
+        self.assertEqual(result["overall_authority_ceiling"], "STRUCTURAL_AUTHORITY_ONLY")
+        self.assertTrue(result["native_render_check_required"])
+
     def test_regression_corpus_materializes_real_hwpx_pairs(self):
         with tempfile.TemporaryDirectory() as tmp:
             manifest = materialize_p317_regression_corpus(Path(tmp) / "p317")

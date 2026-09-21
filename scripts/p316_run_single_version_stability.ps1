@@ -121,9 +121,13 @@ for ($i = 1; $i -le $Repetitions; $i++) {
   Write-Host ""
   Write-Host "P3.16 fresh replay $i/$Repetitions — $HancomVersion"
 
-  & (Join-Path $PSScriptRoot "p315_font_file_custody.ps1") -OutFile $FontBefore
-  if (-not $? -or -not (Test-Path $FontBefore)) {
-    throw "Repeat $i pre-capture font custody failed."
+  if (Test-Path $FontBefore) {
+    Write-Host "PRESERVE existing pre-capture font custody: $FontBefore"
+  } else {
+    & (Join-Path $PSScriptRoot "p315_font_file_custody.ps1") -OutFile $FontBefore
+    if (-not $? -or -not (Test-Path $FontBefore)) {
+      throw "Repeat $i pre-capture font custody failed."
+    }
   }
 
   $CaptureArgs = @{

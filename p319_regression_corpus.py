@@ -84,6 +84,12 @@ def _fixture(
             value = op.get(key)
             if value in replacements:
                 op[key] = replacements[value]()
+        paragraphs = op.get("paragraphs")
+        if isinstance(paragraphs, list):
+            op["paragraphs"] = [
+                replacements[value]() if value in replacements else value
+                for value in paragraphs
+            ]
 
     before = build_structured_publishing_map(source)
     apply_structured_publishing_atomic(

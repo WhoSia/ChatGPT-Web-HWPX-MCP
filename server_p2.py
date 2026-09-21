@@ -3917,7 +3917,7 @@ def p2_capabilities() -> dict:
     return {
         "project": core.PROJECT,
         "version": core.VERSION,
-        "phase": "P3.9",
+        "phase": "P3.19",
         "authenticated_subject": subject,
         "tools_added": [
             "acquire_document_lease",
@@ -3963,6 +3963,10 @@ def p2_capabilities() -> dict:
             "apply_object_edits",
             "get_equation_map",
             "apply_equation_edits",
+            "get_document_setup",
+            "apply_document_setup",
+            "get_structured_publishing",
+            "apply_structured_publishing",
         ],
         "operations": [
             "replace_paragraph_text",

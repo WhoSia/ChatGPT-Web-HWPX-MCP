@@ -54,7 +54,11 @@ def normalize_font_file_custody(receipt: dict) -> dict:
             "sha256": sha256,
             "bytes": size,
         })
-    normalized.sort(key=lambda x: (x["registry_name"].casefold(), x["path"].casefold(), x["sha256"]))
+    normalized.sort(
+        key=lambda x: hashlib.sha256(
+            f"{x['registry_name']}\0{x['path']}\0{x['sha256']}".encode("utf-8")
+        ).hexdigest()
+    )
     digest = _font_file_digest(normalized)
     claimed = str(receipt.get("font_file_custody_sha256") or "").strip().lower()
     if claimed and claimed != digest:

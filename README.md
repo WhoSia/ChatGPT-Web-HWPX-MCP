@@ -62,7 +62,7 @@ Current harness components include:
 - cross-version environment isolation
 - cross-version boundary transport adjudication
 
-Cross-version promotion is fail-closed: a second Hancom version must be captured under the same non-renderer environment before renderer-version authority can be promoted.
+Fidelity authority is layered. Renderer-independent HWPX structural evidence is kept separate from renderer evidence. P3.16 can earn version-indexed authority through repeated fresh replays of one exact Hancom executable, while global cross-version promotion remains fail-closed until a second Hancom version is captured under the same non-renderer environment.
 
 ## Local run
 
@@ -88,7 +88,15 @@ Secrets are deployment-only and are not stored in this repository.
 
 ## Windows/Hancom replay
 
-P3.15 uses one canonical cross-version runner:
+P3.16 uses the current captured Hancom executable for repeated single-version stability replay:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\p316_run_single_version_stability.ps1
+```
+
+The default is three fresh full-fixture repetitions. Each repetition reuses exact frozen fixture bytes, captures Windows font-file SHA-256 custody before and after rendering, reruns the near-wrap boundary ladders, and compares baseline raster hashes and selected boundaries. The resulting authority is explicitly version-indexed; it does not imply other Hancom versions behave identically.
+
+Cross-version reopening remains available through the P3.15 runner:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\p315_run_cross_version_replay.ps1

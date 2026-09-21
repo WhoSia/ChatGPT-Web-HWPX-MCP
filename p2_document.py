@@ -22,10 +22,25 @@ def _norm_text(text: str) -> str:
 
 
 def _paragraph_text(node: ElementTree.Element) -> str:
+    """Return this paragraph's text without absorbing nested paragraph stories.
+
+    Tables, notes, text boxes, and other controls may contain descendant hp:p
+    elements. Those paragraphs are independently mapped by build_document_map;
+    folding their hp:t descendants into the outer paragraph duplicates and
+    contaminates the outer text coordinate.
+    """
     chunks: list[str] = []
-    for elem in node.iter():
-        if _local(elem.tag) == "t" and elem.text:
-            chunks.append(elem.text)
+
+    def visit(parent: ElementTree.Element) -> None:
+        for child in list(parent):
+            local = _local(child.tag)
+            if local == "p":
+                continue
+            if local == "t" and child.text:
+                chunks.append(child.text)
+            visit(child)
+
+    visit(node)
     return "".join(chunks)
 
 

@@ -41,6 +41,10 @@ from p319_structured_publishing import (
     build_structured_publishing_map,
     apply_structured_publishing_atomic,
 )
+from p320_annotation_apparatus import (
+    build_annotation_apparatus_map,
+    apply_annotation_apparatus_atomic,
+)
 from p313_capture_custody import (
     near_wrap_positive_sensitivity_spec,
     validate_artifact_custody,
@@ -66,7 +70,7 @@ from common_ir import (
     slice_common_ir,
 )
 
-P2_VERSION = "0.9.0-p3.19"
+P2_VERSION = "0.9.0-p3.20"
 core.VERSION = P2_VERSION
 
 _original_metadata = core._metadata
@@ -554,6 +558,74 @@ def apply_structured_publishing(
         "sha256": validation["sha256"],
         "structured_publishing_diff": transaction,
         "structured_publishing": build_structured_publishing_map(path),
+        "fidelity": fidelity,
+        "validation": validation,
+        "transaction": "COMMITTED",
+    }
+
+
+@core.mcp.tool()
+def get_annotation_apparatus(document_id: str) -> dict:
+    """Return footnotes/endnotes, memos, index marks, bookmarks, hyperlinks, and rich fields."""
+    metadata, path = _owned_document(document_id)
+    mapped = build_annotation_apparatus_map(path)
+    return {
+        "ok": True,
+        "document_id": document_id,
+        "revision": int(metadata["revision"]),
+        **mapped,
+    }
+
+
+@core.mcp.tool()
+def apply_annotation_apparatus(
+    document_id: str,
+    expected_revision: int,
+    operations: list[dict],
+    lease_token: str = "",
+) -> dict:
+    """Apply one revision-guarded academic/report annotation transaction."""
+    metadata, path = _owned_document(document_id)
+    current_revision = int(metadata["revision"])
+    ingress = metadata.get("source") == "existing-ingress"
+    fidelity = assess_edit_fidelity_envelope(operations)
+    transaction = apply_annotation_apparatus_atomic(
+        path,
+        operations,
+        expected_revision=int(expected_revision),
+        current_revision=current_revision,
+        validator=lambda candidate: core.validate_hwpx_package(candidate, ingress=ingress),
+    )
+    validation = transaction["validation"]
+    after_document = build_document_map(path)
+    after_formatting = build_formatting_map(path)
+    after_inline = build_inline_map(path)
+    after_tables = build_table_map(path)
+    after_objects = build_object_map(path)
+    after_equations = build_equation_map(path)
+    metadata["revision"] = current_revision + 1
+    metadata["last_edit_at"] = core._utc_iso()
+    if lease_token:
+        metadata["_commit_lease_token"] = lease_token
+    _refresh_metadata(
+        document_id,
+        metadata,
+        validation,
+        after_document,
+        after_formatting,
+        after_inline,
+        after_tables,
+        after_objects,
+        after_equations,
+    )
+    return {
+        "ok": True,
+        "document_id": document_id,
+        "revision_before": current_revision,
+        "revision_after": int(metadata["revision"]),
+        "sha256": validation["sha256"],
+        "annotation_apparatus_diff": transaction,
+        "annotation_apparatus": build_annotation_apparatus_map(path),
         "fidelity": fidelity,
         "validation": validation,
         "transaction": "COMMITTED",
@@ -3917,7 +3989,7 @@ def p2_capabilities() -> dict:
     return {
         "project": core.PROJECT,
         "version": core.VERSION,
-        "phase": "P3.19",
+        "phase": "P3.20",
         "authenticated_subject": subject,
         "tools_added": [
             "acquire_document_lease",
@@ -3967,6 +4039,8 @@ def p2_capabilities() -> dict:
             "apply_document_setup",
             "get_structured_publishing",
             "apply_structured_publishing",
+            "get_annotation_apparatus",
+            "apply_annotation_apparatus",
         ],
         "operations": [
             "replace_paragraph_text",

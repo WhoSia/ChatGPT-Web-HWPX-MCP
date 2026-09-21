@@ -13,7 +13,6 @@ from lxml import etree
 from hwpx import HwpxDocument
 from hwpx.oxml.objects import HwpxOxmlInlineObject
 from hwpx.oxml.paragraph import HwpxOxmlParagraph
-from hwpx.table_patch import _collect_document_tables
 from hwpx.tools.toc_author import (
     add_native_toc as upstream_add_native_toc,
     add_page_crossref as upstream_add_page_crossref,
@@ -411,8 +410,8 @@ def _caption_object(document: HwpxDocument, path: Path, op: dict) -> dict:
     if kind == "table":
         mapped = build_table_map(path)
         target = _resolve_table(mapped, op.get("target"))
-        ref = _collect_document_tables(document)[int(target["table_index"])]
-        caption = ref.table.set_caption(text, **kwargs)
+        table = document.tables.all[int(target["table_index"])]
+        caption = table.set_caption(text, **kwargs)
         locator = target["locator"]
     elif kind == "picture":
         mapped = build_object_map(path)

@@ -88,6 +88,14 @@ if (-not (Test-Path $FirstExe)) {
   throw "Original Hancom executable no longer exists: $FirstExe"
 }
 
+$FirstExeItem = Get-Item $FirstExe
+$CurrentFirstVersion = $FirstExeItem.VersionInfo.ProductVersion
+if (-not $CurrentFirstVersion) { $CurrentFirstVersion = $FirstExeItem.VersionInfo.FileVersion }
+$CurrentFirstHash = (Get-FileHash -Algorithm SHA256 -Path $FirstExe).Hash.ToLowerInvariant()
+if (($CurrentFirstVersion -ne $FirstVersion) -or ($CurrentFirstHash -ne $FirstHash)) {
+  throw "Original P3.14 Hancom executable identity changed. Preserve/install the captured first version before cross-version replay."
+}
+
 $Candidates = Get-HwpCandidates
 $DiscoveryOut = Resolve-RepoPath (Join-Path $OutRoot "hancom-version-discovery.json")
 New-Item -ItemType Directory -Force -Path (Split-Path -Parent $DiscoveryOut) | Out-Null

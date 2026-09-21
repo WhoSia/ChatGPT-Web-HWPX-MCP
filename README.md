@@ -107,7 +107,10 @@ P3.17-P3.22 turn that evidence into product behavior:
 - `create_document_from_plan` is the high-level ChatGPT-native composition surface: the LLM supplies a declarative block plan and the MCP resolves block identities, dependency order, native objects, publishing fields, validation and atomic commit.
 - `get_review_workflow` and `apply_review_workflow` expose native tracked insert/delete/replace, CLICKHERE form fields, check boxes, highlights/proofreading marks, and document metadata through the same revision/CAS transaction boundary.
 - Review support is deliberately fail-closed: tracked-change accept/reject, tracking-only toggles/protection passwords, radio/command-button authoring, and document-history-part authoring are not guessed.
-- CI materializes document-level regression corpora for general editing, document setup, structured publishing, annotation apparatus, one-shot composition, and review workflow.
+- `get_advanced_tables` and `apply_advanced_table_edits` re-promote the earlier P2.7/P2.8 table primitives into a product layer with merge/split, row operations, width/height, borders/fills, vertical alignment, repeating headers, page-break state, and advanced-layout receipts. Arbitrary column insertion remains evidence-gated.
+- `get_story_layer` and `apply_story_layer` re-promote the P3.18 header/footer/page-number primitives into section-scoped story ownership: BOTH/EVEN/ODD variants, first-page visibility policy, variant page numbering, and section-boundary story configuration.
+- P3.24 does not invent a FIRST header/footer story. HWPX story variants remain BOTH/EVEN/ODD; first-page behavior is expressed through section visibility (`hideFirstHeader`, `hideFirstFooter`, `hideFirstPageNum`).
+- CI materializes document-level regression corpora for general editing, document setup, structured publishing, annotation apparatus, one-shot composition, review workflow, advanced tables, and section stories.
 
 ## Local run
 

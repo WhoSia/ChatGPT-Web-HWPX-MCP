@@ -45,6 +45,11 @@ from p320_annotation_apparatus import (
     build_annotation_apparatus_map,
     apply_annotation_apparatus_atomic,
 )
+from p321_document_composer import (
+    document_plan_contract,
+    validate_document_plan as validate_composition_plan,
+    compose_document_plan,
+)
 from p313_capture_custody import (
     near_wrap_positive_sensitivity_spec,
     validate_artifact_custody,
@@ -70,7 +75,7 @@ from common_ir import (
     slice_common_ir,
 )
 
-P2_VERSION = "0.9.0-p3.20"
+P2_VERSION = "0.9.0-p3.21"
 core.VERSION = P2_VERSION
 
 _original_metadata = core._metadata
@@ -561,6 +566,152 @@ def apply_structured_publishing(
         "fidelity": fidelity,
         "validation": validation,
         "transaction": "COMMITTED",
+    }
+
+
+@core.mcp.tool()
+def get_document_plan_contract() -> dict:
+    """Return the declarative P3.21 one-shot composition contract for LLM clients."""
+    core._caller_subject()
+    return {"ok": True, **document_plan_contract()}
+
+
+@core.mcp.tool()
+def validate_document_plan(plan: dict) -> dict:
+    """Validate one declarative HWPX plan without creating a document."""
+    core._caller_subject()
+    return validate_composition_plan(plan)
+
+
+@core.mcp.tool()
+def create_document_from_plan(
+    plan: dict,
+    filename: str = "document.hwpx",
+    template_document_id: str = "",
+    request_id: str = "",
+) -> dict:
+    """Compile one declarative plan into a validated HWPX in a single atomic creation call."""
+    owner_subject = core._caller_subject()
+    core._cleanup_expired()
+    safe_filename = core.sanitize_filename(filename)
+    normalized_request_id = str(request_id or "").strip()
+    if normalized_request_id and len(normalized_request_id) > 160:
+        raise ValueError("request_id exceeds 160 characters")
+
+    template_document_id = str(template_document_id or "").strip()
+    template_path = None
+    template_metadata = None
+    if template_document_id:
+        template_metadata = core._load_metadata(template_document_id)
+        core._require_owner(template_metadata)
+        template_path, _ = core._paths(template_document_id)
+
+    checked = validate_composition_plan(plan)
+    fingerprint_payload = {
+        "plan_sha256": checked["plan_sha256"],
+        "filename": safe_filename,
+        "template_document_id": template_document_id or None,
+    }
+    request_fingerprint = hashlib.sha256(
+        json.dumps(
+            fingerprint_payload,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    ).hexdigest()
+    document_id = (
+        core._idempotent_document_id(owner_subject, normalized_request_id)
+        if normalized_request_id
+        else core._new_document_id()
+    )
+
+    if normalized_request_id:
+        try:
+            existing = core._load_metadata(document_id)
+        except FileNotFoundError:
+            existing = None
+        if existing is not None:
+            core._require_owner(existing)
+            if existing.get("create_request_sha256") != request_fingerprint:
+                raise RuntimeError(
+                    "Idempotency conflict: request_id already used with different composition plan"
+                )
+            return {
+                "ok": True,
+                **existing,
+                "composition": existing.get("composition_receipt"),
+                "idempotent_replay": True,
+                "request_id": normalized_request_id,
+                "next": "Call export_document for a signed download URL.",
+            }
+
+    hwpx_path, _ = core._paths(document_id)
+    try:
+        composition = compose_document_plan(
+            hwpx_path,
+            plan,
+            template_path=template_path,
+            validator=lambda candidate: core.validate_hwpx_package(
+                candidate,
+                ingress=False,
+            ),
+        )
+        validation = composition["validation"]
+        logical_document = plan.get("document") if isinstance(plan, dict) else {}
+        title = ""
+        if isinstance(logical_document, dict):
+            title = str(logical_document.get("title") or "")
+        metadata = core._metadata(
+            document_id,
+            filename=safe_filename,
+            owner_subject=owner_subject,
+            validation=validation,
+            title=title,
+            source="generated-plan-template" if template_path is not None else "generated-plan",
+        )
+        metadata["composition_sha256"] = composition["composition_sha256"]
+        metadata["composition_plan_sha256"] = composition["plan_sha256"]
+        metadata["composition_block_count"] = int(composition["block_count"])
+        metadata["composition_preset"] = composition["preset"]
+        metadata["composition_template_document_id"] = template_document_id or None
+        metadata["composition_receipt"] = composition
+        document_map = build_document_map(hwpx_path)
+        formatting_map = build_formatting_map(hwpx_path)
+        inline_map = build_inline_map(hwpx_path)
+        table_map = build_table_map(hwpx_path)
+        object_map = build_object_map(hwpx_path)
+        equation_map = build_equation_map(hwpx_path)
+        metadata["semantic_sha256"] = document_map["semantic_sha256"]
+        metadata["structure_sha256"] = document_map["structure_sha256"]
+        metadata["formatting_sha256"] = formatting_map["formatting_sha256"]
+        metadata["inline_text_sha256"] = inline_map["inline_text_sha256"]
+        metadata["inline_structure_sha256"] = inline_map["inline_structure_sha256"]
+        metadata["table_structure_sha256"] = table_map["table_structure_sha256"]
+        metadata["table_format_sha256"] = table_map["table_format_sha256"]
+        metadata["object_structure_sha256"] = object_map["object_structure_sha256"]
+        metadata["object_geometry_sha256"] = object_map["object_geometry_sha256"]
+        metadata["media_custody_sha256"] = object_map["media_custody_sha256"]
+        metadata["equation_structure_sha256"] = equation_map["equation_structure_sha256"]
+        metadata["equation_geometry_sha256"] = equation_map["equation_geometry_sha256"]
+        metadata["equation_script_custody_sha256"] = equation_map["equation_script_custody_sha256"]
+        if normalized_request_id:
+            metadata["create_request_sha256"] = request_fingerprint
+            metadata["create_request_id_sha256"] = hashlib.sha256(
+                normalized_request_id.encode("utf-8")
+            ).hexdigest()
+        core._write_metadata(document_id, metadata)
+    except Exception:
+        core._delete_document_files(document_id)
+        raise
+
+    return {
+        "ok": True,
+        **metadata,
+        "composition": composition,
+        "idempotent_replay": False,
+        "request_id": normalized_request_id or None,
+        "next": "Call export_document for a signed download URL.",
     }
 
 
@@ -3989,7 +4140,7 @@ def p2_capabilities() -> dict:
     return {
         "project": core.PROJECT,
         "version": core.VERSION,
-        "phase": "P3.20",
+        "phase": "P3.21",
         "authenticated_subject": subject,
         "tools_added": [
             "acquire_document_lease",
@@ -4041,6 +4192,9 @@ def p2_capabilities() -> dict:
             "apply_structured_publishing",
             "get_annotation_apparatus",
             "apply_annotation_apparatus",
+            "get_document_plan_contract",
+            "validate_document_plan",
+            "create_document_from_plan",
         ],
         "operations": [
             "replace_paragraph_text",

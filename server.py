@@ -28,6 +28,7 @@ from oauth_provider import HWPX_SCOPE, SUBJECT, SingleUserOAuthProvider, build_a
 
 PROJECT = "ChatGPT Web HWPX MCP"
 VERSION = "0.2.2-p1.2"
+PHASE = "P1.2"
 
 
 def _public_base_url() -> str:
@@ -712,7 +713,7 @@ async def health(_request):
             "status": "ok" if durable_ok else "degraded",
             "project": PROJECT,
             "version": VERSION,
-            "phase": "P3.1",
+            "phase": PHASE,
             "oauth": {
                 "enabled": True,
                 "configured": OAUTH_PROVIDER.configured,

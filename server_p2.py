@@ -29,6 +29,10 @@ from p317_fidelity_envelope import (
     production_fidelity_contract,
     assess_edit_fidelity_envelope,
 )
+from p317_page_geometry import (
+    build_page_geometry_map,
+    apply_page_geometry_edits_atomic,
+)
 from p313_capture_custody import (
     near_wrap_positive_sensitivity_spec,
     validate_artifact_custody,
@@ -2844,6 +2848,76 @@ def apply_control_edits(document_id: str, expected_revision: int, operations: li
         "structure_changed": transaction["structure_changed"],
         "inline_text_changed": transaction["inline_text_changed"],
         "inline_structure_changed": transaction["inline_structure_changed"],
+        "validation": validation,
+        "transaction": "COMMITTED",
+    }
+
+
+@core.mcp.tool()
+def get_page_geometry(document_id: str) -> dict:
+    """Return section page-size/margin geometry for one owned HWPX document."""
+    metadata, path = _owned_document(document_id)
+    mapped = build_page_geometry_map(path)
+    return {
+        "ok": True,
+        "document_id": document_id,
+        "revision": int(metadata["revision"]),
+        **mapped,
+        "fidelity_ceiling": "VERSION_INDEXED_BOUNDARY",
+        "renderer_scope": "Hancom Hangul 13.0.0.3622",
+    }
+
+
+@core.mcp.tool()
+def apply_page_geometry(
+    document_id: str,
+    expected_revision: int,
+    operations: list[dict],
+    lease_token: str = "",
+) -> dict:
+    """Apply revision-guarded page-margin edits with P3.16 boundary authority."""
+    metadata, path = _owned_document(document_id)
+    current_revision = int(metadata["revision"])
+    ingress = metadata.get("source") == "existing-ingress"
+    fidelity = assess_edit_fidelity_envelope(operations)
+    transaction = apply_page_geometry_edits_atomic(
+        path,
+        operations,
+        expected_revision=int(expected_revision),
+        current_revision=current_revision,
+        validator=lambda candidate: core.validate_hwpx_package(candidate, ingress=ingress),
+    )
+    validation = transaction["validation"]
+    after_document = build_document_map(path)
+    after_formatting = build_formatting_map(path)
+    after_inline = build_inline_map(path)
+    after_tables = build_table_map(path)
+    after_objects = build_object_map(path)
+    after_equations = build_equation_map(path)
+    metadata["revision"] = current_revision + 1
+    metadata["last_edit_at"] = core._utc_iso()
+    if lease_token:
+        metadata["_commit_lease_token"] = lease_token
+    _refresh_metadata(
+        document_id,
+        metadata,
+        validation,
+        after_document,
+        after_formatting,
+        after_inline,
+        after_tables,
+        after_objects,
+        after_equations,
+    )
+    return {
+        "ok": True,
+        "document_id": document_id,
+        "revision_before": current_revision,
+        "revision_after": int(metadata["revision"]),
+        "sha256": validation["sha256"],
+        "page_geometry_diff": transaction,
+        "page_geometry": build_page_geometry_map(path),
+        "fidelity": fidelity,
         "validation": validation,
         "transaction": "COMMITTED",
     }

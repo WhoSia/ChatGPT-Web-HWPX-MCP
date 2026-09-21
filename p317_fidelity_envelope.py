@@ -109,6 +109,42 @@ EDIT_CLASSES: dict[str, dict[str, Any]] = {
         "render": "CERTIFICATION_PENDING",
         "structural_dimensions": ["section_topology", "page_geometry"],
     },
+    "list_numbering": {
+        "ops": {"apply_list_format"},
+        "structural": "SUPPORTED",
+        "render": "CERTIFICATION_PENDING",
+        "structural_dimensions": ["paragraph_style_refs", "list_numbering"],
+    },
+    "named_styles": {
+        "ops": {"apply_named_style"},
+        "structural": "SUPPORTED",
+        "render": "CERTIFICATION_PENDING",
+        "structural_dimensions": ["paragraph_style_refs", "run_style_refs"],
+    },
+    "captions": {
+        "ops": {"set_caption"},
+        "structural": "SUPPORTED",
+        "render": "CERTIFICATION_PENDING",
+        "structural_dimensions": ["object_topology", "caption_story"],
+    },
+    "cross_reference": {
+        "ops": {"add_bookmark", "add_page_crossref"},
+        "structural": "SUPPORTED",
+        "render": "CERTIFICATION_PENDING",
+        "structural_dimensions": ["reference_fields", "paragraph_anchors"],
+    },
+    "table_of_contents": {
+        "ops": {"add_native_toc", "mark_toc_dirty"},
+        "structural": "SUPPORTED",
+        "render": "CERTIFICATION_PENDING",
+        "structural_dimensions": ["reference_fields", "paragraph_anchors", "section_topology"],
+    },
+    "outline_hierarchy": {
+        "ops": {"set_outline_level", "add_heading"},
+        "structural": "SUPPORTED",
+        "render": "CERTIFICATION_PENDING",
+        "structural_dimensions": ["paragraph_style_refs", "outline_hierarchy"],
+    },
     "no_op_replay": {
         "ops": {"no_op"},
         "structural": "SUPPORTED",

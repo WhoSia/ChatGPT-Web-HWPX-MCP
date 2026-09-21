@@ -106,9 +106,24 @@ class P321DocumentComposerTests(unittest.TestCase):
 
             document = build_document_map(out)
             texts = [p["text"] for p in document["paragraphs"]]
-            self.assertLess(texts.index("전자기학 실험 보고서"), texts.index("1. 실험 목적"))
-            self.assertLess(texts.index("1. 실험 목적"), texts.index("전압과 전류의 관계를 확인한다."))
-            self.assertLess(texts.index("2. 결론"), texts.index("측정 결과는 선형 관계를 보였다."))
+            def first_with_prefix(prefix: str) -> int:
+                return next(i for i, value in enumerate(texts) if value.startswith(prefix))
+
+            self.assertLess(
+                first_with_prefix("전자기학 실험 보고서"),
+                first_with_prefix("1. 실험 목적"),
+            )
+            self.assertLess(
+                first_with_prefix("1. 실험 목적"),
+                first_with_prefix("전압과 전류의 관계를 확인한다."),
+            )
+            # CROSSREF contributes its cached visible page text to this
+            # paragraph, so the authored body remains a prefix rather than
+            # necessarily the entire paragraph text.
+            self.assertLess(
+                first_with_prefix("2. 결론"),
+                first_with_prefix("측정 결과는 선형 관계를 보였다."),
+            )
 
             self.assertEqual(len(build_table_map(out)["tables"]), 1)
             self.assertEqual(len(build_object_map(out)["pictures"]), 1)

@@ -190,6 +190,9 @@ async def main() -> None:
                 "get_story_layer_contract",
                 "get_story_layer",
                 "apply_story_layer",
+                "get_drawing_layer_contract",
+                "get_drawing_layer",
+                "apply_drawing_layer",
             }
             missing = expected - set(names)
             if missing:
@@ -200,11 +203,11 @@ async def main() -> None:
                     raise RuntimeError(f"secret-bearing field leaked into tool schema: {tool.name}")
 
             read_payload = _payload(await client.call_tool("probe_read", {"message": "P2 OAuth smoke test"}))
-            if not read_payload or not read_payload.get("ok") or read_payload.get("version") != "0.9.0-p3.24":
+            if not read_payload or not read_payload.get("ok") or read_payload.get("version") != "0.9.0-p3.25":
                 raise RuntimeError(f"probe_read did not expose P2: {read_payload}")
 
             p2_caps = _payload(await client.call_tool("p2_capabilities", {}))
-            if not p2_caps or p2_caps.get("phase") != "P3.24":
+            if not p2_caps or p2_caps.get("phase") != "P3.25":
                 raise RuntimeError(f"p2_capabilities failed: {p2_caps}")
 
             if not RUN_WRITE_TEST:
@@ -516,6 +519,58 @@ async def main() -> None:
                 )
             ):
                 raise RuntimeError(f"P3.24 story-layer state mismatch: {story_readback}")
+
+            drawing_contract = _payload(await client.call_tool("get_drawing_layer_contract", {}))
+            if (
+                not drawing_contract
+                or drawing_contract.get("phase") != "P3.25"
+                or drawing_contract.get("authority") != "STRUCTURAL_DRAWING_LAYER_AUTHORITY_ONLY"
+                or "group_objects" not in drawing_contract.get("deferred_operations", {})
+            ):
+                raise RuntimeError(f"P3.25 drawing-layer contract failed: {drawing_contract}")
+
+            drawing_edited = _payload(await client.call_tool("apply_drawing_layer", {
+                "document_id": planned_document_id,
+                "expected_revision": 4,
+                "operations": [{
+                    "op": "insert_textbox",
+                    "anchor": planned_body["locator"],
+                    "text": "P3.25 OAuth drawing",
+                    "width": 9000,
+                    "height": 4500,
+                    "treat_as_char": False,
+                    "horizontal_offset": 1200,
+                    "vertical_offset": 900,
+                    "z_order": 8,
+                }],
+            }))
+            if (
+                not drawing_edited
+                or drawing_edited.get("revision_after") != 5
+                or drawing_edited.get("transaction") != "COMMITTED"
+                or drawing_edited.get("authority") != "STRUCTURAL_DRAWING_LAYER_AUTHORITY_ONLY"
+            ):
+                raise RuntimeError(f"P3.25 drawing-layer edit failed: {drawing_edited}")
+
+            drawing_readback = _payload(await client.call_tool("get_drawing_layer", {
+                "document_id": planned_document_id,
+            }))
+            drawing_objects = (drawing_readback or {}).get("objects", [])
+            drawing_box = next(
+                (item for item in drawing_objects if item.get("text") == "P3.25 OAuth drawing"),
+                None,
+            )
+            if (
+                not drawing_readback
+                or drawing_readback.get("revision") != 5
+                or drawing_readback.get("drawing_count", 0) < 1
+                or drawing_box is None
+                or drawing_box.get("kind") != "rect"
+                or drawing_box.get("z_order") != 8
+                or drawing_box.get("position", {}).get("horzOffset") != "1200"
+                or drawing_box.get("position", {}).get("vertOffset") != "900"
+            ):
+                raise RuntimeError(f"P3.25 drawing-layer read-back failed: {drawing_readback}")
 
             planned_export = _payload(await client.call_tool("export_document", {
                 "document_id": planned_document_id,

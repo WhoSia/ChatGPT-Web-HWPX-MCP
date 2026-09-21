@@ -145,6 +145,39 @@ EDIT_CLASSES: dict[str, dict[str, Any]] = {
         "render": "CERTIFICATION_PENDING",
         "structural_dimensions": ["paragraph_style_refs", "outline_hierarchy"],
     },
+    "footnote_endnote": {
+        "ops": {"add_footnote", "add_endnote"},
+        "structural": "SUPPORTED",
+        "render": "CERTIFICATION_PENDING",
+        "structural_dimensions": ["annotation_story", "reference_fields"],
+    },
+    "memo_comment": {
+        "ops": {"add_memo", "remove_memo"},
+        "structural": "SUPPORTED",
+        "render": "CERTIFICATION_PENDING",
+        "structural_dimensions": ["annotation_story", "reference_fields"],
+    },
+    "index_mark": {
+        "ops": {"add_index_mark"},
+        "structural": "SUPPORTED",
+        "render": "CERTIFICATION_PENDING",
+        "structural_dimensions": ["index_marks", "paragraph_anchors"],
+    },
+    "reference_navigation": {
+        "ops": {"add_hyperlink"},
+        "structural": "SUPPORTED",
+        "render": "CERTIFICATION_PENDING",
+        "structural_dimensions": ["reference_fields", "paragraph_anchors"],
+    },
+    "rich_reference_fields": {
+        "ops": {
+            "add_date_field", "add_path_field", "add_mail_merge_field",
+            "add_proofreading_mark",
+        },
+        "structural": "SUPPORTED",
+        "render": "CERTIFICATION_PENDING",
+        "structural_dimensions": ["reference_fields", "cached_field_text"],
+    },
     "no_op_replay": {
         "ops": {"no_op"},
         "structural": "SUPPORTED",

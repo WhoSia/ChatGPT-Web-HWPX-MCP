@@ -60,11 +60,18 @@ function Export-HancomPdf {
   }
 
   if ($proc.ExitCode -ne 0 -or -not (Test-Path $OutputPath)) {
-    $detail = ""
+    $detailParts = @()
     if (Test-Path $stderr) {
-      $detail = (Get-Content $stderr -Raw -ErrorAction SilentlyContinue).Trim()
+      $stderrText = Get-Content $stderr -Raw -ErrorAction SilentlyContinue
+      if ($stderrText) { $detailParts += $stderrText.Trim() }
     }
-    throw "Hancom export failed for $InputPath. $detail"
+    if (Test-Path $stdout) {
+      $stdoutText = Get-Content $stdout -Raw -ErrorAction SilentlyContinue
+      if ($stdoutText) { $detailParts += $stdoutText.Trim() }
+    }
+    $detail = [string]::Join(" | ", $detailParts)
+    if (-not $detail) { $detail = "helper exited without diagnostic output" }
+    throw "Hancom export failed for $InputPath. ExitCode=$($proc.ExitCode). $detail"
   }
 }
 

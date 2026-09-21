@@ -1,549 +1,123 @@
 # ChatGPT Web HWPX MCP
 
-Remote Streamable-HTTP MCP for authenticated HWPX document creation, custody, validation, structured introspection, revision-safe editing, and signed artifact delivery from ChatGPT Web.
-
-## Current phase
-
-**P0 / P1 / P1.1 / P1.2 are closed / PASS.** The project has established native ChatGPT MCP discovery and actions, opaque document custody, signed HWPX delivery, OAuth-native secret-free invocation, durable restart-safe OAuth authority, and bounded existing-HWPX ingress. See the corresponding test ledgers.
-
-**P2 rich-object, P3.0 durable custody, and P3.1 durable concurrency are CLOSED / PASS. P3.2 is active.** P3.2 governs long-lived revision lineage: pinned restore anchors, lease-safe snapshot compaction, append-only commit receipts, restore-reachability checks, and a tamper-evident SHA-256 audit chain.
-
-```text
-ChatGPT Web
-→ durable OAuth 2.1 authority
-→ caller-owned opaque document_id
-→ structured section/paragraph map
-→ stable-or-revision-bound paragraph locator
-→ exact expected_revision
-→ candidate-package validation
-→ atomic HWPX replacement
-→ semantic / structure / formatting receipts
-→ signed export
-```
-
-## MCP tools
-
-| Tool | Side effect | Purpose |
-|---|---:|---|
-| `probe_read` | No | Authenticated connectivity probe |
-| `probe_capabilities` | No | Base auth/custody capability boundary |
-| `p2_capabilities` | No | P2 addressing/edit capability receipt |
-| `create_document` | Yes | Materialize a small HWPX at revision 1 |
-| `ingest_document` | Yes | Admit one bounded existing HWPX at revision 1 |
-| `inspect_document` | No | Validate and inspect one caller-owned document |
-| `get_document_versions` | No | List retained durable revision snapshots |
-| `get_document_commit_receipt` | No | Return a deterministic commit receipt plus audit-chain hashes |
-| `acquire_document_lease` | Yes | Acquire a short durable coordination lease for one revision |
-| `release_document_lease` | Yes | Release a durable lease by opaque token |
-| `restore_document_revision` | Yes | Promote one retained historical snapshot as a new monotonic revision |
-| `set_document_retention` | Yes | Update document TTL under revision CAS |
-| `pin_document_revision` | Yes | Protect a historical revision as a restore anchor |
-| `unpin_document_revision` | Yes | Remove a restore-anchor pin |
-| `compact_document_history` | Yes | Prune unpinned old byte snapshots while preserving the commit ledger |
-| `verify_document_lineage` | No | Verify audit-chain integrity plus current/pinned restore reachability |
-| `get_document_map` | No | Return sections, paragraph locators, and semantic/structure/formatting receipts |
-| `get_text` | No | Return whole-document or locator-targeted paragraph text |
-| `get_formatting` | No | Resolve paragraph/run formatting refs and property summaries |
-| `get_inline_map` | No | Return direct inline text spans, special atoms, field/control boundaries, and inline-structure receipts |
-| `apply_edits` | Yes | Apply one revision-guarded atomic text/paragraph-structure transaction |
-| `apply_formatting` | Yes | Apply one revision-guarded formatting-only transaction |
-| `apply_inline_edits` | Yes | Apply one control-aware cross-run inline text transaction |
-| `apply_control_edits` | Yes | Mutate hyperlink/field semantics or insert/delete special inline atoms |
-| `get_table_map` | No | Return table/cell semantic addresses, merge geometry, and table receipts |
-| `apply_table_edits` | Yes | Apply one revision-guarded table structure/geometry/cell-format transaction |
-| `get_object_map` | No | Return picture objects, package-owned media items, geometry and custody receipts |
-| `apply_object_edits` | Yes | Apply one revision-guarded picture/media/geometry transaction |
-| `get_equation_map` | No | Return equation identities, EqEdit scripts, geometry and custody receipts |
-| `apply_equation_edits` | Yes | Apply one revision-guarded verified-equation lifecycle/geometry transaction |
-| `compare_document` | No | Compare semantic/structure/formatting/inline/table receipts with the current revision |
-| `export_document` | No* | Return a short-lived signed download URL |
-| `delete_document` | Yes | Delete the caller-owned HWPX and metadata |
-
-There are no password, passphrase, API-key, or access-token fields in MCP tool schemas. Authentication happens at the HTTP/MCP transport layer.
-
-## P3.9 paragraph-style provenance, native textboxes, and structural geometry
-
-P3.9 decomposes remaining cross-format layout differences into explicit provenance and native geometry receipts.
-
-- `get_paragraph_style_provenance` exposes HWP ParaShape/Style references and HWPX paraPr/style inheritance side by side.
-- The retained `para-001` left-margin mismatch is a direct paragraph override on both formats, not a hidden style-inheritance artifact.
-- Rectangle-certified HWP object-text controls can be promoted to native HWPX textboxes when anchor, owner, shape family, text flow, and geometry all close.
-- `get_textbox_map` returns native HWPX textbox paragraphs plus width/height/position receipts.
-- The real mixed textbox fixture promotes one rectangle textbox containing two paragraphs while non-rectangle object-text families remain deferred.
-- Table cell LIST_HEADER decoding follows the observed writer contract: base LIST_HEADER + width-ref + 26-byte cell properties.
-- Rich table promotion reapplies certified source cell width/height after merges; the real `table-001.hwp` fixture reaches exact 131/131 material-cell HWPUNIT geometry.
-- Equation and picture fixtures also reach exact structural HWPUNIT geometry after promotion.
-- Geometry authority is deliberately **structural HWPUNIT**, not pixel-rendered or Hancom-renderer identity. Pixel/raster fidelity remains a separate successor gate.
-
-## P3.8 cross-format style canonicalization and native nested-flow promotion
-
-P3.8 closes the previous run-style exact HOLD and expands nested HWP text-flow promotion.
-
-- HWP FaceName references and HWPX fontRef values are compared through canonical font-face names rather than raw document-local IDs.
-- Canonical run-style axes are text, bold, italic, underline, strike, size, color, font and superscript/subscript state.
-- On the real `para-001.hwp/.hwpx` equivalence pair, all 11 comparable paragraphs are exact on every canonical run-style axis.
-- Paragraph-style comparison is reported separately. Zero-valued missing/explicit margins are canonicalized as semantic zero, but genuine numeric differences remain visible.
-- The same real pair reaches 10/11 exact paragraph styles; one paragraph retains a genuine left-margin difference (7.0556 mm in HWP vs 3.5278 mm in HWPX).
-- Header, footer, footnote and endnote text flows with closed owner/anchor semantics can be promoted to native HWPX structures.
-- Text-box/object-text promotion remains deferred until native container/anchor fidelity is independently certified.
-- Mixed text-box fixtures may partially promote note controls when only a subset of owner anchors closes.
-
-## P3.7 run/style recovery, nested text flows and round-trip fidelity oracle
-
-P3.7 extends HWP 5.x authority from object-family reconstruction into paragraph/run style provenance and nested text-flow ownership.
-
-- `PARA_HEADER` contributes paragraph-shape/style/control-mask/instance receipts.
-- `PARA_CHAR_SHAPE` transitions are mapped from source WCHAR coordinates into visible text coordinates through the HWP control scanner.
-- DocInfo `CHAR_SHAPE` records recover bold/italic/underline, size, color, super/subscript and related semantic style attributes.
-- Header, footer, footnote, endnote and object-text paragraphs are assigned to explicit owner/control flows and surfaced through the Common Document IR.
-- `get_hwp5_text_flows` exposes those nested flows without mutating the HWP source.
-- `compare_hwp5_roundtrip_fidelity` compares source HWP with an owned or explicitly supplied HWPX target family-by-family.
-- Body-text receipts distinguish strict paragraph-structure equality from semantic nonblank-text equality. Whitespace-only paragraph representation differences are preserved as diagnostics rather than silently erased.
-- Native promotion of nested header/footer/note/text-box flows remains deferred until target control synthesis is independently verified.
-- Cross-format run-style recovery is available, but exact style equivalence on the current real HWP/HWPX pair is not yet earned.
+Remote Streamable-HTTP MCP for authenticated HWPX document creation, custody, validation, structured introspection, revision-safe editing, legacy HWP read/promotion, and fidelity testing from ChatGPT Web.
 
-## P3.6 HWP control graph and fidelity-preserving rich promotion
+## What this repository contains
 
-P3.6 closes the main structural gap between native HWP parsing and editable HWPX derivatives.
+The GitHub repository is intentionally runtime-facing.
 
-- `get_hwp5_control_graph` reconstructs HWP `CTRL_HEADER` ownership, paragraph anchors, shared object geometry, table-cell containment, equation positioning, and picture-to-BinData references.
-- Table reconstruction binds `TABLE → cell LIST_HEADER → paragraph`; caption/list headers are explicitly excluded and covered subordinate cells are normalized before merged-cell synthesis.
-- Equation recovery binds the EqEdit script to its owning control, paragraph anchor, object size/offset, and instance receipt before native HWPX equation promotion.
-- Picture recovery binds the picture record's BinItem id to DocInfo/BinData storage, source media SHA-256, paragraph anchor, and object geometry.
-- PNG/JPEG media are passed through. BMP media may be promoted through a bounded pixel-preserving BMP→PNG transcode whose source/output hashes and dimensions remain in the promotion receipt.
-- `materialize_hwp5_rich_derivative` promotes only families whose linkage closes. Ambiguous or unsupported families are deferred rather than fabricated.
-- The original HWP binary is never mutated.
+It contains:
 
-Real HWP world-contact covers an official Hancom HWP 5.x document plus independent table, equation, and picture fixtures. External fixture bytes are downloaded only into CI temporary storage and removed after the run.
+- MCP server/runtime code
+- HWPX/HWP parsing and edit modules
+- durable OAuth/document-custody code
+- tests and CI workflows
+- required fixtures
+- Windows/Hancom fidelity harnesses
+- concise operational documentation
 
-## P3.5 common document IR and fidelity-graded HWP promotion
+Historical phase ledgers, support packets, adjudication narratives, and long-form receipts are kept outside the runtime repository in the project Drive archive.
 
-P3.5 promotes legacy HWP 5.x from a text-only side lane into the same format-neutral document model used for HWPX.
+## Main capabilities
 
-- `get_common_document_ir` materializes a shared block model for either owned HWPX custody or one bounded HWP 5.x payload.
-- Common block kinds currently include paragraph, table, equation, picture/shape, and binary custody items.
-- Every block carries source receipts plus an explicit fidelity grade: `inventory < raw-preserved < structural < semantic < editable-native`.
-- `search_common_document` and `get_common_document_slice` work across HWPX and HWP through the same contract.
-- `extract_common_document` can require a minimum fidelity threshold, so agents can exclude low-authority object families instead of silently treating them as equivalent.
-- HWP paragraph text is semantic-grade; table geometry is structural-grade; EqEdit script is semantic-grade; picture/BinData linkage remains inventory/raw-preserved until stronger linkage evidence is implemented.
-- `assess_hwp5_promotion` reports object-family promotion grades before any derivative is created.
-- HWP→HWPX promotion remains provenance-preserving: text becomes editable HWPX, while lower-fidelity object families remain explicit provenance rather than being fabricated into native HWPX objects.
+### Authenticated document lifecycle
 
-## P3.4 atomic bulk text plans
+- OAuth-protected MCP transport
+- opaque document IDs
+- bounded HWPX ingestion
+- revision-safe mutation
+- durable revision lineage
+- signed export
+- semantic/structure/formatting receipts
 
-P3.4 turns bounded search hits into revision-bound edit plans instead of forcing an agent to issue one mutation per hit.
+### HWPX editing
 
-- `plan_bulk_text_replace` enumerates literal hits, allows explicit hit-index selection, constructs exact inline ranges, and validates the full candidate HWPX without durable mutation.
-- The returned `plan_id` is HMAC-bound to document id, revision, semantic digest, query, replacement, and selected hit receipts.
-- `commit_bulk_text_replace` recomputes the plan against the current revision and rejects stale or altered plans before mutation.
-- Selected spans are committed through the inline-range engine in one CAS-guarded revision, preserving unaffected rich formatting and inline structure.
-- Bounded post-edit paragraph receipts are returned so agents can verify the changed region without rematerializing the whole document.
+- paragraphs and text
+- formatting and rich inline structure
+- fields, hyperlinks and bookmarks
+- tables
+- pictures/objects
+- equations
+- bounded search/slice and bulk text plans
 
-## P3.3 large-document navigation and replay-safe creation
+### Legacy HWP 5.x
 
-P3.3 reduces agent cost and lost-response fragility without changing the HWPX editing authority model.
+- read-only native HWP parsing
+- common document IR
+- fidelity-graded extraction
+- provenance-preserving HWP→HWPX promotion where authority is sufficient
 
-- `search_document_text` returns compact paragraph hits, revision-bound locators, match offsets, and bounded context.
-- `get_document_slice` returns at most 200 paragraphs per call with `next_start_paragraph`, so large documents can be read incrementally.
-- Both surfaces expose the current revision and semantic SHA-256, making a navigation result explicitly stale after later edits.
-- `create_document(request_id=...)` is replay-safe: the same owner + request id + payload resolves to the same durable document after a lost response. Reusing the key with a different payload is rejected.
-- The existing full `get_document_map` remains available when complete structural materialization is actually needed.
+### Hancom fidelity harness
 
-## Legacy HWP 5.x read lane
+The repository includes a Windows/Hancom capture lane for renderer evidence.
 
-The server now has an explicitly separate legacy-binary lane for `.hwp` files.
+Current harness components include:
 
-- `inspect_hwp5_document` accepts one bounded HWP 5.x payload and parses the OLE/CFB FileHeader plus BodyText paragraph-text records.
-- Password-, DRM-, and certificate-encrypted sources are reported as unreadable; the server does not bypass those protections.
-- The current reader is text-first and loss-aware. It does **not** claim layout, table, object, or equation fidelity.
-- `materialize_hwp5_text_derivative` can create an editable HWPX derivative whose metadata records the source HWP SHA-256, version, flags, paragraph count, and fidelity warnings.
-- The original HWP binary is never mutated by the HWPX edit engine.
+- self-materialized near-wrap fixture packs
+- Hancom PDF export automation
+- controlled PDF rasterization and line-box extraction
+- artifact custody receipts
+- positive-sensitivity calibration ladders
+- font-file SHA-256 custody
+- cross-version environment isolation
+- cross-version boundary transport adjudication
 
-## P3.2 durable revision-lineage contract
-
-P3.2 separates **commit authority** from **historical byte retention**.
-
-```text
-append-only commit receipt ledger
-  └─ SHA-256 previous_audit_hash → audit_hash chain
-
-revision byte snapshots
-  ├─ current revision: always protected
-  ├─ explicitly pinned restore anchors: DB-level protected
-  ├─ recent K revisions: retention policy
-  └─ older unpinned snapshots: eligible for compaction
-```
-
-`compact_document_history` is revision-CAS guarded and refuses to run while an unexpired document lease exists. A compaction transaction may delete only historical `hwpx_document_revisions` rows; it does not delete `hwpx_document_commits`. After compaction the server immediately re-verifies the audit chain, the current revision snapshot, and every pinned restore anchor.
-
-The commit audit hash covers `document_id`, `revision`, `expected_revision`, document SHA-256, deterministic `receipt_id`, and the previous audit hash. P3.1 rows with no audit fields are migration-backfilled once; existing non-NULL audit values are never auto-healed, so later tampering remains observable across process restart.
-
-Pinned revisions are protected by a database foreign-key constraint in addition to application-level candidate filtering. Restore semantics stay monotonic: an old retained snapshot is never made current by pointer rewind; it is promoted as a fresh `current_revision + 1` commit.
-## P2 address contract
-
-Paragraph locators use the form `p_<hash>`.
-
-- `intrinsic-id`: when HWPX exposes a paragraph id, the locator derives from section identity plus that id and is expected to survive text-only edits while the id survives.
-- `revision-bound-ordinal`: when no intrinsic id is available, the locator falls back to section plus paragraph ordinal. This is deliberately not claimed to survive later structural edits.
-
-`get_document_map` also returns whole-document `semantic_sha256`, `structure_sha256`, `formatting_sha256`, per-paragraph text digests, section identity, paragraph/container indexes, and locator stability classification.
-
-## P2/P2.1 text and structural transaction contract
-
-`apply_edits` admits:
-
-- `replace_paragraph_text`
-- `insert_paragraph_before`
-- `insert_paragraph_after`
-- `delete_paragraph`
-- `move_paragraph_before`
-- `move_paragraph_after` (same container in P2.1)
-
-Inserted paragraphs inherit the anchor paragraph's paragraph/run formatting shell, receive a fresh paragraph intrinsic id, and deliberately do not duplicate rich inline controls. Structural transactions return structure-diff and locator-rebinding receipts.
-
-```text
-expected_revision == current_revision
-→ resolve every locator against one pre-edit map
-→ reject invalid/duplicate/unknown operations
-→ write sibling candidate HWPX
-→ rebuild semantic/structure map
-→ validate candidate HWPX package
-→ atomic os.replace commit
-→ revision + 1
-→ update package/semantic/structure receipts
-```
-
-Stale revisions, invalid operation sets, unknown locators, and candidate-validator failures leave the original document bytes unchanged. Cross-container paragraph moves and table/image/equation mutation remain outside the P2.1 boundary.
-
-## P2.2 formatting layer
-
-`get_formatting` resolves the formatting surface independently from text and structure. P2.3 additionally exposes `direct_text`, `direct_text_length`, and each run's `[start,end)` offsets plus `range_safe` classification:
-
-- paragraph `paraPrIDRef`, `styleIDRef`, page/column break attrs;
-- direct run indexes and `charPrIDRef`;
-- resolved run summaries such as size, text color, bold/italic/underline/strike, font refs, script and outline;
-- resolved paragraph summaries such as alignment, margin, line spacing, break settings and heading refs;
-- document-level `formatting_sha256`.
-
-`apply_formatting` supports two operation families:
-
-```text
-set_run_format
-  → bold / italic / underline / color / font / size / highlight / strike
-  → underline/strike shapes, ratio, letter spacing, shadow, superscript/subscript,
-    outline, emboss, engrave
-
-set_paragraph_format
-  → alignment / line spacing / indents / before-after spacing
-  → outline level / keep rules / page or column break
-  → bottom border / tab stops
-```
-
-Run formatting can target one direct run by `run_index` or all text-bearing runs in the paragraph. Unspecified run properties inherit from the current `charPr` through `python-hwpx`'s style-table machinery instead of reconstructing styles from scratch.
-
-Paragraph-property mutation is intentionally narrower in P2.2: it is accepted only for direct section-body paragraphs. Nested table-cell or shape-internal paragraphs are fully introspectable, but paragraph-property writes fail closed until their container-specific semantics are promoted.
-
-The transaction boundary is formatting-only:
-
-```text
-expected_revision == current_revision
-→ resolve formatting against the pre-edit locator map
-→ write a sibling candidate
-→ create/reuse HWPX charPr / paraPr definitions
-→ apply refs
-→ require semantic_sha256 unchanged
-→ require structure_sha256 unchanged
-→ validate candidate package
-→ atomic os.replace
-→ revision + 1
-→ formatting diff receipt
-```
-
-If a formatting request changes document text or paragraph structure, the candidate is rejected before commit.
-
-## P2.3 rich-text range and normalization layer
-
-P2.3 extends `apply_formatting` without changing the MCP tool name:
-
-```text
-set_range_format
-  target + start + end + format
-  → offsets are [start,end) over target.direct_text
-  → only boundary/intersected plain runs are split
-
-copy_run_format
-  source (+ source_run_index) → target
-  → exact existing charPrIDRef reuse
-  → target can be run_index, all text runs, or [start,end)
-
-copy_paragraph_format
-  source → target
-  → exact existing paraPrIDRef reuse
-  → copy_named_style=true optionally reuses styleIDRef too
-
-normalize_formatting
-  target paragraph or whole document
-  → coalesce adjacent split-safe runs with identical run attributes
-```
-
-Range mutation is intentionally fail-closed for runs containing fields, shapes, mixed inline markup, tabs/controls, or other structures that cannot be split without guessing. Whole-run formatting remains available for those cases when the run itself can be addressed safely.
-
-Paragraph-property mutation now works for both section-body and nested paragraphs. The engine mints or reuses a `paraPr` from the target's current `paraPrIDRef`, saves the header definition, then binds that reference back to the addressed nested paragraph. This avoids positional body-only APIs while preserving the same property-table semantics.
-
-Normalization always runs after other formatting mutations in the same transaction, regardless of operation-array order. It is an inline run-coalescing layer; it does not garbage-collect unrelated historical `charPr`/`paraPr` definitions.
-
-## P2.4 control-aware inline surgery
-
-`get_inline_map` exposes a second, control-aware coordinate surface for each paragraph:
-
-- `inline_text`: direct visible inline text only; nested table/shape text is not folded into its host paragraph;
-- text spans with `[start,end)`, run index, active field stack, and mixed-markup context;
-- visible one-character atoms for tab, line break, no-break space, full-width space, and soft hyphen;
-- zero-width boundaries for field begin/end, bookmarks/other controls, mixed markup, and inline objects;
-- resolved field spans such as HYPERLINK/DATE/PATH;
-- document-level `inline_text_sha256` and `inline_structure_sha256`.
-
-The inline-structure digest deliberately hashes the ordered control/field/markup/special-atom skeleton rather than ordinary text lengths or plain-run fragmentation. Text can therefore change without falsely reporting that a hyperlink or field wrapper was structurally rewritten.
-
-`apply_inline_edits` currently admits:
-
-```text
-replace_inline_text
-  target + [start,end) + text
-  + optional expected_text
-```
-
-The selection may cross ordinary run boundaries, including different character styles. Replacement text is stored in the start span/run, while untouched suffix text remains in its original runs.
-
-Safety rules are fail-closed:
-
-- every selected visible atom must be ordinary text; tab/lineBreak/nbSpace/fwSpace/soft-hyphen must be split around rather than deleted implicitly;
-- all selected text spans must share the same active field and mixed-markup context;
-- field begin/end, bookmark/control, object, or markup boundaries may not occur strictly inside the selected range;
-- HYPERLINK display text and DATE/PATH cached text are editable when the selection stays inside the field wrapper;
-- selections that cross into/out of a field are rejected before byte mutation;
-- replacement text may not introduce new special atoms in P2.4.
-
-The transaction contract is:
-
-```text
-expected_revision == current_revision
-→ resolve offsets against one pre-edit inline map
-→ reject overlap / context crossing / special-atom surgery
-→ edit text storage slots across one or more runs
-→ require paragraph structure digest unchanged
-→ require inline_structure_sha256 unchanged
-→ validate candidate HWPX
-→ atomic replace
-→ revision + 1
-→ inline text/structure diff receipt
-```
-
-This layer is intended to preserve fields and controls, not to rewrite their semantics. Hyperlink targets, field commands, bookmarks, shapes, and special inline atoms remain separate future mutation surfaces.
-
-## P2.5 field/control semantic mutation layer
-
-P2.5 adds a separate `apply_control_edits` transaction rather than weakening P2.4's inline-structure-invariance contract.
-
-Admitted operations:
-
-```text
-create_hyperlink
-  target + [start,end) + url
-  → wraps complete contiguous plain-text spans
-  → preserves existing display-text runs and character formatting
-
-retarget_hyperlink
-  target + field_index + url
-  → mutates HYPERLINK fieldBegin/@name only
-
-remove_hyperlink
-  target + field_index
-  → removes canonical fieldBegin/fieldEnd wrapper runs
-  → keeps display text unchanged
-
-set_field_name
-  target + field_index + name
-  → mutates fieldBegin/@name while preserving field type
-
-insert_special_atom / delete_special_atom
-  → tab, lineBreak, nbSpace, fwSpace, soft hyphen
-```
-
-`get_inline_map` now assigns a stable pre-revision `field_index` inside each paragraph. Field-index operations are resolved against the same pre-edit revision and processed from higher indexes downward.
-
-Special-atom creation follows observed HWPX authoring conventions rather than treating every atom identically:
-
-- `lineBreak`, `nbSpace`, `fwSpace`, and soft hyphen are nested inside `hp:t` mixed content;
-- `tab` is emitted as a run-level sibling atom.
-
-Hyperlink creation is intentionally conservative in P2.5: the selected range must align to complete contiguous plain text spans with no existing field/markup/control boundary. Partial-range wrapping can be promoted later without weakening the current contract.
-
-Unlike P2.4, P2.5 **expects** `inline_structure_sha256` to change. The hard transaction invariant is instead:
-
-```text
-expected_revision == current_revision
-→ resolve field/range/atom target against one pre-edit inline map
-→ write candidate package
-→ require paragraph structure_sha256 unchanged
-→ validate HWPX package
-→ atomic replace
-→ revision + 1
-→ return before/after inline_text + inline_structure receipts
-```
-
-Field `type` mutation remains fail-closed; P2.5 does not reinterpret a DATE field as HYPERLINK or vice versa. Bookmark/shape/object semantic creation and deletion are also outside this layer.
-
-## P2.6 partial-span, typed-field, and bookmark/reference layer
-
-P2.6 keeps the same `apply_control_edits` MCP tool and extends its admitted operations.
-
-### Partial-span hyperlink wrapping
-
-`create_hyperlink` no longer requires whole text spans. A selection may begin/end inside plain `hp:t` runs:
-
-```text
-[start,end) over inline_text
-→ require ordinary text only
-→ reject existing field/markup/control crossings
-→ split only boundary runs
-→ preserve each selected fragment's original run attributes
-→ insert canonical HYPERLINK fieldBegin/fieldEnd wrapper runs
-```
-
-`create_bookmark_reference` uses the same range mechanism with an existing bookmark target. `retarget_bookmark_reference` validates the destination bookmark before replacing the hyperlink target.
-
-### Typed field mutation
-
-The inline map now exposes each field's intrinsic id/fieldid, begin attributes, and typed parameter snapshot.
-
-P2.6 admits only field-property combinations backed by the current upstream HWPX contract:
-
-- DATE: `DateFormat="YYYY년 M월 D일"`, `DateNation="KOR"`, matching observed Command value, plus optional cached text;
-- PATH: observed `filename` lane (`Command="$F"`, `Format="$F"`) plus optional cached text;
-- MAILMERGE: rename `Command` and `FieldValue`, preserving `FieldType="USER_DEFINE"`; the default `{{old_name}}` cached placeholder is synchronized when requested.
-
-Unsupported DATE/PATH formats remain typed rejections rather than guessed format-language translations.
-
-### Bookmark/reference lifecycle
-
-```text
-create_bookmark
-rename_bookmark
-remove_bookmark
-create_bookmark_reference
-retarget_bookmark_reference
-```
-
-Bookmark names are document-unique in this layer. Renaming a bookmark updates matching internal HYPERLINK targets (`#name`) by default. Removing a bookmark is rejected while internal references still point to it; callers must retarget/remove those references first.
-
-### Control identity rebinding
-
-Every P2.6 control transaction returns `control_rebinding`.
-
-- fields are rebound primarily by their intrinsic HWPX field id, so ordinary property/target edits retain a stable identity;
-- bookmarks have no equivalent intrinsic id in the observed structure, so bookmark identity is explicitly revision-scoped and rebound by paragraph/offset position when possible;
-- created/deleted/unresolved controls are reported separately rather than silently treated as stable.
-
-The hard transaction boundary remains exact revision, paragraph-structure invariance, candidate HWPX validation, and atomic replacement. Inline/control structure is allowed to change when the requested operation requires it.
-
-
-
-
-## Durable OAuth boundary
-
-OAuth clients, pending approvals, authorization codes, access tokens, refresh tokens, and revocation state are persisted in encrypted Postgres state.
-
-- lookup keys are SHA-256 fingerprints;
-- payloads are authenticated-encrypted with AES-GCM;
-- authorization-code and refresh-token consumption are transactional;
-- refresh tokens rotate on use;
-- revocation persists across server restarts;
-- `offline_access` is advertised;
-- native ChatGPT post-redeploy continuity has passed without resource-owner reauthorization.
-
-Document bytes themselves are still intentionally ephemeral under `/tmp`; OAuth durability and document-custody durability are separate boundaries.
-
-## Existing-HWPX admission gate
-
-`ingest_document` accepts only small authenticated base64 HWPX packages. The gate enforces bounded package/expanded sizes, entry counts, compression-ratio limits, safe ZIP paths, duplicate/encrypted-entry rejection, CRC validation, required HWPX parts, mimetype placement/signature, XML/HPF parseability, and DTD/ENTITY rejection. Arbitrary remote URL fetching is not supported.
-
-## HWPX validation
-
-Generated, ingested, and P2 edited candidates are independently checked as ZIP/XML packages. Required parts include:
-
-```text
-mimetype
-version.xml
-META-INF/container.xml
-Contents/content.hpf
-Contents/header.xml
-Contents/section0.xml
-```
-
-`mimetype` must be the first ZIP entry, stored without compression, and equal `application/hwp+zip`.
-
-## Storage and ownership
-
-Filesystem paths are never exposed to the model. Every document receives an opaque `doc_<random>` id and is bound to the authenticated OAuth subject. Current document custody is a bounded ephemeral filesystem store with a default 30-minute retention window.
+Cross-version promotion is fail-closed: a second Hancom version must be captured under the same non-renderer environment before renderer-version authority can be promoted.
 
 ## Local run
 
-Install dependencies:
+Install runtime dependencies:
 
 ```bash
 pip install -r requirements.txt
 ```
 
-P2 uses the P1.2 durable OAuth environment plus the P2 wrapper:
+Run the authenticated server with the required deployment secrets/environment variables:
 
 ```bash
-P11_OAUTH_PASSPHRASE='local-oauth-passphrase' \
-P1_DOWNLOAD_SECRET='local-download-secret' \
-P12_AUTH_DATABASE_URL='postgresql://...' \
-P12_STATE_SECRET='replace-with-at-least-32-random-characters' \
-P1_PUBLIC_BASE_URL='http://127.0.0.1:8000' \
 python server_p2.py
 ```
 
-## Deployment
-
-The canonical Render service intentionally retains its historical hostname:
+The canonical hosted service currently retains the historical Render hostname:
 
 ```text
 https://chatgpt-web-hwpx-mcp-p0.onrender.com
 ```
 
-Server-side secrets remain deployment-only and are not stored in this repository.
+Secrets are deployment-only and are not stored in this repository.
+
+## Windows/Hancom replay
+
+A cryptographically custodied renderer session can be produced with:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\p315_run_version_replay.ps1 -SessionId "<session-id>"
+```
+
+To force a particular Hancom installation:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\p315_run_version_replay.ps1 -SessionId "<session-id>" -HancomExe "C:\path\to\Hwp.exe"
+```
+
+Run once per distinct Hancom version on the same Windows/font environment. Compare two resulting `session.json` files with:
+
+```bash
+python scripts/p315_compare_sessions.py --first first-session.json --second second-session.json --out comparison.json
+```
+
+Promotion remains closed if OS, machine, locale, DPI, rasterizer, fixture set, or cryptographic Windows font-file custody differs.
 
 ## CI
 
-P2 currently uses two confirmatory workflows:
+The main lifecycle workflow compiles and tests the active HWPX/HWP runtime plus the renderer-fidelity adjudicators.
 
-- `P2.6 Bookmark and typed-control HWPX lifecycle CI` — legacy regressions plus partial-span hyperlink wrapping, typed field mutation, bookmark/reference propagation, control rebinding, and OAuth-native partial-link roundtrip.
-- `P2.6 Render public boundary verification` — public P2.6 version/health, durable OAuth metadata, `offline_access`, and unauthenticated MCP rejection. The workflow uses HTTP/1.1 and retry-on-transport-error because one GitHub-runner↔Render edge reset was observed while Render itself remained healthy.
+The fidelity harness does not simulate Hancom world contact in Linux CI. Real Hancom renderer authority comes only from sealed Windows capture evidence.
 
-See [`P2_TEST_LEDGER.md`](./P2_TEST_LEDGER.md) for canonical run/deploy receipts and the initial transport-failure classification.
+## Repository-record policy
 
-## Security boundary
+Keep GitHub product-facing.
 
-P2.6 is still deliberately narrow. It does not mutate field types, infer unobserved DATE/PATH format languages, create/delete shape/object semantics, persist document bytes durably, move paragraphs across containers, mutate tables/images/equations, or claim native Hancom visual fidelity.
+Do not add new phase-specific `*_TEST_LEDGER.md` files, historical support packets, or long-form phase diaries to this repository. Store those in the project Drive archive instead.
 
-## Phase lineage
-
-```text
-P1     minimal valid HWPX + document_id + signed export
-P1.1   OAuth-native secret-free lifecycle + authenticated ownership
-P1.2   durable OAuth authority + bounded existing-HWPX ingress
-P2     structured introspection + paragraph addressing + revision-safe text transactions
-P2.1   paragraph insert/delete/reorder + locator rebinding
-P2.2   paragraph/run formatting introspection + formatting mutation + formatting diff
-P2.3   range selection + run splitting + nested formatting + style reuse + normalization
-P2.4   control-aware inline map + field-safe cross-run text surgery + inline-structure diff
-P2.5   hyperlink lifecycle + field-name semantics + special inline atom mutation
-P2.6   partial-span hyperlink + typed fields + bookmark/reference lifecycle + control rebinding
-P2.7   table semantic map + grid-addressed structure/merge/split/cell-format transactions
-P2.x   richer cross-reference/control and container semantics
-P3     tables / images / equations
-P4     renderer oracle and Hancom fidelity validation
-```
+Raw world-contact artifacts should be preserved before adjudication.

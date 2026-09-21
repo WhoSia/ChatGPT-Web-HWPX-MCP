@@ -53,7 +53,12 @@ if ($entries.Count -eq 0) {
   throw "No Windows font files could be resolved and hashed."
 }
 
-$canonical = $entries | ConvertTo-Json -Depth 5 -Compress
+$lines = @(
+  $entries | ForEach-Object {
+    "{0}`0{1}`0{2}`0{3}" -f $_.registry_name, $_.path, $_.sha256, $_.bytes
+  }
+)
+$canonical = [string]::Join("`n", $lines)
 $sha = [System.Security.Cryptography.SHA256]::Create()
 try {
   $bytes = [Text.Encoding]::UTF8.GetBytes($canonical)

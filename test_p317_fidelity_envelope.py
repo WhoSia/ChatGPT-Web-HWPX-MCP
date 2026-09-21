@@ -69,7 +69,7 @@ class P317FidelityEnvelopeTests(unittest.TestCase):
             self.assertIn("formatting_sha256", by_class["run_format"]["changed_runtime_dimensions"])
             self.assertIn("table_structure_sha256", by_class["table"]["changed_runtime_dimensions"])
             self.assertIn("object_structure_sha256", by_class["object_picture"]["changed_runtime_dimensions"])
-            self.assertIn("page_geometry_sha256", by_class["page_section_geometry"]["changed_runtime_dimensions"])
+            self.assertIn("page_geometry_sha256", by_class["page_margin_geometry"]["changed_runtime_dimensions"])
             self.assertIn("equation_structure_sha256", by_class["equation"]["changed_runtime_dimensions"])
 
 

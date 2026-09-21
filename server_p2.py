@@ -54,6 +54,11 @@ from p322_review_workflow import (
     build_review_workflow_map,
     apply_review_workflow_atomic,
 )
+from p323_advanced_tables import (
+    advanced_table_contract,
+    build_advanced_table_map,
+    apply_advanced_table_edits_atomic,
+)
 from p313_capture_custody import (
     near_wrap_positive_sensitivity_spec,
     validate_artifact_custody,
@@ -79,9 +84,9 @@ from common_ir import (
     slice_common_ir,
 )
 
-P2_VERSION = "0.9.0-p3.22"
+P2_VERSION = "0.9.0-p3.23"
 core.VERSION = P2_VERSION
-core.PHASE = "P3.22"
+core.PHASE = "P3.23"
 
 _original_metadata = core._metadata
 
@@ -3366,6 +3371,88 @@ def apply_page_geometry(
         "fidelity": fidelity,
         "validation": validation,
         "transaction": "COMMITTED",
+    }
+
+
+@core.mcp.tool()
+def get_advanced_table_contract() -> dict:
+    """Return the admitted P3.23 advanced-table contract and explicit evidence gates."""
+    core._caller_subject()
+    return {"ok": True, **advanced_table_contract()}
+
+
+@core.mcp.tool()
+def get_advanced_tables(document_id: str) -> dict:
+    """Return table geometry, repeat-header state, row geometry, and vertical alignment."""
+    metadata, path = _owned_document(document_id)
+    mapped = build_advanced_table_map(path)
+    return {
+        "ok": True,
+        "document_id": document_id,
+        "revision": int(metadata["revision"]),
+        **mapped,
+    }
+
+
+@core.mcp.tool()
+def apply_advanced_table_edits(
+    document_id: str,
+    expected_revision: int,
+    operations: list[dict],
+    lease_token: str = "",
+) -> dict:
+    """Apply one revision-guarded P3.23 advanced-table transaction."""
+    metadata, path = _owned_document(document_id)
+    current_revision = int(metadata["revision"])
+    ingress = metadata.get("source") == "existing-ingress"
+    fidelity = assess_edit_fidelity_envelope(operations)
+    transaction = apply_advanced_table_edits_atomic(
+        path,
+        operations,
+        expected_revision=int(expected_revision),
+        current_revision=current_revision,
+        validator=lambda candidate: core.validate_hwpx_package(candidate, ingress=ingress),
+    )
+    validation = transaction["validation"]
+    after_document = build_document_map(path)
+    after_formatting = build_formatting_map(path)
+    after_inline = build_inline_map(path)
+    after_tables = build_advanced_table_map(path)
+    after_objects = build_object_map(path)
+    after_equations = build_equation_map(path)
+    metadata["revision"] = current_revision + 1
+    metadata["last_edit_at"] = core._utc_iso()
+    if lease_token:
+        metadata["_commit_lease_token"] = lease_token
+    _refresh_metadata(
+        document_id,
+        metadata,
+        validation,
+        after_document,
+        after_formatting,
+        after_inline,
+        after_tables,
+        after_objects,
+        after_equations,
+    )
+    return {
+        "ok": True,
+        "document_id": document_id,
+        "revision_before": current_revision,
+        "revision_after": int(metadata["revision"]),
+        "sha256": validation["sha256"],
+        "advanced_table_diff": transaction,
+        "advanced_tables": build_advanced_table_map(path),
+        "fidelity": fidelity,
+        "validation": validation,
+        "transaction": "COMMITTED",
+        "authority": "STRUCTURAL_AUTHORITY_ONLY",
+        "native_render_batch_status": "DEFERRED_BY_DESIGN",
+        "collaboration": {
+            "server_revision_history": True,
+            "cas_guarded": True,
+            "lease_compatible": True,
+        },
     }
 
 

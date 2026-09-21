@@ -33,7 +33,10 @@ def _resolve_paragraph(document: HwpxDocument, path: Path, locator: Any):
     if info is None:
         raise ValueError(f"Unknown paragraph locator: {wanted}")
     section_index = int(info["section_index"])
-    paragraph_index = int(info["paragraph_index"])
+    body_index = info.get("body_paragraph_index")
+    if body_index is None:
+        raise ValueError("annotation paragraph target must be a section-body paragraph")
+    paragraph_index = int(body_index)
     paragraphs = document.sections[section_index].paragraphs
     if paragraph_index < 0 or paragraph_index >= len(paragraphs):
         raise ValueError("paragraph locator no longer resolves")
@@ -124,6 +127,11 @@ def build_annotation_apparatus_map(path: Path) -> dict:
                             child_local = _local(child.tag)
                             if child_local.endswith("Param") and child.get("name"):
                                 params[child.get("name")] = child.text or ""
+                        if field_type == "HYPERLINK":
+                            url = node.get("name")
+                            row["url"] = url
+                            if url:
+                                params.setdefault("URL", url)
                         row["parameters"] = params
                         if field_type == "HYPERLINK":
                             hyperlinks.append(row)

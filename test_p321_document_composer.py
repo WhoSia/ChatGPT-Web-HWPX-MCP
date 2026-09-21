@@ -116,8 +116,8 @@ class P321DocumentComposerTests(unittest.TestCase):
             self.assertGreaterEqual(build_document_setup_map(out)["section_count"], 1)
 
             publishing = build_structured_publishing_map(out)
-            self.assertGreaterEqual(publishing["counts"]["native_toc"], 1)
-            self.assertGreaterEqual(publishing["counts"]["crossref"], 1)
+            self.assertGreaterEqual(publishing["toc_field_count"], 1)
+            self.assertGreaterEqual(publishing["crossref_field_count"], 1)
             annotations = build_annotation_apparatus_map(out)
             self.assertEqual(annotations["counts"]["footnotes"], 1)
             self.assertEqual(annotations["counts"]["index_marks"], 1)

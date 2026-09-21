@@ -21,6 +21,14 @@ def _require(condition: bool, message: str) -> None:
         raise ValueError(message)
 
 
+def _font_file_digest(files: list[dict]) -> str:
+    lines = [
+        f"{item['registry_name']}\0{item['path']}\0{item['sha256']}\0{item['bytes']}"
+        for item in files
+    ]
+    return hashlib.sha256("\n".join(lines).encode("utf-8")).hexdigest()
+
+
 def normalize_font_file_custody(receipt: dict) -> dict:
     if not isinstance(receipt, dict):
         raise ValueError("font custody receipt must be an object")
@@ -47,7 +55,7 @@ def normalize_font_file_custody(receipt: dict) -> dict:
             "bytes": size,
         })
     normalized.sort(key=lambda x: (x["registry_name"].casefold(), x["path"].casefold(), x["sha256"]))
-    digest = _sha(normalized)
+    digest = _font_file_digest(normalized)
     claimed = str(receipt.get("font_file_custody_sha256") or "").strip().lower()
     if claimed and claimed != digest:
         raise ValueError("font custody digest mismatch")

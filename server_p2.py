@@ -50,6 +50,10 @@ from p321_document_composer import (
     validate_document_plan as validate_composition_plan,
     compose_document_plan,
 )
+from p322_review_workflow import (
+    build_review_workflow_map,
+    apply_review_workflow_atomic,
+)
 from p313_capture_custody import (
     near_wrap_positive_sensitivity_spec,
     validate_artifact_custody,
@@ -75,9 +79,9 @@ from common_ir import (
     slice_common_ir,
 )
 
-P2_VERSION = "0.9.0-p3.21"
+P2_VERSION = "0.9.0-p3.22"
 core.VERSION = P2_VERSION
-core.PHASE = "P3.21"
+core.PHASE = "P3.22"
 
 _original_metadata = core._metadata
 
@@ -713,6 +717,80 @@ def create_document_from_plan(
         "idempotent_replay": False,
         "request_id": normalized_request_id or None,
         "next": "Call export_document for a signed download URL.",
+    }
+
+
+@core.mcp.tool()
+def get_review_workflow(document_id: str) -> dict:
+    """Return tracked changes, form controls, highlights, and document metadata."""
+    metadata, path = _owned_document(document_id)
+    mapped = build_review_workflow_map(path)
+    return {
+        "ok": True,
+        "document_id": document_id,
+        "revision": int(metadata["revision"]),
+        **mapped,
+    }
+
+
+@core.mcp.tool()
+def apply_review_workflow(
+    document_id: str,
+    expected_revision: int,
+    operations: list[dict],
+    lease_token: str = "",
+) -> dict:
+    """Apply one revision-guarded native review/forms/metadata transaction."""
+    metadata, path = _owned_document(document_id)
+    current_revision = int(metadata["revision"])
+    ingress = metadata.get("source") == "existing-ingress"
+    fidelity = assess_edit_fidelity_envelope(operations)
+    transaction = apply_review_workflow_atomic(
+        path,
+        operations,
+        expected_revision=int(expected_revision),
+        current_revision=current_revision,
+        validator=lambda candidate: core.validate_hwpx_package(candidate, ingress=ingress),
+    )
+    validation = transaction["validation"]
+    after_document = build_document_map(path)
+    after_formatting = build_formatting_map(path)
+    after_inline = build_inline_map(path)
+    after_tables = build_table_map(path)
+    after_objects = build_object_map(path)
+    after_equations = build_equation_map(path)
+    metadata["revision"] = current_revision + 1
+    metadata["last_edit_at"] = core._utc_iso()
+    if lease_token:
+        metadata["_commit_lease_token"] = lease_token
+    _refresh_metadata(
+        document_id,
+        metadata,
+        validation,
+        after_document,
+        after_formatting,
+        after_inline,
+        after_tables,
+        after_objects,
+        after_equations,
+    )
+    return {
+        "ok": True,
+        "document_id": document_id,
+        "revision_before": current_revision,
+        "revision_after": int(metadata["revision"]),
+        "sha256": validation["sha256"],
+        "review_workflow_diff": transaction,
+        "review_workflow": build_review_workflow_map(path),
+        "fidelity": fidelity,
+        "validation": validation,
+        "transaction": "COMMITTED",
+        "collaboration": {
+            "native_review_marks": True,
+            "server_revision_history": True,
+            "cas_guarded": True,
+            "lease_compatible": True,
+        },
     }
 
 
@@ -4141,7 +4219,7 @@ def p2_capabilities() -> dict:
     return {
         "project": core.PROJECT,
         "version": core.VERSION,
-        "phase": "P3.21",
+        "phase": "P3.22",
         "authenticated_subject": subject,
         "tools_added": [
             "acquire_document_lease",
@@ -4196,6 +4274,8 @@ def p2_capabilities() -> dict:
             "get_document_plan_contract",
             "validate_document_plan",
             "create_document_from_plan",
+            "get_review_workflow",
+            "apply_review_workflow",
         ],
         "operations": [
             "replace_paragraph_text",

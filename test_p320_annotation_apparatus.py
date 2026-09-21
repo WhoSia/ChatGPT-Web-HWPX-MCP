@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -134,8 +135,6 @@ class P320AnnotationApparatusTests(unittest.TestCase):
             )
 
     def test_rich_reference_fields_roundtrip(self):
-        import json
-
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "doc.hwpx"
             make_doc(path)

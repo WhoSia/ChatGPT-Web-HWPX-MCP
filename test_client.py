@@ -173,6 +173,15 @@ async def main() -> None:
                 "apply_object_edits",
                 "get_equation_map",
                 "apply_equation_edits",
+                "get_document_setup",
+                "apply_document_setup",
+                "get_structured_publishing",
+                "apply_structured_publishing",
+                "get_annotation_apparatus",
+                "apply_annotation_apparatus",
+                "get_document_plan_contract",
+                "validate_document_plan",
+                "create_document_from_plan",
             }
             missing = expected - set(names)
             if missing:
@@ -183,15 +192,101 @@ async def main() -> None:
                     raise RuntimeError(f"secret-bearing field leaked into tool schema: {tool.name}")
 
             read_payload = _payload(await client.call_tool("probe_read", {"message": "P2 OAuth smoke test"}))
-            if not read_payload or not read_payload.get("ok") or read_payload.get("version") != "0.9.0-p3.9":
+            if not read_payload or not read_payload.get("ok") or read_payload.get("version") != "0.9.0-p3.21":
                 raise RuntimeError(f"probe_read did not expose P2: {read_payload}")
 
             p2_caps = _payload(await client.call_tool("p2_capabilities", {}))
-            if not p2_caps or p2_caps.get("phase") != "P3.9":
+            if not p2_caps or p2_caps.get("phase") != "P3.21":
                 raise RuntimeError(f"p2_capabilities failed: {p2_caps}")
 
             if not RUN_WRITE_TEST:
                 return
+
+            plan_checked = _payload(await client.call_tool("validate_document_plan", {
+                "plan": {
+                    "blocks": [
+                        {"id": "h1", "type": "heading", "level": 1, "text": "P3.21 MCP transport"},
+                        {"id": "p1", "type": "paragraph", "text": "one-shot authenticated creation"},
+                        {"id": "t1", "type": "table", "rows": 2, "cols": 2, "cells": [["A", "B"], ["1", "2"]]},
+                        {"id": "e1", "type": "equation", "latex": "x=1"},
+                        {"id": "p2", "type": "paragraph", "text": "reference target verification"},
+                    ],
+                    "publishing": {"toc": True},
+                    "post_operations": [{
+                        "op": "add_page_crossref",
+                        "paragraph": "$block:p2",
+                        "target_paragraph": "$block:h1",
+                        "cached_page": 1,
+                    }],
+                }
+            }))
+            if not plan_checked or not plan_checked.get("ok") or plan_checked.get("block_count") != 5:
+                raise RuntimeError(f"P3.21 plan validation failed: {plan_checked}")
+
+            planned = _payload(await client.call_tool("create_document_from_plan", {
+                "plan": {
+                    "document": {"title": "P3.21 Transport Smoke"},
+                    "blocks": [
+                        {"id": "h1", "type": "heading", "level": 1, "text": "P3.21 MCP transport"},
+                        {"id": "p1", "type": "paragraph", "text": "one-shot authenticated creation"},
+                        {"id": "t1", "type": "table", "rows": 2, "cols": 2, "cells": [["A", "B"], ["1", "2"]]},
+                        {"id": "e1", "type": "equation", "latex": "x=1"},
+                        {"id": "p2", "type": "paragraph", "text": "reference target verification"},
+                    ],
+                    "publishing": {"toc": True},
+                    "post_operations": [{
+                        "op": "add_page_crossref",
+                        "paragraph": "$block:p2",
+                        "target_paragraph": "$block:h1",
+                        "cached_page": 1,
+                    }],
+                },
+                "filename": "p321-one-shot.hwpx",
+                "request_id": "p321-ci-one-shot-create",
+            }))
+            if (
+                not planned
+                or not planned.get("ok")
+                or planned.get("revision") != 1
+                or planned.get("composition", {}).get("block_count") != 5
+                or not planned.get("composition", {}).get("atomic_commit")
+            ):
+                raise RuntimeError(f"P3.21 one-shot create failed: {planned}")
+            planned_document_id = planned["document_id"]
+
+            planned_export = _payload(await client.call_tool("export_document", {
+                "document_id": planned_document_id,
+                "link_ttl_seconds": 120,
+            }))
+            if not planned_export or not planned_export.get("download_url"):
+                raise RuntimeError(f"P3.21 one-shot export failed: {planned_export}")
+            async with httpx2.AsyncClient() as downloader:
+                planned_download = await downloader.get(planned_export["download_url"])
+            if planned_download.status_code != 200:
+                raise RuntimeError(
+                    f"P3.21 one-shot download failed: {planned_download.status_code} {planned_download.text}"
+                )
+            if (
+                hashlib.sha256(planned_download.content).hexdigest() != planned_export["sha256"]
+                or planned_download.content[:2] != b"PK"
+            ):
+                raise RuntimeError("P3.21 one-shot export receipt mismatch")
+
+            planned_ingested = _payload(await client.call_tool("ingest_document", {
+                "filename": "p321-reingested.hwpx",
+                "content_base64": base64.b64encode(planned_download.content).decode("ascii"),
+            }))
+            if (
+                not planned_ingested
+                or planned_ingested.get("admission") != "PASS"
+                or planned_ingested.get("revision") != 1
+            ):
+                raise RuntimeError(f"P3.21 one-shot re-ingest failed: {planned_ingested}")
+            planned_inspected = _payload(await client.call_tool("inspect_document", {
+                "document_id": planned_ingested["document_id"],
+            }))
+            if not planned_inspected or not planned_inspected.get("validation", {}).get("valid"):
+                raise RuntimeError(f"P3.21 one-shot reopen verification failed: {planned_inspected}")
 
             create_request_id = "p33-ci-idempotent-create"
             created = _payload(await client.call_tool("create_document", {
@@ -975,11 +1070,18 @@ async def main() -> None:
             ):
                 raise RuntimeError(f"P3.4 bounded post-edit verification failed: {bulk_text}")
 
-            for doc_id in (document_id, ingested["document_id"], table_document_id, bulk_document_id):
+            for doc_id in (
+                document_id,
+                ingested["document_id"],
+                table_document_id,
+                bulk_document_id,
+                planned_document_id,
+                planned_ingested["document_id"],
+            ):
                 deleted = _payload(await client.call_tool("delete_document", {"document_id": doc_id}))
                 if not deleted or not deleted.get("deleted"):
                     raise RuntimeError(f"delete_document failed: {deleted}")
-            print("P3.5 lifecycle PASS", digest)
+            print("P3.21 lifecycle and one-shot generation PASS", digest)
 
 
 if __name__ == "__main__":

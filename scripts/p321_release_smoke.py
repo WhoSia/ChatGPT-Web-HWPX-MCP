@@ -13,6 +13,7 @@ from hwpx import HwpxDocument
 from p2_document import build_document_map
 from p28_tables import build_table_map
 from p210_equations import build_equation_map
+from p319_structured_publishing import build_structured_publishing_map
 from p321_document_composer import compose_document_plan
 
 
@@ -34,7 +35,15 @@ def main() -> int:
                         "cells": [["A", "B"], ["1", "2"]],
                     },
                     {"id": "e1", "type": "equation", "latex": "x=1"},
+                    {"id": "p2", "type": "paragraph", "text": "reference after nested table content"},
                 ],
+                "publishing": {"toc": {"title": "Contents", "level": 2}},
+                "post_operations": [{
+                    "op": "add_page_crossref",
+                    "paragraph": "$block:p2",
+                    "target_paragraph": "$block:h1",
+                    "cached_page": 1,
+                }],
             },
             validator=None,
         )
@@ -51,6 +60,11 @@ def main() -> int:
             raise RuntimeError("P3.21 table missing after reopen")
         if len(build_equation_map(target)["equations"]) != 1:
             raise RuntimeError("P3.21 equation missing after reopen")
+        publishing = build_structured_publishing_map(target)
+        if publishing.get("toc_field_count", 0) < 1:
+            raise RuntimeError("P3.21 native TOC missing after reopen")
+        if publishing.get("crossref_field_count", 0) < 1:
+            raise RuntimeError("P3.21 CROSSREF missing after reopen")
 
     print("P3.21 release smoke PASS")
     return 0

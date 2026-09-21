@@ -94,6 +94,32 @@ function Export-HancomPdf {
   }
 }
 
+function Export-HancomPdfWithRetry {
+  param(
+    [Parameter(Mandatory=$true)][string]$InputPath,
+    [Parameter(Mandatory=$true)][string]$OutputPath,
+    [int]$MaxAttempts = 3
+  )
+
+  $lastError = $null
+  for ($attempt = 1; $attempt -le $MaxAttempts; $attempt++) {
+    try {
+      if ($attempt -gt 1) {
+        Write-Host "RETRY Hancom export $attempt/$MaxAttempts: $InputPath"
+        Start-Sleep -Seconds 2
+      }
+      Export-HancomPdf -InputPath $InputPath -OutputPath $OutputPath
+      return
+    }
+    catch {
+      $lastError = $_
+      if ($attempt -ge $MaxAttempts) { throw }
+      Write-Host "Transient Hancom export failure: $($_.Exception.Message)"
+    }
+  }
+  if ($lastError) { throw $lastError }
+}
+
 $Python = Get-Command python -ErrorAction SilentlyContinue
 if (-not $Python) { throw "Python 3.12+ is required." }
 
@@ -171,8 +197,8 @@ foreach ($dir in $FixtureDirs) {
   Write-Host "CAPTURE fixture: $fixtureId"
 
   try {
-    Export-HancomPdf -InputPath $source -OutputPath $sourcePdf
-    Export-HancomPdf -InputPath $target -OutputPath $targetPdf
+    Export-HancomPdfWithRetry -InputPath $source -OutputPath $sourcePdf
+    Export-HancomPdfWithRetry -InputPath $target -OutputPath $targetPdf
 
     & $VenvPython scripts/p313r1_pdf_capture.py `
       --fixture-id $fixtureId `
@@ -221,14 +247,18 @@ foreach ($dir in $FixtureDirs) {
   }
 }
 
-if ($Summary.succeeded.Count -gt 0 -or $Summary.skipped.Count -gt 0) {
+if ($Summary.failed.Count -eq 0 -and ($Summary.succeeded.Count -gt 0 -or $Summary.skipped.Count -gt 0)) {
   & $VenvPython scripts/p313r1_select_boundary.py --pack $ResolvedOut
   $BoundaryExit = $LASTEXITCODE
   $Summary.boundary_ready = ($BoundaryExit -eq 0)
 } else {
   $BoundaryExit = 2
   $Summary.boundary_ready = $false
-  Write-Host "Boundary selection skipped: no successful fixture captures."
+  if ($Summary.failed.Count -gt 0) {
+    Write-Host "Boundary selection skipped: incomplete fixture capture ($($Summary.failed.Count) failed)."
+  } else {
+    Write-Host "Boundary selection skipped: no successful fixture captures."
+  }
 }
 
 $SummaryPath = Join-Path $ResolvedOut "windows-hancom-run-summary.json"

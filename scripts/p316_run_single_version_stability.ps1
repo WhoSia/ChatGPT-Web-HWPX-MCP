@@ -101,7 +101,9 @@ for ($i = 1; $i -le $Repetitions; $i++) {
   Write-Host "P3.16 fresh replay $i/$Repetitions — $HancomVersion"
 
   & (Join-Path $PSScriptRoot "p315_font_file_custody.ps1") -OutFile $FontBefore
-  if ($LASTEXITCODE -ne 0) { throw "Repeat $i pre-capture font custody failed." }
+  if (-not $? -or -not (Test-Path $FontBefore)) {
+    throw "Repeat $i pre-capture font custody failed."
+  }
 
   $CaptureArgs = @{
     HancomExe = $HancomExe
@@ -113,7 +115,9 @@ for ($i = 1; $i -le $Repetitions; $i++) {
   if ($LASTEXITCODE -ne 0) { throw "Repeat $i Hancom capture failed." }
 
   & (Join-Path $PSScriptRoot "p315_font_file_custody.ps1") -OutFile $FontAfter
-  if ($LASTEXITCODE -ne 0) { throw "Repeat $i post-capture font custody failed." }
+  if (-not $? -or -not (Test-Path $FontAfter)) {
+    throw "Repeat $i post-capture font custody failed."
+  }
 
   $A = Read-Json $FontBefore
   $B = Read-Json $FontAfter

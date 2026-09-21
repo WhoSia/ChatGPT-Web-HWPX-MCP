@@ -1,0 +1,78 @@
+{
+  "schema": "chatgpt-web-hwpx-mcp/first-hancom-world-contact/p3.14/v1",
+  "evidence_bundle_sha256": "899040f3f32c0d63c95729c573455104b01ba4b7a9ddaf409baed799793aa795",
+  "summary_sha256": "d44ae0c08787056f4a0651720d8ee9cb68bed46fb79b1a084cbca3a5050b8508",
+  "manifest_sha256": "2cf7817046bf781493008633d6117d67a3b99538793174a6ad540d8a706c9418",
+  "boundary_selection_sha256": "9186108f371756eaa8ca1f8e59fe3deb7a4746b9bd669c9168666f42a65f88ea",
+  "renderer": {
+    "name": "Hancom Hangul",
+    "version": "13.0.0.3622",
+    "executable_sha256": "91541f8c16e592516d0265c795b565a14a2cacef0b64f616b0626f54f3d3ece2",
+    "dpi": 144,
+    "pdf_backend": "Hancom SaveAs PDF",
+    "rasterizer": "PyMuPDF",
+    "rasterizer_version": "1.28.2"
+  },
+  "execution": {
+    "expected_fixture_runs": 19,
+    "succeeded": 19,
+    "failed": 0,
+    "boundary_ready": true
+  },
+  "integrity": {
+    "manifest_document_hashes_checked": 38,
+    "manifest_document_hashes_matched": 38,
+    "render_receipts_checked": 19,
+    "render_receipt_document_raster_hash_mismatches": 0,
+    "canonical_custody_bundles_checked": 3,
+    "canonical_custody_artifact_hash_mismatches": 0
+  },
+  "baseline": {
+    "fixture_id": "near-wrap-base",
+    "render_receipt_sha256": "616633a0efa321623a3692fae7d83ec45a8ee55ce997b328f8304246a3e75fb3",
+    "custody_bundle_sha256": "b21cdb11b030fab04deec038a228ea4cb30121deb8e652670bf979d5fc4d2b37",
+    "pagination_equal": true,
+    "line_break_equal": true,
+    "exact_pixel_match": true,
+    "pixel_diff_ratio": 0,
+    "mae": 0,
+    "edge_disagreement": 0
+  },
+  "positive_controls": {
+    "advance": {
+      "canonical_fixture_id": "near-wrap-plus-advance",
+      "canonical_render_receipt_sha256": "eda2961393cef27b3203c9f2eea43b875d373d61ab91c31b09ab2b0107e49c4a",
+      "smallest_divergent_candidate": "advance-10120",
+      "magnitude_basis_points_over_baseline": 120,
+      "predecessor_candidate": "advance-10100",
+      "predecessor_line_break_equal": true,
+      "selected_line_break_equal": false,
+      "selected_pixel_diff_ratio": 0.05395237762167887,
+      "selected_glyph_advance_max_delta_px": 191.73284912109375
+    },
+    "frame": {
+      "canonical_fixture_id": "near-wrap-minus-frame",
+      "canonical_render_receipt_sha256": "b6b60c8934c2000885d8a496e22cad76de96e2e99c94994e4cc4121831e75f83",
+      "smallest_divergent_candidate": "frame-283",
+      "magnitude_hwpunit": 283,
+      "predecessor_candidate": "frame-213",
+      "predecessor_line_break_equal": true,
+      "selected_line_break_equal": false,
+      "selected_pixel_diff_ratio": 0.05068495888248284,
+      "selected_glyph_advance_max_delta_px": 185.41949462890625
+    }
+  },
+  "cross_version": {
+    "distinct_hancom_versions": 1,
+    "versions": [
+      "13.0.0.3622"
+    ],
+    "authority": "CROSS_VERSION_WORLD_CONTACT_HOLD"
+  },
+  "limitations": [
+    "Font evidence is PDF-observed font identity/size, not a cryptographic hash of the installed Windows font file.",
+    "This first world-contact packet contains one Hancom version only.",
+    "Exact pixel equality is demonstrated for the unchanged baseline; it is not a blanket claim that all HWPX transformations are pixel-identical."
+  ],
+  "authority": "FIRST_TRUSTED_HANCOM_WORLD_CONTACT_RECEIPT"
+}

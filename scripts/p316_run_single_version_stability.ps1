@@ -33,8 +33,14 @@ function Prepare-FrozenPack {
   }
 
   if (Test-Path $Destination) {
-    Remove-Item $Destination -Recurse -Force
+    $manifest = Join-Path $Destination "capture-ready-manifest.json"
+    if (-not (Test-Path $manifest)) {
+      throw "Existing repetition directory is not resumable: $Destination"
+    }
+    Write-Host "RESUME existing repetition: $Destination"
+    return
   }
+
   New-Item -ItemType Directory -Force -Path $Destination | Out-Null
   Copy-Item -Path (Join-Path $Source "*") -Destination $Destination -Recurse -Force
 

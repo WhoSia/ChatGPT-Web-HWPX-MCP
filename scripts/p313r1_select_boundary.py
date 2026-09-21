@@ -38,8 +38,44 @@ def main() -> int:
     args = p.parse_args()
     root = Path(args.pack)
 
-    advance = select_boundary_candidate(collect(root, "advance"))
-    frame = select_boundary_candidate(collect(root, "frame"))
+    manifest = json.loads((root / "capture-ready-manifest.json").read_text(encoding="utf-8"))
+    ladder = manifest.get("boundary_calibration_ladder") or {}
+    expected = {
+        family: {
+            str(item.get("candidate_id"))
+            for item in (ladder.get(family) or [])
+            if item.get("candidate_id")
+        }
+        for family in ("advance", "frame")
+    }
+    observed = {
+        "advance": collect(root, "advance"),
+        "frame": collect(root, "frame"),
+    }
+    missing = {
+        family: sorted(expected[family] - {item["candidate_id"] for item in observed[family]})
+        for family in ("advance", "frame")
+    }
+
+    if missing["advance"] or missing["frame"]:
+        result = {
+            "schema": "chatgpt-web-hwpx-mcp/boundary-selection/p3.13-r1/v1",
+            "advance": {"selected": None, "authority": "BOUNDARY_SELECTION_HOLD"},
+            "frame": {"selected": None, "authority": "BOUNDARY_SELECTION_HOLD"},
+            "missing_candidates": missing,
+            "ready_for_p314": False,
+            "authority": "INCOMPLETE_LADDER_BOUNDARY_SELECTION_HOLD",
+        }
+        output = root / "boundary-selection.json"
+        output.write_text(
+            json.dumps(result, ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+        return 2
+
+    advance = select_boundary_candidate(observed["advance"])
+    frame = select_boundary_candidate(observed["frame"])
     result = {
         "schema": "chatgpt-web-hwpx-mcp/boundary-selection/p3.13-r1/v1",
         "advance": advance,

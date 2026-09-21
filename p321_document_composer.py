@@ -125,6 +125,9 @@ def document_plan_contract() -> dict:
 def _normalize_plan(plan: dict) -> dict:
     if not isinstance(plan, dict):
         raise ValueError("plan must be an object")
+    encoded_plan = json.dumps(plan, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    if len(encoded_plan) > 16 * 1024 * 1024:
+        raise ValueError("document plan exceeds 16 MiB")
     preset = str(plan.get("preset", "default"))
     if preset not in PRESETS:
         raise ValueError(f"unknown document preset: {preset}")

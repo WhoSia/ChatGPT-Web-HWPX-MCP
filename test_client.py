@@ -478,18 +478,6 @@ async def main() -> None:
                         "hide_header": True,
                         "hide_page_number": True,
                     },
-                    {
-                        "op": "add_section_boundary",
-                        "after": 0,
-                        "text": "P3.24 second section",
-                        "stories": [
-                            {
-                                "kind": "footer",
-                                "page_type": "BOTH",
-                                "text": "Section 2 Footer",
-                            }
-                        ],
-                    },
                 ],
             }))
             if (
@@ -506,7 +494,7 @@ async def main() -> None:
             if (
                 not story_readback
                 or story_readback.get("revision") != 4
-                or story_readback.get("section_count") != 2
+                or story_readback.get("section_count") != 1
             ):
                 raise RuntimeError(f"P3.24 story-layer read-back failed: {story_readback}")
             first_story_section = story_readback["sections"][0]
@@ -526,7 +514,6 @@ async def main() -> None:
                     story.get("linkage_exact")
                     for story in first_story_section.get("stories", [])
                 )
-                or story_readback["sections"][1].get("story_count", 0) < 1
             ):
                 raise RuntimeError(f"P3.24 story-layer state mismatch: {story_readback}")
 

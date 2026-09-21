@@ -46,8 +46,39 @@ foreach ($root in $registryRoots) {
 
 $entries = @(
   $entries |
-    Sort-Object registry_name, path, sha256 -Unique
+    Group-Object { "$($_.registry_name)`0$($_.path)`0$($_.sha256)" } |
+    ForEach-Object { $_.Group[0] }
 )
+
+$sortSha = [System.Security.Cryptography.SHA256]::Create()
+try {
+  $entries = @(
+    $entries |
+      ForEach-Object {
+        $identity = "$($_.registry_name)`0$($_.path)`0$($_.sha256)"
+        $keyBytes = [Text.Encoding]::UTF8.GetBytes($identity)
+        $key = ([BitConverter]::ToString($sortSha.ComputeHash($keyBytes))).Replace("-", "").ToLowerInvariant()
+        [PSCustomObject]@{
+          sort_key = $key
+          registry_name = $_.registry_name
+          path = $_.path
+          sha256 = $_.sha256
+          bytes = $_.bytes
+        }
+      } |
+      Sort-Object sort_key |
+      ForEach-Object {
+        @{
+          registry_name = $_.registry_name
+          path = $_.path
+          sha256 = $_.sha256
+          bytes = $_.bytes
+        }
+      }
+  )
+} finally {
+  $sortSha.Dispose()
+}
 
 if ($entries.Count -eq 0) {
   throw "No Windows font files could be resolved and hashed."

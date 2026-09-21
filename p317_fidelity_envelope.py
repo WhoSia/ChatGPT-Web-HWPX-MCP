@@ -178,6 +178,36 @@ EDIT_CLASSES: dict[str, dict[str, Any]] = {
         "render": "CERTIFICATION_PENDING",
         "structural_dimensions": ["reference_fields", "cached_field_text"],
     },
+    "tracked_review": {
+        "ops": {"tracked_insert", "tracked_delete", "tracked_replace"},
+        "structural": "SUPPORTED",
+        "render": "CERTIFICATION_PENDING",
+        "structural_dimensions": ["tracked_changes", "paragraph_anchors"],
+    },
+    "form_fields": {
+        "ops": {"add_form_field", "fill_form_field"},
+        "structural": "SUPPORTED",
+        "render": "CERTIFICATION_PENDING",
+        "structural_dimensions": ["form_fields", "field_text"],
+    },
+    "check_box_controls": {
+        "ops": {"add_check_box", "set_check_box"},
+        "structural": "SUPPORTED",
+        "render": "CERTIFICATION_PENDING",
+        "structural_dimensions": ["form_controls"],
+    },
+    "text_highlight": {
+        "ops": {"add_highlight"},
+        "structural": "SUPPORTED",
+        "render": "CERTIFICATION_PENDING",
+        "structural_dimensions": ["text_markers", "paragraph_anchors"],
+    },
+    "document_metadata": {
+        "ops": {"set_document_metadata"},
+        "structural": "SUPPORTED",
+        "render": "CERTIFICATION_PENDING",
+        "structural_dimensions": ["package_metadata"],
+    },
     "no_op_replay": {
         "ops": {"no_op"},
         "structural": "SUPPORTED",

@@ -58,16 +58,18 @@ def _resolve_paragraph(document: HwpxDocument, path: Path, locator: Any):
     if target is None:
         raise ValueError(f"Unknown paragraph locator: {wanted}")
     section_index = int(target["section_index"])
-    paragraph_index = int(target["paragraph_index"])
+    body_index = target.get("body_paragraph_index")
+    if body_index is None:
+        raise ValueError("structured-publishing paragraph target must be a section-body paragraph")
+    paragraph_index = int(body_index)
     section = document.sections[section_index]
     paragraphs = section.paragraphs
     if paragraph_index < 0 or paragraph_index >= len(paragraphs):
         raise ValueError("paragraph locator no longer resolves")
-    global_index = next(
-        i
-        for i, item in enumerate(build_document_map(path)["paragraphs"])
-        if item["locator"] == wanted
-    )
+    body_global_index = target.get("body_global_index")
+    if body_global_index is None:
+        raise ValueError("structured-publishing paragraph target has no body-global index")
+    global_index = int(body_global_index)
     return paragraphs[paragraph_index], target, global_index
 
 
@@ -473,7 +475,14 @@ def apply_structured_publishing_atomic(
     try:
         document = HwpxDocument.open(str(candidate))
         try:
-            for op in operations:
+            # Named style establishes the base paragraph style; list formatting
+            # then overlays the native numbering/bullet heading semantics.
+            # This makes the two features composable regardless of caller order.
+            ordered_operations = (
+                [op for op in operations if str(op.get("op") or "") == "apply_named_style"]
+                + [op for op in operations if str(op.get("op") or "") != "apply_named_style"]
+            )
+            for op in ordered_operations:
                 if not isinstance(op, dict):
                     raise ValueError("each operation must be an object")
                 name = str(op.get("op") or "")

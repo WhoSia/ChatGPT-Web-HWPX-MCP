@@ -43,6 +43,10 @@ Historical phase ledgers, support packets, adjudication narratives, and long-for
 - section creation/removal
 - header/footer stories and automatic page numbers
 - multi-column layout and page-number restart controls
+- native bullet/numbered lists and outline hierarchy
+- named-style application
+- table/picture/equation captions
+- bookmarks, page cross-references, and Hancom-native TOC fields
 - bounded search/slice and bulk text plans
 
 ### Legacy HWP 5.x
@@ -69,14 +73,16 @@ Current harness components include:
 
 Fidelity authority is layered. Renderer-independent HWPX structural evidence is kept separate from renderer evidence. P3.16 established version-indexed exact authority for Hancom 13.0.0.3622 under the sealed environment; global cross-version promotion remains fail-closed until a second Hancom version is captured under the same non-renderer environment.
 
-P3.17-P3.18 turn that evidence into product behavior:
+P3.17-P3.19 turn that evidence into product behavior:
 
 - `get_production_fidelity_contract` exposes the current edit-class authority envelope.
 - `assess_edit_plan_fidelity` classifies a planned edit before mutation.
 - `get_document_fidelity_profile` composes document-specific structural receipts with the production contract.
 - `get_page_geometry` and `apply_page_geometry` expose revision-safe page-margin editing.
 - `get_document_setup` and `apply_document_setup` expose atomic paper/orientation, header/footer, page-number, section, and multi-column editing.
-- CI materializes document-level regression corpora for general editing plus document-setup composition.
+- `get_structured_publishing` and `apply_structured_publishing` expose native lists, named styles, captions, bookmarks, page cross-references, TOC fields, and outline hierarchy.
+- Native TOC/CROSSREF authoring delegates to `python-hwpx.tools.toc_author`, whose contract is based on Hancom-authored gold documents; this repository owns the transaction, locator, custody, and regression layers rather than duplicating that field format.
+- CI materializes document-level regression corpora for general editing, document setup, and structured publishing.
 
 ## Local run
 

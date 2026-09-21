@@ -30,6 +30,21 @@ Historical phase ledgers, support packets, adjudication narratives, and long-for
 - signed export
 - semantic/structure/formatting receipts
 
+### ChatGPT-native HWPX creation
+
+- `get_document_plan_contract` exposes the declarative composition schema.
+- `validate_document_plan` checks a plan without creating bytes.
+- `create_document_from_plan` compiles an ordered block plan into one validated HWPX in a single atomic creation call.
+- blank-document and owned-template append modes
+- ordered paragraph/heading/list/table/equation/picture/page-break/section-break blocks
+- preset document setup and formatting
+- block-id references such as `$block:introduction` for bookmarks, cross-references and annotations
+- dependency ordering for setup, formatting, references, native TOC and annotations
+- idempotent replay through `request_id`
+- private-candidate build: failed plans never partially commit a document
+
+The language model remains responsible for deciding the document's content and structure. The MCP is the deterministic compiler/backend that turns that plan into HWPX.
+
 ### HWPX editing
 
 - paragraphs and text
@@ -78,7 +93,7 @@ Current harness components include:
 
 Fidelity authority is layered. Renderer-independent HWPX structural evidence is kept separate from renderer evidence. P3.16 established version-indexed exact authority for Hancom 13.0.0.3622 under the sealed environment; global cross-version promotion remains fail-closed until a second Hancom version is captured under the same non-renderer environment.
 
-P3.17-P3.20 turn that evidence into product behavior:
+P3.17-P3.21 turn that evidence into product behavior:
 
 - `get_production_fidelity_contract` exposes the current edit-class authority envelope.
 - `assess_edit_plan_fidelity` classifies a planned edit before mutation.
@@ -89,7 +104,8 @@ P3.17-P3.20 turn that evidence into product behavior:
 - Native TOC/CROSSREF authoring delegates to `python-hwpx.tools.toc_author`, whose contract is based on Hancom-authored gold documents; this repository owns the transaction, locator, custody, and regression layers rather than duplicating that field format.
 - `get_annotation_apparatus` and `apply_annotation_apparatus` expose footnotes/endnotes, memos, index marks, hyperlinks/bookmarks, and measured rich reference fields for academic/report publishing.
 - Annotation authoring delegates to public `python-hwpx` note/reference/field APIs where available; unsupported field grammars remain fail-closed rather than guessed.
-- CI materializes document-level regression corpora for general editing, document setup, structured publishing, and annotation apparatus.
+- `create_document_from_plan` is the high-level ChatGPT-native composition surface: the LLM supplies a declarative block plan and the MCP resolves block identities, dependency order, native objects, publishing fields, validation and atomic commit.
+- CI materializes document-level regression corpora for general editing, document setup, structured publishing, annotation apparatus, and one-shot composition.
 
 ## Local run
 

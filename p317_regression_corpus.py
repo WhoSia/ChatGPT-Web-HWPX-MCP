@@ -18,6 +18,7 @@ from p210_equations import apply_equation_edits_atomic, build_equation_map
 from p22_formatting import build_formatting_map
 from p313r1_fixture_pack import _validate_minimal_hwpx
 from p316_version_indexed import build_structural_oracle, compare_structural_oracles
+from p317_page_geometry import apply_page_geometry_edits_atomic, build_page_geometry_map
 
 
 CORPUS_SCHEMA = "chatgpt-web-hwpx-mcp/edit-regression-corpus/p3.17/v1"
@@ -85,6 +86,7 @@ def _snapshot(path: Path) -> dict:
         "equation_script_custody_sha256": equations[
             "equation_script_custody_sha256"
         ],
+        "page_geometry_sha256": build_page_geometry_map(path)["page_geometry_sha256"],
         "structural_oracle_sha256": structural["structural_oracle_sha256"],
         "structural_oracle": structural,
     }
@@ -259,7 +261,29 @@ def materialize_p317_regression_corpus(out_dir: Path) -> dict:
     )
     fixtures.append(_pair_receipt("textbox", "textbox", source, target, op))
 
-    # 7. Equation
+    # 7. Page geometry (actual runtime feature, inherits P3.16 boundary authority)
+    d = out / "page-geometry"
+    d.mkdir(exist_ok=True)
+    source, target = d / "source.hwpx", d / "target.hwpx"
+    _base_document(source)
+    shutil.copy2(source, target)
+    before_page = build_page_geometry_map(target)
+    right_before = int(before_page["sections"][0]["margin"].get("right", "0") or 0)
+    op = {
+        "op": "set_page_margin",
+        "section_index": 0,
+        "right": right_before + 283,
+    }
+    apply_page_geometry_edits_atomic(
+        target, [op], expected_revision=1, current_revision=1, validator=None
+    )
+    fixtures.append(
+        _pair_receipt(
+            "page-geometry", "page_section_geometry", source, target, op
+        )
+    )
+
+    # 8. Equation
     d = out / "equation"
     d.mkdir(exist_ok=True)
     source, target = d / "source.hwpx", d / "target.hwpx"
@@ -293,6 +317,7 @@ def materialize_p317_regression_corpus(out_dir: Path) -> dict:
                 "renderer_version": "13.0.0.3622",
                 "advance_boundary": "advance-10120",
                 "frame_boundary": "frame-283",
+                "runtime_operation": "set_page_margin",
             }
         },
         "native_batch_status": "PENDING",

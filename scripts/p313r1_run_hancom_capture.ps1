@@ -78,7 +78,11 @@ if (-not (Test-Path $VenvPython)) {
 }
 & $VenvPython -m pip install --disable-pip-version-check -q -r requirements.txt -r requirements-capture.txt
 
-$ResolvedOut = Join-Path $RepoRoot $OutDir
+if ([IO.Path]::IsPathRooted($OutDir)) {
+  $ResolvedOut = $OutDir
+} else {
+  $ResolvedOut = Join-Path $RepoRoot $OutDir
+}
 if ($ReuseExistingPack) {
   $manifest = Join-Path $ResolvedOut "capture-ready-manifest.json"
   if (-not (Test-Path $manifest)) {

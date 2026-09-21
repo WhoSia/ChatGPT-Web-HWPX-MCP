@@ -25,6 +25,10 @@ from p29_objects import apply_object_edits_atomic, build_object_map
 from p39_textbox import build_textbox_map, inject_textbox
 from p311_layout_fidelity import build_hwpx_layout_receipt
 from p312_render_harness import adjudicate_fixture_world_contact
+from p317_fidelity_envelope import (
+    production_fidelity_contract,
+    assess_edit_fidelity_envelope,
+)
 from p313_capture_custody import (
     near_wrap_positive_sensitivity_spec,
     validate_artifact_custody,
@@ -50,7 +54,7 @@ from common_ir import (
     slice_common_ir,
 )
 
-P2_VERSION = "0.9.0-p3.13"
+P2_VERSION = "0.9.0-p3.17"
 core.VERSION = P2_VERSION
 
 _original_metadata = core._metadata
@@ -373,6 +377,38 @@ def get_layout_fidelity_receipt(document_id: str) -> dict:
         "document_id": document_id,
         "revision": int(metadata["revision"]),
         **receipt,
+    }
+
+
+@core.mcp.tool()
+def get_production_fidelity_contract() -> dict:
+    """Return the current product-facing structural/render fidelity envelope."""
+    return {"ok": True, **production_fidelity_contract()}
+
+
+@core.mcp.tool()
+def assess_edit_plan_fidelity(operations: list[dict]) -> dict:
+    """Classify a proposed edit plan before mutation and expose its authority ceiling."""
+    return {"ok": True, **assess_edit_fidelity_envelope(operations)}
+
+
+@core.mcp.tool()
+def get_document_fidelity_profile(document_id: str) -> dict:
+    """Combine one owned document's structural layout receipt with the production fidelity contract."""
+    metadata, path = _owned_document(document_id)
+    structural = build_hwpx_layout_receipt(path)
+    contract = production_fidelity_contract()
+    return {
+        "ok": True,
+        "document_id": document_id,
+        "revision": int(metadata["revision"]),
+        "document_sha256": str(metadata.get("sha256") or ""),
+        "structural_receipt": structural,
+        "production_contract": contract,
+        "authority_semantics": (
+            "structural evidence is document-specific; native-render exactness is granted "
+            "only to explicitly certified edit classes and the recorded renderer version"
+        ),
     }
 
 

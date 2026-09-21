@@ -14,6 +14,12 @@ from hwpx import HwpxDocument
 from hwpx.oxml.objects import HwpxOxmlInlineObject
 from hwpx.oxml.paragraph import HwpxOxmlParagraph
 from hwpx.table_patch import _collect_document_tables
+from hwpx.tools.toc_author import (
+    add_native_toc as upstream_add_native_toc,
+    add_page_crossref as upstream_add_page_crossref,
+    mark_toc_dirty as upstream_mark_toc_dirty,
+    ensure_body_styles_not_collected,
+)
 
 from p2_document import build_document_map
 from p27_tables import _save_document
@@ -241,96 +247,49 @@ def _toc_entry(parent_template, title: str, target_id: str, cached_page: int):
 def _add_native_toc(document: HwpxDocument, *, at_index: int, title: str, level: int) -> dict:
     if level < 1 or level > 10:
         raise ValueError("TOC level must be 1..10")
-    headings = [(p, lvl, text) for p, lvl, text in _outline_headings(document) if lvl <= level]
+    headings = [
+        (paragraph, heading_level, text)
+        for paragraph, heading_level, text in _outline_headings(document)
+        if heading_level <= level
+    ]
     if not headings:
         raise ValueError("no outline headings found for TOC")
 
-    rerouted = _reroute_style_zero_body(document)
-    anchors = [(_unique_paragraph_id(document, p), lvl, text) for p, lvl, text in headings]
-    section = document.sections[0]
-    if at_index < 0 or at_index > len(section.paragraphs):
-        raise ValueError("TOC insertion index is outside section 0")
-
-    template = section.element
-    toc_id = _new_id()
-
-    open_p = _make(template, "p", {
-        "id": _new_id(), "paraPrIDRef": "0", "styleIDRef": "0",
-        "pageBreak": "0", "columnBreak": "0", "merged": "0",
-    })
-    open_run = _make(open_p, "run", {"charPrIDRef": "0"})
-    open_p.append(open_run)
-    begin = _field_begin(open_run, field_type="TABLEOFCONTENTS", field_id=toc_id, editable=True, dirty=True)
-    params = _make(begin, "parameters", {"cnt": "2", "name": ""})
-    begin.append(params)
-    _param(params, "integerParam", "Prop", "8")
-    command = (
-        "TableOfContents:set:140:ContentsMake:uint:31 ContentsStyles:wstring:0: "
-        f"ContentsLevel:int:{level} ContentsAutoTabRight:int:0 "
-        "ContentsLeader:int:3 ContentsHyperlink:bool:1  "
+    rerouted = ensure_body_styles_not_collected(document)
+    upstream = upstream_add_native_toc(
+        document,
+        at_index=at_index,
+        title=title,
+        level=level,
+        headings=[paragraph for paragraph, _heading_level, _text in headings],
+        dirty=True,
+        hyperlink=True,
     )
-    _param(params, "stringParam", "Command", command)
-    title_node = _make(open_run, "t")
-    title_node.text = title
-    open_run.append(title_node)
-
-    entries = [
-        _toc_entry(template, text, anchor, 1)
-        for anchor, _lvl, text in anchors
-    ]
-
-    close_p = _make(template, "p", {
-        "id": _new_id(), "paraPrIDRef": "0", "styleIDRef": "0",
-        "pageBreak": "0", "columnBreak": "0", "merged": "0",
-    })
-    close_run = _make(close_p, "run", {"charPrIDRef": "0"})
-    close_p.append(close_run)
-    _field_end(close_run, toc_id)
-
-    section.insert_paragraphs(at_index, [open_p, *entries, close_p])
     return {
-        "toc_field_id": toc_id,
-        "entry_count": len(entries),
+        "toc_field_id": upstream["tocFieldId"],
+        "entry_count": upstream["entryCount"],
+        "anchors": list(upstream.get("anchors") or []),
         "body_style_zero_rerouted": rerouted,
         "dirty": True,
-        "cached_pages_are_estimates": True,
+        "cached_pages_are_estimates": bool(upstream.get("cachedPagesAreEstimates", True)),
+        "authoring_backend": "python-hwpx.tools.toc_author.add_native_toc",
     }
-
 
 def _add_page_crossref(document: HwpxDocument, paragraph: Any, target: Any, cached_page: int) -> dict:
     if cached_page < 1:
         raise ValueError("cached_page must be positive")
-    target_id = _unique_paragraph_id(document, target)
-    field_id = _new_id()
-    p = paragraph.element
-
-    run1 = _make(p, "run", {"charPrIDRef": "0"})
-    p.append(run1)
-    begin = _field_begin(run1, field_type="CROSSREF", field_id=field_id, editable=False, dirty=False)
-    params = _make(begin, "parameters", {"cnt": "8", "name": ""})
-    begin.append(params)
-    _param(params, "booleanParam", "Fiexde", "1")
-    _param(params, "integerParam", "Prop", "0")
-    _param(params, "stringParam", "Command", f"?#{target_id};5;0;0;0;")
-    _param(params, "stringParam", "RefPath", f"?#{target_id};")
-    _param(params, "stringParam", "RefType", "TARGET_OUTLINE")
-    _param(params, "stringParam", "RefContentType", "OBJECT_TYPE_PAGE")
-    _param(params, "booleanParam", "RefHyperLink", "false")
-    _param(params, "stringParam", "RefOpenType", "HWPHYPERLINK_JUMP_CURRENTTAB")
-
-    run2 = _make(p, "run", {"charPrIDRef": "0"})
-    p.append(run2)
-    t = _make(run2, "t")
-    t.text = str(cached_page)
-    run2.append(t)
-
-    run3 = _make(p, "run", {"charPrIDRef": "0"})
-    p.append(run3)
-    _field_end(run3, field_id)
-
-    paragraph.section.mark_dirty()
-    return {"field_id": field_id, "target_paragraph_id": target_id, "cached_page": cached_page}
-
+    upstream = upstream_add_page_crossref(
+        document,
+        paragraph,
+        target,
+        cached_page=cached_page,
+    )
+    return {
+        "field_id": upstream["fieldId"],
+        "target_paragraph_id": upstream["targetId"],
+        "cached_page": upstream["cachedPage"],
+        "authoring_backend": "python-hwpx.tools.toc_author.add_page_crossref",
+    }
 
 def build_structured_publishing_map(path: Path) -> dict:
     document = HwpxDocument.open(str(path))
@@ -629,17 +588,12 @@ def apply_structured_publishing_atomic(
                     receipts.append({"op": name, **receipt})
 
                 elif name == "mark_toc_dirty":
-                    count = 0
-                    for section in document.sections:
-                        changed = False
-                        for begin in section.element.iter(f"{HP}fieldBegin"):
-                            if begin.get("type") == "TABLEOFCONTENTS":
-                                begin.set("dirty", "1")
-                                count += 1
-                                changed = True
-                        if changed:
-                            section.mark_dirty()
-                    receipts.append({"op": name, "marked": count})
+                    count = upstream_mark_toc_dirty(document)
+                    receipts.append({
+                        "op": name,
+                        "marked": count,
+                        "authoring_backend": "python-hwpx.tools.toc_author.mark_toc_dirty",
+                    })
 
                 else:
                     raise ValueError(f"Unsupported structured-publishing operation: {name}")

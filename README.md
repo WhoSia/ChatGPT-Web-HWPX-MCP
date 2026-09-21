@@ -47,6 +47,11 @@ Historical phase ledgers, support packets, adjudication narratives, and long-for
 - named-style application
 - table/picture/equation captions
 - bookmarks, page cross-references, and Hancom-native TOC fields
+- footnotes and endnotes
+- anchored review memos/comments
+- one- and two-level index marks
+- external hyperlinks and bookmark navigation
+- measured DATE/PATH/MAILMERGE/proofreading reference fields
 - bounded search/slice and bulk text plans
 
 ### Legacy HWP 5.x
@@ -73,7 +78,7 @@ Current harness components include:
 
 Fidelity authority is layered. Renderer-independent HWPX structural evidence is kept separate from renderer evidence. P3.16 established version-indexed exact authority for Hancom 13.0.0.3622 under the sealed environment; global cross-version promotion remains fail-closed until a second Hancom version is captured under the same non-renderer environment.
 
-P3.17-P3.19 turn that evidence into product behavior:
+P3.17-P3.20 turn that evidence into product behavior:
 
 - `get_production_fidelity_contract` exposes the current edit-class authority envelope.
 - `assess_edit_plan_fidelity` classifies a planned edit before mutation.
@@ -82,7 +87,9 @@ P3.17-P3.19 turn that evidence into product behavior:
 - `get_document_setup` and `apply_document_setup` expose atomic paper/orientation, header/footer, page-number, section, and multi-column editing.
 - `get_structured_publishing` and `apply_structured_publishing` expose native lists, named styles, captions, bookmarks, page cross-references, TOC fields, and outline hierarchy.
 - Native TOC/CROSSREF authoring delegates to `python-hwpx.tools.toc_author`, whose contract is based on Hancom-authored gold documents; this repository owns the transaction, locator, custody, and regression layers rather than duplicating that field format.
-- CI materializes document-level regression corpora for general editing, document setup, and structured publishing.
+- `get_annotation_apparatus` and `apply_annotation_apparatus` expose footnotes/endnotes, memos, index marks, hyperlinks/bookmarks, and measured rich reference fields for academic/report publishing.
+- Annotation authoring delegates to public `python-hwpx` note/reference/field APIs where available; unsupported field grammars remain fail-closed rather than guessed.
+- CI materializes document-level regression corpora for general editing, document setup, structured publishing, and annotation apparatus.
 
 ## Local run
 

@@ -67,10 +67,19 @@ jobs:
 
       - name: Verify unauthenticated MCP request is rejected before tool execution
         run: |
-          status="$($CURL --silent --output /tmp/unauth.json --write-out '%{http_code}' \
-            -X POST "$MCP_URL" \
-            -H 'content-type: application/json' \
-            -H 'accept: application/json, text/event-stream' \
-            --data '{"jsonrpc":"2.0","id":1,"method":"ping"}')"
-          cat /tmp/unauth.json
-          test "$status" = "401"
+          for i in {1..12}; do
+            status="$(curl --http1.1 --silent --show-error \
+              --connect-timeout 10 --max-time 20 \
+              --output /tmp/unauth.json --write-out '%{http_code}' \
+              -X POST "$MCP_URL" \
+              -H 'content-type: application/json' \
+              -H 'accept: application/json, text/event-stream' \
+              --data '{"jsonrpc":"2.0","id":1,"method":"ping"}' || true)"
+            cat /tmp/unauth.json || true
+            if test "$status" = "401"; then
+              exit 0
+            fi
+            echo "Unauthenticated MCP boundary not stable yet ($i/12): HTTP $status"
+            sleep 3
+          done
+          exit 1

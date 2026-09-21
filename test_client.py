@@ -184,6 +184,9 @@ async def main() -> None:
                 "create_document_from_plan",
                 "get_review_workflow",
                 "apply_review_workflow",
+                "get_advanced_table_contract",
+                "get_advanced_tables",
+                "apply_advanced_table_edits",
             }
             missing = expected - set(names)
             if missing:
@@ -194,11 +197,11 @@ async def main() -> None:
                     raise RuntimeError(f"secret-bearing field leaked into tool schema: {tool.name}")
 
             read_payload = _payload(await client.call_tool("probe_read", {"message": "P2 OAuth smoke test"}))
-            if not read_payload or not read_payload.get("ok") or read_payload.get("version") != "0.9.0-p3.22":
+            if not read_payload or not read_payload.get("ok") or read_payload.get("version") != "0.9.0-p3.23":
                 raise RuntimeError(f"probe_read did not expose P2: {read_payload}")
 
             p2_caps = _payload(await client.call_tool("p2_capabilities", {}))
-            if not p2_caps or p2_caps.get("phase") != "P3.22":
+            if not p2_caps or p2_caps.get("phase") != "P3.23":
                 raise RuntimeError(f"p2_capabilities failed: {p2_caps}")
 
             if not RUN_WRITE_TEST:
@@ -337,6 +340,99 @@ async def main() -> None:
                 or review_map["metadata"].get("title") != "P3.22 Transport Review Smoke"
             ):
                 raise RuntimeError(f"P3.22 review read-back failed: {review_map}")
+
+            table_contract = _payload(await client.call_tool("get_advanced_table_contract", {}))
+            if (
+                not table_contract
+                or table_contract.get("phase") != "P3.23"
+                or table_contract.get("authority") != "STRUCTURAL_AUTHORITY_ONLY"
+                or "insert_column_by_clone" not in table_contract.get("deferred_operations", {})
+            ):
+                raise RuntimeError(f"P3.23 table contract failed: {table_contract}")
+
+            advanced_tables = _payload(await client.call_tool("get_advanced_tables", {
+                "document_id": planned_document_id,
+            }))
+            if (
+                not advanced_tables
+                or advanced_tables.get("revision") != 2
+                or advanced_tables.get("table_count") != 1
+            ):
+                raise RuntimeError(f"P3.23 advanced table map failed: {advanced_tables}")
+            advanced_table = advanced_tables["tables"][0]
+            target_cell = next(
+                (
+                    cell for cell in advanced_table.get("cells", [])
+                    if cell.get("row") == 1 and cell.get("col") == 1
+                ),
+                None,
+            )
+            if target_cell is None:
+                raise RuntimeError(f"P3.23 target cell missing: {advanced_table}")
+
+            advanced_edited = _payload(await client.call_tool("apply_advanced_table_edits", {
+                "document_id": planned_document_id,
+                "expected_revision": 2,
+                "operations": [
+                    {
+                        "op": "set_repeat_header",
+                        "table": advanced_table["locator"],
+                        "row": 0,
+                        "enabled": True,
+                    },
+                    {
+                        "op": "set_row_properties",
+                        "table": advanced_table["locator"],
+                        "row": 1,
+                        "height": 2600,
+                    },
+                    {
+                        "op": "set_cell_vertical_alignment",
+                        "table": advanced_table["locator"],
+                        "cell": target_cell["locator"],
+                        "alignment": "BOTTOM",
+                    },
+                    {
+                        "op": "set_table_page_break",
+                        "table": advanced_table["locator"],
+                        "mode": "TABLE",
+                    },
+                ],
+            }))
+            if (
+                not advanced_edited
+                or advanced_edited.get("revision_after") != 3
+                or advanced_edited.get("transaction") != "COMMITTED"
+                or advanced_edited.get("authority") != "STRUCTURAL_AUTHORITY_ONLY"
+            ):
+                raise RuntimeError(f"P3.23 advanced table edit failed: {advanced_edited}")
+
+            advanced_readback = _payload(await client.call_tool("get_advanced_tables", {
+                "document_id": planned_document_id,
+            }))
+            if (
+                not advanced_readback
+                or advanced_readback.get("revision") != 3
+                or advanced_readback.get("table_count") != 1
+            ):
+                raise RuntimeError(f"P3.23 advanced table read-back failed: {advanced_readback}")
+            readback_table = advanced_readback["tables"][0]
+            readback_cell = next(
+                (
+                    cell for cell in readback_table.get("cells", [])
+                    if cell.get("row") == 1 and cell.get("col") == 1
+                ),
+                None,
+            )
+            if (
+                not readback_table.get("repeat_header")
+                or readback_table.get("page_break") != "TABLE"
+                or not readback_table.get("row_geometry", [])[0].get("all_header")
+                or readback_table.get("row_geometry", [])[1].get("heights") != [2600]
+                or not readback_cell
+                or readback_cell.get("vertical_alignment") != "BOTTOM"
+            ):
+                raise RuntimeError(f"P3.23 advanced table state mismatch: {advanced_readback}")
 
             planned_export = _payload(await client.call_tool("export_document", {
                 "document_id": planned_document_id,

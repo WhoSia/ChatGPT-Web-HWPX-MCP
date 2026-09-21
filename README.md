@@ -88,25 +88,21 @@ Secrets are deployment-only and are not stored in this repository.
 
 ## Windows/Hancom replay
 
-A cryptographically custodied renderer session can be produced with:
+P3.15 uses one canonical cross-version runner:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\p315_run_version_replay.ps1 -SessionId "<session-id>"
+powershell -ExecutionPolicy Bypass -File .\scripts\p315_run_cross_version_replay.ps1
 ```
 
-To force a particular Hancom installation:
+The runner discovers installed `Hwp.exe` versions, freezes the same fixture bytes for both trials, cryptographically seals Windows font files before and after each replay, fresh-renders both Hancom versions, compares boundary transport, and emits a cross-version evidence ZIP.
+
+If a second installation is not auto-detected, provide it explicitly:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\p315_run_version_replay.ps1 -SessionId "<session-id>" -HancomExe "C:\path\to\Hwp.exe"
+powershell -ExecutionPolicy Bypass -File .\scripts\p315_run_cross_version_replay.ps1 -SecondHancomExe "C:\path\to\other\Hwp.exe"
 ```
 
-Run once per distinct Hancom version on the same Windows/font environment. Compare two resulting `session.json` files with:
-
-```bash
-python scripts/p315_compare_sessions.py --first first-session.json --second second-session.json --out comparison.json
-```
-
-Promotion remains closed if OS, machine, locale, DPI, rasterizer, fixture set, or cryptographic Windows font-file custody differs.
+Promotion remains closed unless the two trials have distinct Hancom versions/executable hashes while OS, machine, locale, DPI, rasterizer, fixture set, and cryptographic font-file custody all match.
 
 ## CI
 

@@ -464,6 +464,11 @@ def _publishing_operations(
                 "name": str(bookmark),
             })
 
+    # Reference-bearing operations must resolve against the pre-TOC body.
+    # Native TOC insertion can change paragraph ordinals, so compile it last.
+    for raw in plan.get("post_operations", []) or []:
+        ops.append(_resolve_refs(raw, bindings))
+
     publishing = plan.get("publishing") or {}
     toc = publishing.get("toc")
     if toc:
@@ -474,9 +479,6 @@ def _publishing_operations(
             "title": str(cfg.get("title", "<제목 차례>")),
             "level": int(cfg.get("level", 3)),
         })
-
-    for raw in plan.get("post_operations", []) or []:
-        ops.append(_resolve_refs(raw, bindings))
     return ops
 
 
@@ -633,6 +635,16 @@ def compose_document_plan(
             },
             "validation": validation,
             "atomic_commit": True,
+            "authority": "STRUCTURAL_COMPOSITION_AUTHORITY",
+            "dependency_order": [
+                "block_materialization",
+                "document_setup",
+                "formatting",
+                "lists_styles_bookmarks_and_references",
+                "native_toc",
+                "annotations",
+                "final_validation",
+            ],
         }
         result["composition_sha256"] = _sha({
             "plan_sha256": result["plan_sha256"],

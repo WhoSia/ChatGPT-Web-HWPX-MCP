@@ -148,7 +148,7 @@ $FontBAfter = Join-Path $VersionB "font-file-custody-after.json"
 
 Write-Host "P3.15 VERSION A fresh replay: $FirstVersion"
 & (Join-Path $PSScriptRoot "p315_font_file_custody.ps1") -OutFile $FontABefore
-if ($LASTEXITCODE -ne 0) { throw "Version A pre-capture font custody failed." }
+if (-not $? -or -not (Test-Path $FontABefore)) { throw "Version A pre-capture font custody failed." }
 
 & (Join-Path $PSScriptRoot "p313r1_run_hancom_capture.ps1") `
   -HancomExe $FirstExe `
@@ -158,7 +158,7 @@ if ($LASTEXITCODE -ne 0) { throw "Version A pre-capture font custody failed." }
 if ($LASTEXITCODE -ne 0) { throw "Version A fresh replay failed." }
 
 & (Join-Path $PSScriptRoot "p315_font_file_custody.ps1") -OutFile $FontAAfter
-if ($LASTEXITCODE -ne 0) { throw "Version A post-capture font custody failed." }
+if (-not $? -or -not (Test-Path $FontAAfter)) { throw "Version A post-capture font custody failed." }
 $FontA0 = Read-Json $FontABefore
 $FontA1 = Read-Json $FontAAfter
 if ($FontA0.font_file_custody_sha256 -ne $FontA1.font_file_custody_sha256) {
@@ -167,7 +167,7 @@ if ($FontA0.font_file_custody_sha256 -ne $FontA1.font_file_custody_sha256) {
 
 Write-Host "P3.15 VERSION B fresh replay: $($Second.version)"
 & (Join-Path $PSScriptRoot "p315_font_file_custody.ps1") -OutFile $FontBBefore
-if ($LASTEXITCODE -ne 0) { throw "Version B pre-capture font custody failed." }
+if (-not $? -or -not (Test-Path $FontBBefore)) { throw "Version B pre-capture font custody failed." }
 
 & (Join-Path $PSScriptRoot "p313r1_run_hancom_capture.ps1") `
   -HancomExe $Second.path `
@@ -177,7 +177,7 @@ if ($LASTEXITCODE -ne 0) { throw "Version B pre-capture font custody failed." }
 if ($LASTEXITCODE -ne 0) { throw "Version B fresh replay failed." }
 
 & (Join-Path $PSScriptRoot "p315_font_file_custody.ps1") -OutFile $FontBAfter
-if ($LASTEXITCODE -ne 0) { throw "Version B post-capture font custody failed." }
+if (-not $? -or -not (Test-Path $FontBAfter)) { throw "Version B post-capture font custody failed." }
 $FontB0 = Read-Json $FontBBefore
 $FontB1 = Read-Json $FontBAfter
 if ($FontB0.font_file_custody_sha256 -ne $FontB1.font_file_custody_sha256) {

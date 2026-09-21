@@ -133,12 +133,14 @@ $VersionB = Join-Path $OutResolved "version-b"
 Prepare-FrozenPack -Source $FirstPackResolved -Destination $VersionA
 Prepare-FrozenPack -Source $FirstPackResolved -Destination $VersionB
 
-$FontA = Join-Path $VersionA "font-file-custody.json"
-$FontB = Join-Path $VersionB "font-file-custody.json"
+$FontABefore = Join-Path $VersionA "font-file-custody-before.json"
+$FontAAfter = Join-Path $VersionA "font-file-custody-after.json"
+$FontBBefore = Join-Path $VersionB "font-file-custody-before.json"
+$FontBAfter = Join-Path $VersionB "font-file-custody-after.json"
 
 Write-Host "P3.15 VERSION A fresh replay: $FirstVersion"
-& (Join-Path $PSScriptRoot "p315_font_file_custody.ps1") -OutFile $FontA
-if ($LASTEXITCODE -ne 0) { throw "Version A font custody failed." }
+& (Join-Path $PSScriptRoot "p315_font_file_custody.ps1") -OutFile $FontABefore
+if ($LASTEXITCODE -ne 0) { throw "Version A pre-capture font custody failed." }
 
 & (Join-Path $PSScriptRoot "p313r1_run_hancom_capture.ps1") `
   -HancomExe $FirstExe `
@@ -147,9 +149,17 @@ if ($LASTEXITCODE -ne 0) { throw "Version A font custody failed." }
   -ReuseExistingPack
 if ($LASTEXITCODE -ne 0) { throw "Version A fresh replay failed." }
 
+& (Join-Path $PSScriptRoot "p315_font_file_custody.ps1") -OutFile $FontAAfter
+if ($LASTEXITCODE -ne 0) { throw "Version A post-capture font custody failed." }
+$FontA0 = Read-Json $FontABefore
+$FontA1 = Read-Json $FontAAfter
+if ($FontA0.font_file_custody_sha256 -ne $FontA1.font_file_custody_sha256) {
+  throw "Version A font-file custody changed during replay."
+}
+
 Write-Host "P3.15 VERSION B fresh replay: $($Second.version)"
-& (Join-Path $PSScriptRoot "p315_font_file_custody.ps1") -OutFile $FontB
-if ($LASTEXITCODE -ne 0) { throw "Version B font custody failed." }
+& (Join-Path $PSScriptRoot "p315_font_file_custody.ps1") -OutFile $FontBBefore
+if ($LASTEXITCODE -ne 0) { throw "Version B pre-capture font custody failed." }
 
 & (Join-Path $PSScriptRoot "p313r1_run_hancom_capture.ps1") `
   -HancomExe $Second.path `
@@ -157,6 +167,14 @@ if ($LASTEXITCODE -ne 0) { throw "Version B font custody failed." }
   -Dpi $Dpi `
   -ReuseExistingPack
 if ($LASTEXITCODE -ne 0) { throw "Version B fresh replay failed." }
+
+& (Join-Path $PSScriptRoot "p315_font_file_custody.ps1") -OutFile $FontBAfter
+if ($LASTEXITCODE -ne 0) { throw "Version B post-capture font custody failed." }
+$FontB0 = Read-Json $FontBBefore
+$FontB1 = Read-Json $FontBAfter
+if ($FontB0.font_file_custody_sha256 -ne $FontB1.font_file_custody_sha256) {
+  throw "Version B font-file custody changed during replay."
+}
 
 $Venv = Join-Path $RepoRoot ".venv-p313r1"
 $VenvPython = Join-Path $Venv "Scripts\python.exe"
@@ -167,9 +185,9 @@ if (-not (Test-Path $VenvPython)) {
 $Receipt = Join-Path $OutResolved "p315-cross-version-replay.json"
 & $VenvPython scripts/p315_build_cross_version_replay.py `
   --first-pack $VersionA `
-  --first-font-custody $FontA `
+  --first-font-custody $FontAAfter `
   --second-pack $VersionB `
-  --second-font-custody $FontB `
+  --second-font-custody $FontBAfter `
   --out $Receipt
 $ReplayExit = $LASTEXITCODE
 

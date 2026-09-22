@@ -402,11 +402,15 @@ def promote_diagram_candidate_atomic(
     if not isinstance(adoption_plan, dict):
         raise ValueError("adoption_plan must be an object")
 
-    mapped, candidate = _candidate(path, str(adoption_plan.get("candidate_id") or ""))
+    mapped = build_brownfield_diagram_map(path)
     if mapped["source_document_sha256"] != str(adoption_plan.get("source_document_sha256") or ""):
         raise ValueError("adoption plan source document hash is stale")
     if mapped["recognition_sha256"] != str(adoption_plan.get("source_recognition_sha256") or ""):
         raise ValueError("adoption plan recognition receipt is stale")
+    candidate_id = str(adoption_plan.get("candidate_id") or "")
+    candidate = next((c for c in mapped["candidates"] if c["candidate_id"] == candidate_id), None)
+    if candidate is None:
+        raise ValueError("adoption plan candidate is stale or no longer recognized")
     if candidate["candidate_sha256"] != str(adoption_plan.get("source_candidate_sha256") or ""):
         raise ValueError("adoption plan candidate receipt is stale")
     if not candidate["promotable"]:

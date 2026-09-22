@@ -79,6 +79,12 @@ from p327_diagram_composition import (
     build_diagram_composition_map,
     apply_diagram_composition_atomic,
 )
+from p328_high_level_diagrams import (
+    high_level_diagram_contract,
+    validate_diagram_plan as validate_high_level_diagram_plan,
+    build_high_level_diagram_map,
+    apply_high_level_diagrams_atomic,
+)
 from p313_capture_custody import (
     near_wrap_positive_sensitivity_spec,
     validate_artifact_custody,
@@ -104,9 +110,9 @@ from common_ir import (
     slice_common_ir,
 )
 
-P2_VERSION = "0.9.0-p3.27"
+P2_VERSION = "0.9.0-p3.28"
 core.VERSION = P2_VERSION
-core.PHASE = "P3.27"
+core.PHASE = "P3.28"
 
 _original_metadata = core._metadata
 
@@ -4650,12 +4656,108 @@ def apply_diagram_composition(
 
 
 @core.mcp.tool()
+def get_high_level_diagram_contract() -> dict:
+    """Return P3.28 labeled-node, plan, callout and macro contract."""
+    core._caller_subject()
+    return {"ok": True, **high_level_diagram_contract()}
+
+
+@core.mcp.tool()
+def validate_high_level_diagram_plan(plan: dict) -> dict:
+    """Validate a declarative P3.28 diagram plan without mutating a document."""
+    core._caller_subject()
+    return validate_high_level_diagram_plan(plan)
+
+
+@core.mcp.tool()
+def get_high_level_diagrams(document_id: str) -> dict:
+    """Return native shape-label and high-level diagram receipts."""
+    metadata, path = _owned_document(document_id)
+    mapped = build_high_level_diagram_map(path)
+    return {
+        "ok": True,
+        "document_id": document_id,
+        "revision": int(metadata["revision"]),
+        **mapped,
+    }
+
+
+@core.mcp.tool()
+def apply_high_level_diagrams(
+    document_id: str,
+    expected_revision: int,
+    operations: list[dict],
+    lease_token: str = "",
+) -> dict:
+    """Apply one revision-guarded P3.28 high-level diagram transaction."""
+    metadata, path = _owned_document(document_id)
+    current_revision = int(metadata["revision"])
+    ingress = metadata.get("source") == "existing-ingress"
+    fidelity = assess_edit_fidelity_envelope(operations)
+    transaction = apply_high_level_diagrams_atomic(
+        path,
+        operations,
+        expected_revision=int(expected_revision),
+        current_revision=current_revision,
+        validator=lambda candidate: core.validate_hwpx_package(candidate, ingress=ingress),
+    )
+    validation = transaction["validation"]
+    after_document = build_document_map(path)
+    after_formatting = build_formatting_map(path)
+    after_inline = build_inline_map(path)
+    after_tables = build_table_map(path)
+    after_objects = build_object_map(path)
+    after_equations = build_equation_map(path)
+    drawing = build_drawing_layer_map(path)
+    styles = build_drawing_style_map(path)
+    diagram = build_diagram_composition_map(path)
+    high_level = build_high_level_diagram_map(path)
+    metadata["revision"] = current_revision + 1
+    metadata["last_edit_at"] = core._utc_iso()
+    if lease_token:
+        metadata["_commit_lease_token"] = lease_token
+    _refresh_metadata(
+        document_id,
+        metadata,
+        validation,
+        after_document,
+        after_formatting,
+        after_inline,
+        after_tables,
+        after_objects,
+        after_equations,
+    )
+    metadata["drawing_structure_sha256"] = drawing["drawing_structure_sha256"]
+    metadata["drawing_geometry_sha256"] = drawing["drawing_geometry_sha256"]
+    metadata["drawing_style_sha256"] = styles["drawing_style_sha256"]
+    metadata["shape_geometry_sha256"] = styles["shape_geometry_sha256"]
+    metadata["diagram_placement_sha256"] = diagram["diagram_placement_sha256"]
+    metadata["group_topology_sha256"] = diagram["group_topology_sha256"]
+    metadata["shape_text_sha256"] = high_level["shape_text_sha256"]
+    core._write_metadata(document_id, metadata)
+    return {
+        "ok": True,
+        "document_id": document_id,
+        "revision_before": current_revision,
+        "revision_after": int(metadata["revision"]),
+        "sha256": validation["sha256"],
+        "high_level_diagram_diff": transaction,
+        "high_level_diagrams": high_level,
+        "fidelity": fidelity,
+        "validation": validation,
+        "transaction": "COMMITTED",
+        "authority": "STRUCTURAL_HIGH_LEVEL_DIAGRAM_AUTHORITY_ONLY",
+        "native_render_batch_status": "DEFERRED_BY_DESIGN",
+    }
+
+
+@core.mcp.tool()
 def p2_capabilities() -> dict:
     subject = core._caller_subject()
     return {
         "project": core.PROJECT,
         "version": core.VERSION,
-        "phase": "P3.27",
+        "phase": "P3.28",
         "authenticated_subject": subject,
         "tools_added": [
             "acquire_document_lease",
@@ -4727,6 +4829,10 @@ def p2_capabilities() -> dict:
             "get_diagram_composition_contract",
             "get_diagram_composition",
             "apply_diagram_composition",
+            "get_high_level_diagram_contract",
+            "validate_high_level_diagram_plan",
+            "get_high_level_diagrams",
+            "apply_high_level_diagrams",
         ],
         "operations": [
             "replace_paragraph_text",
@@ -4838,6 +4944,17 @@ def p2_capabilities() -> dict:
             "deferred": "native smart connectLine + arbitrary existing-object group/ungroup + group scaling",
             "authority": "STRUCTURAL_DIAGRAM_COMPOSITION_AUTHORITY_ONLY until native P3.27 render batch",
             "diff": "diagram_placement_sha256 + group_topology_sha256",
+        },
+        "high_level_diagram": {
+            "ancestry": "P3.25 hp:drawText read-back + P3.26 native shapes + P3.27 composition promoted into P3.28",
+            "shape_text": "native hp:drawText plain labels + bounded text margins",
+            "labeled_nodes": "process/terminator/decision/data/node macros over rect/ellipse/polygon",
+            "callout": "labeled node + static pointer line; no unmeasured native callout family",
+            "plans": "validated deterministic LEFT_TO_RIGHT/TOP_DOWN compiler with bounded nodes/edges",
+            "macros": "flowchart sequence + recursive org-chart tree",
+            "deferred": "smart connector routing + rich mixed-run shape text + renderer-aware collision/page avoidance",
+            "authority": "STRUCTURAL_HIGH_LEVEL_DIAGRAM_AUTHORITY_ONLY until native P3.28 render batch",
+            "diff": "shape_text_sha256 + diagram_placement_sha256",
         },
         "table_editing": {
             "introspection": "table/cell semantic map + merge geometry + structure/format/object + P3.23 advanced-layout receipts",

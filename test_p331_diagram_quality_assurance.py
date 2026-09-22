@@ -114,6 +114,37 @@ class DiagramQualityAssuranceTests(unittest.TestCase):
             )
             self.assertEqual(plan["operations"][0]["op"], "apply_layout_policy")
 
+    def test_combined_layout_then_theme_repair_preserves_edge_style(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path, anchor = self._fixture(Path(tmp))
+            self._linear(path, anchor)
+            apply_diagram_lifecycle_atomic(
+                path,
+                [{"op": "patch_node", "diagram_id": "qa", "node_id": "work", "x": 5000, "y": 1000}],
+                expected_revision=2,
+                current_revision=2,
+            )
+            plan = plan_diagram_repairs(
+                path,
+                "qa",
+                expected_theme="mono",
+                repair_theme="mono",
+                repair_layout_policy="standard",
+            )
+            self.assertEqual(
+                [op["op"] for op in plan["operations"]],
+                ["apply_layout_policy", "apply_theme"],
+            )
+            apply_diagram_repairs_atomic(
+                path,
+                plan,
+                expected_revision=3,
+                current_revision=3,
+            )
+            after = validate_diagram_quality(path, "qa", expected_theme="mono")
+            self.assertTrue(after["passed"])
+            self.assertEqual(after["warning_count"], 0)
+
     def test_quality_map_and_deferred_contract(self):
         with tempfile.TemporaryDirectory() as tmp:
             path, anchor = self._fixture(Path(tmp))

@@ -95,6 +95,13 @@ from p330_diagram_design_system import (
     build_diagram_design_system_map,
     apply_diagram_design_system_atomic,
 )
+from p331_diagram_quality_assurance import (
+    diagram_quality_assurance_contract,
+    validate_diagram_quality as validate_p331_diagram_quality,
+    build_diagram_quality_map,
+    plan_diagram_repairs as plan_p331_diagram_repairs,
+    apply_diagram_repairs_atomic,
+)
 from p313_capture_custody import (
     near_wrap_positive_sensitivity_spec,
     validate_artifact_custody,
@@ -120,9 +127,9 @@ from common_ir import (
     slice_common_ir,
 )
 
-P2_VERSION = "0.9.0-p3.30"
+P2_VERSION = "0.9.0-p3.31"
 core.VERSION = P2_VERSION
-core.PHASE = "P3.30"
+core.PHASE = "P3.31"
 
 _original_metadata = core._metadata
 
@@ -4948,12 +4955,183 @@ def apply_diagram_design_system(
 
 
 @core.mcp.tool()
+def get_diagram_quality_assurance_contract() -> dict:
+    """Return P3.31 structural QA profiles, checks, repair semantics and evidence gates."""
+    core._caller_subject()
+    return {"ok": True, **diagram_quality_assurance_contract()}
+
+
+@core.mcp.tool()
+def get_diagram_quality(
+    document_id: str,
+    profile: str = "baseline",
+    constraints: dict | None = None,
+    expected_theme: str = "",
+) -> dict:
+    """Validate every managed diagram under one bounded structural QA profile."""
+    metadata, path = _owned_document(document_id)
+    mapped = build_diagram_quality_map(
+        path,
+        profile=profile,
+        constraints=constraints,
+        expected_theme=expected_theme or None,
+    )
+    return {
+        "ok": True,
+        "document_id": document_id,
+        "revision": int(metadata["revision"]),
+        **mapped,
+    }
+
+
+@core.mcp.tool()
+def validate_diagram_quality(
+    document_id: str,
+    diagram_id: str,
+    profile: str = "baseline",
+    constraints: dict | None = None,
+    expected_theme: str = "",
+) -> dict:
+    """Validate one managed diagram using structural graph/style/readability checks."""
+    metadata, path = _owned_document(document_id)
+    report = validate_p331_diagram_quality(
+        path,
+        diagram_id,
+        profile=profile,
+        constraints=constraints,
+        expected_theme=expected_theme or None,
+    )
+    return {
+        "ok": True,
+        "document_id": document_id,
+        "revision": int(metadata["revision"]),
+        **report,
+    }
+
+
+@core.mcp.tool()
+def plan_diagram_repairs(
+    document_id: str,
+    diagram_id: str,
+    profile: str = "baseline",
+    constraints: dict | None = None,
+    expected_theme: str = "",
+    repair_theme: str = "",
+    repair_layout_policy: str = "",
+    layout: str = "LEFT_TO_RIGHT",
+) -> dict:
+    """Build a deterministic P3.31 safe structural repair plan without mutating bytes."""
+    metadata, path = _owned_document(document_id)
+    plan = plan_p331_diagram_repairs(
+        path,
+        diagram_id,
+        profile=profile,
+        constraints=constraints,
+        expected_theme=expected_theme or None,
+        repair_theme=repair_theme or None,
+        repair_layout_policy=repair_layout_policy or None,
+        layout=layout,
+    )
+    return {
+        "ok": True,
+        "document_id": document_id,
+        "revision": int(metadata["revision"]),
+        **plan,
+    }
+
+
+@core.mcp.tool()
+def apply_diagram_repairs(
+    document_id: str,
+    expected_revision: int,
+    repair_plan: dict,
+    lease_token: str = "",
+) -> dict:
+    """Apply one stale-safe P3.31 repair plan restricted to meaning-preserving design/layout operations."""
+    metadata, path = _owned_document(document_id)
+    current_revision = int(metadata["revision"])
+    ingress = metadata.get("source") == "existing-ingress"
+    operations = repair_plan.get("operations") if isinstance(repair_plan, dict) else []
+    fidelity = assess_edit_fidelity_envelope(operations or [])
+    transaction = apply_diagram_repairs_atomic(
+        path,
+        repair_plan,
+        expected_revision=int(expected_revision),
+        current_revision=current_revision,
+        validator=lambda candidate: core.validate_hwpx_package(candidate, ingress=ingress),
+    )
+    validation = transaction["validation"]
+    after_document = build_document_map(path)
+    after_formatting = build_formatting_map(path)
+    after_inline = build_inline_map(path)
+    after_tables = build_table_map(path)
+    after_objects = build_object_map(path)
+    after_equations = build_equation_map(path)
+    drawing = build_drawing_layer_map(path)
+    styles = build_drawing_style_map(path)
+    diagram = build_diagram_composition_map(path)
+    high_level = build_high_level_diagram_map(path)
+    lifecycle = build_diagram_lifecycle_map(path)
+    design = build_diagram_design_system_map(path)
+    quality = build_diagram_quality_map(path)
+    diagram_id = str(repair_plan.get("diagram_id") or "")
+    post_report = validate_p331_diagram_quality(
+        path,
+        diagram_id,
+        profile=str(repair_plan.get("profile", "baseline")),
+        constraints=repair_plan.get("constraints"),
+        expected_theme=repair_plan.get("expected_theme"),
+    )
+    metadata["revision"] = current_revision + 1
+    metadata["last_edit_at"] = core._utc_iso()
+    if lease_token:
+        metadata["_commit_lease_token"] = lease_token
+    _refresh_metadata(
+        document_id,
+        metadata,
+        validation,
+        after_document,
+        after_formatting,
+        after_inline,
+        after_tables,
+        after_objects,
+        after_equations,
+    )
+    metadata["drawing_structure_sha256"] = drawing["drawing_structure_sha256"]
+    metadata["drawing_geometry_sha256"] = drawing["drawing_geometry_sha256"]
+    metadata["drawing_style_sha256"] = styles["drawing_style_sha256"]
+    metadata["shape_geometry_sha256"] = styles["shape_geometry_sha256"]
+    metadata["diagram_placement_sha256"] = diagram["diagram_placement_sha256"]
+    metadata["group_topology_sha256"] = diagram["group_topology_sha256"]
+    metadata["shape_text_sha256"] = high_level["shape_text_sha256"]
+    metadata["diagram_identity_sha256"] = lifecycle["diagram_identity_sha256"]
+    metadata["diagram_relation_sha256"] = lifecycle["diagram_relation_sha256"]
+    metadata["semantic_style_sha256"] = design["semantic_style_sha256"]
+    metadata["diagram_quality_sha256"] = quality["quality_sha256"]
+    core._write_metadata(document_id, metadata)
+    return {
+        "ok": True,
+        "document_id": document_id,
+        "revision_before": current_revision,
+        "revision_after": int(metadata["revision"]),
+        "sha256": validation["sha256"],
+        "diagram_repair_diff": transaction,
+        "post_repair_report": post_report,
+        "fidelity": fidelity,
+        "validation": validation,
+        "transaction": "COMMITTED",
+        "authority": "STRUCTURAL_DIAGRAM_QUALITY_ASSURANCE_AUTHORITY_ONLY",
+        "native_render_batch_status": "DEFERRED_BY_DESIGN",
+    }
+
+
+@core.mcp.tool()
 def p2_capabilities() -> dict:
     subject = core._caller_subject()
     return {
         "project": core.PROJECT,
         "version": core.VERSION,
-        "phase": "P3.30",
+        "phase": "P3.31",
         "authenticated_subject": subject,
         "tools_added": [
             "acquire_document_lease",
@@ -5035,6 +5213,11 @@ def p2_capabilities() -> dict:
             "get_diagram_design_system_contract",
             "get_diagram_design_system",
             "apply_diagram_design_system",
+            "get_diagram_quality_assurance_contract",
+            "get_diagram_quality",
+            "validate_diagram_quality",
+            "plan_diagram_repairs",
+            "apply_diagram_repairs",
         ],
         "operations": [
             "replace_paragraph_text",
@@ -5179,6 +5362,17 @@ def p2_capabilities() -> dict:
             "deferred": "rich drawText typography + private theme registry + renderer-aware collision layout + smart connector style binding",
             "authority": "STRUCTURAL_DIAGRAM_DESIGN_SYSTEM_AUTHORITY_ONLY until native P3.30 render batch",
             "diff": "semantic_style_sha256 + inherited diagram identity/relation receipts",
+        },
+        "diagram_quality_assurance": {
+            "ancestry": "P3.29 semantic graph + P3.30 effective native style map promoted into read-only validation and explicit safe repair",
+            "profiles": "baseline / flow / presentation with caller-overridable bounded structural constraints",
+            "graph_checks": "labels + weak connectivity + cycle + source/sink cardinality + in/out degree bounds",
+            "style_checks": "exact semantic-role theme-token conformance against materialized native attributes",
+            "readability_checks": "native bbox overlap + minimum center spacing + label-length budget; no renderer/pixel claims",
+            "repair": "theme re-materialization + P3.30 collision-safe layout only; semantic graph mutations remain advisory",
+            "deferred": "pixel overlap + color contrast + font legibility + subjective aesthetic score + semantic graph auto-repair",
+            "authority": "STRUCTURAL_DIAGRAM_QUALITY_ASSURANCE_AUTHORITY_ONLY until native P3.31 render batch",
+            "diff": "qa_sha256 / quality_sha256 + inherited identity/relation/style receipts",
         },
         "table_editing": {
             "introspection": "table/cell semantic map + merge geometry + structure/format/object + P3.23 advanced-layout receipts",

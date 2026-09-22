@@ -21,8 +21,11 @@ from p329_diagram_lifecycle import (
     _diagram,
     _node,
     _create,
-    _relayout,
+    _edge_pairs,
+    _remove_edges,
+    _insert_edge,
 )
+from p327_diagram_composition import _resolve_top, _set_xy
 
 SCHEMA = "chatgpt-web-hwpx-mcp/diagram-design-system/p3.30/v1"
 AUTHORITY = "STRUCTURAL_DIAGRAM_DESIGN_SYSTEM_AUTHORITY_ONLY"
@@ -327,17 +330,46 @@ def _apply_layout_policy(path: Path, op: dict) -> dict:
     if name not in LAYOUT_POLICIES:
         raise ValueError(f"unknown layout policy: {name}")
     policy = LAYOUT_POLICIES[name]
-    receipt = _relayout(path, {
-        "op": "relayout_diagram",
-        "diagram_id": op.get("diagram_id"),
-        "layout": op.get("layout", "LEFT_TO_RIGHT"),
-        "origin_x": op.get("origin_x", 1000),
-        "origin_y": op.get("origin_y", 1000),
-        "gap_x": op.get("gap_x", policy["gap_x"]),
-        "gap_y": op.get("gap_y", policy["gap_y"]),
-        "order": op.get("order"),
-    })
-    return {"op": "apply_layout_policy", "policy": name, **receipt}
+    diagram = _diagram(path, op.get("diagram_id"))
+    layout = str(op.get("layout", "LEFT_TO_RIGHT")).upper()
+    if layout not in {"LEFT_TO_RIGHT", "TOP_DOWN"}:
+        raise ValueError(f"unsupported layout: {layout}")
+    origin_x = int(op.get("origin_x", 1000))
+    origin_y = int(op.get("origin_y", 1000))
+    gap_x = int(op.get("gap_x", policy["gap_x"]))
+    gap_y = int(op.get("gap_y", policy["gap_y"]))
+    order = op.get("order") or [n["node_id"] for n in diagram["nodes"]]
+    if sorted(order) != sorted(n["node_id"] for n in diagram["nodes"]):
+        raise ValueError("layout-policy order must contain every managed node exactly once")
+
+    pairs = _edge_pairs(diagram)
+    initial_nodes = {node["node_id"]: node for node in diagram["nodes"]}
+    _remove_edges(path, diagram)
+
+    # P3.29 reconstructs identity from exact centers and therefore fails closed
+    # on even transient center collisions. Stage every node at a unique remote
+    # coordinate before assigning final policy coordinates.
+    for index, node_id in enumerate(order):
+        target = _resolve_top(path, initial_nodes[node_id]["locator"])
+        _set_xy(path, target, 8_000_000 + index * 20_000, 8_000_000)
+
+    for index, node_id in enumerate(order):
+        target = _resolve_top(path, initial_nodes[node_id]["locator"])
+        x = origin_x + (index * gap_x if layout == "LEFT_TO_RIGHT" else 0)
+        y = origin_y + (index * gap_y if layout == "TOP_DOWN" else 0)
+        _set_xy(path, target, x, y)
+
+    rebuilt = []
+    for source, target in pairs:
+        rebuilt.append(_insert_edge(path, diagram["diagram_id"], source, target))
+    return {
+        "op": "apply_layout_policy",
+        "policy": name,
+        "layout": layout,
+        "order": order,
+        "rebuilt_edges": rebuilt,
+        "collision_safe_staging": True,
+    }
 
 
 def _instantiate_styled_template(path: Path, op: dict) -> dict:

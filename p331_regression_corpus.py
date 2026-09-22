@@ -70,7 +70,7 @@ def materialize_p331_regression_corpus(out_dir: Path) -> dict:
         elif name == "overlap-detect":
             apply_diagram_lifecycle_atomic(
                 target,
-                [{"op": "patch_node", "diagram_id": "qa", "node_id": "work", "x": 1000, "y": 1000}],
+                [{"op": "patch_node", "diagram_id": "qa", "node_id": "work", "x": 5000, "y": 1000}],
                 expected_revision=2,
                 current_revision=2,
             )

@@ -193,6 +193,9 @@ async def main() -> None:
                 "get_drawing_layer_contract",
                 "get_drawing_layer",
                 "apply_drawing_layer",
+                "get_drawing_style_contract",
+                "get_drawing_styles",
+                "apply_drawing_styles",
             }
             missing = expected - set(names)
             if missing:
@@ -203,11 +206,11 @@ async def main() -> None:
                     raise RuntimeError(f"secret-bearing field leaked into tool schema: {tool.name}")
 
             read_payload = _payload(await client.call_tool("probe_read", {"message": "P2 OAuth smoke test"}))
-            if not read_payload or not read_payload.get("ok") or read_payload.get("version") != "0.9.0-p3.25":
+            if not read_payload or not read_payload.get("ok") or read_payload.get("version") != "0.9.0-p3.26":
                 raise RuntimeError(f"probe_read did not expose P2: {read_payload}")
 
             p2_caps = _payload(await client.call_tool("p2_capabilities", {}))
-            if not p2_caps or p2_caps.get("phase") != "P3.25":
+            if not p2_caps or p2_caps.get("phase") != "P3.26":
                 raise RuntimeError(f"p2_capabilities failed: {p2_caps}")
 
             if not RUN_WRITE_TEST:
@@ -571,6 +574,132 @@ async def main() -> None:
                 or drawing_box.get("position", {}).get("vertOffset") != "900"
             ):
                 raise RuntimeError(f"P3.25 drawing-layer read-back failed: {drawing_readback}")
+
+            drawing_style_contract = _payload(await client.call_tool("get_drawing_style_contract", {}))
+            if (
+                not drawing_style_contract
+                or drawing_style_contract.get("phase") != "P3.26"
+                or drawing_style_contract.get("authority") != "STRUCTURAL_DRAWING_STYLE_AUTHORITY_ONLY"
+                or "insert_curve" not in drawing_style_contract.get("deferred_operations", {})
+            ):
+                raise RuntimeError(f"P3.26 drawing-style contract failed: {drawing_style_contract}")
+
+            drawing_styles_edited = _payload(await client.call_tool("apply_drawing_styles", {
+                "document_id": planned_document_id,
+                "expected_revision": 5,
+                "operations": [
+                    {
+                        "op": "insert_line",
+                        "anchor": planned_body["locator"],
+                        "start_x": 0,
+                        "start_y": 0,
+                        "end_x": 9000,
+                        "end_y": 3000,
+                        "line_color": "#223344",
+                        "line_width": 420,
+                        "treat_as_char": False,
+                    },
+                    {
+                        "op": "insert_ellipse",
+                        "anchor": planned_body["locator"],
+                        "width": 8000,
+                        "height": 5000,
+                        "line_color": "#335577",
+                        "fill_color": "#DDEEFF",
+                        "treat_as_char": False,
+                    },
+                ],
+            }))
+            if (
+                not drawing_styles_edited
+                or drawing_styles_edited.get("revision_after") != 6
+                or drawing_styles_edited.get("transaction") != "COMMITTED"
+                or drawing_styles_edited.get("authority") != "STRUCTURAL_DRAWING_STYLE_AUTHORITY_ONLY"
+            ):
+                raise RuntimeError(f"P3.26 shape authoring failed: {drawing_styles_edited}")
+
+            styles_readback = _payload(await client.call_tool("get_drawing_styles", {
+                "document_id": planned_document_id,
+            }))
+            if (
+                not styles_readback
+                or styles_readback.get("revision") != 6
+                or styles_readback.get("family_counts", {}).get("line", 0) < 1
+                or styles_readback.get("family_counts", {}).get("ellipse", 0) < 1
+            ):
+                raise RuntimeError(f"P3.26 shape read-back failed: {styles_readback}")
+            line_style = next(
+                (item for item in styles_readback.get("styles", []) if item.get("kind") == "line"),
+                None,
+            )
+            ellipse_style = next(
+                (item for item in styles_readback.get("styles", []) if item.get("kind") == "ellipse"),
+                None,
+            )
+            if (
+                line_style is None
+                or line_style.get("line_shape", {}).get("color") != "#223344"
+                or ellipse_style is None
+                or ellipse_style.get("fill", {}).get("faceColor") != "#DDEEFF"
+            ):
+                raise RuntimeError(f"P3.26 authored style mismatch: {styles_readback}")
+
+            styled = _payload(await client.call_tool("apply_drawing_styles", {
+                "document_id": planned_document_id,
+                "expected_revision": 6,
+                "operations": [
+                    {
+                        "op": "set_shape_stroke",
+                        "drawing": line_style["locator"],
+                        "color": "#446688",
+                        "width": 480,
+                        "style": "DASH",
+                        "alpha": 30,
+                    },
+                    {
+                        "op": "set_shape_arrowheads",
+                        "drawing": line_style["locator"],
+                        "head_style": "ARROW",
+                        "tail_style": "FILLED_CIRCLE",
+                    },
+                    {
+                        "op": "set_shape_shadow",
+                        "drawing": ellipse_style["locator"],
+                        "type": "DROP",
+                        "color": "#777777",
+                        "offset_x": 300,
+                        "offset_y": 300,
+                        "alpha": 70,
+                    },
+                ],
+            }))
+            if (
+                not styled
+                or styled.get("revision_after") != 7
+                or styled.get("transaction") != "COMMITTED"
+            ):
+                raise RuntimeError(f"P3.26 style mutation failed: {styled}")
+
+            styles_final = _payload(await client.call_tool("get_drawing_styles", {
+                "document_id": planned_document_id,
+            }))
+            final_line = next(
+                (item for item in styles_final.get("styles", []) if item.get("locator") == line_style["locator"]),
+                None,
+            )
+            final_ellipse = next(
+                (item for item in styles_final.get("styles", []) if item.get("locator") == ellipse_style["locator"]),
+                None,
+            )
+            if (
+                styles_final.get("revision") != 7
+                or final_line is None
+                or final_line.get("line_shape", {}).get("style") != "DASH"
+                or final_line.get("line_shape", {}).get("headStyle") != "ARROW"
+                or final_ellipse is None
+                or final_ellipse.get("shadow", {}).get("type") != "DROP"
+            ):
+                raise RuntimeError(f"P3.26 final style read-back failed: {styles_final}")
 
             planned_export = _payload(await client.call_tool("export_document", {
                 "document_id": planned_document_id,

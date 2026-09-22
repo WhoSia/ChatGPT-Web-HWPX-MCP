@@ -199,6 +199,10 @@ async def main() -> None:
                 "get_diagram_composition_contract",
                 "get_diagram_composition",
                 "apply_diagram_composition",
+                "get_high_level_diagram_contract",
+                "validate_high_level_diagram_plan",
+                "get_high_level_diagrams",
+                "apply_high_level_diagrams",
             }
             missing = expected - set(names)
             if missing:
@@ -209,11 +213,11 @@ async def main() -> None:
                     raise RuntimeError(f"secret-bearing field leaked into tool schema: {tool.name}")
 
             read_payload = _payload(await client.call_tool("probe_read", {"message": "P2 OAuth smoke test"}))
-            if not read_payload or not read_payload.get("ok") or read_payload.get("version") != "0.9.0-p3.27":
+            if not read_payload or not read_payload.get("ok") or read_payload.get("version") != "0.9.0-p3.28":
                 raise RuntimeError(f"probe_read did not expose P2: {read_payload}")
 
             p2_caps = _payload(await client.call_tool("p2_capabilities", {}))
-            if not p2_caps or p2_caps.get("phase") != "P3.27":
+            if not p2_caps or p2_caps.get("phase") != "P3.28":
                 raise RuntimeError(f"p2_capabilities failed: {p2_caps}")
 
             if not RUN_WRITE_TEST:
@@ -780,6 +784,107 @@ async def main() -> None:
                 or moved_group.get("position", {}).get("vertOffset") != "1500"
             ):
                 raise RuntimeError(f"P3.27 final group read-back failed: {diagram_final}")
+
+            high_contract = _payload(await client.call_tool("get_high_level_diagram_contract", {}))
+            if (
+                not high_contract
+                or high_contract.get("phase") != "P3.28"
+                or high_contract.get("authority") != "STRUCTURAL_HIGH_LEVEL_DIAGRAM_AUTHORITY_ONLY"
+                or "smart_connector_routing" not in high_contract.get("deferred_operations", {})
+            ):
+                raise RuntimeError(f"P3.28 high-level diagram contract failed: {high_contract}")
+
+            plan_verdict = _payload(await client.call_tool("validate_high_level_diagram_plan", {
+                "plan": {
+                    "layout": "LEFT_TO_RIGHT",
+                    "nodes": [
+                        {"id": "start", "type": "terminator", "label": "Start"},
+                        {"id": "work", "type": "process", "label": "Work"},
+                        {"id": "end", "type": "terminator", "label": "End"},
+                    ],
+                    "edges": [
+                        {"from": "start", "to": "work"},
+                        {"from": "work", "to": "end"},
+                    ],
+                },
+            }))
+            if (
+                not plan_verdict
+                or plan_verdict.get("node_count") != 3
+                or plan_verdict.get("edge_count") != 2
+                or len(plan_verdict.get("plan_sha256", "")) != 64
+            ):
+                raise RuntimeError(f"P3.28 plan validation failed: {plan_verdict}")
+
+            high_authored = _payload(await client.call_tool("apply_high_level_diagrams", {
+                "document_id": planned_document_id,
+                "expected_revision": 9,
+                "operations": [{
+                    "op": "insert_flowchart",
+                    "anchor": planned_body["locator"],
+                    "origin_x": 26000,
+                    "origin_y": 1200,
+                    "steps": [
+                        {"id": "s", "label": "Start", "type": "terminator"},
+                        {"id": "p", "label": "Process", "type": "process"},
+                        {"id": "d", "label": "Check", "type": "decision"},
+                        {"id": "e", "label": "End", "type": "terminator"},
+                    ],
+                }],
+            }))
+            if (
+                not high_authored
+                or high_authored.get("revision_after") != 10
+                or high_authored.get("transaction") != "COMMITTED"
+                or high_authored.get("authority") != "STRUCTURAL_HIGH_LEVEL_DIAGRAM_AUTHORITY_ONLY"
+            ):
+                raise RuntimeError(f"P3.28 flowchart authoring failed: {high_authored}")
+
+            high_readback = _payload(await client.call_tool("get_high_level_diagrams", {
+                "document_id": planned_document_id,
+            }))
+            labels = {
+                item.get("draw_text", {}).get("text")
+                for item in high_readback.get("labeled_nodes", [])
+            }
+            if (
+                not high_readback
+                or high_readback.get("revision") != 10
+                or high_readback.get("labeled_node_count", 0) < 4
+                or not {"Start", "Process", "Check", "End"}.issubset(labels)
+            ):
+                raise RuntimeError(f"P3.28 flowchart read-back failed: {high_readback}")
+
+            process_node = next(
+                item for item in high_readback["labeled_nodes"]
+                if item.get("draw_text", {}).get("text") == "Process"
+            )
+            high_relabeled = _payload(await client.call_tool("apply_high_level_diagrams", {
+                "document_id": planned_document_id,
+                "expected_revision": 10,
+                "operations": [{
+                    "op": "set_shape_text",
+                    "drawing": process_node["locator"],
+                    "text": "Execute",
+                    "text_margin": 320,
+                }],
+            }))
+            if (
+                not high_relabeled
+                or high_relabeled.get("revision_after") != 11
+                or high_relabeled.get("transaction") != "COMMITTED"
+            ):
+                raise RuntimeError(f"P3.28 relabel failed: {high_relabeled}")
+
+            high_final = _payload(await client.call_tool("get_high_level_diagrams", {
+                "document_id": planned_document_id,
+            }))
+            final_labels = {
+                item.get("draw_text", {}).get("text")
+                for item in high_final.get("labeled_nodes", [])
+            }
+            if high_final.get("revision") != 11 or "Execute" not in final_labels:
+                raise RuntimeError(f"P3.28 final label read-back failed: {high_final}")
 
             planned_export = _payload(await client.call_tool("export_document", {
                 "document_id": planned_document_id,

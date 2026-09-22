@@ -458,14 +458,8 @@ def plan_diagram_repairs(
     reasons = []
     codes = {finding["code"] for finding in report["findings"]}
 
-    theme_name = str(repair_theme or expected_theme or "").lower()
-    if theme_name:
-        if theme_name not in THEMES:
-            raise ValueError(f"unknown repair_theme: {theme_name}")
-        if {"NODE_THEME_MISMATCH", "EDGE_THEME_MISMATCH"} & codes:
-            operations.append({"op": "apply_theme", "diagram_id": diagram_id, "theme": theme_name})
-            reasons.append("materialize expected semantic-role theme tokens")
-
+    # Layout can reconstruct managed static edges. Therefore layout must run
+    # before theme materialization so rebuilt edges receive final semantic style.
     if repair_layout_policy is not None:
         policy = str(repair_layout_policy).lower()
         if policy not in LAYOUT_POLICIES:
@@ -478,6 +472,14 @@ def plan_diagram_repairs(
                 "layout": str(layout).upper(),
             })
             reasons.append("apply collision-safe deterministic spacing policy")
+
+    theme_name = str(repair_theme or expected_theme or "").lower()
+    if theme_name:
+        if theme_name not in THEMES:
+            raise ValueError(f"unknown repair_theme: {theme_name}")
+        if {"NODE_THEME_MISMATCH", "EDGE_THEME_MISMATCH"} & codes:
+            operations.append({"op": "apply_theme", "diagram_id": diagram_id, "theme": theme_name})
+            reasons.append("materialize expected semantic-role theme tokens after any edge-rebuilding layout")
 
     advisory = [
         finding for finding in report["findings"]

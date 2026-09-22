@@ -196,6 +196,9 @@ async def main() -> None:
                 "get_drawing_style_contract",
                 "get_drawing_styles",
                 "apply_drawing_styles",
+                "get_diagram_composition_contract",
+                "get_diagram_composition",
+                "apply_diagram_composition",
             }
             missing = expected - set(names)
             if missing:
@@ -206,11 +209,11 @@ async def main() -> None:
                     raise RuntimeError(f"secret-bearing field leaked into tool schema: {tool.name}")
 
             read_payload = _payload(await client.call_tool("probe_read", {"message": "P2 OAuth smoke test"}))
-            if not read_payload or not read_payload.get("ok") or read_payload.get("version") != "0.9.0-p3.26":
+            if not read_payload or not read_payload.get("ok") or read_payload.get("version") != "0.9.0-p3.27":
                 raise RuntimeError(f"probe_read did not expose P2: {read_payload}")
 
             p2_caps = _payload(await client.call_tool("p2_capabilities", {}))
-            if not p2_caps or p2_caps.get("phase") != "P3.26":
+            if not p2_caps or p2_caps.get("phase") != "P3.27":
                 raise RuntimeError(f"p2_capabilities failed: {p2_caps}")
 
             if not RUN_WRITE_TEST:
@@ -700,6 +703,83 @@ async def main() -> None:
                 or final_ellipse.get("shadow", {}).get("type") != "DROP"
             ):
                 raise RuntimeError(f"P3.26 final style read-back failed: {styles_final}")
+
+            diagram_contract = _payload(await client.call_tool("get_diagram_composition_contract", {}))
+            if (
+                not diagram_contract
+                or diagram_contract.get("phase") != "P3.27"
+                or diagram_contract.get("authority") != "STRUCTURAL_DIAGRAM_COMPOSITION_AUTHORITY_ONLY"
+                or "insert_smart_connector" not in diagram_contract.get("deferred_operations", {})
+            ):
+                raise RuntimeError(f"P3.27 diagram contract failed: {diagram_contract}")
+
+            diagram_grouped = _payload(await client.call_tool("apply_diagram_composition", {
+                "document_id": planned_document_id,
+                "expected_revision": 7,
+                "operations": [{
+                    "op": "insert_diagram_block",
+                    "preset": "three_stage",
+                    "anchor": planned_body["locator"],
+                    "horizontal_offset": 1800,
+                    "vertical_offset": 1200,
+                }],
+            }))
+            if (
+                not diagram_grouped
+                or diagram_grouped.get("revision_after") != 8
+                or diagram_grouped.get("transaction") != "COMMITTED"
+                or diagram_grouped.get("authority") != "STRUCTURAL_DIAGRAM_COMPOSITION_AUTHORITY_ONLY"
+            ):
+                raise RuntimeError(f"P3.27 diagram block authoring failed: {diagram_grouped}")
+
+            diagram_readback = _payload(await client.call_tool("get_diagram_composition", {
+                "document_id": planned_document_id,
+            }))
+            if (
+                not diagram_readback
+                or diagram_readback.get("revision") != 8
+                or diagram_readback.get("group_count", 0) < 1
+            ):
+                raise RuntimeError(f"P3.27 diagram read-back failed: {diagram_readback}")
+            group = diagram_readback["groups"][-1]
+            if (
+                len(group.get("members", [])) != 3
+                or group.get("position", {}).get("horzOffset") != "1800"
+                or group.get("position", {}).get("vertOffset") != "1200"
+            ):
+                raise RuntimeError(f"P3.27 diagram group state mismatch: {group}")
+
+            diagram_moved = _payload(await client.call_tool("apply_diagram_composition", {
+                "document_id": planned_document_id,
+                "expected_revision": 8,
+                "operations": [{
+                    "op": "translate_group",
+                    "group": group["locator"],
+                    "dx": 500,
+                    "dy": 300,
+                }],
+            }))
+            if (
+                not diagram_moved
+                or diagram_moved.get("revision_after") != 9
+                or diagram_moved.get("transaction") != "COMMITTED"
+            ):
+                raise RuntimeError(f"P3.27 group translation failed: {diagram_moved}")
+
+            diagram_final = _payload(await client.call_tool("get_diagram_composition", {
+                "document_id": planned_document_id,
+            }))
+            moved_group = next(
+                (item for item in diagram_final.get("groups", []) if item.get("locator") == group["locator"]),
+                None,
+            )
+            if (
+                diagram_final.get("revision") != 9
+                or moved_group is None
+                or moved_group.get("position", {}).get("horzOffset") != "2300"
+                or moved_group.get("position", {}).get("vertOffset") != "1500"
+            ):
+                raise RuntimeError(f"P3.27 final group read-back failed: {diagram_final}")
 
             planned_export = _payload(await client.call_tool("export_document", {
                 "document_id": planned_document_id,

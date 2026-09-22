@@ -791,7 +791,7 @@ async def main() -> None:
             high_contract = _payload(await client.call_tool("get_high_level_diagram_contract", {}))
             if (
                 not high_contract
-                or high_contract.get("phase") != "P3.29"
+                or high_contract.get("phase") != "P3.28"
                 or high_contract.get("authority") != "STRUCTURAL_HIGH_LEVEL_DIAGRAM_AUTHORITY_ONLY"
                 or "smart_connector_routing" not in high_contract.get("deferred_operations", {})
             ):
@@ -900,7 +900,7 @@ async def main() -> None:
 
             lifecycle_created = _payload(await client.call_tool("apply_diagram_lifecycle", {
                 "document_id": planned_document_id,
-                "expected_revision": 10,
+                "expected_revision": 11,
                 "operations": [{
                     "op": "instantiate_template",
                     "diagram_id": "oauth",
@@ -911,7 +911,7 @@ async def main() -> None:
             }))
             if (
                 not lifecycle_created
-                or lifecycle_created.get("revision_after") != 11
+                or lifecycle_created.get("revision_after") != 12
                 or lifecycle_created.get("transaction") != "COMMITTED"
                 or lifecycle_created.get("authority") != "STRUCTURAL_DIAGRAM_LIFECYCLE_AUTHORITY_ONLY"
             ):
@@ -919,7 +919,7 @@ async def main() -> None:
 
             lifecycle_patched = _payload(await client.call_tool("apply_diagram_lifecycle", {
                 "document_id": planned_document_id,
-                "expected_revision": 11,
+                "expected_revision": 12,
                 "operations": [{
                     "op": "patch_node",
                     "diagram_id": "oauth",
@@ -931,14 +931,14 @@ async def main() -> None:
             }))
             if (
                 not lifecycle_patched
-                or lifecycle_patched.get("revision_after") != 12
+                or lifecycle_patched.get("revision_after") != 13
                 or lifecycle_patched.get("transaction") != "COMMITTED"
             ):
                 raise RuntimeError(f"P3.29 node patch failed: {lifecycle_patched}")
 
             lifecycle_cloned = _payload(await client.call_tool("apply_diagram_lifecycle", {
                 "document_id": planned_document_id,
-                "expected_revision": 12,
+                "expected_revision": 13,
                 "operations": [{
                     "op": "clone_subgraph",
                     "diagram_id": "oauth",
@@ -949,7 +949,7 @@ async def main() -> None:
             }))
             if (
                 not lifecycle_cloned
-                or lifecycle_cloned.get("revision_after") != 13
+                or lifecycle_cloned.get("revision_after") != 14
                 or lifecycle_cloned.get("transaction") != "COMMITTED"
             ):
                 raise RuntimeError(f"P3.29 subgraph clone failed: {lifecycle_cloned}")
@@ -960,7 +960,7 @@ async def main() -> None:
             managed = next((d for d in lifecycle_readback.get("diagrams", []) if d.get("diagram_id") == "oauth"), None)
             if (
                 not lifecycle_readback
-                or lifecycle_readback.get("revision") != 13
+                or lifecycle_readback.get("revision") != 14
                 or managed is None
                 or managed.get("node_count") != 5
                 or managed.get("edge_count") != 3

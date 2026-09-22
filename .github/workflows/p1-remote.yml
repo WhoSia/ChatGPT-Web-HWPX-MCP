@@ -21,7 +21,7 @@ jobs:
         run: |
           for i in {1..36}; do
             body="$($CURL --fail --silent --show-error "$BASE_URL/health" || true)"
-            if echo "$body" | grep -q '0.9.0-p3.27' && \
+            if echo "$body" | grep -q '0.9.0-p3.28' && \
                echo "$body" | grep -q '"state_store":"postgres-encrypted"' && \
                echo "$body" | grep -q '"store":"postgres-encrypted-versioned"' && \
                test "$(echo "$body" | grep -o '"durable_store_reachable":true' | wc -l)" -ge 2; then

@@ -74,6 +74,11 @@ from p326_drawing_style import (
     build_drawing_style_map,
     apply_drawing_style_atomic,
 )
+from p327_diagram_composition import (
+    diagram_composition_contract,
+    build_diagram_composition_map,
+    apply_diagram_composition_atomic,
+)
 from p313_capture_custody import (
     near_wrap_positive_sensitivity_spec,
     validate_artifact_custody,
@@ -99,9 +104,9 @@ from common_ir import (
     slice_common_ir,
 )
 
-P2_VERSION = "0.9.0-p3.26"
+P2_VERSION = "0.9.0-p3.27"
 core.VERSION = P2_VERSION
-core.PHASE = "P3.26"
+core.PHASE = "P3.27"
 
 _original_metadata = core._metadata
 
@@ -4558,12 +4563,99 @@ def apply_drawing_styles(
 
 
 @core.mcp.tool()
+def get_diagram_composition_contract() -> dict:
+    """Return the admitted P3.27 diagram-composition contract and evidence gates."""
+    core._caller_subject()
+    return {"ok": True, **diagram_composition_contract()}
+
+
+@core.mcp.tool()
+def get_diagram_composition(document_id: str) -> dict:
+    """Return top-level drawing placement, group topology and composition receipts."""
+    metadata, path = _owned_document(document_id)
+    mapped = build_diagram_composition_map(path)
+    return {
+        "ok": True,
+        "document_id": document_id,
+        "revision": int(metadata["revision"]),
+        **mapped,
+    }
+
+
+@core.mcp.tool()
+def apply_diagram_composition(
+    document_id: str,
+    expected_revision: int,
+    operations: list[dict],
+    lease_token: str = "",
+) -> dict:
+    """Apply one revision-guarded P3.27 diagram-composition transaction."""
+    metadata, path = _owned_document(document_id)
+    current_revision = int(metadata["revision"])
+    ingress = metadata.get("source") == "existing-ingress"
+    fidelity = assess_edit_fidelity_envelope(operations)
+    transaction = apply_diagram_composition_atomic(
+        path,
+        operations,
+        expected_revision=int(expected_revision),
+        current_revision=current_revision,
+        validator=lambda candidate: core.validate_hwpx_package(candidate, ingress=ingress),
+    )
+    validation = transaction["validation"]
+    after_document = build_document_map(path)
+    after_formatting = build_formatting_map(path)
+    after_inline = build_inline_map(path)
+    after_tables = build_table_map(path)
+    after_objects = build_object_map(path)
+    after_equations = build_equation_map(path)
+    drawing = build_drawing_layer_map(path)
+    styles = build_drawing_style_map(path)
+    diagram = build_diagram_composition_map(path)
+    metadata["revision"] = current_revision + 1
+    metadata["last_edit_at"] = core._utc_iso()
+    if lease_token:
+        metadata["_commit_lease_token"] = lease_token
+    _refresh_metadata(
+        document_id,
+        metadata,
+        validation,
+        after_document,
+        after_formatting,
+        after_inline,
+        after_tables,
+        after_objects,
+        after_equations,
+    )
+    metadata["drawing_structure_sha256"] = drawing["drawing_structure_sha256"]
+    metadata["drawing_geometry_sha256"] = drawing["drawing_geometry_sha256"]
+    metadata["drawing_style_sha256"] = styles["drawing_style_sha256"]
+    metadata["shape_geometry_sha256"] = styles["shape_geometry_sha256"]
+    metadata["diagram_placement_sha256"] = diagram["diagram_placement_sha256"]
+    metadata["group_topology_sha256"] = diagram["group_topology_sha256"]
+    core._write_metadata(document_id, metadata)
+    return {
+        "ok": True,
+        "document_id": document_id,
+        "revision_before": current_revision,
+        "revision_after": int(metadata["revision"]),
+        "sha256": validation["sha256"],
+        "diagram_composition_diff": transaction,
+        "diagram_composition": diagram,
+        "fidelity": fidelity,
+        "validation": validation,
+        "transaction": "COMMITTED",
+        "authority": "STRUCTURAL_DIAGRAM_COMPOSITION_AUTHORITY_ONLY",
+        "native_render_batch_status": "DEFERRED_BY_DESIGN",
+    }
+
+
+@core.mcp.tool()
 def p2_capabilities() -> dict:
     subject = core._caller_subject()
     return {
         "project": core.PROJECT,
         "version": core.VERSION,
-        "phase": "P3.26",
+        "phase": "P3.27",
         "authenticated_subject": subject,
         "tools_added": [
             "acquire_document_lease",
@@ -4632,6 +4724,9 @@ def p2_capabilities() -> dict:
             "get_drawing_style_contract",
             "get_drawing_styles",
             "apply_drawing_styles",
+            "get_diagram_composition_contract",
+            "get_diagram_composition",
+            "apply_diagram_composition",
         ],
         "operations": [
             "replace_paragraph_text",
@@ -4732,6 +4827,17 @@ def p2_capabilities() -> dict:
             "geometry": "shape-specific native points + arc attributes are read back",
             "authority": "STRUCTURAL_DRAWING_STYLE_AUTHORITY_ONLY until native P3.26 render batch",
             "diff": "drawing_style_sha256 + shape_geometry_sha256",
+        },
+        "diagram_composition": {
+            "ancestry": "P3.25 layout + P3.26 shape authoring + upstream ContainerMember/add_container promoted into P3.27",
+            "connector": "static line connector between current node centers; no subjectIDRef binding or automatic rerouting",
+            "group": "new hp:container from explicit local rect/ellipse/polygon members + rigid translation",
+            "alignment": "LEFT/CENTER/RIGHT/TOP/MIDDLE/BOTTOM over floating same-anchor top-level objects",
+            "distribution": "equal-center HORIZONTAL/VERTICAL distribution",
+            "blocks": "reusable bounded group presets: two_nodes/three_stage/decision_cluster",
+            "deferred": "native smart connectLine + arbitrary existing-object group/ungroup + group scaling",
+            "authority": "STRUCTURAL_DIAGRAM_COMPOSITION_AUTHORITY_ONLY until native P3.27 render batch",
+            "diff": "diagram_placement_sha256 + group_topology_sha256",
         },
         "table_editing": {
             "introspection": "table/cell semantic map + merge geometry + structure/format/object + P3.23 advanced-layout receipts",

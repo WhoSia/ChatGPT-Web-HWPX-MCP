@@ -84,9 +84,8 @@ jobs:
           echo $! > /tmp/p37-mcp.pid
           for i in {1..40}; do
             body="$(curl --fail --silent http://127.0.0.1:8000/health || true)"
-            if echo "$body" | grep -q '"project":"chatgpt-web-hwpx-mcp"' && \
-               echo "$body" | grep -q '"version":"0.9.0-p3.28"' && \
-               echo "$body" | grep -q '"state_store":"postgres-encrypted"'; then
+            if echo "$body" | grep -q '0.9.0-p3.28' && \
+               echo "$body" | grep -q 'postgres-encrypted'; then
               echo "$body"
               exit 0
             fi

@@ -203,6 +203,9 @@ async def main() -> None:
                 "validate_high_level_diagram_plan",
                 "get_high_level_diagrams",
                 "apply_high_level_diagrams",
+                "get_diagram_lifecycle_contract",
+                "get_diagram_lifecycle",
+                "apply_diagram_lifecycle",
             }
             missing = expected - set(names)
             if missing:
@@ -213,11 +216,11 @@ async def main() -> None:
                     raise RuntimeError(f"secret-bearing field leaked into tool schema: {tool.name}")
 
             read_payload = _payload(await client.call_tool("probe_read", {"message": "P2 OAuth smoke test"}))
-            if not read_payload or not read_payload.get("ok") or read_payload.get("version") != "0.9.0-p3.28":
+            if not read_payload or not read_payload.get("ok") or read_payload.get("version") != "0.9.0-p3.29":
                 raise RuntimeError(f"probe_read did not expose P2: {read_payload}")
 
             p2_caps = _payload(await client.call_tool("p2_capabilities", {}))
-            if not p2_caps or p2_caps.get("phase") != "P3.28":
+            if not p2_caps or p2_caps.get("phase") != "P3.29":
                 raise RuntimeError(f"p2_capabilities failed: {p2_caps}")
 
             if not RUN_WRITE_TEST:
@@ -788,7 +791,7 @@ async def main() -> None:
             high_contract = _payload(await client.call_tool("get_high_level_diagram_contract", {}))
             if (
                 not high_contract
-                or high_contract.get("phase") != "P3.28"
+                or high_contract.get("phase") != "P3.29"
                 or high_contract.get("authority") != "STRUCTURAL_HIGH_LEVEL_DIAGRAM_AUTHORITY_ONLY"
                 or "smart_connector_routing" not in high_contract.get("deferred_operations", {})
             ):
@@ -885,6 +888,86 @@ async def main() -> None:
             }
             if high_final.get("revision") != 11 or "Execute" not in final_labels:
                 raise RuntimeError(f"P3.28 final label read-back failed: {high_final}")
+
+            lifecycle_contract = _payload(await client.call_tool("get_diagram_lifecycle_contract", {}))
+            if (
+                not lifecycle_contract
+                or lifecycle_contract.get("phase") != "P3.29"
+                or lifecycle_contract.get("authority") != "STRUCTURAL_DIAGRAM_LIFECYCLE_AUTHORITY_ONLY"
+                or "smart_connector_binding" not in lifecycle_contract.get("deferred_operations", {})
+            ):
+                raise RuntimeError(f"P3.29 lifecycle contract failed: {lifecycle_contract}")
+
+            lifecycle_created = _payload(await client.call_tool("apply_diagram_lifecycle", {
+                "document_id": planned_document_id,
+                "expected_revision": 10,
+                "operations": [{
+                    "op": "instantiate_template",
+                    "diagram_id": "oauth",
+                    "template": "linear_process",
+                    "anchor": planned_body["locator"],
+                    "origin_y": 22000,
+                }],
+            }))
+            if (
+                not lifecycle_created
+                or lifecycle_created.get("revision_after") != 11
+                or lifecycle_created.get("transaction") != "COMMITTED"
+                or lifecycle_created.get("authority") != "STRUCTURAL_DIAGRAM_LIFECYCLE_AUTHORITY_ONLY"
+            ):
+                raise RuntimeError(f"P3.29 template creation failed: {lifecycle_created}")
+
+            lifecycle_patched = _payload(await client.call_tool("apply_diagram_lifecycle", {
+                "document_id": planned_document_id,
+                "expected_revision": 11,
+                "operations": [{
+                    "op": "patch_node",
+                    "diagram_id": "oauth",
+                    "node_id": "work",
+                    "label": "Review",
+                    "x": 18000,
+                    "width": 9000,
+                }],
+            }))
+            if (
+                not lifecycle_patched
+                or lifecycle_patched.get("revision_after") != 12
+                or lifecycle_patched.get("transaction") != "COMMITTED"
+            ):
+                raise RuntimeError(f"P3.29 node patch failed: {lifecycle_patched}")
+
+            lifecycle_cloned = _payload(await client.call_tool("apply_diagram_lifecycle", {
+                "document_id": planned_document_id,
+                "expected_revision": 12,
+                "operations": [{
+                    "op": "clone_subgraph",
+                    "diagram_id": "oauth",
+                    "node_ids": ["start", "work"],
+                    "new_prefix": "copy",
+                    "dy": 9000,
+                }],
+            }))
+            if (
+                not lifecycle_cloned
+                or lifecycle_cloned.get("revision_after") != 13
+                or lifecycle_cloned.get("transaction") != "COMMITTED"
+            ):
+                raise RuntimeError(f"P3.29 subgraph clone failed: {lifecycle_cloned}")
+
+            lifecycle_readback = _payload(await client.call_tool("get_diagram_lifecycle", {
+                "document_id": planned_document_id,
+            }))
+            managed = next((d for d in lifecycle_readback.get("diagrams", []) if d.get("diagram_id") == "oauth"), None)
+            if (
+                not lifecycle_readback
+                or lifecycle_readback.get("revision") != 13
+                or managed is None
+                or managed.get("node_count") != 5
+                or managed.get("edge_count") != 3
+                or next((n for n in managed.get("nodes", []) if n.get("node_id") == "work"), {}).get("label") != "Review"
+                or "copy-start->copy-work" not in {e.get("edge_id") for e in managed.get("edges", [])}
+            ):
+                raise RuntimeError(f"P3.29 lifecycle read-back failed: {lifecycle_readback}")
 
             planned_export = _payload(await client.call_tool("export_document", {
                 "document_id": planned_document_id,

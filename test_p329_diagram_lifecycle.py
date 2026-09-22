@@ -159,11 +159,35 @@ class DiagramLifecycleTests(unittest.TestCase):
             d = build_diagram_lifecycle_map(path)["diagrams"][0]
             self.assertNotIn("copy-start", {n["node_id"] for n in d["nodes"]})
 
+    def test_polygon_resize_fails_closed(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path, anchor = self._fixture(Path(tmp))
+            apply_diagram_lifecycle_atomic(
+                path,
+                [{
+                    "op": "create_diagram",
+                    "diagram_id": "poly",
+                    "anchor": anchor,
+                    "plan": {"nodes": [{"id": "d", "type": "decision", "label": "D"}], "edges": []},
+                }],
+                expected_revision=1,
+                current_revision=1,
+            )
+            with self.assertRaisesRegex(ValueError, "polygon resize"):
+                apply_diagram_lifecycle_atomic(
+                    path,
+                    [{"op": "patch_node", "diagram_id": "poly", "node_id": "d", "width": 9000}],
+                    expected_revision=2,
+                    current_revision=2,
+                )
+
     def test_contract(self):
         c = diagram_lifecycle_contract()
         self.assertEqual(c["phase"], "P3.29")
         self.assertIn("linear_process", c["templates"])
         self.assertIn("smart_connector_binding", c["deferred_operations"])
+        self.assertIn("polygon_bbox_resize", c["deferred_operations"])
+        self.assertEqual(c["limits"], {"nodes": 32, "edges": 64})
 
 
 if __name__ == "__main__":

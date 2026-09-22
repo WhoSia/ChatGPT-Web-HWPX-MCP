@@ -1057,7 +1057,8 @@ async def main() -> None:
             if (
                 not qa_before
                 or qa_before.get("revision") != 15
-                or not qa_before.get("passed")
+                or qa_before.get("passed")
+                or "NATIVE_BBOX_OVERLAP" not in qa_before_codes
                 or "NODE_THEME_MISMATCH" not in qa_before_codes
                 or "EDGE_THEME_MISMATCH" not in qa_before_codes
             ):
@@ -1070,12 +1071,14 @@ async def main() -> None:
                 "constraints": {"require_weakly_connected": False},
                 "expected_theme": "mono",
                 "repair_theme": "mono",
+                "repair_layout_policy": "standard",
+                "layout": "LEFT_TO_RIGHT",
             }))
             if (
                 not qa_plan
                 or qa_plan.get("revision") != 15
-                or qa_plan.get("operation_count") != 1
-                or qa_plan.get("operations", [{}])[0].get("op") != "apply_theme"
+                or qa_plan.get("operation_count") != 2
+                or {op.get("op") for op in qa_plan.get("operations", [])} != {"apply_theme", "apply_layout_policy"}
                 or not qa_plan.get("repair_plan_sha256")
             ):
                 raise RuntimeError(f"P3.31 repair planning failed: {qa_plan}")

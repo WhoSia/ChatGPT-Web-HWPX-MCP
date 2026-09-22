@@ -1003,6 +1003,25 @@ async def main() -> None:
             if not planned_inspected or not planned_inspected.get("validation", {}).get("valid"):
                 raise RuntimeError(f"P3.21 one-shot reopen verification failed: {planned_inspected}")
 
+            reingested_lifecycle = _payload(await client.call_tool("get_diagram_lifecycle", {
+                "document_id": planned_ingested["document_id"],
+            }))
+            reingested_managed = next(
+                (d for d in reingested_lifecycle.get("diagrams", []) if d.get("diagram_id") == "oauth"),
+                None,
+            )
+            if (
+                not reingested_lifecycle
+                or reingested_managed is None
+                or reingested_managed.get("node_count") != 5
+                or reingested_managed.get("edge_count") != 3
+                or {n.get("node_id") for n in reingested_managed.get("nodes", [])}
+                    != {"start", "work", "end", "copy-start", "copy-work"}
+                or "copy-start->copy-work"
+                    not in {e.get("edge_id") for e in reingested_managed.get("edges", [])}
+            ):
+                raise RuntimeError(f"P3.29 export/re-ingest identity persistence failed: {reingested_lifecycle}")
+
             create_request_id = "p33-ci-idempotent-create"
             created = _payload(await client.call_tool("create_document", {
                 "title": "P2 CI",

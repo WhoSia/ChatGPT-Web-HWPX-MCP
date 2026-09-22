@@ -81,7 +81,7 @@ from p327_diagram_composition import (
 )
 from p328_high_level_diagrams import (
     high_level_diagram_contract,
-    validate_diagram_plan as validate_high_level_diagram_plan,
+    validate_diagram_plan as validate_p328_diagram_plan,
     build_high_level_diagram_map,
     apply_high_level_diagrams_atomic,
 )
@@ -4666,7 +4666,7 @@ def get_high_level_diagram_contract() -> dict:
 def validate_high_level_diagram_plan(plan: dict) -> dict:
     """Validate a declarative P3.28 diagram plan without mutating a document."""
     core._caller_subject()
-    return validate_high_level_diagram_plan(plan)
+    return validate_p328_diagram_plan(plan)
 
 
 @core.mcp.tool()

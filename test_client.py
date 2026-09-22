@@ -214,6 +214,12 @@ async def main() -> None:
                 "validate_diagram_quality",
                 "plan_diagram_repairs",
                 "apply_diagram_repairs",
+                "get_brownfield_diagram_contract",
+                "recognize_existing_diagrams",
+                "plan_diagram_adoption",
+                "promote_diagram_candidate",
+                "plan_legacy_diagram_refactor",
+                "apply_legacy_diagram_refactor",
             }
             missing = expected - set(names)
             if missing:
@@ -228,7 +234,7 @@ async def main() -> None:
                 raise RuntimeError(f"probe_read did not expose P2: {read_payload}")
 
             p2_caps = _payload(await client.call_tool("p2_capabilities", {}))
-            if not p2_caps or p2_caps.get("phase") != "P3.31":
+            if not p2_caps or p2_caps.get("phase") != "P3.32":
                 raise RuntimeError(f"p2_capabilities failed: {p2_caps}")
 
             if not RUN_WRITE_TEST:

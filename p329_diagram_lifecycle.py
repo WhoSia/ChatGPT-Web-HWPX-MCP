@@ -31,8 +31,8 @@ AUTHORITY = "STRUCTURAL_DIAGRAM_LIFECYCLE_AUTHORITY_ONLY"
 IDENTITY_PREFIX = "p329"
 ID_RE = re.compile(r"^[A-Za-z0-9_.:-]{1,48}$")
 LAYOUTS = {"LEFT_TO_RIGHT", "TOP_DOWN"}
-MAX_MANAGED_NODES = 48
-MAX_MANAGED_EDGES = 96
+MAX_MANAGED_NODES = 32
+MAX_MANAGED_EDGES = 64
 
 DEFERRED = {
     "smart_connector_binding": (
@@ -48,6 +48,10 @@ DEFERRED = {
     ),
     "renderer_aware_autolayout": (
         "EVIDENCE_GATE_CLOSED: relayout is deterministic HWPUNIT placement, not Hancom-render collision solving."
+    ),
+    "polygon_bbox_resize": (
+        "EVIDENCE_GATE_CLOSED: arbitrary polygon resize requires point-coordinate rebasing; P3.29 does not "
+        "pretend that changing sz/orgSz/curSz alone is a geometry-preserving polygon resize."
     ),
 }
 
@@ -419,6 +423,8 @@ def _patch_node(path: Path, op: dict) -> dict:
         target = _resolve_top(path, node["locator"])
 
     if "width" in op or "height" in op:
+        if target["kind"] == "polygon":
+            raise ValueError(DEFERRED["polygon_bbox_resize"])
         w, h = _size(target)
         width, height = int(op.get("width", w)), int(op.get("height", h))
         def mutate(root):

@@ -1122,6 +1122,131 @@ async def main() -> None:
             ):
                 raise RuntimeError(f"P3.31 post-repair validation failed: {qa_after}")
 
+            brownfield_contract = _payload(await client.call_tool("get_brownfield_diagram_contract", {}))
+            if (
+                not brownfield_contract
+                or brownfield_contract.get("phase") != "P3.32"
+                or brownfield_contract.get("authority") != "STRUCTURAL_BROWNFIELD_DIAGRAM_ADOPTION_AUTHORITY_ONLY"
+                or "pixel_visual_recognition" not in brownfield_contract.get("deferred_operations", {})
+                or "semantic_auto_repair" not in brownfield_contract.get("deferred_operations", {})
+            ):
+                raise RuntimeError(f"P3.32 brownfield contract failed: {brownfield_contract}")
+
+            brownfield_scan = _payload(await client.call_tool("recognize_existing_diagrams", {
+                "document_id": planned_document_id,
+            }))
+            legacy_candidate = next(
+                (
+                    item for item in brownfield_scan.get("candidates", [])
+                    if {"Start", "Execute", "Check", "End"}.issubset(
+                        {node.get("label") for node in item.get("nodes", [])}
+                    )
+                ),
+                None,
+            )
+            if (
+                not brownfield_scan
+                or brownfield_scan.get("revision") != 16
+                or legacy_candidate is None
+                or not legacy_candidate.get("promotable")
+                or legacy_candidate.get("node_count") != 4
+                or legacy_candidate.get("edge_count") != 3
+            ):
+                raise RuntimeError(f"P3.32 brownfield recognition failed: {brownfield_scan}")
+
+            binding_by_label = {
+                "Start": {"node_id": "legacy-start", "node_type": "terminator"},
+                "Execute": {"node_id": "legacy-work", "node_type": "process"},
+                "Check": {"node_id": "legacy-check", "node_type": "decision"},
+                "End": {"node_id": "legacy-end", "node_type": "terminator"},
+            }
+            adoption_bindings = {
+                node["locator"]: binding_by_label[node["label"]]
+                for node in legacy_candidate["nodes"]
+            }
+            adoption_plan = _payload(await client.call_tool("plan_diagram_adoption", {
+                "document_id": planned_document_id,
+                "candidate_id": legacy_candidate["candidate_id"],
+                "diagram_id": "legacy-oauth",
+                "node_bindings": adoption_bindings,
+            }))
+            if (
+                not adoption_plan
+                or adoption_plan.get("revision") != 16
+                or not adoption_plan.get("adoption_plan_sha256")
+                or adoption_plan.get("mutation_scope") != "HP_DRAWTEXT_NAME_ONLY"
+            ):
+                raise RuntimeError(f"P3.32 adoption planning failed: {adoption_plan}")
+
+            promoted = _payload(await client.call_tool("promote_diagram_candidate", {
+                "document_id": planned_document_id,
+                "expected_revision": 16,
+                "adoption_plan": {
+                    "candidate_id": adoption_plan["candidate_id"],
+                    "diagram_id": adoption_plan["diagram_id"],
+                    "source_document_sha256": adoption_plan["source_document_sha256"],
+                    "source_recognition_sha256": adoption_plan["source_recognition_sha256"],
+                    "source_candidate_sha256": adoption_plan["source_candidate_sha256"],
+                    "bindings": adoption_plan["bindings"],
+                    "observed_relations": adoption_plan["observed_relations"],
+                    "adoption_plan_sha256": adoption_plan["adoption_plan_sha256"],
+                },
+            }))
+            promoted_diagram = next(
+                (
+                    item for item in promoted.get("diagram_lifecycle", {}).get("diagrams", [])
+                    if item.get("diagram_id") == "legacy-oauth"
+                ),
+                None,
+            )
+            if (
+                not promoted
+                or promoted.get("revision_after") != 17
+                or promoted.get("transaction") != "COMMITTED"
+                or promoted.get("authority") != "STRUCTURAL_BROWNFIELD_DIAGRAM_ADOPTION_AUTHORITY_ONLY"
+                or promoted_diagram is None
+                or promoted_diagram.get("node_count") != 4
+                or promoted_diagram.get("edge_count") != 3
+                or not promoted.get("promotion", {}).get("source_object_identity_preserved")
+            ):
+                raise RuntimeError(f"P3.32 managed-graph promotion failed: {promoted}")
+
+            legacy_refactor_plan = _payload(await client.call_tool("plan_legacy_diagram_refactor", {
+                "document_id": planned_document_id,
+                "diagram_id": "legacy-oauth",
+                "layout_policy": "standard",
+                "layout": "LEFT_TO_RIGHT",
+                "theme": "classic",
+            }))
+            if (
+                not legacy_refactor_plan
+                or legacy_refactor_plan.get("revision") != 17
+                or [op.get("op") for op in legacy_refactor_plan.get("operations", [])]
+                    != ["apply_layout_policy", "apply_theme"]
+                or not legacy_refactor_plan.get("refactor_plan_sha256")
+            ):
+                raise RuntimeError(f"P3.32 legacy refactor planning failed: {legacy_refactor_plan}")
+
+            legacy_refactored = _payload(await client.call_tool("apply_legacy_diagram_refactor", {
+                "document_id": planned_document_id,
+                "expected_revision": 17,
+                "refactor_plan": {
+                    "diagram_id": legacy_refactor_plan["diagram_id"],
+                    "source_identity_sha256": legacy_refactor_plan["source_identity_sha256"],
+                    "source_relation_sha256": legacy_refactor_plan["source_relation_sha256"],
+                    "operations": legacy_refactor_plan["operations"],
+                    "refactor_plan_sha256": legacy_refactor_plan["refactor_plan_sha256"],
+                },
+            }))
+            if (
+                not legacy_refactored
+                or legacy_refactored.get("revision_after") != 18
+                or legacy_refactored.get("transaction") != "COMMITTED"
+                or not legacy_refactored.get("legacy_refactor", {}).get("relation_preserved")
+                or legacy_refactored.get("authority") != "STRUCTURAL_BROWNFIELD_DIAGRAM_ADOPTION_AUTHORITY_ONLY"
+            ):
+                raise RuntimeError(f"P3.32 legacy refactor apply failed: {legacy_refactored}")
+
             planned_export = _payload(await client.call_tool("export_document", {
                 "document_id": planned_document_id,
                 "link_ttl_seconds": 120,
@@ -1210,6 +1335,28 @@ async def main() -> None:
                 or not reingested_qa.get("qa_sha256")
             ):
                 raise RuntimeError(f"P3.31 export/re-ingest QA persistence failed: {reingested_qa}")
+
+            reingested_brownfield = _payload(await client.call_tool("recognize_existing_diagrams", {
+                "document_id": planned_ingested["document_id"],
+            }))
+            reingested_legacy = next(
+                (
+                    d for d in reingested_brownfield.get("managed_diagrams", [])
+                    if d.get("diagram_id") == "legacy-oauth"
+                ),
+                None,
+            )
+            if (
+                not reingested_brownfield
+                or reingested_brownfield.get("revision") != 1
+                or reingested_legacy is None
+                or reingested_legacy.get("node_count") != 4
+                or reingested_legacy.get("edge_count") != 3
+                or not reingested_brownfield.get("recognition_sha256")
+            ):
+                raise RuntimeError(
+                    f"P3.32 export/re-ingest managed promotion persistence failed: {reingested_brownfield}"
+                )
 
             create_request_id = "p33-ci-idempotent-create"
             created = _payload(await client.call_tool("create_document", {

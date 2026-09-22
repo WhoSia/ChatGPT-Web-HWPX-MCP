@@ -85,6 +85,11 @@ from p328_high_level_diagrams import (
     build_high_level_diagram_map,
     apply_high_level_diagrams_atomic,
 )
+from p329_diagram_lifecycle import (
+    diagram_lifecycle_contract,
+    build_diagram_lifecycle_map,
+    apply_diagram_lifecycle_atomic,
+)
 from p313_capture_custody import (
     near_wrap_positive_sensitivity_spec,
     validate_artifact_custody,
@@ -110,9 +115,9 @@ from common_ir import (
     slice_common_ir,
 )
 
-P2_VERSION = "0.9.0-p3.28"
+P2_VERSION = "0.9.0-p3.29"
 core.VERSION = P2_VERSION
-core.PHASE = "P3.28"
+core.PHASE = "P3.29"
 
 _original_metadata = core._metadata
 
@@ -4752,12 +4757,104 @@ def apply_high_level_diagrams(
 
 
 @core.mcp.tool()
+def get_diagram_lifecycle_contract() -> dict:
+    """Return P3.29 persistent semantic identity, patch, relayout and subgraph contract."""
+    core._caller_subject()
+    return {"ok": True, **diagram_lifecycle_contract()}
+
+
+@core.mcp.tool()
+def get_diagram_lifecycle(document_id: str) -> dict:
+    """Return managed diagrams with durable node identities and reconstructed static relations."""
+    metadata, path = _owned_document(document_id)
+    mapped = build_diagram_lifecycle_map(path)
+    return {
+        "ok": True,
+        "document_id": document_id,
+        "revision": int(metadata["revision"]),
+        **mapped,
+    }
+
+
+@core.mcp.tool()
+def apply_diagram_lifecycle(
+    document_id: str,
+    expected_revision: int,
+    operations: list[dict],
+    lease_token: str = "",
+) -> dict:
+    """Apply one revision-guarded P3.29 managed-diagram lifecycle transaction."""
+    metadata, path = _owned_document(document_id)
+    current_revision = int(metadata["revision"])
+    ingress = metadata.get("source") == "existing-ingress"
+    fidelity = assess_edit_fidelity_envelope(operations)
+    transaction = apply_diagram_lifecycle_atomic(
+        path,
+        operations,
+        expected_revision=int(expected_revision),
+        current_revision=current_revision,
+        validator=lambda candidate: core.validate_hwpx_package(candidate, ingress=ingress),
+    )
+    validation = transaction["validation"]
+    after_document = build_document_map(path)
+    after_formatting = build_formatting_map(path)
+    after_inline = build_inline_map(path)
+    after_tables = build_table_map(path)
+    after_objects = build_object_map(path)
+    after_equations = build_equation_map(path)
+    drawing = build_drawing_layer_map(path)
+    styles = build_drawing_style_map(path)
+    diagram = build_diagram_composition_map(path)
+    high_level = build_high_level_diagram_map(path)
+    lifecycle = build_diagram_lifecycle_map(path)
+    metadata["revision"] = current_revision + 1
+    metadata["last_edit_at"] = core._utc_iso()
+    if lease_token:
+        metadata["_commit_lease_token"] = lease_token
+    _refresh_metadata(
+        document_id,
+        metadata,
+        validation,
+        after_document,
+        after_formatting,
+        after_inline,
+        after_tables,
+        after_objects,
+        after_equations,
+    )
+    metadata["drawing_structure_sha256"] = drawing["drawing_structure_sha256"]
+    metadata["drawing_geometry_sha256"] = drawing["drawing_geometry_sha256"]
+    metadata["drawing_style_sha256"] = styles["drawing_style_sha256"]
+    metadata["shape_geometry_sha256"] = styles["shape_geometry_sha256"]
+    metadata["diagram_placement_sha256"] = diagram["diagram_placement_sha256"]
+    metadata["group_topology_sha256"] = diagram["group_topology_sha256"]
+    metadata["shape_text_sha256"] = high_level["shape_text_sha256"]
+    metadata["diagram_identity_sha256"] = lifecycle["diagram_identity_sha256"]
+    metadata["diagram_relation_sha256"] = lifecycle["diagram_relation_sha256"]
+    core._write_metadata(document_id, metadata)
+    return {
+        "ok": True,
+        "document_id": document_id,
+        "revision_before": current_revision,
+        "revision_after": int(metadata["revision"]),
+        "sha256": validation["sha256"],
+        "diagram_lifecycle_diff": transaction,
+        "diagram_lifecycle": lifecycle,
+        "fidelity": fidelity,
+        "validation": validation,
+        "transaction": "COMMITTED",
+        "authority": "STRUCTURAL_DIAGRAM_LIFECYCLE_AUTHORITY_ONLY",
+        "native_render_batch_status": "DEFERRED_BY_DESIGN",
+    }
+
+
+@core.mcp.tool()
 def p2_capabilities() -> dict:
     subject = core._caller_subject()
     return {
         "project": core.PROJECT,
         "version": core.VERSION,
-        "phase": "P3.28",
+        "phase": "P3.29",
         "authenticated_subject": subject,
         "tools_added": [
             "acquire_document_lease",
@@ -4833,6 +4930,9 @@ def p2_capabilities() -> dict:
             "validate_high_level_diagram_plan",
             "get_high_level_diagrams",
             "apply_high_level_diagrams",
+            "get_diagram_lifecycle_contract",
+            "get_diagram_lifecycle",
+            "apply_diagram_lifecycle",
         ],
         "operations": [
             "replace_paragraph_text",
@@ -4955,6 +5055,17 @@ def p2_capabilities() -> dict:
             "deferred": "smart connector routing + rich mixed-run shape text + renderer-aware collision/page avoidance",
             "authority": "STRUCTURAL_HIGH_LEVEL_DIAGRAM_AUTHORITY_ONLY until native P3.28 render batch",
             "diff": "shape_text_sha256 + diagram_placement_sha256",
+        },
+        "diagram_lifecycle": {
+            "ancestry": "P3.28 semantic nodes + static edges promoted into persistent identity and patch lifecycle",
+            "identity": "diagram_id/node_id/node_type persisted in native hp:drawText@name",
+            "relations": "static center-to-center line relations reconstructed and regenerated after geometry changes",
+            "patching": "node add/update/delete + edge add/remove + deterministic relayout/resize",
+            "templates": "linear_process / decision_gate / org_triad",
+            "subgraphs": "move / clone / remove with semantic identity preservation",
+            "deferred": "smart connector binding + parallel managed edges + cross-anchor subgraphs + renderer-aware layout",
+            "authority": "STRUCTURAL_DIAGRAM_LIFECYCLE_AUTHORITY_ONLY until native P3.29 render batch",
+            "diff": "diagram_identity_sha256 + diagram_relation_sha256",
         },
         "table_editing": {
             "introspection": "table/cell semantic map + merge geometry + structure/format/object + P3.23 advanced-layout receipts",

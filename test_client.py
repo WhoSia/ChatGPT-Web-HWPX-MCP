@@ -209,6 +209,11 @@ async def main() -> None:
                 "get_diagram_design_system_contract",
                 "get_diagram_design_system",
                 "apply_diagram_design_system",
+                "get_diagram_quality_assurance_contract",
+                "get_diagram_quality",
+                "validate_diagram_quality",
+                "plan_diagram_repairs",
+                "apply_diagram_repairs",
             }
             missing = expected - set(names)
             if missing:
@@ -219,11 +224,11 @@ async def main() -> None:
                     raise RuntimeError(f"secret-bearing field leaked into tool schema: {tool.name}")
 
             read_payload = _payload(await client.call_tool("probe_read", {"message": "P2 OAuth smoke test"}))
-            if not read_payload or not read_payload.get("ok") or read_payload.get("version") != "0.9.0-p3.30":
+            if not read_payload or not read_payload.get("ok") or read_payload.get("version") != "0.9.0-p3.31":
                 raise RuntimeError(f"probe_read did not expose P2: {read_payload}")
 
             p2_caps = _payload(await client.call_tool("p2_capabilities", {}))
-            if not p2_caps or p2_caps.get("phase") != "P3.30":
+            if not p2_caps or p2_caps.get("phase") != "P3.31":
                 raise RuntimeError(f"p2_capabilities failed: {p2_caps}")
 
             if not RUN_WRITE_TEST:
@@ -1031,6 +1036,89 @@ async def main() -> None:
             ):
                 raise RuntimeError(f"P3.30 design-system read-back failed: {design_readback}")
 
+            qa_contract = _payload(await client.call_tool("get_diagram_quality_assurance_contract", {}))
+            if (
+                not qa_contract
+                or qa_contract.get("phase") != "P3.31"
+                or qa_contract.get("authority") != "STRUCTURAL_DIAGRAM_QUALITY_ASSURANCE_AUTHORITY_ONLY"
+                or "flow" not in qa_contract.get("profiles", [])
+                or "color_contrast_accessibility" not in qa_contract.get("deferred_operations", {})
+            ):
+                raise RuntimeError(f"P3.31 QA contract failed: {qa_contract}")
+
+            qa_before = _payload(await client.call_tool("validate_diagram_quality", {
+                "document_id": planned_document_id,
+                "diagram_id": "oauth",
+                "profile": "baseline",
+                "constraints": {"require_weakly_connected": False},
+                "expected_theme": "mono",
+            }))
+            qa_before_codes = {x.get("code") for x in qa_before.get("findings", [])}
+            if (
+                not qa_before
+                or qa_before.get("revision") != 15
+                or not qa_before.get("passed")
+                or "NODE_THEME_MISMATCH" not in qa_before_codes
+                or "EDGE_THEME_MISMATCH" not in qa_before_codes
+            ):
+                raise RuntimeError(f"P3.31 pre-repair validation failed: {qa_before}")
+
+            qa_plan = _payload(await client.call_tool("plan_diagram_repairs", {
+                "document_id": planned_document_id,
+                "diagram_id": "oauth",
+                "profile": "baseline",
+                "constraints": {"require_weakly_connected": False},
+                "expected_theme": "mono",
+                "repair_theme": "mono",
+            }))
+            if (
+                not qa_plan
+                or qa_plan.get("revision") != 15
+                or qa_plan.get("operation_count") != 1
+                or qa_plan.get("operations", [{}])[0].get("op") != "apply_theme"
+                or not qa_plan.get("repair_plan_sha256")
+            ):
+                raise RuntimeError(f"P3.31 repair planning failed: {qa_plan}")
+
+            qa_repaired = _payload(await client.call_tool("apply_diagram_repairs", {
+                "document_id": planned_document_id,
+                "expected_revision": 15,
+                "repair_plan": {
+                    "diagram_id": qa_plan["diagram_id"],
+                    "source_qa_sha256": qa_plan["source_qa_sha256"],
+                    "profile": qa_plan["profile"],
+                    "constraints": qa_plan["constraints"],
+                    "expected_theme": qa_plan["expected_theme"],
+                    "operations": qa_plan["operations"],
+                },
+            }))
+            if (
+                not qa_repaired
+                or qa_repaired.get("revision_after") != 16
+                or qa_repaired.get("transaction") != "COMMITTED"
+                or qa_repaired.get("authority") != "STRUCTURAL_DIAGRAM_QUALITY_ASSURANCE_AUTHORITY_ONLY"
+                or qa_repaired.get("post_repair_report", {}).get("warning_count") != 0
+                or not qa_repaired.get("post_repair_report", {}).get("passed")
+            ):
+                raise RuntimeError(f"P3.31 repair apply failed: {qa_repaired}")
+
+            qa_after = _payload(await client.call_tool("validate_diagram_quality", {
+                "document_id": planned_document_id,
+                "diagram_id": "oauth",
+                "profile": "baseline",
+                "constraints": {"require_weakly_connected": False},
+                "expected_theme": "mono",
+            }))
+            if (
+                not qa_after
+                or qa_after.get("revision") != 16
+                or not qa_after.get("passed")
+                or qa_after.get("warning_count") != 0
+                or qa_after.get("error_count") != 0
+                or not qa_after.get("qa_sha256")
+            ):
+                raise RuntimeError(f"P3.31 post-repair validation failed: {qa_after}")
+
             planned_export = _payload(await client.call_tool("export_document", {
                 "document_id": planned_document_id,
                 "link_ttl_seconds": 120,
@@ -1099,10 +1187,26 @@ async def main() -> None:
                 not reingested_design
                 or reingested_designed is None
                 or reingested_work_style is None
-                or reingested_work_style.get("effective_style", {}).get("fill_color") != "#EAF2FF"
+                or reingested_work_style.get("effective_style", {}).get("fill_color") != "#FFFFFF"
                 or not reingested_design.get("semantic_style_sha256")
             ):
                 raise RuntimeError(f"P3.30 export/re-ingest style persistence failed: {reingested_design}")
+
+            reingested_qa = _payload(await client.call_tool("validate_diagram_quality", {
+                "document_id": planned_ingested["document_id"],
+                "diagram_id": "oauth",
+                "profile": "baseline",
+                "constraints": {"require_weakly_connected": False},
+                "expected_theme": "mono",
+            }))
+            if (
+                not reingested_qa
+                or not reingested_qa.get("passed")
+                or reingested_qa.get("error_count") != 0
+                or reingested_qa.get("warning_count") != 0
+                or not reingested_qa.get("qa_sha256")
+            ):
+                raise RuntimeError(f"P3.31 export/re-ingest QA persistence failed: {reingested_qa}")
 
             create_request_id = "p33-ci-idempotent-create"
             created = _payload(await client.call_tool("create_document", {

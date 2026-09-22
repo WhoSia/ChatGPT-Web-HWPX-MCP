@@ -404,6 +404,12 @@ def _patch_node(path: Path, op: dict) -> dict:
     pairs = _edge_pairs(diagram)
     target = _resolve_top(path, node["locator"])
 
+    # Remove the currently recognized managed edge locators before geometry can
+    # invalidate center-based reconstruction. Otherwise stale physical lines can
+    # survive invisibly and later become duplicate managed relations.
+    if pairs:
+        _remove_edges(path, diagram)
+
     if "label" in op:
         _set_existing_shape_text(path, {
             "drawing": node["locator"],
@@ -431,7 +437,7 @@ def _patch_node(path: Path, op: dict) -> dict:
             _resize_node(_find_node(root, target), width, height)
         _mutate_section(path, target["section"], mutate)
 
-    rebuilt = _rebuild_edges(path, diagram_id, pairs) if pairs else []
+    rebuilt = [_insert_edge(path, diagram_id, source, target_id) for source, target_id in pairs]
     return {"op": "patch_node", "diagram_id": diagram_id, "node_id": node["node_id"], "rebuilt_edges": rebuilt}
 
 
@@ -502,14 +508,15 @@ def _relayout(path: Path, op: dict) -> dict:
     if sorted(order) != sorted(n["node_id"] for n in diagram["nodes"]):
         raise ValueError("relayout order must contain every managed node exactly once")
     pairs = _edge_pairs(diagram)
+    initial_nodes = {node["node_id"]: node for node in diagram["nodes"]}
+    if pairs:
+        _remove_edges(path, diagram)
     for index, node_id in enumerate(order):
-        current = _diagram(path, diagram["diagram_id"])
-        node = _node(current, node_id)
-        target = _resolve_top(path, node["locator"])
+        target = _resolve_top(path, initial_nodes[node_id]["locator"])
         x = origin_x + (index * gap_x if layout == "LEFT_TO_RIGHT" else 0)
         y = origin_y + (index * gap_y if layout == "TOP_DOWN" else 0)
         _set_xy(path, target, x, y)
-    rebuilt = _rebuild_edges(path, diagram["diagram_id"], pairs) if pairs else []
+    rebuilt = [_insert_edge(path, diagram["diagram_id"], source, target) for source, target in pairs]
     return {"op": "relayout_diagram", "layout": layout, "order": order, "rebuilt_edges": rebuilt}
 
 
@@ -518,17 +525,21 @@ def _move_subgraph(path: Path, op: dict) -> dict:
     node_ids = [_id(x, "node_id") for x in op.get("node_ids", [])]
     if not node_ids or len(node_ids) != len(set(node_ids)):
         raise ValueError("move_subgraph requires unique non-empty node_ids")
+    missing = set(node_ids) - {n["node_id"] for n in diagram["nodes"]}
+    if missing:
+        raise ValueError(f"unknown managed nodes: {sorted(missing)}")
     pairs = _edge_pairs(diagram)
+    initial_nodes = {node["node_id"]: node for node in diagram["nodes"]}
+    if pairs:
+        _remove_edges(path, diagram)
     dx, dy = int(op.get("dx", 0)), int(op.get("dy", 0))
     moved = []
     for node_id in node_ids:
-        current = _diagram(path, diagram["diagram_id"])
-        node = _node(current, node_id)
-        target = _resolve_top(path, node["locator"])
+        target = _resolve_top(path, initial_nodes[node_id]["locator"])
         x, y = _position_xy(target)
         _set_xy(path, target, x + dx, y + dy)
         moved.append(node_id)
-    rebuilt = _rebuild_edges(path, diagram["diagram_id"], pairs) if pairs else []
+    rebuilt = [_insert_edge(path, diagram["diagram_id"], source, target) for source, target in pairs]
     return {"op": "move_subgraph", "node_ids": moved, "dx": dx, "dy": dy, "rebuilt_edges": rebuilt}
 
 

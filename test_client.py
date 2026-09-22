@@ -206,6 +206,9 @@ async def main() -> None:
                 "get_diagram_lifecycle_contract",
                 "get_diagram_lifecycle",
                 "apply_diagram_lifecycle",
+                "get_diagram_design_system_contract",
+                "get_diagram_design_system",
+                "apply_diagram_design_system",
             }
             missing = expected - set(names)
             if missing:
@@ -216,11 +219,11 @@ async def main() -> None:
                     raise RuntimeError(f"secret-bearing field leaked into tool schema: {tool.name}")
 
             read_payload = _payload(await client.call_tool("probe_read", {"message": "P2 OAuth smoke test"}))
-            if not read_payload or not read_payload.get("ok") or read_payload.get("version") != "0.9.0-p3.29":
+            if not read_payload or not read_payload.get("ok") or read_payload.get("version") != "0.9.0-p3.30":
                 raise RuntimeError(f"probe_read did not expose P2: {read_payload}")
 
             p2_caps = _payload(await client.call_tool("p2_capabilities", {}))
-            if not p2_caps or p2_caps.get("phase") != "P3.29":
+            if not p2_caps or p2_caps.get("phase") != "P3.30":
                 raise RuntimeError(f"p2_capabilities failed: {p2_caps}")
 
             if not RUN_WRITE_TEST:
@@ -969,6 +972,65 @@ async def main() -> None:
             ):
                 raise RuntimeError(f"P3.29 lifecycle read-back failed: {lifecycle_readback}")
 
+            design_contract = _payload(await client.call_tool("get_diagram_design_system_contract", {}))
+            if (
+                not design_contract
+                or design_contract.get("phase") != "P3.30"
+                or design_contract.get("authority") != "STRUCTURAL_DIAGRAM_DESIGN_SYSTEM_AUTHORITY_ONLY"
+                or "presentation" not in design_contract.get("themes", [])
+                or "spacious" not in design_contract.get("layout_policies", [])
+                or "rich_shape_text_typography" not in design_contract.get("deferred_operations", {})
+            ):
+                raise RuntimeError(f"P3.30 design-system contract failed: {design_contract}")
+
+            design_applied = _payload(await client.call_tool("apply_diagram_design_system", {
+                "document_id": planned_document_id,
+                "expected_revision": 14,
+                "operations": [{
+                    "op": "apply_design_system",
+                    "diagram_id": "oauth",
+                    "theme": "presentation",
+                    "layout_policy": "compact",
+                    "layout": "LEFT_TO_RIGHT",
+                }],
+            }))
+            if (
+                not design_applied
+                or design_applied.get("revision_after") != 15
+                or design_applied.get("transaction") != "COMMITTED"
+                or design_applied.get("authority") != "STRUCTURAL_DIAGRAM_DESIGN_SYSTEM_AUTHORITY_ONLY"
+            ):
+                raise RuntimeError(f"P3.30 design-system apply failed: {design_applied}")
+
+            design_readback = _payload(await client.call_tool("get_diagram_design_system", {
+                "document_id": planned_document_id,
+            }))
+            designed = next(
+                (d for d in design_readback.get("diagrams", []) if d.get("diagram_id") == "oauth"),
+                None,
+            )
+            designed_work = None if designed is None else next(
+                (n for n in designed.get("nodes", []) if n.get("node_id") == "work"),
+                None,
+            )
+            designed_edge = None if designed is None else next(
+                (e for e in designed.get("edges", []) if e.get("source") == "start" and e.get("target") == "work"),
+                None,
+            )
+            if (
+                not design_readback
+                or design_readback.get("revision") != 15
+                or designed is None
+                or designed_work is None
+                or designed_work.get("semantic_role") != "process"
+                or designed_work.get("effective_style", {}).get("fill_color") != "#EAF2FF"
+                or designed_edge is None
+                or designed_edge.get("semantic_role") != "flow"
+                or designed_edge.get("effective_style", {}).get("stroke_color") != "#425466"
+                or not design_readback.get("semantic_style_sha256")
+            ):
+                raise RuntimeError(f"P3.30 design-system read-back failed: {design_readback}")
+
             planned_export = _payload(await client.call_tool("export_document", {
                 "document_id": planned_document_id,
                 "link_ttl_seconds": 120,
@@ -1021,6 +1083,26 @@ async def main() -> None:
                     not in {e.get("edge_id") for e in reingested_managed.get("edges", [])}
             ):
                 raise RuntimeError(f"P3.29 export/re-ingest identity persistence failed: {reingested_lifecycle}")
+
+            reingested_design = _payload(await client.call_tool("get_diagram_design_system", {
+                "document_id": planned_ingested["document_id"],
+            }))
+            reingested_designed = next(
+                (d for d in reingested_design.get("diagrams", []) if d.get("diagram_id") == "oauth"),
+                None,
+            )
+            reingested_work_style = None if reingested_designed is None else next(
+                (n for n in reingested_designed.get("nodes", []) if n.get("node_id") == "work"),
+                None,
+            )
+            if (
+                not reingested_design
+                or reingested_designed is None
+                or reingested_work_style is None
+                or reingested_work_style.get("effective_style", {}).get("fill_color") != "#EAF2FF"
+                or not reingested_design.get("semantic_style_sha256")
+            ):
+                raise RuntimeError(f"P3.30 export/re-ingest style persistence failed: {reingested_design}")
 
             create_request_id = "p33-ci-idempotent-create"
             created = _payload(await client.call_tool("create_document", {

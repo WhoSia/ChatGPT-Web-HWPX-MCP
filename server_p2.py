@@ -102,6 +102,14 @@ from p331_diagram_quality_assurance import (
     plan_diagram_repairs as plan_p331_diagram_repairs,
     apply_diagram_repairs_atomic,
 )
+from p332_brownfield_diagrams import (
+    brownfield_diagram_contract,
+    build_brownfield_diagram_map,
+    plan_diagram_adoption as plan_p332_diagram_adoption,
+    promote_diagram_candidate_atomic,
+    plan_legacy_diagram_refactor as plan_p332_legacy_refactor,
+    apply_legacy_diagram_refactor_atomic,
+)
 from p313_capture_custody import (
     near_wrap_positive_sensitivity_spec,
     validate_artifact_custody,
@@ -127,9 +135,9 @@ from common_ir import (
     slice_common_ir,
 )
 
-P2_VERSION = "0.9.0-p3.31"
+P2_VERSION = "0.10.0-p3.32"
 core.VERSION = P2_VERSION
-core.PHASE = "P3.31"
+core.PHASE = "P3.32"
 
 _original_metadata = core._metadata
 
@@ -5487,6 +5495,229 @@ def p2_capabilities() -> dict:
             "diff": "equation_structure_sha256 + equation_geometry_sha256 + equation_script_custody_sha256",
         },
         "tables_images_equations": "tables=P2.8 active; images=P2.9 active; equations=P2.10 active",
+    }
+
+
+@core.mcp.tool()
+def get_brownfield_diagram_contract() -> dict:
+    """Return P3.32 brownfield recognition, adoption, promotion and refactor boundaries."""
+    core._caller_subject()
+    return {"ok": True, **brownfield_diagram_contract()}
+
+
+@core.mcp.tool()
+def recognize_existing_diagrams(document_id: str) -> dict:
+    """Recognize evidence-backed unmanaged native diagrams without claiming ownership or mutating bytes."""
+    metadata, path = _owned_document(document_id)
+    mapped = build_brownfield_diagram_map(path)
+    return {
+        "ok": True,
+        "document_id": document_id,
+        "revision": int(metadata["revision"]),
+        **mapped,
+    }
+
+
+@core.mcp.tool()
+def plan_diagram_adoption(
+    document_id: str,
+    candidate_id: str,
+    diagram_id: str,
+    node_bindings: dict | None = None,
+) -> dict:
+    """Build one stale-safe explicit adoption plan for a promotable brownfield candidate."""
+    metadata, path = _owned_document(document_id)
+    plan = plan_p332_diagram_adoption(
+        path,
+        candidate_id,
+        diagram_id,
+        node_bindings=node_bindings,
+    )
+    return {
+        "ok": True,
+        "document_id": document_id,
+        "revision": int(metadata["revision"]),
+        **plan,
+    }
+
+
+def _commit_p332_maps(
+    document_id: str,
+    metadata: dict,
+    path: Path,
+    validation: dict,
+    *,
+    current_revision: int,
+    lease_token: str = "",
+) -> dict:
+    after_document = build_document_map(path)
+    after_formatting = build_formatting_map(path)
+    after_inline = build_inline_map(path)
+    after_tables = build_table_map(path)
+    after_objects = build_object_map(path)
+    after_equations = build_equation_map(path)
+    drawing = build_drawing_layer_map(path)
+    styles = build_drawing_style_map(path)
+    diagram = build_diagram_composition_map(path)
+    high_level = build_high_level_diagram_map(path)
+    lifecycle = build_diagram_lifecycle_map(path)
+    design = build_diagram_design_system_map(path)
+    quality = build_diagram_quality_map(path)
+    brownfield = build_brownfield_diagram_map(path)
+
+    metadata["revision"] = current_revision + 1
+    metadata["last_edit_at"] = core._utc_iso()
+    if lease_token:
+        metadata["_commit_lease_token"] = lease_token
+    _refresh_metadata(
+        document_id,
+        metadata,
+        validation,
+        after_document,
+        after_formatting,
+        after_inline,
+        after_tables,
+        after_objects,
+        after_equations,
+    )
+    metadata["drawing_structure_sha256"] = drawing["drawing_structure_sha256"]
+    metadata["drawing_geometry_sha256"] = drawing["drawing_geometry_sha256"]
+    metadata["drawing_style_sha256"] = styles["drawing_style_sha256"]
+    metadata["shape_geometry_sha256"] = styles["shape_geometry_sha256"]
+    metadata["diagram_placement_sha256"] = diagram["diagram_placement_sha256"]
+    metadata["group_topology_sha256"] = diagram["group_topology_sha256"]
+    metadata["shape_text_sha256"] = high_level["shape_text_sha256"]
+    metadata["diagram_identity_sha256"] = lifecycle["diagram_identity_sha256"]
+    metadata["diagram_relation_sha256"] = lifecycle["diagram_relation_sha256"]
+    metadata["semantic_style_sha256"] = design["semantic_style_sha256"]
+    metadata["diagram_quality_sha256"] = quality["quality_sha256"]
+    metadata["brownfield_recognition_sha256"] = brownfield["recognition_sha256"]
+    core._write_metadata(document_id, metadata)
+    return {
+        "drawing": drawing,
+        "styles": styles,
+        "diagram": diagram,
+        "high_level": high_level,
+        "lifecycle": lifecycle,
+        "design": design,
+        "quality": quality,
+        "brownfield": brownfield,
+    }
+
+
+@core.mcp.tool()
+def promote_diagram_candidate(
+    document_id: str,
+    expected_revision: int,
+    adoption_plan: dict,
+    lease_token: str = "",
+) -> dict:
+    """Promote one evidence-closed brownfield candidate by writing only P3.29 identity carriers."""
+    metadata, path = _owned_document(document_id)
+    current_revision = int(metadata["revision"])
+    ingress = metadata.get("source") == "existing-ingress"
+    transaction = promote_diagram_candidate_atomic(
+        path,
+        adoption_plan,
+        expected_revision=int(expected_revision),
+        current_revision=current_revision,
+        validator=lambda candidate: core.validate_hwpx_package(candidate, ingress=ingress),
+    )
+    validation = transaction["validation"]
+    maps = _commit_p332_maps(
+        document_id,
+        metadata,
+        path,
+        validation,
+        current_revision=current_revision,
+        lease_token=lease_token,
+    )
+    return {
+        "ok": True,
+        "document_id": document_id,
+        "revision_before": current_revision,
+        "revision_after": int(metadata["revision"]),
+        "sha256": validation["sha256"],
+        "promotion": transaction,
+        "diagram_lifecycle": maps["lifecycle"],
+        "brownfield": maps["brownfield"],
+        "validation": validation,
+        "transaction": "COMMITTED",
+        "authority": "STRUCTURAL_BROWNFIELD_DIAGRAM_ADOPTION_AUTHORITY_ONLY",
+        "native_render_batch_status": "DEFERRED_BY_DESIGN",
+    }
+
+
+@core.mcp.tool()
+def plan_legacy_diagram_refactor(
+    document_id: str,
+    diagram_id: str,
+    layout_policy: str = "",
+    layout: str = "LEFT_TO_RIGHT",
+    theme: str = "",
+) -> dict:
+    """Build one stale-safe meaning-preserving refactor plan for an already-managed legacy diagram."""
+    metadata, path = _owned_document(document_id)
+    plan = plan_p332_legacy_refactor(
+        path,
+        diagram_id,
+        layout_policy=layout_policy,
+        layout=layout,
+        theme=theme,
+    )
+    return {
+        "ok": True,
+        "document_id": document_id,
+        "revision": int(metadata["revision"]),
+        **plan,
+    }
+
+
+@core.mcp.tool()
+def apply_legacy_diagram_refactor(
+    document_id: str,
+    expected_revision: int,
+    refactor_plan: dict,
+    lease_token: str = "",
+) -> dict:
+    """Apply one P3.32 refactor plan restricted to relation-preserving P3.30 layout/theme operations."""
+    metadata, path = _owned_document(document_id)
+    current_revision = int(metadata["revision"])
+    ingress = metadata.get("source") == "existing-ingress"
+    operations = refactor_plan.get("operations") if isinstance(refactor_plan, dict) else []
+    fidelity = assess_edit_fidelity_envelope(operations or [])
+    transaction = apply_legacy_diagram_refactor_atomic(
+        path,
+        refactor_plan,
+        expected_revision=int(expected_revision),
+        current_revision=current_revision,
+        validator=lambda candidate: core.validate_hwpx_package(candidate, ingress=ingress),
+    )
+    validation = transaction["validation"]
+    maps = _commit_p332_maps(
+        document_id,
+        metadata,
+        path,
+        validation,
+        current_revision=current_revision,
+        lease_token=lease_token,
+    )
+    return {
+        "ok": True,
+        "document_id": document_id,
+        "revision_before": current_revision,
+        "revision_after": int(metadata["revision"]),
+        "sha256": validation["sha256"],
+        "legacy_refactor": transaction,
+        "diagram_lifecycle": maps["lifecycle"],
+        "diagram_design_system": maps["design"],
+        "diagram_quality": maps["quality"],
+        "brownfield": maps["brownfield"],
+        "fidelity": fidelity,
+        "validation": validation,
+        "transaction": "COMMITTED",
+        "authority": "STRUCTURAL_BROWNFIELD_DIAGRAM_ADOPTION_AUTHORITY_ONLY",
+        "native_render_batch_status": "DEFERRED_BY_DESIGN",
     }
 
 

@@ -19,8 +19,10 @@ HEADER_NAME = "Contents/header.xml"
 RUN_FORMAT_KEYS = {
     "bold", "italic", "underline", "color", "font", "size", "highlight",
     "strike", "underline_shape", "underline_color", "strike_shape", "ratio",
-    "letter_spacing", "shadow", "script", "outline", "emboss", "engrave",
+    "letter_spacing", "font_by_script", "shadow", "script", "outline", "emboss", "engrave",
 }
+_P335R1_PENDING_FONT_REFS: dict[int, dict[str, dict[str, str]]] = {}
+
 PARAGRAPH_FORMAT_KEYS = {
     "alignment", "line_spacing_percent", "indent_left_mm", "indent_right_mm",
     "first_line_indent_mm", "spacing_before_pt", "spacing_after_pt",
@@ -383,6 +385,21 @@ def _normalize_formatting_operations(operations: list[dict], before_format: dict
             unknown = sorted(set(fmt) - RUN_FORMAT_KEYS)
             if unknown:
                 raise ValueError(f"Unsupported run format keys: {', '.join(unknown)}")
+            if "letter_spacing" in fmt:
+                value = fmt["letter_spacing"]
+                if not isinstance(value, int) or isinstance(value, bool) or not (-50 <= value <= 50):
+                    raise ValueError("letter_spacing must be an integer from -50 to 50 percent")
+            if "font_by_script" in fmt:
+                mapping = fmt["font_by_script"]
+                if not isinstance(mapping, dict) or not mapping:
+                    raise ValueError("font_by_script must be a non-empty object")
+                allowed_scripts = {"hangul","latin","hanja","japanese","other","symbol","user"}
+                unknown_scripts = sorted(set(mapping) - allowed_scripts)
+                if unknown_scripts:
+                    raise ValueError(f"Unsupported font_by_script keys: {', '.join(unknown_scripts)}")
+                for script_name, face in mapping.items():
+                    if not isinstance(face, str) or not face.strip():
+                        raise ValueError(f"font_by_script.{script_name} must be a non-empty font face")
             run_index = raw.get("run_index")
             if run_index is not None:
                 if not isinstance(run_index, int) or run_index < 0:
@@ -456,13 +473,62 @@ def _ensure_run_style(
 ) -> str:
     current_bold, current_italic, current_underline = _style_flags(document, base_ref)
     options = dict(fmt)
+    script_fonts = options.pop("font_by_script", None)
     options["bold"] = bool(options.get("bold", current_bold))
     options["italic"] = bool(options.get("italic", current_italic))
     options["underline"] = bool(options.get("underline", current_underline))
     if options.get("font") is not None:
         document.styles.ensure_font(str(options["font"]))
     options["base_char_pr_id"] = base_ref
-    return document.styles.ensure_run(**options)
+    char_ref = document.styles.ensure_run(**options)
+    if script_fonts:
+        refs = {}
+        for script_name, face in script_fonts.items():
+            refs[script_name] = document.styles.ensure_font(
+                str(face), lang=script_name.upper()
+            )
+        _P335R1_PENDING_FONT_REFS.setdefault(id(document), {})[str(char_ref)] = refs
+    return char_ref
+
+
+def _patch_script_font_refs(path: Path, pending: dict[str, dict[str, str]]) -> None:
+    if not pending:
+        return
+    fd, tmp_name = tempfile.mkstemp(prefix=path.stem + ".p335r1-font-", suffix=".hwpx", dir=str(path.parent))
+    os.close(fd)
+    tmp_path = Path(tmp_name)
+    try:
+        with zipfile.ZipFile(path, "r") as source, zipfile.ZipFile(tmp_path, "w") as target_zip:
+            for info in source.infolist():
+                payload = source.read(info.filename)
+                if info.filename == HEADER_NAME:
+                    root = ElementTree.fromstring(payload)
+                    found: set[str] = set()
+                    for node in root.iter():
+                        if _local(node.tag) != "charPr":
+                            continue
+                        ident = node.attrib.get("id")
+                        refs = pending.get(str(ident))
+                        if refs is None:
+                            continue
+                        font_ref = _child_by_local(node, "fontRef")
+                        if font_ref is None:
+                            raise ValueError(f"charPr {ident} has no fontRef")
+                        for script_name, font_id in refs.items():
+                            font_ref.set(script_name, str(font_id))
+                        found.add(str(ident))
+                    missing = sorted(set(pending) - found)
+                    if missing:
+                        raise ValueError(f"Could not patch script font refs for charPr ids: {', '.join(missing)}")
+                    payload = ElementTree.tostring(root, encoding="utf-8", xml_declaration=True)
+                target_zip.writestr(info, payload)
+        os.replace(tmp_path, path)
+    except Exception:
+        try:
+            tmp_path.unlink()
+        except FileNotFoundError:
+            pass
+        raise
 
 
 def _patch_run_style_refs(path: Path, assignments: list[dict]) -> None:
@@ -534,8 +600,11 @@ def apply_formatting_atomic(
     shutil.copy2(path, candidate)
     validation: dict | None = None
     assignments: list[dict] = []
+    pending_font_refs: dict[str, dict[str, str]] = {}
     try:
         document = HwpxDocument.open(str(candidate))
+        document_key = id(document)
+        _P335R1_PENDING_FONT_REFS.pop(document_key, None)
         try:
             for op in normalized:
                 if op["op"] == "set_paragraph_format":
@@ -569,10 +638,12 @@ def apply_formatting_atomic(
                 except FileNotFoundError:
                     pass
         finally:
+            pending_font_refs = _P335R1_PENDING_FONT_REFS.pop(document_key, {})
             close = getattr(document, "close", None)
             if callable(close):
                 close()
 
+        _patch_script_font_refs(candidate, pending_font_refs)
         _patch_run_style_refs(candidate, assignments)
         after_document = build_document_map(candidate)
         after_format = build_formatting_map(candidate)

@@ -177,6 +177,44 @@ class BrownfieldDiagramTests(unittest.TestCase):
             self.assertEqual(again["diagram_count"], 1)
             self.assertEqual(again["diagrams"][0]["relation_sha256"], before)
 
+    def test_adoption_plan_hash_rejects_binding_tamper(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path, anchor = self._base(Path(tmp))
+            self._legacy_pair(path, anchor)
+            candidate = build_brownfield_diagram_map(path)["candidates"][0]
+            plan = plan_diagram_adoption(path, candidate["candidate_id"], "adopted")
+            plan["bindings"][0]["node_id"] = "tampered"
+            before = path.read_bytes()
+            with self.assertRaisesRegex(ValueError, "plan hash mismatch"):
+                promote_diagram_candidate_atomic(
+                    path,
+                    plan,
+                    expected_revision=1,
+                    current_revision=1,
+                )
+            self.assertEqual(path.read_bytes(), before)
+
+    def test_refactor_plan_hash_rejects_operation_tamper_without_mutation(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path, anchor = self._base(Path(tmp))
+            self._legacy_pair(path, anchor)
+            candidate = build_brownfield_diagram_map(path)["candidates"][0]
+            adoption = plan_diagram_adoption(path, candidate["candidate_id"], "legacy")
+            promote_diagram_candidate_atomic(path, adoption, expected_revision=1, current_revision=1)
+            refactor = plan_legacy_diagram_refactor(
+                path, "legacy", layout_policy="standard", theme="mono"
+            )
+            refactor["operations"][-1]["theme"] = "classic"
+            before = path.read_bytes()
+            with self.assertRaisesRegex(ValueError, "plan hash mismatch"):
+                apply_legacy_diagram_refactor_atomic(
+                    path,
+                    refactor,
+                    expected_revision=2,
+                    current_revision=2,
+                )
+            self.assertEqual(path.read_bytes(), before)
+
     def test_contract_keeps_visual_and_semantic_inference_gates_closed(self):
         contract = brownfield_diagram_contract()
         self.assertEqual(contract["phase"], "P3.32")

@@ -16,6 +16,8 @@ from p22_formatting import (
     PARAGRAPH_FORMAT_KEYS,
     RUN_FORMAT_KEYS,
     _ensure_run_style,
+    _patch_script_font_refs,
+    _P335R1_PENDING_FONT_REFS,
     _range_safe_run,
     _run_text,
     build_formatting_map,
@@ -111,6 +113,21 @@ def _normalize_operations(operations: list[dict], before_format: dict) -> list[d
             unknown = sorted(set(fmt) - RUN_FORMAT_KEYS)
             if unknown:
                 raise ValueError(f"Unsupported run format keys: {', '.join(unknown)}")
+            if "letter_spacing" in fmt:
+                value = fmt["letter_spacing"]
+                if not isinstance(value, int) or isinstance(value, bool) or not (-50 <= value <= 50):
+                    raise ValueError("letter_spacing must be an integer from -50 to 50 percent")
+            if "font_by_script" in fmt:
+                mapping = fmt["font_by_script"]
+                if not isinstance(mapping, dict) or not mapping:
+                    raise ValueError("font_by_script must be a non-empty object")
+                allowed_scripts = {"hangul","latin","hanja","japanese","other","symbol","user"}
+                unknown_scripts = sorted(set(mapping) - allowed_scripts)
+                if unknown_scripts:
+                    raise ValueError(f"Unsupported font_by_script keys: {', '.join(unknown_scripts)}")
+                for script_name, face in mapping.items():
+                    if not isinstance(face, str) or not face.strip():
+                        raise ValueError(f"font_by_script.{script_name} must be a non-empty font face")
             if target in range_targets:
                 raise ValueError("Cannot mix run-index and range mutation on one paragraph transaction")
             run_index = raw.get("run_index")
@@ -144,6 +161,21 @@ def _normalize_operations(operations: list[dict], before_format: dict) -> list[d
             unknown = sorted(set(fmt) - RUN_FORMAT_KEYS)
             if unknown:
                 raise ValueError(f"Unsupported run format keys: {', '.join(unknown)}")
+            if "letter_spacing" in fmt:
+                value = fmt["letter_spacing"]
+                if not isinstance(value, int) or isinstance(value, bool) or not (-50 <= value <= 50):
+                    raise ValueError("letter_spacing must be an integer from -50 to 50 percent")
+            if "font_by_script" in fmt:
+                mapping = fmt["font_by_script"]
+                if not isinstance(mapping, dict) or not mapping:
+                    raise ValueError("font_by_script must be a non-empty object")
+                allowed_scripts = {"hangul","latin","hanja","japanese","other","symbol","user"}
+                unknown_scripts = sorted(set(mapping) - allowed_scripts)
+                if unknown_scripts:
+                    raise ValueError(f"Unsupported font_by_script keys: {', '.join(unknown_scripts)}")
+                for script_name, face in mapping.items():
+                    if not isinstance(face, str) or not face.strip():
+                        raise ValueError(f"font_by_script.{script_name} must be a non-empty font face")
             if any(key[0] == target for key in run_targets):
                 raise ValueError("Cannot mix run-index and range mutation on one paragraph transaction")
             start, end = _validate_range(paragraph, raw.get("start"), raw.get("end"))
@@ -611,6 +643,9 @@ def apply_rich_formatting_atomic(
 
     try:
         document = HwpxDocument.open(str(candidate))
+        document_key = id(document)
+        _P335R1_PENDING_FONT_REFS.pop(document_key, None)
+        pending_font_refs: dict[str, dict[str, str]] = {}
         try:
             if not document.oxml.headers:
                 raise ValueError("HWPX document has no header for style mutation")
@@ -656,10 +691,12 @@ def apply_rich_formatting_atomic(
 
             _save_document_to_candidate(document, candidate, path)
         finally:
+            pending_font_refs = _P335R1_PENDING_FONT_REFS.pop(document_key, {})
             close = getattr(document, "close", None)
             if callable(close):
                 close()
 
+        _patch_script_font_refs(candidate, pending_font_refs)
         normalization = _patch_package(candidate, prepared)
         after_document = build_document_map(candidate)
         after_format = build_formatting_map(candidate)

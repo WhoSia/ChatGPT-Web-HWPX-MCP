@@ -24,14 +24,18 @@ def test_p334r3_materializer_direct_script(tmp_path: Path):
     ],check=True,env=_env())
     manifest=json.loads((out/"capture-manifest.json").read_text(encoding="utf-8"))
     assert [c["id"] for c in manifest["cases"]]==[
-        "group-two-rectangles",
+        "group-two-ellipses",
         "ungroup-existing-group",
         "ungroup-translated-group",
     ]
-    group_src=out/"group-two-rectangles"/"source.hwpx"
+    group_src=out/"group-two-ellipses"/"source.hwpx"
     grouped=build_diagram_composition_map(group_src)
     assert grouped["group_count"]==0
     assert grouped["top_level_count"]==2
+    kinds=sorted(item["kind"] for item in grouped["top_level_objects"])
+    assert kinds==["ellipse","ellipse"]
+    positions=[item["position"] for item in grouped["top_level_objects"]]
+    assert all(pos is not None for pos in positions)
     for cid in ("ungroup-existing-group","ungroup-translated-group"):
         mapped=build_diagram_composition_map(out/cid/"source.hwpx")
         assert mapped["group_count"]==1

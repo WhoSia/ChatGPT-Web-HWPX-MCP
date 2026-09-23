@@ -117,6 +117,10 @@ def _char_summary(style_id: str | None, tables: dict) -> dict | None:
     underline = children.get("underline", {}).get("attrs", {})
     strike = children.get("strikeout", {}).get("attrs", {})
     font_ref = children.get("fontRef", {}).get("attrs", {})
+    ratio = children.get("ratio", {}).get("attrs", {})
+    spacing = children.get("spacing", {}).get("attrs", {})
+    rel_size = children.get("relSz", {}).get("attrs", {})
+    offset = children.get("offset", {}).get("attrs", {})
     height = attrs.get("height")
     try:
         size_pt = int(height) / 100 if height is not None else None
@@ -157,6 +161,10 @@ def _char_summary(style_id: str | None, tables: dict) -> dict | None:
         "font_ref": font_ref or None,
         "font_faces": resolved_fonts,
         "primary_font_face": primary_font_face,
+        "ratio_by_script": ratio or None,
+        "letter_spacing_by_script": spacing or None,
+        "relative_size_by_script": rel_size or None,
+        "offset_by_script": offset or None,
         "script": "sup" if "supscript" in children else ("sub" if "subscript" in children else None),
         "outline": children.get("outline", {}).get("attrs", {}).get("type"),
         "emboss": "emboss" in children,

@@ -246,6 +246,8 @@ async def main() -> None:
             assert rare_registry["features"]["smart_connectline"]["state"] == "BLOCKED_SEMANTIC_AMBIGUITY"
             assert rare_registry["features"]["tracked_change_resolution"]["state"] == "BOUNDED_PRODUCTION_AUTHORITY"
             assert rare_registry["features"]["tracked_change_resolution"]["authority"] == "UNPROTECTED_WHOLE_DOCUMENT_ACCEPT_REJECT_ALL"
+            assert rare_registry["features"]["existing_group_ungroup"]["state"] == "BOUNDED_PRODUCTION_AUTHORITY"
+            assert rare_registry["features"]["existing_group_ungroup"]["authority"] == "EXISTING_RECT_ELLIPSE_GROUP_UNGROUP_BOUNDED"
             ux_contract = _payload(await client.call_tool("get_product_ux_regression_contract", {}))
             assert ux_contract["policy"] == "PERIODIC_PRODUCT_UX_SMOKE"
             assert "every production phase before closure" in ux_contract["cadence"]

@@ -32,13 +32,6 @@ DEFERRED = {
         "EVIDENCE_GATE_CLOSED: native hp:connectLine subjectIDRef/control-point transforms "
         "are not reconstructible from the available upstream real-document evidence."
     ),
-    "group_existing_objects": (
-        "EVIDENCE_GATE_CLOSED: rebasing arbitrary existing top-level object transforms "
-        "into container-local coordinates is not admitted."
-    ),
-    "ungroup_existing_objects": (
-        "EVIDENCE_GATE_CLOSED: child-to-page transform rebasing is not admitted."
-    ),
     "scale_existing_group": (
         "EVIDENCE_GATE_CLOSED: P3.27 admits rigid group translation only; group scaling "
         "requires a dedicated native-render geometry batch."
@@ -94,8 +87,9 @@ def diagram_composition_contract() -> dict:
             "or automatic rerouting after node movement."
         ),
         "group_semantics": (
-            "NEW_GROUP_FROM_LOCAL_MEMBERS + RIGID_TRANSLATION_ONLY; grouping arbitrary existing objects "
-            "and group scaling remain closed."
+            "NEW_GROUP_FROM_LOCAL_MEMBERS + RIGID_TRANSLATION + P3.34-R3 bounded existing group/ungroup "
+            "candidate for exactly two unrotated shared-anchor rect/ellipse objects; implementation-generated "
+            "Hancom round-trip remains required before production promotion."
         ),
         "admitted_operations": [
             "insert_group",
@@ -104,6 +98,8 @@ def diagram_composition_contract() -> dict:
             "align_objects",
             "distribute_objects",
             "insert_diagram_block",
+            "group_existing_objects",
+            "ungroup_existing_objects",
         ],
         "member_families": sorted(MEMBER_KINDS),
         "block_presets": sorted(BLOCK_PRESETS),
@@ -476,6 +472,12 @@ def _apply_one(path: Path, op: dict) -> dict:
         raise ValueError(DEFERRED[name])
     if name == "insert_group":
         return _insert_group(path, op)
+    if name == "group_existing_objects":
+        from p334r3_existing_group import group_existing_objects
+        return group_existing_objects(path, op.get("drawings"))
+    if name == "ungroup_existing_objects":
+        from p334r3_existing_group import ungroup_existing_objects
+        return ungroup_existing_objects(path, op.get("group"))
     if name == "insert_static_connector":
         return _insert_static_connector(path, op)
     if name == "translate_group":

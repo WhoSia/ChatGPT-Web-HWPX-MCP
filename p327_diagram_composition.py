@@ -87,9 +87,9 @@ def diagram_composition_contract() -> dict:
             "or automatic rerouting after node movement."
         ),
         "group_semantics": (
-            "NEW_GROUP_FROM_LOCAL_MEMBERS + RIGID_TRANSLATION + P3.34-R3 bounded existing group/ungroup "
-            "candidate for exactly two unrotated shared-anchor rect/ellipse objects; implementation-generated "
-            "Hancom round-trip remains required before production promotion."
+            "NEW_GROUP_FROM_LOCAL_MEMBERS + RIGID_TRANSLATION + P3.34-R3 production-bounded existing "
+            "group/ungroup for exactly two unrotated shared-anchor rect/ellipse objects after native "
+            "rebasing evidence and implementation-generated Hancom round-trip."
         ),
         "admitted_operations": [
             "insert_group",

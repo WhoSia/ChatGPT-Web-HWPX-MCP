@@ -63,20 +63,24 @@ _FEATURES = {
     "existing_group_ungroup": {
         "family": "drawing",
         "ancestry": ["P3.25", "P3.27", "P3.34-R3"],
-        "state": "NATIVE_SEMANTICS_PASS_IMPLEMENTATION_ROUNDTRIP_REQUIRED",
-        "authority": "NEW_GROUP_AUTHORING_ONLY",
+        "state": "BOUNDED_PRODUCTION_AUTHORITY",
+        "authority": "EXISTING_RECT_ELLIPSE_GROUP_UNGROUP_BOUNDED",
         "reason": (
-            "Hancom native evidence establishes bbox-origin grouping and group-origin + child-local "
-            "ungroup rebasing for unrotated shared-anchor rect/ellipse objects. A bounded candidate "
-            "implementation exists, but production authority remains closed until implementation-generated "
-            "Hancom open/save passes. Rotation, scaling, flipping, mixed anchors, nested groups, inline objects, "
-            "and other drawing families remain fail-closed."
+            "Hancom native grouping/ungrouping evidence (3/3) and implementation-generated open/save "
+            "round-trip (3/3) establish bbox-origin grouping and group-origin + child-local ungroup rebasing "
+            "for exactly two unrotated shared-anchor floating rect/ellipse objects. Rotation, scaling, flipping, "
+            "mixed anchors/frames, nested groups, inline objects, and other drawing families remain fail-closed."
         ),
-        "active_probe": {
-            "group_case_passed": 1,
-            "ungroup_cases_passed": 2,
-            "candidate_scope": "exactly two unrotated floating rect/ellipse objects with one shared anchor/frame",
-            "production_group_ungroup_authority": False,
+        "bounds": {
+            "group_object_count": 2,
+            "families": ["rect", "ellipse"],
+            "floating_only": True,
+            "shared_anchor_and_frame": True,
+            "rotation": False,
+            "scaling": False,
+            "flipping": False,
+            "nested_groups": False,
+            "inline_objects": False,
         },
     },
     "native_callout_autoshape": {

@@ -18,6 +18,7 @@ from xml.etree import ElementTree
 
 from hwpx import HwpxDocument
 from mcp.server import MCPServer
+from mcp.types import CallToolResult
 from mcp.server.auth.middleware.auth_context import get_access_token
 from mcp.server.transport_security import TransportSecuritySettings
 from starlette.responses import FileResponse, HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse
@@ -569,26 +570,18 @@ def inspect_document(document_id: str) -> dict:
 
 
 @mcp.tool()
-def export_document(document_id: str, link_ttl_seconds: int = 300) -> dict:
-    metadata = _load_metadata(document_id)
-    _require_owner(metadata)
-    requested_ttl = max(60, min(int(link_ttl_seconds), 900))
-    document_expiry = int(float(metadata["expires_at_epoch"]))
-    expires_at = min(int(time.time()) + requested_ttl, document_expiry)
-    if expires_at <= int(time.time()):
-        raise FileNotFoundError("Document expired")
-    signature = _download_signature(document_id, expires_at)
-    query = urlencode({"exp": expires_at, "sig": signature})
-    return {
-        "ok": True,
-        "document_id": document_id,
-        "filename": metadata["filename"],
-        "bytes": metadata["bytes"],
-        "sha256": metadata["sha256"],
-        "download_url": f"{PUBLIC_BASE_URL}/artifacts/{document_id}?{query}",
-        "download_expires_at": _utc_iso(expires_at),
-        "cache_policy": "private, no-store",
-    }
+def export_document(document_id: str, link_ttl_seconds: int = 300) -> CallToolResult:
+    """Return a downloadable HWPX file/link and the existing receipt in structuredContent."""
+    import sys
+    from p333_file_delivery import export_revision, handoff
+    return handoff(export_revision(sys.modules[__name__], document_id, link_ttl_seconds))
+
+
+@mcp.custom_route("/deliveries/{document_id}", methods=["GET"])
+async def download_delivery(request):
+    import sys
+    from p333_file_delivery import download_revision
+    return await download_revision(sys.modules[__name__], request)
 
 
 @mcp.tool()

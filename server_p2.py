@@ -135,9 +135,9 @@ from common_ir import (
     slice_common_ir,
 )
 
-P2_VERSION = "0.10.0-p3.32"
+P2_VERSION = "0.11.0-p3.33"
 core.VERSION = P2_VERSION
-core.PHASE = "P3.32"
+core.PHASE = "P3.33"
 
 _original_metadata = core._metadata
 
@@ -5142,6 +5142,10 @@ def p2_capabilities() -> dict:
         "phase": core.PHASE,
         "authenticated_subject": subject,
         "tools_added": [
+            "get_document_delivery_contract",
+            "generate_document",
+            "edit_document_and_deliver",
+            "deliver_document",
             "acquire_document_lease",
             "release_document_lease",
             "get_document_commit_receipt",
@@ -5725,6 +5729,77 @@ def apply_legacy_diagram_refactor(
         "authority": "STRUCTURAL_BROWNFIELD_DIAGRAM_ADOPTION_AUTHORITY_ONLY",
         "native_render_batch_status": "DEFERRED_BY_DESIGN",
     }
+
+
+from mcp.types import CallToolResult, TextContent, ToolAnnotations
+from p333_file_delivery import delivery_contract, export_revision, handoff
+
+
+@core.mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, openWorldHint=False))
+def get_document_delivery_contract() -> dict:
+    """Discover the primary HWPX workflow, recovery rules and independent evidence gates."""
+    core._caller_subject()
+    return {"ok": True, **delivery_contract(), "composition": document_plan_contract()}
+
+
+@core.mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, openWorldHint=False))
+def deliver_document(document_id: str, revision: int | None = None, link_ttl_seconds: int = 900) -> CallToolResult:
+    """Return a downloadable .hwpx resource and clickable link after exact-byte validation.
+
+    Use after any existing editing tool, or to renew an expired link without repeating edits.
+    Present the returned file/link to the user. Do not claim host attachment display or
+    Hancom rendering was verified merely because export succeeded.
+    """
+    return handoff(export_revision(core, document_id, link_ttl_seconds, revision))
+
+
+def _delivery_after_commit(document_id: str, revision: int, link_ttl_seconds: int, workflow: str) -> CallToolResult:
+    try:
+        receipt = export_revision(core, document_id, link_ttl_seconds, revision)
+    except Exception as exc:
+        # A failed handoff must not encourage replaying an already committed mutation.
+        receipt = {"ok": False, "document_id": document_id, "revision": revision,
+                   "workflow": workflow, "transaction": "COMMITTED",
+                   "delivery_status": "RETRY_DELIVERY_ONLY", "error_type": type(exc).__name__,
+                   "recovery": "Call deliver_document for this document_id and revision; do not repeat the mutation."}
+        return CallToolResult(content=[TextContent(type="text", text=json.dumps(receipt))],
+                              structuredContent=receipt, isError=True)
+    receipt.update(workflow=workflow, transaction="COMMITTED")
+    return handoff(receipt)
+
+
+@core.mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, openWorldHint=False))
+def generate_document(plan: dict, filename: str = "document.hwpx", request_id: str = "",
+                      template_document_id: str = "", link_ttl_seconds: int = 900) -> CallToolResult:
+    """Create and return an actual downloadable HWPX in one call using the P3.21 plan.
+
+    Translate the user's natural-language request into the existing document plan
+    (get_document_delivery_contract). Reuse request_id after an interrupted create.
+    Return the file/link, not an internal document ID, as the user's final deliverable.
+    """
+    core._caller_subject()
+    core._download_secret()
+    link_ttl_seconds = int(link_ttl_seconds)
+    created = create_document_from_plan(plan, filename, template_document_id, request_id)
+    return _delivery_after_commit(created["document_id"], int(created.get("revision", 1)),
+                                  link_ttl_seconds, "CREATE_VALIDATE_EXPORT_HANDOFF")
+
+
+@core.mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True, openWorldHint=False))
+def edit_document_and_deliver(document_id: str, expected_revision: int, operations: list[dict],
+                              lease_token: str = "", link_ttl_seconds: int = 900) -> CallToolResult:
+    """Apply one existing atomic text/paragraph edit and return the validated HWPX file.
+
+    Resolve targets via get_document_map. Stale revisions and invalid operations fail
+    before commit. Use deliver_document to recover delivery after a committed edit.
+    Other native feature edits continue through their existing tools then deliver_document.
+    """
+    core._caller_subject()
+    core._download_secret()
+    link_ttl_seconds = int(link_ttl_seconds)
+    edited = apply_edits(document_id, expected_revision, operations, lease_token)
+    return _delivery_after_commit(document_id, edited["revision_after"], link_ttl_seconds,
+                                  "EDIT_VALIDATE_EXPORT_HANDOFF")
 
 
 if __name__ == "__main__":

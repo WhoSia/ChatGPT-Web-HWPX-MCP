@@ -511,11 +511,45 @@ def plan_legacy_diagram_refactor(
         policy = str(layout_policy).lower()
         if policy not in LAYOUT_POLICIES:
             raise ValueError(f"unknown layout policy: {policy}")
+        layout_name = str(layout).upper()
+        if layout_name not in {"LEFT_TO_RIGHT", "TOP_DOWN"}:
+            raise ValueError(f"unsupported layout: {layout_name}")
+
+        # Brownfield refactoring shares one native static-line namespace with every
+        # managed graph on the same paragraph anchor. Reusing P3.30's default
+        # (1000, 1000) origin can therefore make one graph's physical line land on
+        # another graph's node centers and create a false reconstructed relation.
+        # Allocate a deterministic foreign-graph-clear lane before delegating.
+        foreign_nodes = [
+            node
+            for other in lifecycle["diagrams"]
+            if other["diagram_id"] != str(diagram_id)
+            and other.get("anchor_locator") == diagram.get("anchor_locator")
+            for node in other.get("nodes", [])
+        ]
+        origin_x = 1000
+        origin_y = 1000
+        clearance = 9000
+        if foreign_nodes:
+            if layout_name == "LEFT_TO_RIGHT":
+                origin_y = max(
+                    int((node.get("position") or {}).get("vertOffset", 0) or 0)
+                    + int(node.get("height", 0) or 0)
+                    for node in foreign_nodes
+                ) + clearance
+            else:
+                origin_x = max(
+                    int((node.get("position") or {}).get("horzOffset", 0) or 0)
+                    + int(node.get("width", 0) or 0)
+                    for node in foreign_nodes
+                ) + clearance
         operations.append({
             "op": "apply_layout_policy",
             "diagram_id": str(diagram_id),
             "policy": policy,
-            "layout": str(layout).upper(),
+            "layout": layout_name,
+            "origin_x": origin_x,
+            "origin_y": origin_y,
         })
     if theme:
         theme_name = str(theme).lower()
@@ -556,6 +590,10 @@ def apply_legacy_diagram_refactor_atomic(
     diagram = next((d for d in lifecycle["diagrams"] if d["diagram_id"] == diagram_id), None)
     if diagram is None:
         raise ValueError(f"unknown managed diagram: {diagram_id}")
+    source_relations = {
+        d["diagram_id"]: d["relation_sha256"]
+        for d in lifecycle["diagrams"]
+    }
     if diagram["identity_sha256"] != str(refactor_plan.get("source_identity_sha256") or ""):
         raise ValueError("refactor plan source identity is stale")
     if diagram["relation_sha256"] != str(refactor_plan.get("source_relation_sha256") or ""):
@@ -589,8 +627,22 @@ def apply_legacy_diagram_refactor_atomic(
         )
         after = build_diagram_lifecycle_map(candidate_path)
         final = next(d for d in after["diagrams"] if d["diagram_id"] == diagram_id)
-        if final["relation_sha256"] != diagram["relation_sha256"]:
-            raise ValueError("legacy refactor changed managed semantic relations")
+        after_relations = {
+            d["diagram_id"]: d["relation_sha256"]
+            for d in after["diagrams"]
+        }
+        if after_relations != source_relations:
+            changed = sorted(
+                set(source_relations) | set(after_relations)
+            )
+            changed = [
+                item for item in changed
+                if source_relations.get(item) != after_relations.get(item)
+            ]
+            raise ValueError(
+                "legacy refactor changed managed semantic relations: "
+                + ", ".join(changed)
+            )
         os.replace(candidate_path, path)
     except Exception:
         try:
@@ -606,6 +658,7 @@ def apply_legacy_diagram_refactor_atomic(
         "operations": operations,
         "design_system_diff": transaction,
         "relation_preserved": True,
+        "global_relation_preserved": True,
         "relation_sha256": final["relation_sha256"],
         "identity_sha256": final["identity_sha256"],
         "validation": transaction.get("validation"),

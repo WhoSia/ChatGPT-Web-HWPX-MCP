@@ -121,7 +121,7 @@ def main() -> int:
             raise RuntimeError(f"{spec['id']}: candidate retained tracked metadata")
         if spec["expected"] not in body:
             raise RuntimeError(f"{spec['id']}: candidate final text mismatch")
-        if not server.validate_hwpx_package(before).get("ok", False):
+        if not server.validate_hwpx_package(before).get("valid", False):
             raise RuntimeError(f"{spec['id']}: package validation failed")
 
         item = {

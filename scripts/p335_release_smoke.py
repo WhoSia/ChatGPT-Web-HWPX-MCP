@@ -9,6 +9,7 @@ from p2_document import build_document_map
 from p22_formatting import apply_formatting_atomic, build_formatting_map
 from p23_richtext import apply_rich_formatting_atomic
 from p334r2_package_validation import validate_hwpx_package_light
+from p335_paragraph import build_document_style_exemplar, build_paragraph_geometry_profile
 
 
 def paragraph_locator(path: Path, text: str) -> str:
@@ -60,6 +61,29 @@ def main() -> int:
         assert style["size_pt"] == 13.5
         assert int(style["letter_spacing_by_script"]["hangul"]) == 20
 
+        # Existing paragraph primitives are re-promoted into a reusable geometry profile/exemplar.
+        apply_formatting_atomic(
+            path,
+            [{
+                "op": "set_paragraph_format",
+                "target": loc,
+                "format": {
+                    "alignment": "center",
+                    "line_spacing_percent": 175,
+                    "indent_left_mm": 4,
+                    "spacing_after_pt": 3,
+                },
+            }],
+            expected_revision=2,
+            current_revision=2,
+            validator=validate_hwpx_package_light,
+        )
+        paragraph_profile = build_paragraph_geometry_profile(path)
+        assert str(paragraph_profile["alignment"][0]["value"]["horizontal"]).upper() == "CENTER"
+        exemplar = build_document_style_exemplar(path)
+        assert exemplar["authoring_preset"]["paragraph_format"]["alignment"] == "center"
+        assert exemplar["authoring_preset"]["paragraph_format"]["line_spacing_percent"] == 175
+
         # Mixed-run / range authoring surface.
         path2 = root / "p335-range.hwpx"
         doc = HwpxDocument.new()
@@ -97,8 +121,8 @@ def main() -> int:
             apply_formatting_atomic(
                 path,
                 [{"op": "set_run_format", "target": loc, "format": {"letter_spacing": 51}}],
-                expected_revision=2,
-                current_revision=2,
+                expected_revision=3,
+                current_revision=3,
             )
         except ValueError as exc:
             assert "-50 to 50" in str(exc)

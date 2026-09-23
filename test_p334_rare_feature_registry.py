@@ -18,6 +18,8 @@ def test_registry_is_deterministic_and_keeps_known_gates_closed():
     assert first["features"]["column_insertion"]["state"] == "BOUNDED_PRODUCTION_AUTHORITY"
     assert first["features"]["smart_connectline"]["state"] == "BLOCKED_SEMANTIC_AMBIGUITY"
     assert first["features"]["column_insertion"]["authority"] == "COUNT1_LEFT_RIGHT_NATIVE_COLUMN_INSERTION"
+    assert first["features"]["tracked_change_resolution"]["state"] == "BOUNDED_PRODUCTION_AUTHORITY"
+    assert first["features"]["tracked_change_resolution"]["authority"] == "UNPROTECTED_WHOLE_DOCUMENT_ACCEPT_REJECT_ALL"
     assert first["authority"] == "EVIDENCE_GATED_REGISTRY_ONLY"
 
 
@@ -55,3 +57,11 @@ def test_ux_guard_repeats_each_production_phase():
     guard = ux_regression_contract()
     assert "every production phase before closure" in guard["cadence"]
     assert any("deliver_document" in item for item in guard["checks"])
+
+
+def test_promoted_tracked_resolution_reports_bounded_authority():
+    result = evaluate_rare_feature("tracked_change_resolution", {})
+    assert result["promotion_ready"] is False
+    assert result["missing_evidence"] == []
+    assert result["verdict"] == "ALREADY_PROMOTED_BOUNDED"
+    assert result["baseline_authority"] == "UNPROTECTED_WHOLE_DOCUMENT_ACCEPT_REJECT_ALL"

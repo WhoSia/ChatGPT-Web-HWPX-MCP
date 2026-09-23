@@ -16,7 +16,8 @@ def main() -> int:
     registry = rare_feature_registry()
     assert registry["phase"] == "P3.34"
     assert registry["features"]["smart_connectline"]["state"] == "BLOCKED_SEMANTIC_AMBIGUITY"
-    assert registry["features"]["column_insertion"]["state"] == "NATIVE_EVIDENCE_REQUIRED"
+    assert registry["features"]["column_insertion"]["state"] == "BOUNDED_PRODUCTION_AUTHORITY"
+    assert registry["features"]["column_insertion"]["authority"] == "COUNT1_LEFT_RIGHT_NATIVE_COLUMN_INSERTION"
 
     evidence = {key: True for key in EVIDENCE_KEYS}
     assert evaluate_rare_feature("polygon_preserving_resize", evidence)["promotion_ready"] is True

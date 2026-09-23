@@ -12,6 +12,7 @@ from p334r2_package_validation import validate_hwpx_package_light
 from p335_paragraph import (
     build_document_style_exemplar,
     build_paragraph_geometry_profile,
+    build_role_aware_style_exemplars,
     build_style_transfer_operations,
     compare_paragraph_geometry_profiles,
     paragraph_geometry_contract,
@@ -87,6 +88,18 @@ class P335ParagraphProfileTests(unittest.TestCase):
             self.assertLess(abs(preset["first_line_indent_mm"] - 2), 0.02)
             self.assertLess(abs(preset["spacing_before_pt"] - 6), 0.02)
             self.assertLess(abs(preset["spacing_after_pt"] - 4), 0.02)
+
+    def test_role_aware_exemplar_uses_conservative_body_fallback(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "roles.hwpx"
+            loc = _make(path, "일반 본문")
+            profile = build_role_aware_style_exemplars(path)
+            body = next(item for item in profile["roles"] if item["role"] == "body")
+            self.assertEqual(body["paragraph_count"], 1)
+            self.assertIn("paragraph_format", body["authoring_preset"])
+            assignment = next(item for item in profile["assignments"] if item["locator"] == loc)
+            self.assertEqual(assignment["role"], "body")
+            self.assertEqual(assignment["basis"], "conservative_fallback")
 
     def test_style_exemplar_compiles_to_existing_atomic_formatting_operations(self):
         with tempfile.TemporaryDirectory() as tmp:

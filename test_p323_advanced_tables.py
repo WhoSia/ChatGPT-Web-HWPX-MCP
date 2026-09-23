@@ -66,12 +66,51 @@ class P323AdvancedTablesTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             path = self._fixture(Path(tmp))
             table = build_advanced_table_map(path)["tables"][0]
-            with self.assertRaisesRegex(ValueError, "EVIDENCE_GATE_CLOSED"):
+            with self.assertRaisesRegex(ValueError, "SUPERSEDED_BY_P3.34_R1"):
                 apply_advanced_table_edits_atomic(
                     path,
                     [{"op": "insert_column_by_clone", "table": table["locator"], "ref_col": 0}],
                     expected_revision=1,
                     current_revision=1,
+                )
+
+    def test_bounded_count_one_column_insert_is_admitted(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = self._fixture(Path(tmp))
+            before = build_advanced_table_map(path)
+            table = before["tables"][0]
+            anchor = next(c["locator"] for c in table["cells"] if c["row"] == 1 and c["col"] == 1)
+            result = apply_advanced_table_edits_atomic(
+                path,
+                [{
+                    "op": "insert_column_native_bounded",
+                    "table": table["locator"],
+                    "cell": anchor,
+                    "direction": "LEFT",
+                    "count": 1,
+                }],
+                expected_revision=3,
+                current_revision=3,
+            )
+            self.assertTrue(result["table_structure_changed"])
+            self.assertEqual(result["transcripts"][0]["authority"], "COUNT1_LEFT_RIGHT_NATIVE_COLUMN_INSERTION")
+            after = build_advanced_table_map(path)["tables"][0]
+            self.assertEqual(after["cols"], 4)
+            inserted = next(c for c in after["cells"] if c["row"] == 1 and c["col"] == 1)
+            self.assertEqual(inserted["text"], "")
+
+            with self.assertRaisesRegex(ValueError, "exactly count=1"):
+                apply_advanced_table_edits_atomic(
+                    path,
+                    [{
+                        "op": "insert_column_native_bounded",
+                        "table": after["locator"],
+                        "cell": next(c["locator"] for c in after["cells"] if c["row"] == 1 and c["col"] == 2),
+                        "direction": "RIGHT",
+                        "count": 2,
+                    }],
+                    expected_revision=4,
+                    current_revision=4,
                 )
 
     def test_stale_revision_is_rejected(self):

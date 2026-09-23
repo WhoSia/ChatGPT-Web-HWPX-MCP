@@ -21,8 +21,16 @@ def test_registry_is_deterministic_and_keeps_known_gates_closed():
     assert first["authority"] == "EVIDENCE_GATED_REGISTRY_ONLY"
 
 
+def test_promoted_column_insertion_reports_bounded_authority():
+    result = evaluate_rare_feature("column_insertion", {})
+    assert result["promotion_ready"] is False
+    assert result["missing_evidence"] == []
+    assert result["verdict"] == "ALREADY_PROMOTED_BOUNDED"
+    assert result["baseline_authority"] == "COUNT1_LEFT_RIGHT_NATIVE_COLUMN_INSERTION"
+
+
 def test_incomplete_evidence_does_not_promote():
-    result = evaluate_rare_feature("column_insertion", {"semantic_contract": True})
+    result = evaluate_rare_feature("polygon_preserving_resize", {"semantic_contract": True})
     assert result["promotion_ready"] is False
     assert "native_open_resave_or_render" in result["missing_evidence"]
     assert result["verdict"] == "EVIDENCE_INCOMPLETE"

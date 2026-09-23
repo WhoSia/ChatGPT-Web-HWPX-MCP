@@ -20,6 +20,8 @@ def main() -> int:
     assert registry["features"]["column_insertion"]["authority"] == "COUNT1_LEFT_RIGHT_NATIVE_COLUMN_INSERTION"
     assert registry["features"]["tracked_change_resolution"]["state"] == "BOUNDED_PRODUCTION_AUTHORITY"
     assert registry["features"]["tracked_change_resolution"]["authority"] == "UNPROTECTED_WHOLE_DOCUMENT_ACCEPT_REJECT_ALL"
+    assert registry["features"]["existing_group_ungroup"]["state"] == "BOUNDED_PRODUCTION_AUTHORITY"
+    assert registry["features"]["existing_group_ungroup"]["authority"] == "EXISTING_RECT_ELLIPSE_GROUP_UNGROUP_BOUNDED"
 
     evidence = {key: True for key in EVIDENCE_KEYS}
     assert evaluate_rare_feature("polygon_preserving_resize", evidence)["promotion_ready"] is True

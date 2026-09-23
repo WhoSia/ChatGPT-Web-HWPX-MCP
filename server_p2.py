@@ -121,6 +121,12 @@ from p335_typography import (
     build_typography_profile,
     compare_typography_profiles,
 )
+from p335_paragraph import (
+    paragraph_geometry_contract as p335_paragraph_geometry_contract,
+    build_paragraph_geometry_profile,
+    compare_paragraph_geometry_profiles,
+    build_document_style_exemplar,
+)
 from p313_capture_custody import (
     near_wrap_positive_sensitivity_spec,
     validate_artifact_custody,
@@ -5781,6 +5787,56 @@ def compare_typography_profiles(left_document_id: str, right_document_id: str) -
         "right_document_id": right_document_id,
         "right_revision": int(right_meta["revision"]),
         **compare_typography_profiles(left, right),
+    }
+
+
+@core.mcp.tool()
+def get_paragraph_geometry_contract() -> dict:
+    """Return P3.35 paragraph geometry, line-spacing, indentation and tab readback contract."""
+    core._caller_subject()
+    return {"ok": True, **p335_paragraph_geometry_contract()}
+
+
+@core.mcp.tool()
+def get_paragraph_geometry_profile(document_id: str) -> dict:
+    """Summarize paragraph geometry as weighted reusable distributions without mutating the document."""
+    metadata, path = _owned_document(document_id)
+    profile = build_paragraph_geometry_profile(path)
+    return {
+        "ok": True,
+        "document_id": document_id,
+        "revision": int(metadata["revision"]),
+        **profile,
+    }
+
+
+@core.mcp.tool()
+def compare_paragraph_geometry_profiles(left_document_id: str, right_document_id: str) -> dict:
+    """Compare dominant paragraph geometry of two owned HWPX documents."""
+    left_meta, left_path = _owned_document(left_document_id)
+    right_meta, right_path = _owned_document(right_document_id)
+    left = build_paragraph_geometry_profile(left_path)
+    right = build_paragraph_geometry_profile(right_path)
+    return {
+        "ok": True,
+        "left_document_id": left_document_id,
+        "left_revision": int(left_meta["revision"]),
+        "right_document_id": right_document_id,
+        "right_revision": int(right_meta["revision"]),
+        **compare_paragraph_geometry_profiles(left, right),
+    }
+
+
+@core.mcp.tool()
+def get_document_style_exemplar(document_id: str) -> dict:
+    """Extract a reusable P3.35 typography + paragraph authoring preset and native readback exemplar."""
+    metadata, path = _owned_document(document_id)
+    exemplar = build_document_style_exemplar(path)
+    return {
+        "ok": True,
+        "document_id": document_id,
+        "revision": int(metadata["revision"]),
+        **exemplar,
     }
 
 

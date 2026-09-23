@@ -55,6 +55,7 @@ def _property_tables(header_root: ElementTree.Element) -> dict:
     char_props: dict[str, dict] = {}
     para_props: dict[str, dict] = {}
     styles: dict[str, dict] = {}
+    tab_props: dict[str, dict] = {}
     font_faces: dict[str, dict[str, str]] = {}
     for node in header_root.iter():
         name = _local(node.tag)
@@ -80,10 +81,13 @@ def _property_tables(header_root: ElementTree.Element) -> dict:
             para_props[str(ident)] = _element_snapshot(node)
         elif name == "style":
             styles[str(ident)] = _element_snapshot(node)
+        elif name == "tabPr":
+            tab_props[str(ident)] = _element_snapshot(node)
     return {
         "char": char_props,
         "para": para_props,
         "style": styles,
+        "tab": tab_props,
         "font_faces": font_faces,
     }
 
@@ -212,10 +216,18 @@ def _para_summary(style_id: str | None, tables: dict) -> dict | None:
     line_spacing_node = (
         children.get("lineSpacing") or _snapshot_find_first(node, "lineSpacing")
     )
+    tab_pr_id_ref = node["attrs"].get("tabPrIDRef")
+    tab_property = (
+        None
+        if tab_pr_id_ref is None
+        else tables.get("tab", {}).get(str(tab_pr_id_ref))
+    )
     return {
         "id": str(style_id),
         "resolved": True,
         "attributes": node["attrs"],
+        "tab_pr_id_ref": tab_pr_id_ref,
+        "tab_property": tab_property,
         "alignment": (
             children.get("align", {}).get("attrs")
             or (_snapshot_find_first(node, "align") or {}).get("attrs")

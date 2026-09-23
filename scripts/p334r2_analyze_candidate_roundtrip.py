@@ -13,7 +13,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-import server
+from p334r2_package_validation import validate_hwpx_package_light
 from p2_document import build_document_map
 from p322_review_workflow import build_review_workflow_map
 
@@ -86,7 +86,7 @@ def main() -> int:
             "after_body_text": a_body,
             "before_package": package_ok(before),
             "after_package": package_ok(after),
-            "validator_ok": bool(server.validate_hwpx_package(after).get("valid", False)),
+            "validator_ok": bool(validate_hwpx_package_light(after).get("valid", False)),
             "structure_preserved": structural,
         }
         report["pass"] = report["validator_ok"] and structural

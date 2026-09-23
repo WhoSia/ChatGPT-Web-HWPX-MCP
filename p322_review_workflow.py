@@ -12,6 +12,7 @@ from hwpx import HwpxDocument
 
 from p2_document import build_document_map
 from p27_tables import _save_document
+from p334r2_tracked_resolution import resolve_all_tracked_changes
 
 
 SCHEMA = "chatgpt-web-hwpx-mcp/review-workflow/p3.22/v1"
@@ -133,7 +134,8 @@ def build_review_workflow_map(path: Path) -> dict:
                 "highlights": len(highlights),
             },
             "unsupported_write_lanes": [
-                "accept_or_reject_tracked_change",
+                "selective_accept_or_reject_tracked_change",
+                "protected_accept_or_reject_tracked_change",
                 "tracking_toggle_without_change",
                 "tracking_protection_password",
                 "radio_button_authoring",
@@ -170,6 +172,15 @@ def apply_review_workflow_atomic(
         raise ValueError("Each review operation must be an object")
 
     before = build_review_workflow_map(path)
+
+    resolution_names = {"accept_all_tracked_changes", "reject_all_tracked_changes"}
+    requested_resolution = [op for op in operations if str(op.get("op") or "") in resolution_names]
+    if requested_resolution:
+        if len(operations) != 1 or len(requested_resolution) != 1:
+            raise ValueError(
+                "P3.34-R2 bounded tracked-change resolution must be the only operation in its transaction"
+            )
+
     fd, tmp_name = tempfile.mkstemp(
         prefix=path.stem + ".p322-review-",
         suffix=".hwpx",
@@ -182,6 +193,38 @@ def apply_review_workflow_atomic(
     validation = None
 
     try:
+        if requested_resolution:
+            name = str(operations[0].get("op") or "")
+            decision = "ACCEPT" if name == "accept_all_tracked_changes" else "REJECT"
+            receipt = resolve_all_tracked_changes(candidate, decision=decision)
+
+            document = HwpxDocument.open(str(candidate))
+            try:
+                for section in document.sections:
+                    section.remove_layout_caches()
+                _save_document(document, candidate, candidate)
+            finally:
+                document.close()
+
+            after = build_review_workflow_map(candidate)
+            if after["counts"]["tracked_changes"] != 0 or after["counts"]["track_change_authors"] != 0:
+                raise ValueError("Resolved candidate still contains tracked-change header metadata")
+            if validator is not None:
+                validation = validator(candidate)
+            os.replace(candidate, path)
+            return {
+                "before_sha256": before["review_workflow_sha256"],
+                "after_sha256": after["review_workflow_sha256"],
+                "changed": before["review_workflow_sha256"] != after["review_workflow_sha256"],
+                "before_counts": before["counts"],
+                "after_counts": after["counts"],
+                "receipts": [receipt],
+                "validation": validation,
+                "authority": "P3.34-R2_CANDIDATE_UNPROTECTED_ACCEPT_REJECT_ALL",
+                "authoring_backend": "bounded package-level resolution + python-hwpx reopen/save",
+                "unsupported_write_lanes": after["unsupported_write_lanes"],
+            }
+
         document = HwpxDocument.open(str(candidate))
         try:
             for op in operations:

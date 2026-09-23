@@ -14,6 +14,10 @@ from p28_tables import (
     apply_table_edits_atomic as apply_p28_table_edits_atomic,
     build_table_map as build_p28_table_map,
 )
+from p334r1_column_insertion import (
+    apply_bounded_column_insertion,
+    column_insertion_contract,
+)
 
 HP = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
 
@@ -41,8 +45,8 @@ ADMITTED_P28_OPERATIONS = {
 
 DEFERRED_OPERATIONS = {
     "insert_column_by_clone": (
-        "EVIDENCE_GATE_CLOSED: no upstream render-verified column-insert primitive; "
-        "P3.23 preserves fail-closed behavior."
+        "SUPERSEDED_BY_P3.34_R1: use insert_column_native_bounded with count=1; "
+        "count>1 remains evidence-gated."
     ),
 }
 
@@ -64,6 +68,7 @@ def advanced_table_contract() -> dict:
                 "set_table_page_break",
                 "set_table_borders",
                 "set_table_shading",
+                "insert_column_native_bounded",
             }
         ),
         "deferred_operations": dict(DEFERRED_OPERATIONS),
@@ -72,6 +77,7 @@ def advanced_table_contract() -> dict:
             "vertical_alignment": "hp:tc/hp:subList@vertAlign",
             "row_height": "anchor-cell hp:cellSz@height across the designated logical row",
             "table_border_fill": "delegates to established P2.7 cell border/shading primitives",
+            "column_insertion_p334r1": column_insertion_contract(),
         },
     }
 
@@ -233,6 +239,18 @@ def _direct_table_operation(candidate: Path, op: dict) -> dict:
                     table.set_cell_shading(int(row), int(col), color)
             table.mark_dirty()
 
+        elif name == "insert_column_native_bounded":
+            receipt = apply_bounded_column_insertion(table, table_payload, op)
+            _save_document(document, candidate, candidate)
+            return {
+                "ok": True,
+                "op": name,
+                "table": table_payload["locator"],
+                "native_semantics": "P3.34-R1_COUNT1",
+                "authority": "COUNT1_LEFT_RIGHT_NATIVE_COLUMN_INSERTION",
+                "receipt": receipt,
+            }
+
         else:
             raise ValueError(f"Unsupported P3.23 direct table operation: {name}")
 
@@ -255,6 +273,7 @@ def _normalize_operations(operations: list[dict], before: dict) -> list[dict]:
         "set_table_page_break",
         "set_table_borders",
         "set_table_shading",
+        "insert_column_native_bounded",
     }
     for raw in operations:
         if not isinstance(raw, dict):
@@ -270,6 +289,18 @@ def _normalize_operations(operations: list[dict], before: dict) -> list[dict]:
                 cell = raw.get("cell")
                 if not any(item["locator"] == cell for item in table["cells"]):
                     raise ValueError(f"Unknown cell locator: {cell}")
+            if name == "insert_column_native_bounded":
+                cell = raw.get("cell")
+                payload = next((item for item in table["cells"] if item["locator"] == cell), None)
+                if payload is None:
+                    raise ValueError(f"Unknown cell locator: {cell}")
+                if int(payload["row_span"]) != 1 or int(payload["col_span"]) != 1:
+                    raise ValueError("insert_column_native_bounded requires an unmerged anchor cell")
+                direction = str(raw.get("direction", "")).upper()
+                if direction not in {"LEFT", "RIGHT"}:
+                    raise ValueError("direction must be LEFT or RIGHT")
+                if int(raw.get("count", 1)) != 1:
+                    raise ValueError("P3.34-R1 production authority admits exactly count=1")
             normalized.append(dict(raw))
             continue
         if name not in ADMITTED_P28_OPERATIONS:
@@ -306,6 +337,7 @@ def apply_advanced_table_edits_atomic(
         "set_table_page_break",
         "set_table_borders",
         "set_table_shading",
+        "insert_column_native_bounded",
     }
 
     try:

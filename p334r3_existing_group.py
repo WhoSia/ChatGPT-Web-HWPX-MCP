@@ -297,7 +297,7 @@ def group_existing_objects(path: Path, drawings: list[str]) -> dict[str, Any]:
     return {
         "ok":True,"operation":"group_existing_objects","group_origin":{"x":min_x,"y":min_y},
         "group_size":{"width":width,"height":height},"member_count":2,
-        "authority":"P3.34-R3_CANDIDATE_EXISTING_GROUP_UNGROUP"
+        "authority":"EXISTING_RECT_ELLIPSE_GROUP_UNGROUP_BOUNDED"
     }
 
 
@@ -340,5 +340,5 @@ def ungroup_existing_objects(path: Path, group: str) -> dict[str, Any]:
     _write_package(path,infos,data)
     return {
         "ok":True,"operation":"ungroup_existing_objects","released_count":len(released),
-        "group_origin":{"x":gx,"y":gy},"authority":"P3.34-R3_CANDIDATE_EXISTING_GROUP_UNGROUP"
+        "group_origin":{"x":gx,"y":gy},"authority":"EXISTING_RECT_ELLIPSE_GROUP_UNGROUP_BOUNDED"
     }

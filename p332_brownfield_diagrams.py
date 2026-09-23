@@ -424,6 +424,20 @@ def promote_diagram_candidate_atomic(
     targets = {item["locator"]: item for item in drawing["objects"]}
     if set(by_locator) != {str(item.get("locator") or "") for item in bindings}:
         raise ValueError("adoption plan locator set is stale")
+    expected_plan_sha256 = _sha({
+        "source_document_sha256": mapped["source_document_sha256"],
+        "recognition_sha256": mapped["recognition_sha256"],
+        "candidate_sha256": candidate["candidate_sha256"],
+        "candidate_id": candidate["candidate_id"],
+        "diagram_id": str(adoption_plan.get("diagram_id") or ""),
+        "bindings": bindings,
+        "relations": [
+            {"source_locator": e["source_locator"], "target_locator": e["target_locator"]}
+            for e in candidate["edges"]
+        ],
+    })
+    if expected_plan_sha256 != str(adoption_plan.get("adoption_plan_sha256") or ""):
+        raise ValueError("adoption plan hash mismatch")
 
     fd, tmp_name = tempfile.mkstemp(prefix=path.stem + ".p332-", suffix=".hwpx", dir=str(path.parent))
     os.close(fd)
@@ -552,18 +566,38 @@ def apply_legacy_diagram_refactor_atomic(
     allowed = {"apply_layout_policy", "apply_theme"}
     if any(not isinstance(op, dict) or str(op.get("op")) not in allowed for op in operations):
         raise ValueError("P3.32 refactor plan contains a non-meaning-preserving operation")
+    expected_plan_sha256 = _sha({
+        "diagram_id": diagram_id,
+        "identity": diagram["identity_sha256"],
+        "relations": diagram["relation_sha256"],
+        "operations": operations,
+    })
+    if expected_plan_sha256 != str(refactor_plan.get("refactor_plan_sha256") or ""):
+        raise ValueError("refactor plan hash mismatch")
 
-    transaction = apply_diagram_design_system_atomic(
-        path,
-        operations,
-        expected_revision=expected_revision,
-        current_revision=current_revision,
-        validator=validator,
-    )
-    after = build_diagram_lifecycle_map(path)
-    final = next(d for d in after["diagrams"] if d["diagram_id"] == diagram_id)
-    if final["relation_sha256"] != diagram["relation_sha256"]:
-        raise ValueError("legacy refactor changed managed semantic relations")
+    fd, tmp_name = tempfile.mkstemp(prefix=path.stem + ".p332-refactor-", suffix=".hwpx", dir=str(path.parent))
+    os.close(fd)
+    candidate_path = Path(tmp_name)
+    candidate_path.write_bytes(path.read_bytes())
+    try:
+        transaction = apply_diagram_design_system_atomic(
+            candidate_path,
+            operations,
+            expected_revision=expected_revision,
+            current_revision=current_revision,
+            validator=validator,
+        )
+        after = build_diagram_lifecycle_map(candidate_path)
+        final = next(d for d in after["diagrams"] if d["diagram_id"] == diagram_id)
+        if final["relation_sha256"] != diagram["relation_sha256"]:
+            raise ValueError("legacy refactor changed managed semantic relations")
+        os.replace(candidate_path, path)
+    except Exception:
+        try:
+            candidate_path.unlink()
+        except FileNotFoundError:
+            pass
+        raise
     return {
         "schema": SCHEMA,
         "authority": AUTHORITY,

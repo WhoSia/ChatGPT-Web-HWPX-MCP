@@ -5139,7 +5139,7 @@ def p2_capabilities() -> dict:
     return {
         "project": core.PROJECT,
         "version": core.VERSION,
-        "phase": "P3.31",
+        "phase": core.PHASE,
         "authenticated_subject": subject,
         "tools_added": [
             "acquire_document_lease",
@@ -5226,6 +5226,12 @@ def p2_capabilities() -> dict:
             "validate_diagram_quality",
             "plan_diagram_repairs",
             "apply_diagram_repairs",
+            "get_brownfield_diagram_contract",
+            "recognize_existing_diagrams",
+            "plan_diagram_adoption",
+            "promote_diagram_candidate",
+            "plan_legacy_diagram_refactor",
+            "apply_legacy_diagram_refactor",
         ],
         "operations": [
             "replace_paragraph_text",

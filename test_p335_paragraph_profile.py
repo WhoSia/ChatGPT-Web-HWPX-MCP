@@ -9,6 +9,7 @@ from hwpx import HwpxDocument
 from p2_document import build_document_map
 from p22_formatting import apply_formatting_atomic, build_formatting_map
 from p334r2_package_validation import validate_hwpx_package_light
+from p335_corpus import build_corpus_style_profile, build_style_library
 from p335_paragraph import (
     build_document_style_exemplar,
     build_paragraph_geometry_profile,
@@ -88,6 +89,37 @@ class P335ParagraphProfileTests(unittest.TestCase):
             self.assertLess(abs(preset["first_line_indent_mm"] - 2), 0.02)
             self.assertLess(abs(preset["spacing_before_pt"] - 6), 0.02)
             self.assertLess(abs(preset["spacing_after_pt"] - 4), 0.02)
+
+    def test_corpus_profile_preserves_provenance_and_builds_candidate_library(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            a = root / "a.hwpx"
+            b = root / "b.hwpx"
+            _make(a, "기관 A 본문")
+            _make(b, "기관 B 본문")
+            profile = build_corpus_style_profile([
+                {
+                    "path": str(a),
+                    "source_id": "a",
+                    "institution": "기관A",
+                    "provenance_url": "https://example.invalid/a",
+                    "public_status": "PUBLIC_SOURCE",
+                    "license_note": "fixture",
+                },
+                {
+                    "path": str(b),
+                    "source_id": "b",
+                    "institution": "기관B",
+                    "provenance_url": "https://example.invalid/b",
+                    "public_status": "PUBLIC_SOURCE",
+                    "license_note": "fixture",
+                },
+            ])
+            self.assertEqual(profile["document_count"], 2)
+            self.assertEqual({row["source_id"] for row in profile["source_receipts"]}, {"a", "b"})
+            self.assertEqual({row["institution"] for row in profile["institution_summary"]}, {"기관A", "기관B"})
+            library = build_style_library(profile, min_documents=2, min_share=0.5)
+            self.assertTrue(all(entry["authority"].startswith("EVIDENCE_GUIDED") for entry in library["entries"]))
 
     def test_role_aware_exemplar_uses_conservative_body_fallback(self):
         with tempfile.TemporaryDirectory() as tmp:

@@ -48,7 +48,10 @@ def add_two_ellipses(path:Path):
 
 def main()->int:
     ap=argparse.ArgumentParser(); ap.add_argument("--out",default="artifacts/p334r3-group-ungroup-pack"); args=ap.parse_args()
-    root=Path(args.out); root.mkdir(parents=True,exist_ok=True)
+    root=Path(args.out)
+    if root.exists():
+        shutil.rmtree(root)
+    root.mkdir(parents=True,exist_ok=True)
     cases=[]
 
     # existing top-level -> native group

@@ -137,7 +137,7 @@ def test_unprotected_accept_reject_all_matches_native_semantics(
         current_revision=2,
         validator=validate_hwpx_package_light,
     )
-    assert result["authority"] == "P3.34-R2_CANDIDATE_UNPROTECTED_ACCEPT_REJECT_ALL"
+    assert result["authority"] == "UNPROTECTED_WHOLE_DOCUMENT_ACCEPT_REJECT_ALL"
     assert result["after_counts"]["tracked_changes"] == 0
     assert result["after_counts"]["track_change_authors"] == 0
     assert expected in _body_texts(path)

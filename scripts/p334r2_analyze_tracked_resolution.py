@@ -52,13 +52,27 @@ def archive_census(path: Path) -> dict:
                 if ln in marks:
                     marks[ln] += 1
                 lower = ln.lower()
-                if "trackchange" in lower:
+                is_track_node = "trackchange" in lower or ln == "trackchageConfig"
+                is_password_info = (
+                    ln == "config-item-set"
+                    and node.attrib.get("name") == "TrackChangePasswordInfo"
+                )
+                if is_track_node or is_password_info:
                     payload = {
                         "tag": ln,
                         "attrs": dict(sorted(node.attrib.items())),
                         "child_tags": [local(child.tag) for child in list(node)],
                     }
-                    if "encr" in lower:
+                    if is_password_info:
+                        items = {}
+                        for child in list(node):
+                            if local(child.tag) != "config-item":
+                                continue
+                            items[str(child.attrib.get("name") or "")] = {
+                                "type": child.attrib.get("type"),
+                                "value": child.text or "",
+                            }
+                        payload["password_items"] = items
                         payload["subtree_sha256"] = hashlib.sha256(
                             ET.tostring(node, encoding="utf-8")
                         ).hexdigest()
@@ -130,16 +144,28 @@ def main() -> int:
             report["header_changes_cleared"] = header_changes_cleared
             report["pass"] = resolved_text_ok and marks_cleared and header_changes_cleared
         else:
-            encryption_nodes = []
+            password_nodes = []
             for part_nodes in target_census["track_nodes"].values():
-                encryption_nodes.extend(
-                    node for node in part_nodes if "encr" in node["tag"].lower()
+                password_nodes.extend(
+                    node for node in part_nodes
+                    if node["tag"] == "config-item-set"
+                    and node.get("attrs", {}).get("name") == "TrackChangePasswordInfo"
                 )
-            report["protection_encryption_nodes"] = encryption_nodes
-            report["pass"] = bool(encryption_nodes)
-            if not encryption_nodes:
+            report["protection_password_nodes"] = password_nodes
+            report["pass"] = bool(password_nodes)
+            if password_nodes:
+                items = password_nodes[0].get("password_items", {})
+                report["protection_semantics"] = {
+                    "container": "hh:trackchageConfig/config:config-item-set",
+                    "name": "TrackChangePasswordInfo",
+                    "algorithm": items.get("algorithm-name", {}).get("value"),
+                    "spin_count": items.get("spin-count", {}).get("value"),
+                    "salt_present": bool(items.get("salt", {}).get("value")),
+                    "hash_present": bool(items.get("hash", {}).get("value")),
+                }
+            else:
                 report["note"] = (
-                    "No track-change encryption subtree observed; do not infer protection authority."
+                    "No TrackChangePasswordInfo config-item-set observed; do not infer protection authority."
                 )
 
         if not report["pass"]:

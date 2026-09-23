@@ -37,26 +37,27 @@ _FEATURES = {
     "tracked_change_resolution": {
         "family": "review",
         "ancestry": ["P3.22", "P3.34-R2"],
-        "state": "NATIVE_SEMANTICS_PASS_IMPLEMENTATION_ROUNDTRIP_REQUIRED",
-        "authority": "READ_PRESERVE_ONLY_FOR_RESOLUTION",
+        "state": "BOUNDED_PRODUCTION_AUTHORITY",
+        "authority": "UNPROTECTED_WHOLE_DOCUMENT_ACCEPT_REJECT_ALL",
         "reason": (
-            "Hancom 13.0.0.3622 native evidence closed Accept All / Reject All semantics for "
-            "P3.22-authored Insert/Delete/Replace and established TrackChangePasswordInfo protection "
-            "behavior. A bounded unprotected whole-document resolver is implemented, but production "
-            "resolution authority remains closed until implementation-generated Hancom open/save "
-            "round-trip plus inherited delivery regression pass. Protected/password resolution and "
-            "selective per-change resolution remain fail-closed."
+            "Hancom 13.0.0.3622 native resolution evidence (6/6), protected-boundary evidence "
+            "(3/3), implementation-generated open/save round-trip (4/4), family regression, "
+            "OAuth/Docker, and inherited P3.33 delivery regression establish bounded whole-document "
+            "Accept All / Reject All for simple unprotected P3.22-authored Insert/Delete/Replace. "
+            "Protected/password resolution, selective per-change resolution, mixed inline tracked "
+            "markup, and protection authoring remain fail-closed."
         ),
-        "active_probe": {
-            "resolution_cases_passed": 6,
-            "protected_boundary_cases_passed": 3,
-            "candidate_operations": [
+        "bounds": {
+            "operations": [
                 "accept_all_tracked_changes",
                 "reject_all_tracked_changes"
             ],
-            "candidate_scope": "unprotected simple P3.22 inline tracked spans only",
-            "production_resolution_authority": False,
-            "production_protection_authority": False,
+            "scope": "whole-document",
+            "protected_documents": False,
+            "header_change_types": ["INSERT", "DELETE"],
+            "simple_direct_hp_t_markers_only": True,
+            "selective_per_change": False,
+            "protection_authoring": False,
         },
     },
     "existing_group_ungroup": {

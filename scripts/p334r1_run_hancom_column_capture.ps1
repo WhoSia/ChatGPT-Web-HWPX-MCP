@@ -1,9 +1,18 @@
-param(
+﻿param(
   [string]$OutDir = "artifacts/p334r1-column-insertion-pack",
   [string]$HancomExe = ""
 )
 
 $ErrorActionPreference = "Stop"
+
+# Windows PowerShell 5.1 treats UTF-8 without BOM as the active ANSI code page.
+# Force UTF-8 for the console/pipeline and keep this script itself UTF-8 BOM.
+try { chcp 65001 > $null } catch {}
+$Utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+[Console]::InputEncoding = $Utf8NoBom
+[Console]::OutputEncoding = $Utf8NoBom
+$OutputEncoding = $Utf8NoBom
+
 $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 Set-Location $RepoRoot
 
@@ -50,7 +59,8 @@ $HancomItem = Get-Item $HancomExe
 $HancomVersion = $HancomItem.VersionInfo.ProductVersion
 if (-not $HancomVersion) { $HancomVersion = $HancomItem.VersionInfo.FileVersion }
 $ManifestPath = Join-Path $ResolvedOut "capture-manifest.json"
-$Manifest = Get-Content $ManifestPath -Raw | ConvertFrom-Json
+$ManifestJson = [IO.File]::ReadAllText($ManifestPath, [Text.Encoding]::UTF8)
+$Manifest = $ManifestJson | ConvertFrom-Json
 
 $Summary = @{
   schema = "chatgpt-web-hwpx-mcp/p3.34-r1/hancom-manual-capture/v1"

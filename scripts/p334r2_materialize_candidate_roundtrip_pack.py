@@ -13,7 +13,7 @@ if str(REPO_ROOT) not in sys.path:
 
 from hwpx import HwpxDocument
 
-import server
+from p334r2_package_validation import validate_hwpx_package_light
 from p2_document import build_document_map
 from p322_review_workflow import apply_review_workflow_atomic, build_review_workflow_map
 
@@ -102,14 +102,14 @@ def main() -> int:
             [author_op],
             expected_revision=1,
             current_revision=1,
-            validator=server.validate_hwpx_package,
+            validator=validate_hwpx_package_light,
         )
         resolution = apply_review_workflow_atomic(
             before,
             [{"op": spec["resolution_op"]}],
             expected_revision=2,
             current_revision=2,
-            validator=server.validate_hwpx_package,
+            validator=validate_hwpx_package_light,
         )
         mapped = build_review_workflow_map(before)
         body = [
@@ -121,7 +121,7 @@ def main() -> int:
             raise RuntimeError(f"{spec['id']}: candidate retained tracked metadata")
         if spec["expected"] not in body:
             raise RuntimeError(f"{spec['id']}: candidate final text mismatch")
-        if not server.validate_hwpx_package(before).get("valid", False):
+        if not validate_hwpx_package_light(before).get("valid", False):
             raise RuntimeError(f"{spec['id']}: package validation failed")
 
         item = {

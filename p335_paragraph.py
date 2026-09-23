@@ -85,8 +85,7 @@ def _margin_dimension(profile: dict, key: str):
     return _dominant(profile.get("margins", {}).get(key, []))
 
 
-def build_paragraph_geometry_profile(path: Path) -> dict:
-    mapped = build_formatting_map(path)
+def _paragraph_geometry_profile_from_paragraphs(paragraphs: list[dict]) -> dict:
     counters = {
         "alignment": Counter(),
         "line_spacing": Counter(),
@@ -101,8 +100,6 @@ def build_paragraph_geometry_profile(path: Path) -> dict:
     margins = {key: Counter() for key in ("intent", "left", "right", "prev", "next")}
     fingerprints = Counter()
     total_weight = 0
-    paragraphs = mapped.get("paragraphs", [])
-
     for para in paragraphs:
         weight = max(1, int(para.get("direct_text_length") or 0))
         total_weight += weight
@@ -172,6 +169,11 @@ def build_paragraph_geometry_profile(path: Path) -> dict:
     }
     profile["profile_sha256"] = hashlib.sha256(_stable(profile).encode("utf-8")).hexdigest()
     return profile
+
+
+def build_paragraph_geometry_profile(path: Path) -> dict:
+    mapped = build_formatting_map(path)
+    return _paragraph_geometry_profile_from_paragraphs(mapped.get("paragraphs", []))
 
 
 def compare_paragraph_geometry_profiles(left: dict, right: dict) -> dict:
@@ -329,6 +331,156 @@ def build_style_transfer_operations(
     if not operations:
         raise ValueError("Exemplar contains no safely reusable authoring dimensions")
     return operations
+
+
+def _infer_paragraph_role(para: dict) -> dict:
+    """Assign a conservative document role from explicit HWPX evidence only."""
+    container = str(para.get("container") or "unknown").lower()
+    style = para.get("style_property") or {}
+    style_name = " ".join(
+        str(value or "").lower()
+        for value in (style.get("name"), style.get("eng_name"))
+    )
+    named_roles = (
+        ("caption", ("캡션", "caption")),
+        ("footnote", ("각주", "footnote")),
+        ("header", ("머리말", "header")),
+        ("footer", ("꼬리말", "footer")),
+        ("title", ("제목", "title")),
+    )
+    for role, tokens in named_roles:
+        if any(token in style_name for token in tokens):
+            return {"role": role, "basis": "named_style", "evidence": style_name.strip()}
+
+    if container != "section-body":
+        table_tokens = ("tc", "cell", "table", "tbl")
+        role = "table_cell" if any(token in container for token in table_tokens) else "embedded"
+        return {"role": role, "basis": "container", "evidence": container}
+
+    heading = (para.get("paragraph_property") or {}).get("heading") or {}
+    heading_type = str(heading.get("type") or "").upper()
+    if heading and heading_type not in ("", "NONE"):
+        return {"role": "heading", "basis": "paragraph_heading", "evidence": dict(heading)}
+
+    return {
+        "role": "body",
+        "basis": "conservative_fallback",
+        "evidence": {
+            "style_id_ref": para.get("style_id_ref"),
+            "style_name": style.get("name"),
+        },
+    }
+
+
+def _run_authoring_preset_from_paragraphs(paragraphs: list[dict]) -> dict:
+    font_counters = {script: Counter() for script in SCRIPTS}
+    size_counter = Counter()
+    spacing_counters = {script: Counter() for script in SCRIPTS}
+    for para in paragraphs:
+        for run in para.get("runs", []):
+            text = str(run.get("text") or "")
+            if not text:
+                continue
+            weight = max(1, len(text))
+            style = run.get("style") or {}
+            for script in SCRIPTS:
+                face = (style.get("font_faces") or {}).get(script)
+                if face:
+                    font_counters[script][str(face)] += weight
+                spacing = (style.get("letter_spacing_by_script") or {}).get(script)
+                if spacing is not None:
+                    try:
+                        spacing_counters[script][int(spacing)] += weight
+                    except (TypeError, ValueError):
+                        pass
+            size = style.get("size_pt")
+            if size is not None:
+                try:
+                    size_counter[float(size)] += weight
+                except (TypeError, ValueError):
+                    pass
+
+    result: dict = {}
+    fonts = {
+        script: counter.most_common(1)[0][0]
+        for script, counter in font_counters.items()
+        if counter
+    }
+    if fonts:
+        result["font_by_script"] = fonts
+    if size_counter:
+        result["size"] = size_counter.most_common(1)[0][0]
+
+    spacing = {
+        script: counter.most_common(1)[0][0]
+        for script, counter in spacing_counters.items()
+        if counter
+    }
+    if spacing and len(set(spacing.values())) == 1:
+        value = next(iter(spacing.values()))
+        if -50 <= value <= 50:
+            result["letter_spacing"] = value
+    return result
+
+
+def build_role_aware_style_exemplars(path: Path) -> dict:
+    """Extract multiple evidence-bounded style presets instead of one document-wide dominant preset."""
+    mapped = build_formatting_map(path)
+    paragraphs = mapped.get("paragraphs", [])
+    grouped: dict[str, list[dict]] = {}
+    evidence = Counter()
+    assignments = []
+
+    for para in paragraphs:
+        inferred = _infer_paragraph_role(para)
+        role = inferred["role"]
+        grouped.setdefault(role, []).append(para)
+        evidence[(role, inferred["basis"])] += 1
+        assignments.append({
+            "locator": para.get("locator"),
+            "role": role,
+            "basis": inferred["basis"],
+            "evidence": inferred["evidence"],
+        })
+
+    roles = []
+    for role in sorted(grouped):
+        group = grouped[role]
+        paragraph_profile = _paragraph_geometry_profile_from_paragraphs(group)
+        text_weight = sum(max(1, int(para.get("direct_text_length") or 0)) for para in group)
+        roles.append({
+            "role": role,
+            "paragraph_count": len(group),
+            "weighted_characters_or_empty_paragraphs": text_weight,
+            "authoring_preset": {
+                "run_format": _run_authoring_preset_from_paragraphs(group),
+                "paragraph_format": _paragraph_authoring_preset(paragraph_profile),
+            },
+            "native_readback": {
+                "dominant_paragraph_style": (
+                    None if not paragraph_profile.get("dominant_paragraph_styles")
+                    else paragraph_profile["dominant_paragraph_styles"][0]["style"]
+                ),
+                "dominant_tab_property": _dominant(paragraph_profile.get("tab_properties", [])),
+            },
+            "paragraph_profile_sha256": paragraph_profile.get("profile_sha256"),
+        })
+
+    result = {
+        "schema": "chatgpt-web-hwpx-mcp/p3.35/role-aware-style-exemplars/v1",
+        "classification_policy": (
+            "explicit named style and structural container evidence first; "
+            "paragraph heading metadata second; otherwise conservative body fallback"
+        ),
+        "roles": roles,
+        "assignments": assignments,
+        "evidence_counts": [
+            {"role": role, "basis": basis, "paragraphs": count}
+            for (role, basis), count in sorted(evidence.items())
+        ],
+    }
+    result["profile_sha256"] = hashlib.sha256(_stable(result).encode("utf-8")).hexdigest()
+    return result
 
 
 def build_document_style_exemplar(path: Path) -> dict:

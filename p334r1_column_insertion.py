@@ -43,8 +43,8 @@ EVIDENCE = {
 def column_insertion_contract() -> dict:
     return {
         "phase": "P3.34-R1",
-        "status": "CANDIDATE_IMPLEMENTATION_COUNT1_ONLY",
-        "authority": "NO_PRODUCTION_EDIT_AUTHORITY_YET",
+        "status": "BOUNDED_PRODUCTION_AUTHORITY",
+        "authority": "COUNT1_LEFT_RIGHT_NATIVE_COLUMN_INSERTION",
         "admitted_candidate": {
             "operation": "insert_column_native_bounded",
             "directions": ["LEFT", "RIGHT"],
@@ -67,7 +67,7 @@ def column_insertion_contract() -> dict:
             "count_gt_1": "NATIVE_EVIDENCE_MISMATCH",
             "vertical_merge": "NOT_IN_NATIVE_GOLD",
             "nested_table": "OUT_OF_SCOPE",
-            "production_authority": "IMPLEMENTATION_NATIVE_OPEN_RESAVE_REQUIRED",
+            "production_authority": "PROMOTED_AFTER_IMPLEMENTATION_NATIVE_OPEN_RESAVE_PASS",
         },
         "evidence": EVIDENCE,
     }
@@ -160,8 +160,8 @@ def _nested_table_present(table) -> bool:
 def apply_bounded_column_insertion(table, table_payload: dict, op: dict) -> dict:
     """Apply the P3.34-R1 count=1 Hancom-native candidate semantics.
 
-    This is intentionally a candidate primitive only. The production MCP surface
-    must not expose it until a generated-output Hancom open/resave witness passes.
+    This primitive carries the bounded P3.34-R1 production authority established by
+    native before/after capture plus implementation-generated Hancom open/save round-trip.
     """
     count = int(op.get("count", 1))
     if count != 1:
@@ -278,5 +278,5 @@ def apply_bounded_column_insertion(table, table_payload: dict, op: dict) -> dict
         "rows_with_new_cell": inserted_rows,
         "rows_with_crossing_span_extension": crossing_rows,
         "native_evidence": "P3.34-R1_COUNT1",
-        "production_authority": "NOT_YET_PROMOTED_NATIVE_REOPEN_REQUIRED",
+        "production_authority": "COUNT1_LEFT_RIGHT_NATIVE_COLUMN_INSERTION",
     }

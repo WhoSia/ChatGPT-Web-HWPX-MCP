@@ -126,6 +126,7 @@ from p335_paragraph import (
     build_paragraph_geometry_profile,
     compare_paragraph_geometry_profiles,
     build_document_style_exemplar,
+    build_role_aware_style_exemplars,
     build_style_transfer_operations,
 )
 from p313_capture_custody import (
@@ -5838,6 +5839,19 @@ def get_document_style_exemplar(document_id: str) -> dict:
         "document_id": document_id,
         "revision": int(metadata["revision"]),
         **exemplar,
+    }
+
+
+@core.mcp.tool()
+def get_role_aware_style_exemplars(document_id: str) -> dict:
+    """Extract evidence-bounded body/title/heading/caption/table-context style presets."""
+    metadata, path = _owned_document(document_id)
+    profile = build_role_aware_style_exemplars(path)
+    return {
+        "ok": True,
+        "document_id": document_id,
+        "revision": int(metadata["revision"]),
+        **profile,
     }
 
 

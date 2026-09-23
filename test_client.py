@@ -220,6 +220,10 @@ async def main() -> None:
                 "promote_diagram_candidate",
                 "plan_legacy_diagram_refactor",
                 "apply_legacy_diagram_refactor",
+                "get_rare_feature_registry",
+                "evaluate_rare_feature_lane",
+                "plan_rare_feature_promotion",
+                "get_product_ux_regression_contract",
             }
             missing = expected - set(names)
             if missing:
@@ -229,13 +233,20 @@ async def main() -> None:
                 if "access_token" in schema_text or "passphrase" in schema_text:
                     raise RuntimeError(f"secret-bearing field leaked into tool schema: {tool.name}")
 
-            read_payload = _payload(await client.call_tool("probe_read", {"message": "P3.33 OAuth smoke test"}))
-            if not read_payload or not read_payload.get("ok") or read_payload.get("version") != "0.11.0-p3.33":
-                raise RuntimeError(f"probe_read did not expose current P3.33 product version: {read_payload}")
+            read_payload = _payload(await client.call_tool("probe_read", {"message": "P3.34 OAuth smoke test"}))
+            if not read_payload or not read_payload.get("ok") or read_payload.get("version") != "0.12.0-p3.34":
+                raise RuntimeError(f"probe_read did not expose current P3.34 product version: {read_payload}")
 
             p2_caps = _payload(await client.call_tool("p2_capabilities", {}))
-            if not p2_caps or p2_caps.get("phase") != "P3.33":
+            if not p2_caps or p2_caps.get("phase") != "P3.34":
                 raise RuntimeError(f"p2_capabilities failed: {p2_caps}")
+
+            rare_registry = _payload(await client.call_tool("get_rare_feature_registry", {}))
+            assert rare_registry["authority"] == "EVIDENCE_GATED_REGISTRY_ONLY"
+            assert rare_registry["features"]["smart_connectline"]["state"] == "BLOCKED_SEMANTIC_AMBIGUITY"
+            ux_contract = _payload(await client.call_tool("get_product_ux_regression_contract", {}))
+            assert ux_contract["policy"] == "PERIODIC_PRODUCT_UX_SMOKE"
+            assert "every production phase before closure" in ux_contract["cadence"]
 
             if not RUN_WRITE_TEST:
                 return

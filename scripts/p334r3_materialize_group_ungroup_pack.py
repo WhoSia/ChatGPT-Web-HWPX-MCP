@@ -52,6 +52,9 @@ def main()->int:
     if root.exists():
         shutil.rmtree(root)
     root.mkdir(parents=True,exist_ok=True)
+    from capture_runtime import attach_capture_runtime
+    attach_capture_runtime(root)
+
     cases=[]
 
     # existing top-level -> native group

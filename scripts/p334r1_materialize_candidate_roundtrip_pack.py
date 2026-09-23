@@ -92,6 +92,9 @@ def main() -> int:
     root = Path(args.out)
     root.mkdir(parents=True, exist_ok=True)
 
+    from capture_runtime import attach_capture_runtime
+    attach_capture_runtime(root)
+
     manifest = {
         "schema": "chatgpt-web-hwpx-mcp/p3.34-r1/candidate-roundtrip/v1",
         "phase": "P3.34-R1",

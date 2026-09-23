@@ -1,4 +1,4 @@
-﻿param(
+param([switch]$RebuildVenv, 
   [string]$OutDir = "artifacts/p334r2-tracked-resolution-pack",
   [string]$HancomExe = ""
 )
@@ -33,13 +33,9 @@ function Find-HancomExe {
   throw "Hwp.exe was not auto-detected. Re-run with -HancomExe 'C:\path\to\Hwp.exe'."
 }
 
-$Python = Get-Command python -ErrorAction SilentlyContinue
-if (-not $Python) { throw "Python 3.12+ is required." }
+. (Join-Path $PSScriptRoot "common/EnvBootstrap.ps1")
+$VenvPython = Initialize-HwpxEnvironment -RepoRoot $RepoRoot -RebuildVenv:$RebuildVenv
 
-$Venv = Join-Path $RepoRoot ".venv-p334r2"
-$VenvPython = Join-Path $Venv "Scripts\python.exe"
-if (-not (Test-Path $VenvPython)) { & $Python.Source -m venv $Venv }
-& $VenvPython -m pip install --disable-pip-version-check -q -r requirements.txt
 
 if ([IO.Path]::IsPathRooted($OutDir)) { $ResolvedOut = $OutDir }
 else { $ResolvedOut = Join-Path $RepoRoot $OutDir }

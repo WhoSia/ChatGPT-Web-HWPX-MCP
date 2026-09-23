@@ -44,6 +44,8 @@ def snapshot(path:Path)->dict:
 def main()->int:
     ap=argparse.ArgumentParser();ap.add_argument("--out",default="artifacts/p334r3-candidate-roundtrip-pack");args=ap.parse_args()
     root=Path(args.out);root.mkdir(parents=True,exist_ok=True)
+    from capture_runtime import attach_capture_runtime
+    attach_capture_runtime(root)
     cases=[]
 
     d=root/"candidate-group-existing";d.mkdir(exist_ok=True);p=d/"candidate-before-hancom.hwpx";base(p);add_two_ellipses(p)

@@ -69,9 +69,9 @@ def test_p334r2_candidate_roundtrip_analyzer_direct_script_on_unchanged_copies(t
         check=True,
         env=env,
     )
-    for case_dir in out.iterdir():
-        if not case_dir.is_dir():
-            continue
+    manifest = json.loads((out / "roundtrip-manifest.json").read_text(encoding="utf-8"))
+    for case in manifest["cases"]:
+        case_dir = out / case["id"]
         before = case_dir / "candidate-before-hancom.hwpx"
         after = case_dir / "candidate-after-hancom.hwpx"
         after.write_bytes(before.read_bytes())

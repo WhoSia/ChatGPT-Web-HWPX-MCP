@@ -173,6 +173,8 @@ def select_boundary_candidate(candidates: list[dict]) -> dict:
 def materialize_pre_hancom_pack(out_dir: Path) -> dict:
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
+    from capture_runtime import attach_capture_runtime
+    attach_capture_runtime(out_dir)
 
     text = _fixture_text()
     fixture_specs = [

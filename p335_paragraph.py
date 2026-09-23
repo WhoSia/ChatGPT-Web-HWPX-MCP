@@ -434,13 +434,20 @@ def build_role_aware_style_exemplars(path: Path) -> dict:
     for para in paragraphs:
         inferred = _infer_paragraph_role(para)
         role = inferred["role"]
-        grouped.setdefault(role, []).append(para)
+        # Empty structural anchors (including HwpxDocument.new's initial
+        # paragraph) are not evidence for a textual role's style. Retain the
+        # assignment for geometry/custody, but exclude it from exemplar support.
+        included = any(str(run.get("text") or "").strip() for run in para.get("runs", []))
+        if included:
+            grouped.setdefault(role, []).append(para)
         evidence[(role, inferred["basis"])] += 1
         assignments.append({
             "locator": para.get("locator"),
             "role": role,
             "basis": inferred["basis"],
             "evidence": inferred["evidence"],
+            "included_in_exemplar": included,
+            "exclusion_reason": None if included else "EMPTY_OR_WHITESPACE_STRUCTURAL_PARAGRAPH",
         })
 
     roles = []
@@ -473,6 +480,8 @@ def build_role_aware_style_exemplars(path: Path) -> dict:
             "paragraph heading metadata second; otherwise conservative body fallback"
         ),
         "roles": roles,
+        "structural_paragraph_count": len(paragraphs),
+        "excluded_empty_paragraph_count": sum(not row["included_in_exemplar"] for row in assignments),
         "assignments": assignments,
         "evidence_counts": [
             {"role": role, "basis": basis, "paragraphs": count}

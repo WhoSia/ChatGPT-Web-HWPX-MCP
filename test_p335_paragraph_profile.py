@@ -132,6 +132,17 @@ class P335ParagraphProfileTests(unittest.TestCase):
             assignment = next(item for item in profile["assignments"] if item["locator"] == loc)
             self.assertEqual(assignment["role"], "body")
             self.assertEqual(assignment["basis"], "conservative_fallback")
+            self.assertTrue(assignment["included_in_exemplar"])
+            self.assertEqual(profile["structural_paragraph_count"], 2)
+            self.assertEqual(profile["excluded_empty_paragraph_count"], 1)
+
+    def test_empty_document_and_whitespace_do_not_supply_role_support(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "empty.hwpx"
+            _make(path, "   ")
+            profile = build_role_aware_style_exemplars(path)
+            self.assertEqual(profile["roles"], [])
+            self.assertEqual(profile["excluded_empty_paragraph_count"], 2)
 
     def test_style_exemplar_compiles_to_existing_atomic_formatting_operations(self):
         with tempfile.TemporaryDirectory() as tmp:

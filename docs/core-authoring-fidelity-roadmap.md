@@ -117,3 +117,18 @@ systematic Hancom-native fidelity certification and better bounded semantics.
 
 Rare-feature lanes remain available, but they are now secondary unless they block
 normal document authoring.
+
+
+## Public-document corpus intelligence
+
+For future fidelity work, prefer real-world HWPX corpora over repeated one-off manual probes when the native semantics are already structurally identifiable.
+
+Preferred evidence stack:
+
+1. public-sector HWPX documents from Korean public institutions;
+2. XML census of typography, paragraph, table, page-layout, object and style patterns;
+3. document-level visual/aesthetic review to distinguish merely valid XML from high-quality authoring;
+4. PDF comparison controls for the same source document when available or user-generated on request;
+5. targeted Hancom before/after probes only for semantics that remain ambiguous after corpus analysis.
+
+P3.35 typography profiles are the first machine-readable layer for this corpus approach. Later phases should extend the same idea to paragraph geometry, tables, layout and object composition, eventually producing reusable exemplar/style profiles rather than isolated low-level edits.

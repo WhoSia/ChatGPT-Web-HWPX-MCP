@@ -232,7 +232,7 @@ def resolve_all_tracked_changes(path: Path, *, decision: str) -> dict[str, Any]:
         "resolved_header_changes": len(state["changes"]),
         "removed_track_change_authors": state["authors_count"],
         **section_receipt,
-        "authority": "P3.34-R2_CANDIDATE_UNPROTECTED_ACCEPT_REJECT_ALL",
+        "authority": "UNPROTECTED_WHOLE_DOCUMENT_ACCEPT_REJECT_ALL",
         "holds": [
             "selective_per_change_resolution",
             "protected_resolution_password_verification",

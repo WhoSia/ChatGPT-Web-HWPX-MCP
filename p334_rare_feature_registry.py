@@ -30,8 +30,8 @@ _FEATURES = {
             "operation": "insert_column_native_bounded",
             "directions": ["LEFT", "RIGHT"],
             "count": 1,
-            "vertical_merge": false,
-            "nested_table": false
+            "vertical_merge": False,
+            "nested_table": False
         },
     },
     "tracked_change_resolution": {

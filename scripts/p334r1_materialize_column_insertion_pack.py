@@ -4,7 +4,10 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import sys
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from hwpx import HwpxDocument
 
@@ -95,6 +98,9 @@ def main() -> int:
     args = ap.parse_args()
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
+
+    from capture_runtime import attach_capture_runtime
+    attach_capture_runtime(out)
 
     manifest = {
         "schema": "chatgpt-web-hwpx-mcp/p3.34-r1/column-insertion-capture/v1",

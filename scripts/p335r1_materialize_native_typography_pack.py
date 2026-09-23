@@ -44,6 +44,9 @@ def main()->int:
         shutil.rmtree(root)
     root.mkdir(parents=True,exist_ok=True)
 
+    from capture_runtime import attach_capture_runtime
+    attach_capture_runtime(root)
+
     manifest={
         "schema":"chatgpt-web-hwpx-mcp/p3.35-r1/native-typography/v1",
         "phase":"P3.35-R1",

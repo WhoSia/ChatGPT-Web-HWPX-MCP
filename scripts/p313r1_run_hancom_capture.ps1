@@ -1,4 +1,4 @@
-param(
+param([switch]$RebuildVenv, 
   [string]$HancomExe = "",
   [string]$OutDir = "artifacts/p313r1-hancom-capture-pack",
   [int]$Dpi = 144,
@@ -127,15 +127,9 @@ function Export-HancomPdfWithRetry {
   if ($lastError) { throw $lastError }
 }
 
-$Python = Get-Command python -ErrorAction SilentlyContinue
-if (-not $Python) { throw "Python 3.12+ is required." }
+. (Join-Path $PSScriptRoot "common/EnvBootstrap.ps1")
+$VenvPython = Initialize-HwpxEnvironment -RepoRoot $RepoRoot -RebuildVenv:$RebuildVenv
 
-$Venv = Join-Path $RepoRoot ".venv-p313r1"
-$VenvPython = Join-Path $Venv "Scripts\python.exe"
-if (-not (Test-Path $VenvPython)) {
-  & $Python.Source -m venv $Venv
-}
-& $VenvPython -m pip install --disable-pip-version-check -q -r requirements.txt -r requirements-capture.txt
 
 if ([IO.Path]::IsPathRooted($OutDir)) {
   $ResolvedOut = $OutDir

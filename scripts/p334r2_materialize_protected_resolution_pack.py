@@ -40,6 +40,9 @@ def main() -> int:
         )
     out.mkdir(parents=True, exist_ok=True)
 
+    from capture_runtime import attach_capture_runtime
+    attach_capture_runtime(out)
+
     mapped = build_review_workflow_map(source)
     if mapped["counts"]["tracked_changes"] != 1:
         raise RuntimeError("Protected source must contain exactly one unresolved tracked change")

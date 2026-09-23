@@ -1,4 +1,4 @@
-param(
+param([switch]$RebuildVenv, 
   [string]$FirstPack = "artifacts/p313r1-hancom-capture-pack",
   [string]$OutRoot = "artifacts/p315-cross-version",
   [string]$SecondHancomExe = "",
@@ -184,11 +184,8 @@ if ($FontB0.font_file_custody_sha256 -ne $FontB1.font_file_custody_sha256) {
   throw "Version B font-file custody changed during replay."
 }
 
-$Venv = Join-Path $RepoRoot ".venv-p313r1"
-$VenvPython = Join-Path $Venv "Scripts\python.exe"
-if (-not (Test-Path $VenvPython)) {
-  throw "Capture virtual environment missing after replay."
-}
+. (Join-Path $PSScriptRoot "common/EnvBootstrap.ps1")
+$VenvPython = Initialize-HwpxEnvironment -RepoRoot $RepoRoot -RebuildVenv:$RebuildVenv
 
 $Receipt = Join-Path $OutResolved "p315-cross-version-replay.json"
 & $VenvPython scripts/p315_build_cross_version_replay.py `

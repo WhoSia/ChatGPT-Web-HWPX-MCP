@@ -1,4 +1,4 @@
-﻿param([string]$OutDir="artifacts/p334r3-group-ungroup-pack",[string]$HancomExe="")
+param([switch]$RebuildVenv, [string]$OutDir="artifacts/p334r3-group-ungroup-pack",[string]$HancomExe="")
 $ErrorActionPreference="Stop"
 try { chcp 65001 > $null } catch {}
 $Utf8NoBom=New-Object System.Text.UTF8Encoding($false)
@@ -11,10 +11,9 @@ function Find-HancomExe([string]$Explicit){
  foreach($r in $roots){$hit=Get-ChildItem $r -Filter Hwp.exe -File -Recurse -ErrorAction SilentlyContinue|Select-Object -First 1;if($hit){return $hit.FullName}}
  throw "Hwp.exe not found."
 }
-$Py=(Get-Command python).Source
-$Venv=Join-Path $RepoRoot ".venv-p334r3"; $VP=Join-Path $Venv "Scripts\python.exe"
-if(-not(Test-Path $VP)){& $Py -m venv $Venv}
-& $VP -m pip install --disable-pip-version-check -q -r requirements.txt
+. (Join-Path $PSScriptRoot "common/EnvBootstrap.ps1")
+$VP = Initialize-HwpxEnvironment -RepoRoot $RepoRoot -RebuildVenv:$RebuildVenv
+
 $ResolvedOut=if([IO.Path]::IsPathRooted($OutDir)){$OutDir}else{Join-Path $RepoRoot $OutDir}
 & $VP scripts/p334r3_materialize_group_ungroup_pack.py --out $ResolvedOut
 if($LASTEXITCODE -ne 0){throw "R3 materialization failed"}

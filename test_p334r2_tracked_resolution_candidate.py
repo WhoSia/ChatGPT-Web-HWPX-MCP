@@ -141,7 +141,7 @@ def test_unprotected_accept_reject_all_matches_native_semantics(
     assert result["after_counts"]["tracked_changes"] == 0
     assert result["after_counts"]["track_change_authors"] == 0
     assert expected in _body_texts(path)
-    assert server.validate_hwpx_package(path)["ok"] is True
+    assert server.validate_hwpx_package(path)["valid"] is True
 
 
 def test_protected_resolution_fails_closed_without_mutating_bytes(tmp_path: Path):

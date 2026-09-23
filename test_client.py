@@ -302,6 +302,42 @@ async def main() -> None:
             assert delivered_ingest["admission"] == "PASS"
             renewed = _payload(await client.call_tool("deliver_document", {"document_id": delivery_id, "revision": 1}))
             assert renewed["sha256"] == delivery["sha256"]
+            # R4: immutable revision intake -> candidate -> existing atomic
+            # formatting -> real downloadable bytes. Leave provenance excluded.
+            source_id = "r4-smoke-" + delivery_id
+            registered = _payload(await client.call_tool("register_corpus_source", {
+                "metadata": {"source_id": source_id, "original_filename": "oauth-smoke.hwpx",
+                             "institution": "synthetic OAuth regression", "source_family": "regression",
+                             "retrieved_at": "2026-09-23T00:00:00Z",
+                             "access_status": "LOCALLY_GENERATED_NATIVE_EVIDENCE"},
+                "document_id": delivery_id,
+            }))
+            assert registered["source"]["parser_status"] == "PASS"
+            assert registered["source"]["document_revision"] == 2
+            selection = {"mode": "EXPLICIT_EXEMPLAR", "source_id": source_id}
+            templates = _payload(await client.call_tool("synthesize_corpus_templates", selection))
+            candidate = templates["items"][0]
+            planned_transfer = _payload(await client.call_tool("plan_corpus_template_transfer", {
+                "target_document_id": delivery_id, "template_sha256": candidate["template_sha256"],
+                "source_corpus_sha256": templates["source_corpus_sha256"],
+                "targets_by_role": {"body": [target]}, "selection": selection,
+            }))
+            applied_transfer = _payload(await client.call_tool("apply_formatting", {
+                "document_id": delivery_id, "expected_revision": planned_transfer["expected_revision"],
+                "operations": planned_transfer["operations"],
+            }))
+            assert applied_transfer["revision_after"] == 3
+            styled = _payload(await client.call_tool("deliver_document", {"document_id": delivery_id}))
+            async with httpx2.AsyncClient(timeout=60) as download_client:
+                actual = await download_client.get(styled["download_url"])
+                actual.raise_for_status()
+                assert hashlib.sha256(actual.content).hexdigest() == styled["sha256"]
+            excluded = _payload(await client.call_tool("set_corpus_inclusion", {
+                "source_id": source_id, "included": False, "reason": "Completed synthetic OAuth regression",
+                "expected_receipt": registered["source"]["source_receipt_sha256"],
+            }))
+            assert excluded["source"]["inclusion_status"] == "EXCLUDED"
+            print("P3.35-R4 OAuth intake -> template -> CAS formatting -> artifact download PASS")
             for delivered_id in (delivery_id, delivered_ingest["document_id"]):
                 await client.call_tool("delete_document", {"document_id": delivered_id})
             print("P3.33 OAuth generate/edit/resource-link/download/exact-revision/re-ingest PASS")

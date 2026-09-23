@@ -68,6 +68,9 @@ def build_typography_profile(path: Path) -> dict:
     size = Counter()
     spacing = {script: Counter() for script in SCRIPTS}
     ratio = {script: Counter() for script in SCRIPTS}
+    relative_size = {script: Counter() for script in SCRIPTS}
+    offset = {script: Counter() for script in SCRIPTS}
+    colors = Counter()
     fonts = {script: Counter() for script in SCRIPTS}
     emphasis = {
         "bold": 0,
@@ -97,11 +100,16 @@ def build_typography_profile(path: Path) -> dict:
             faces = style.get("font_faces") or {}
             spaces = style.get("letter_spacing_by_script") or {}
             ratios = style.get("ratio_by_script") or {}
+            relatives = style.get("relative_size_by_script") or {}
+            offsets = style.get("offset_by_script") or {}
+            _inc(colors, style.get("text_color"), weight)
 
             for script in SCRIPTS:
                 _inc(fonts[script], faces.get(script), weight)
                 _inc(spacing[script], spaces.get(script), weight)
                 _inc(ratio[script], ratios.get(script), weight)
+                _inc(relative_size[script], relatives.get(script), weight)
+                _inc(offset[script], offsets.get(script), weight)
 
             for key in emphasis:
                 if style.get(key):
@@ -147,6 +155,9 @@ def build_typography_profile(path: Path) -> dict:
         "font_sizes_pt": _counter_rows(size),
         "letter_spacing_by_script": {script: _counter_rows(spacing[script]) for script in SCRIPTS},
         "ratio_by_script": {script: _counter_rows(ratio[script]) for script in SCRIPTS},
+        "relative_size_by_script": {script: _counter_rows(relative_size[script]) for script in SCRIPTS},
+        "offset_by_script": {script: _counter_rows(offset[script]) for script in SCRIPTS},
+        "text_colors": _counter_rows(colors),
         "emphasis_character_counts": emphasis,
         "dominant_run_styles": dominant_styles,
     }

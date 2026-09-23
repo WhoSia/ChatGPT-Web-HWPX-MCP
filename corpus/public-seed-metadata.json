@@ -1,0 +1,40 @@
+[
+  {
+    "source_id": "mois-123661-announcement",
+    "original_filename": "(붙임1) 2026년 사회연대경제 혁신모델_공모 공고문.hwpx",
+    "title": "2026년 사회연대경제 혁신모델 발굴 및 확산 사업 공모 안내",
+    "institution": "행정안전부",
+    "source_family": "public-program-announcement",
+    "source_url": "https://www.mois.go.kr/frt/bbs/type013/commonSelectBoardArticle.do?bbsId=BBSMSTR_000000000006&nttId=123661",
+    "retrieved_at": "2026-09-23T21:10:53Z",
+    "access_status": "PUBLICLY_ACCESSIBLE",
+    "license_kind": "UNKNOWN",
+    "provenance_notes": "Official listing observed 2026-09-24 KST with HWPX 227.7 KB and PDF 1.4 MB attachments. Page observation only; binary retrieval not established. The timestamp records this metadata intake, not a binary download. No source-specific reuse statement confirmed. PDF bytes and renderer remain unobserved."
+  },
+  {
+    "source_id": "moe-107075-press-release",
+    "original_filename": "[교육부 09-01(화) 조간보도자료] 교육부-한국항공우주산업 업무협약식 및 고졸 채용설명회 개최.hwpx",
+    "title": "교육부-한국항공우주산업 업무협약식 및 고졸 채용설명회 개최",
+    "institution": "교육부",
+    "source_family": "press-release",
+    "source_url": "https://www.moe.go.kr/boardCnts/viewRenew.do?boardID=294&boardSeq=107075&lev=0&m=020402&opType=N&page=1&s=moe&searchType=null&statusYN=W",
+    "retrieved_at": "2026-09-23T21:10:53Z",
+    "access_status": "PUBLICLY_ACCESSIBLE",
+    "license_kind": "EXPLICIT_OPEN_LICENSE",
+    "license_statement": "Official page states 공공누리 출처표시 for this named work; attribution condition applies.",
+    "license_url": "https://www.moe.go.kr/boardCnts/viewRenew.do?boardID=294&boardSeq=107075&lev=0&m=020402&opType=N&page=1&s=moe&searchType=null&statusYN=W",
+    "provenance_notes": "Official HWPX attachment listing 580.5 KB and work-specific attribution notice observed. Page observation only; no binary SHA or parser/native claim. Redistribution is not performed by the registry."
+  },
+  {
+    "source_id": "mcst-18567-world-writing-museum",
+    "original_filename": "공고서.hwpx",
+    "title": "2026년 교육 프로그램 개발 및 운영 용역",
+    "institution": "재단법인국립세계문자박물관",
+    "source_family": "public-procurement-announcement",
+    "source_url": "https://www.mcst.go.kr/site/s_notice/notice/bidView.jsp?pSeq=18567",
+    "retrieved_at": "2026-09-23T21:10:53Z",
+    "access_status": "PUBLICLY_ACCESSIBLE",
+    "license_kind": "UNKNOWN",
+    "provenance_notes": "Published on the Ministry of Culture site. Official page identifies museum as responsible institution and lists HWPX 114 KB plus PDF 299 KB. Metadata only: no binary download/hash, renderer or source-specific reuse terms established. Generic site copyright links are not a license for this attachment."
+  }
+]

@@ -704,6 +704,7 @@ async def health(_request):
     return JSONResponse(
         {
             "status": "ok" if durable_ok else "degraded",
+            "release_commit": os.environ.get("RENDER_GIT_COMMIT", ""),
             "project": PROJECT,
             "version": VERSION,
             "phase": PHASE,

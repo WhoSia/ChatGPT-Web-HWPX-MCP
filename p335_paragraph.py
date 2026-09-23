@@ -353,6 +353,9 @@ def _infer_paragraph_role(para: dict) -> dict:
             return {"role": role, "basis": "named_style", "evidence": style_name.strip()}
 
     if container != "section-body":
+        for name in ("header", "footer", "footnote", "endnote"):
+            if name in container:
+                return {"role": name, "basis": "container", "evidence": container}
         table_tokens = ("tc", "cell", "table", "tbl")
         role = "table_cell" if any(token in container for token in table_tokens) else "embedded"
         return {"role": role, "basis": "container", "evidence": container}

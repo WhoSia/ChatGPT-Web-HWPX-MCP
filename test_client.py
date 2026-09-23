@@ -224,6 +224,9 @@ async def main() -> None:
                 "evaluate_rare_feature_lane",
                 "plan_rare_feature_promotion",
                 "get_product_ux_regression_contract",
+                "get_typography_contract",
+                "get_typography_profile",
+                "compare_typography_profiles",
             }
             missing = expected - set(names)
             if missing:
@@ -240,6 +243,15 @@ async def main() -> None:
             p2_caps = _payload(await client.call_tool("p2_capabilities", {}))
             if not p2_caps or p2_caps.get("phase") != "P3.35":
                 raise RuntimeError(f"p2_capabilities failed: {p2_caps}")
+
+            typography_contract = _payload(await client.call_tool("get_typography_contract", {}))
+            if (
+                not typography_contract
+                or typography_contract.get("character_spacing_percent", {}).get("min") != -50
+                or typography_contract.get("character_spacing_percent", {}).get("max") != 50
+                or "font_by_script" != typography_contract.get("font_model", {}).get("script_specific_face_key")
+            ):
+                raise RuntimeError(f"P3.35 typography contract failed: {typography_contract}")
 
             rare_registry = _payload(await client.call_tool("get_rare_feature_registry", {}))
             assert rare_registry["authority"] == "EVIDENCE_GATED_REGISTRY_ONLY"

@@ -9,7 +9,7 @@ import pytest
 from lxml import etree
 from hwpx import HwpxDocument
 
-import server
+from p334r2_package_validation import validate_hwpx_package_light
 from p2_document import build_document_map
 from p322_review_workflow import apply_review_workflow_atomic, build_review_workflow_map
 
@@ -17,7 +17,7 @@ from p322_review_workflow import apply_review_workflow_atomic, build_review_work
 HH_NS = "http://www.hancom.co.kr/hwpml/2011/head"
 CONFIG_NS = "urn:oasis:names:tc:opendocument:xmlns:config:1.0"
 HH = f"{{{HH_NS}}}"
-CONFIG = f"{{{CONFIG_NS}}"
+CONFIG = f"{{{CONFIG_NS}}}"
 
 
 def _make(path: Path, text: str) -> str:
@@ -125,7 +125,7 @@ def test_unprotected_accept_reject_all_matches_native_semantics(
         [op],
         expected_revision=1,
         current_revision=1,
-        validator=server.validate_hwpx_package,
+        validator=validate_hwpx_package_light,
     )
     tracked = build_review_workflow_map(path)
     assert tracked["counts"]["tracked_changes"] in {1, 2}
@@ -135,13 +135,13 @@ def test_unprotected_accept_reject_all_matches_native_semantics(
         [{"op": resolution_op}],
         expected_revision=2,
         current_revision=2,
-        validator=server.validate_hwpx_package,
+        validator=validate_hwpx_package_light,
     )
     assert result["authority"] == "P3.34-R2_CANDIDATE_UNPROTECTED_ACCEPT_REJECT_ALL"
     assert result["after_counts"]["tracked_changes"] == 0
     assert result["after_counts"]["track_change_authors"] == 0
     assert expected in _body_texts(path)
-    assert server.validate_hwpx_package(path)["valid"] is True
+    assert validate_hwpx_package_light(path)["valid"] is True
 
 
 def test_protected_resolution_fails_closed_without_mutating_bytes(tmp_path: Path):

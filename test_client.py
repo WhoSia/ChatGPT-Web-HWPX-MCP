@@ -229,16 +229,55 @@ async def main() -> None:
                 if "access_token" in schema_text or "passphrase" in schema_text:
                     raise RuntimeError(f"secret-bearing field leaked into tool schema: {tool.name}")
 
-            read_payload = _payload(await client.call_tool("probe_read", {"message": "P3.32 OAuth smoke test"}))
-            if not read_payload or not read_payload.get("ok") or read_payload.get("version") != "0.10.0-p3.32":
-                raise RuntimeError(f"probe_read did not expose current P3.32 product version: {read_payload}")
+            read_payload = _payload(await client.call_tool("probe_read", {"message": "P3.33 OAuth smoke test"}))
+            if not read_payload or not read_payload.get("ok") or read_payload.get("version") != "0.11.0-p3.33":
+                raise RuntimeError(f"probe_read did not expose current P3.33 product version: {read_payload}")
 
             p2_caps = _payload(await client.call_tool("p2_capabilities", {}))
-            if not p2_caps or p2_caps.get("phase") != "P3.32":
+            if not p2_caps or p2_caps.get("phase") != "P3.33":
                 raise RuntimeError(f"p2_capabilities failed: {p2_caps}")
 
             if not RUN_WRITE_TEST:
                 return
+
+            delivery_contract = _payload(await client.call_tool("get_document_delivery_contract", {}))
+            assert delivery_contract["evidence_gates"]["rare_features"]["status"] == "EVIDENCE_GATE_CLOSED"
+            delivered = await client.call_tool("generate_document", {
+                "plan": {"blocks": [{"type": "paragraph", "text": "P3.33 original"}]},
+                "filename": "파일 전달 검증.hwpx", "request_id": "p333-oauth-delivery",
+            })
+            delivery = _payload(delivered)
+            assert delivery["ok"] and delivery["revision"] == 1
+            assert any(block.type == "resource_link" for block in delivered.content)
+            delivery_id = delivery["document_id"]
+            async with httpx2.AsyncClient(timeout=60) as download_client:
+                original = await download_client.get(delivery["download_url"])
+                original.raise_for_status()
+                assert hashlib.sha256(original.content).hexdigest() == delivery["sha256"]
+                assert "attachment" in original.headers["content-disposition"]
+                mapped_delivery = _payload(await client.call_tool("get_document_map", {"document_id": delivery_id}))
+                target = next(p["locator"] for p in mapped_delivery["paragraphs"] if p["text"] == "P3.33 original")
+                edited_delivery = _payload(await client.call_tool("edit_document_and_deliver", {
+                    "document_id": delivery_id, "expected_revision": 1,
+                    "operations": [{"op": "replace_paragraph_text", "target": target, "text": "P3.33 edited"}],
+                }))
+                assert edited_delivery["ok"] and edited_delivery["revision"] == 2
+                old_download = await download_client.get(delivery["download_url"])
+                assert old_download.content == original.content
+                edited_download = await download_client.get(edited_delivery["download_url"])
+                edited_download.raise_for_status()
+                assert hashlib.sha256(edited_download.content).hexdigest() == edited_delivery["sha256"]
+                forged = await download_client.get(delivery["download_url"].replace("rev=1", "rev=2"))
+                assert forged.status_code == 403
+            delivered_ingest = _payload(await client.call_tool("ingest_document", {
+                "filename": "delivery-reingest.hwpx", "content_base64": base64.b64encode(edited_download.content).decode(),
+            }))
+            assert delivered_ingest["admission"] == "PASS"
+            renewed = _payload(await client.call_tool("deliver_document", {"document_id": delivery_id, "revision": 1}))
+            assert renewed["sha256"] == delivery["sha256"]
+            for delivered_id in (delivery_id, delivered_ingest["document_id"]):
+                await client.call_tool("delete_document", {"document_id": delivered_id})
+            print("P3.33 OAuth generate/edit/resource-link/download/exact-revision/re-ingest PASS")
 
             plan_checked = _payload(await client.call_tool("validate_document_plan", {
                 "plan": {

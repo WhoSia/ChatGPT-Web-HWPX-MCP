@@ -20,6 +20,42 @@ Historical phase ledgers, support packets, adjudication narratives, and long-for
 
 ## Main capabilities
 
+### Download an HWPX from a natural-language request (P3.33)
+
+The assistant translates the request into the existing P3.21 composition plan and
+calls `generate_document`. The call creates, validates, exports and returns a named
+`.hwpx` MCP resource link plus a clickable download link. `get_document_delivery_contract`
+includes the plan schema and recovery contract. No new document or graph engine is used.
+
+For existing documents, `edit_document_and_deliver` combines the existing atomic
+text/paragraph edits with delivery. All other native editing families retain their
+existing APIs; finish with `deliver_document`. Existing `export_document` also returns
+the file/link, with its prior JSON receipt fields retained in `structuredContent`.
+
+Downloads bind the document ID, revision, SHA-256 and expiry into a signed URL.
+They read immutable revision bytes from encrypted Postgres, not mutable cache files.
+Editing a document after export cannot silently change an already issued download.
+Links expire after 60–900 seconds and document deletion/retention still applies.
+Call `deliver_document` to renew a link; do not repeat an edit to repair delivery.
+If a write commits but delivery fails, the result explicitly reports `COMMITTED`
+and `RETRY_DELIVERY_ONLY` with the recoverable document ID and revision.
+
+MCP resource delivery, a successful HTTP attachment download, ChatGPT's native
+attachment rendering, and Hancom open/resave are separate evidence gates. The server
+does not claim the latter two were observed. Clients without resource-link UI can
+present the returned Markdown download link. See the
+[OpenAI plugin result contract](https://developers.openai.com/plugins/reference)
+for host result handling; no undocumented attachment metadata is invented.
+
+Rare native features remain in an independent capability/evidence lane exposed by
+the delivery contract. Promotion requires native evidence, family regressions and
+the primary delivery/OAuth/Docker gates. Optional Notion/Drive/GitHub integrations
+must not become dependencies of ordinary document creation or download.
+
+Skill-Workshop 2.4.4 routing used for this release: FORGE for bounded artifacts/tests,
+TRACE for actual capability use and delivery evidence. The runtime has no dependency
+on a developer's local `.agents` directory or external skills being installed.
+
 ### Authenticated document lifecycle
 
 - OAuth-protected MCP transport

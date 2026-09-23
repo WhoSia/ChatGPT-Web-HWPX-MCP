@@ -12,7 +12,14 @@ from p322_review_workflow import build_review_workflow_map
 
 def _env():
     env = dict(os.environ)
-    env.pop("PYTHONPATH", None)
+    for key in (
+        "PYTHONPATH",
+        "P12_AUTH_DATABASE_URL",
+        "P12_STATE_SECRET",
+        "P30_DOCUMENT_DATABASE_URL",
+        "P11_OAUTH_PASSPHRASE",
+    ):
+        env.pop(key, None)
     return env
 
 

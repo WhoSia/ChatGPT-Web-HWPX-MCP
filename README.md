@@ -20,6 +20,37 @@ Historical phase ledgers, support packets, adjudication narratives, and long-for
 
 ## Main capabilities
 
+### Evidence-gated rare-feature lanes and recurring UX guard (P3.34)
+
+P3.34 does not silently promote every deferred native feature. It adds a
+machine-readable registry that separates feature ancestry, current authority,
+evidence requirements, and blocked semantics.
+
+Production discovery surfaces:
+
+- `get_rare_feature_registry`
+- `evaluate_rare_feature_lane`
+- `plan_rare_feature_promotion`
+- `get_product_ux_regression_contract`
+
+A promotion plan is only emitted after semantic contract, structural fixture,
+native open/resave or render evidence, family regression, and primary
+file-delivery regression are all present. The plan itself never changes
+editing authority.
+
+Known ambiguous semantics remain blocked even if callers claim all Boolean
+evidence. In particular, smart `hp:connectLine` authoring remains preserve-only
+because the available anchored native sample does not identify a reversible
+geometry/transform rule. Static P3.29 managed edges remain the production
+contract until stronger evidence exists.
+
+The P3.33 user experience is now a recurring regression obligation rather than
+a one-off milestone. Every production phase, and every plugin/package or host
+UX change, must recheck OAuth discovery, validated revision-bound HWPX
+delivery, download-byte receipt matching, and periodic Hancom open/resave
+sanity. Host attachment-card rendering and in-place chat tool-catalog refresh
+remain separately observed host behaviors.
+
 ### Download an HWPX from a natural-language request (P3.33)
 
 The assistant translates the request into the existing P3.21 composition plan and

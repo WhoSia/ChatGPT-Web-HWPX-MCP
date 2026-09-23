@@ -110,6 +110,12 @@ from p332_brownfield_diagrams import (
     plan_legacy_diagram_refactor as plan_p332_legacy_refactor,
     apply_legacy_diagram_refactor_atomic,
 )
+from p334_rare_feature_registry import (
+    rare_feature_registry,
+    evaluate_rare_feature as evaluate_p334_rare_feature,
+    plan_rare_feature_promotion as plan_p334_rare_feature_promotion,
+    ux_regression_contract as p334_ux_regression_contract,
+)
 from p313_capture_custody import (
     near_wrap_positive_sensitivity_spec,
     validate_artifact_custody,
@@ -135,9 +141,9 @@ from common_ir import (
     slice_common_ir,
 )
 
-P2_VERSION = "0.11.0-p3.33"
+P2_VERSION = "0.12.0-p3.34"
 core.VERSION = P2_VERSION
-core.PHASE = "P3.33"
+core.PHASE = "P3.34"
 
 _original_metadata = core._metadata
 
@@ -5142,6 +5148,10 @@ def p2_capabilities() -> dict:
         "phase": core.PHASE,
         "authenticated_subject": subject,
         "tools_added": [
+            "get_rare_feature_registry",
+            "evaluate_rare_feature_lane",
+            "plan_rare_feature_promotion",
+            "get_product_ux_regression_contract",
             "get_document_delivery_contract",
             "generate_document",
             "edit_document_and_deliver",
@@ -5729,6 +5739,39 @@ def apply_legacy_diagram_refactor(
         "authority": "STRUCTURAL_BROWNFIELD_DIAGRAM_ADOPTION_AUTHORITY_ONLY",
         "native_render_batch_status": "DEFERRED_BY_DESIGN",
     }
+
+
+
+@core.mcp.tool()
+def get_rare_feature_registry() -> dict:
+    """Return P3.34 machine-readable rare-feature lanes, evidence gates and UX guard."""
+    core._caller_subject()
+    return {"ok": True, **rare_feature_registry()}
+
+
+@core.mcp.tool()
+def evaluate_rare_feature_lane(feature: str, evidence: dict | None = None) -> dict:
+    """Evaluate one rare-feature lane without changing document or capability authority."""
+    core._caller_subject()
+    return {"ok": True, **evaluate_p334_rare_feature(feature, evidence)}
+
+
+@core.mcp.tool()
+def plan_rare_feature_promotion(feature: str, evidence: dict) -> dict:
+    """Seal a bounded promotion plan only after every P3.34 evidence gate passes.
+
+    This tool never changes editing authority by itself. The family operation must still
+    be implemented and pass its own regression, OAuth/Docker and P3.33 delivery UX smoke.
+    """
+    core._caller_subject()
+    return {"ok": True, **plan_p334_rare_feature_promotion(feature, evidence)}
+
+
+@core.mcp.tool()
+def get_product_ux_regression_contract() -> dict:
+    """Return the recurring ChatGPT/plugin/file-delivery UX smoke required before closure."""
+    core._caller_subject()
+    return {"ok": True, **p334_ux_regression_contract()}
 
 
 from mcp.types import CallToolResult, TextContent, ToolAnnotations

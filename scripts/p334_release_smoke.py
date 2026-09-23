@@ -1,4 +1,9 @@
 #!/usr/bin/env python3
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
 from p334_rare_feature_registry import (
     EVIDENCE_KEYS,
     evaluate_rare_feature,

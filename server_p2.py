@@ -6049,6 +6049,10 @@ def edit_document_and_deliver(document_id: str, expected_revision: int, operatio
                                   "EDIT_VALIDATE_EXPORT_HANDOFF")
 
 
+from p335_mcp import register_corpus_tools
+CORPUS_REGISTRY = register_corpus_tools(core, _owned_document)
+
+
 if __name__ == "__main__":
     host = os.environ.get("MCP_HOST", "0.0.0.0")
     port = int(os.environ.get("PORT", os.environ.get("MCP_PORT", "8000")))

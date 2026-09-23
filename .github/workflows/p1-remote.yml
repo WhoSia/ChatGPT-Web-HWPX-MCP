@@ -1,85 +1,24 @@
 name: Production Render public boundary verification
-
 on:
   push:
     branches: [main]
   workflow_dispatch:
-
+concurrency:
+  group: production-boundary
+  cancel-in-progress: true
 jobs:
   remote:
     runs-on: ubuntu-latest
-    timeout-minutes: 8
-    env:
-      BASE_URL: https://chatgpt-web-hwpx-mcp-p0.onrender.com
-      MCP_URL: https://chatgpt-web-hwpx-mcp-p0.onrender.com/mcp
-      CURL: curl --http1.1 --retry 3 --retry-all-errors --retry-delay 1 --connect-timeout 10 --max-time 20
-
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
-
-      - name: Wait for current production server
-        run: |
-          for i in {1..36}; do
-            body="$($CURL --fail --silent --show-error "$BASE_URL/health" || true)"
-            if echo "$body" | grep -q '0.13.0-p3.35' && \
-               echo "$body" | grep -q '"state_store":"postgres-encrypted"' && \
-               echo "$body" | grep -q '"store":"postgres-encrypted-versioned"' && \
-               test "$(echo "$body" | grep -o '"durable_store_reachable":true' | wc -l)" -ge 2; then
-              echo "$body"
-              exit 0
-            fi
-            echo "Current Render release not ready yet ($i/36): $body"
-            sleep 5
-          done
-          exit 1
-
-      - name: Verify protected-resource metadata
-        run: |
-          for i in {1..12}; do
-            body="$($CURL --fail --silent --show-error \
-              "$BASE_URL/.well-known/oauth-protected-resource/mcp" || true)"
-            if echo "$body" | grep -q '"resource":"https://chatgpt-web-hwpx-mcp-p0.onrender.com/mcp"' && \
-               echo "$body" | grep -q '"hwpx"'; then
-              echo "$body" | tee /tmp/prm.json
-              exit 0
-            fi
-            echo "Protected-resource metadata not ready yet ($i/12): $body"
-            sleep 3
-          done
-          exit 1
-
-      - name: Verify authorization-server metadata and offline access
-        run: |
-          for i in {1..12}; do
-            body="$($CURL --fail --silent --show-error \
-              "$BASE_URL/.well-known/oauth-authorization-server" || true)"
-            if echo "$body" | grep -q '"authorization_endpoint"' && \
-               echo "$body" | grep -q '"token_endpoint"' && \
-               echo "$body" | grep -q '"registration_endpoint"' && \
-               echo "$body" | grep -q '"offline_access"'; then
-              echo "$body" | tee /tmp/as.json
-              exit 0
-            fi
-            echo "Authorization metadata not ready yet ($i/12): $body"
-            sleep 5
-          done
-          exit 1
-
-      - name: Verify unauthenticated MCP request is rejected before tool execution
-        run: |
-          for i in {1..12}; do
-            status="$(curl --http1.1 --silent --show-error \
-              --connect-timeout 10 --max-time 20 \
-              --output /tmp/unauth.json --write-out '%{http_code}' \
-              -X POST "$MCP_URL" \
-              -H 'content-type: application/json' \
-              -H 'accept: application/json, text/event-stream' \
-              --data '{"jsonrpc":"2.0","id":1,"method":"ping"}' || true)"
-            cat /tmp/unauth.json || true
-            if test "$status" = "401"; then
-              exit 0
-            fi
-            echo "Unauthenticated MCP boundary not stable yet ($i/12): HTTP $status"
-            sleep 3
-          done
-          exit 1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Exact release and protected-resource boundary
+        run: python scripts/verify_production_boundary.py --base-url https://chatgpt-web-hwpx-mcp-p0.onrender.com --commit "${{ github.sha }}"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: production-boundary-receipt
+          path: production-boundary.json

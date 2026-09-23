@@ -220,7 +220,7 @@ def apply_review_workflow_atomic(
                 "after_counts": after["counts"],
                 "receipts": [receipt],
                 "validation": validation,
-                "authority": "P3.34-R2_CANDIDATE_UNPROTECTED_ACCEPT_REJECT_ALL",
+                "authority": "UNPROTECTED_WHOLE_DOCUMENT_ACCEPT_REJECT_ALL",
                 "authoring_backend": "bounded package-level resolution + python-hwpx reopen/save",
                 "unsupported_write_lanes": after["unsupported_write_lanes"],
             }

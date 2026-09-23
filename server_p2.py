@@ -126,6 +126,7 @@ from p335_paragraph import (
     build_paragraph_geometry_profile,
     compare_paragraph_geometry_profiles,
     build_document_style_exemplar,
+    build_style_transfer_operations,
 )
 from p313_capture_custody import (
     near_wrap_positive_sensitivity_spec,
@@ -5837,6 +5838,39 @@ def get_document_style_exemplar(document_id: str) -> dict:
         "document_id": document_id,
         "revision": int(metadata["revision"]),
         **exemplar,
+    }
+
+
+@core.mcp.tool()
+def plan_document_style_transfer(
+    source_document_id: str,
+    target_document_id: str,
+    targets: list[str],
+    include_typography: bool = True,
+    include_paragraph: bool = True,
+) -> dict:
+    """Compile a source exemplar into existing atomic formatting operations for a target document."""
+    source_meta, source_path = _owned_document(source_document_id)
+    target_meta, _target_path = _owned_document(target_document_id)
+    exemplar = build_document_style_exemplar(source_path)
+    operations = build_style_transfer_operations(
+        exemplar,
+        targets,
+        include_typography=bool(include_typography),
+        include_paragraph=bool(include_paragraph),
+    )
+    return {
+        "ok": True,
+        "source_document_id": source_document_id,
+        "source_revision": int(source_meta["revision"]),
+        "target_document_id": target_document_id,
+        "target_revision": int(target_meta["revision"]),
+        "exemplar_sha256": exemplar.get("exemplar_sha256"),
+        "operations": operations,
+        "apply_with": "apply_formatting",
+        "expected_revision": int(target_meta["revision"]),
+        "authority": "SAFE_INVERTIBLE_EXEMPLAR_DIMENSIONS_ONLY",
+        "native_only_dimensions": "retained as readback and not emitted as mutation keys",
     }
 
 

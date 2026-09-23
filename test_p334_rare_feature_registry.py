@@ -20,6 +20,8 @@ def test_registry_is_deterministic_and_keeps_known_gates_closed():
     assert first["features"]["column_insertion"]["authority"] == "COUNT1_LEFT_RIGHT_NATIVE_COLUMN_INSERTION"
     assert first["features"]["tracked_change_resolution"]["state"] == "BOUNDED_PRODUCTION_AUTHORITY"
     assert first["features"]["tracked_change_resolution"]["authority"] == "UNPROTECTED_WHOLE_DOCUMENT_ACCEPT_REJECT_ALL"
+    assert first["features"]["existing_group_ungroup"]["state"] == "BOUNDED_PRODUCTION_AUTHORITY"
+    assert first["features"]["existing_group_ungroup"]["authority"] == "EXISTING_RECT_ELLIPSE_GROUP_UNGROUP_BOUNDED"
     assert first["authority"] == "EVIDENCE_GATED_REGISTRY_ONLY"
 
 
@@ -65,3 +67,11 @@ def test_promoted_tracked_resolution_reports_bounded_authority():
     assert result["missing_evidence"] == []
     assert result["verdict"] == "ALREADY_PROMOTED_BOUNDED"
     assert result["baseline_authority"] == "UNPROTECTED_WHOLE_DOCUMENT_ACCEPT_REJECT_ALL"
+
+
+def test_promoted_existing_group_ungroup_reports_bounded_authority():
+    result = evaluate_rare_feature("existing_group_ungroup", {})
+    assert result["promotion_ready"] is False
+    assert result["missing_evidence"] == []
+    assert result["verdict"] == "ALREADY_PROMOTED_BOUNDED"
+    assert result["baseline_authority"] == "EXISTING_RECT_ELLIPSE_GROUP_UNGROUP_BOUNDED"

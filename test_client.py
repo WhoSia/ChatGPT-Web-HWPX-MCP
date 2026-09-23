@@ -233,12 +233,12 @@ async def main() -> None:
                 if "access_token" in schema_text or "passphrase" in schema_text:
                     raise RuntimeError(f"secret-bearing field leaked into tool schema: {tool.name}")
 
-            read_payload = _payload(await client.call_tool("probe_read", {"message": "P3.34 OAuth smoke test"}))
-            if not read_payload or not read_payload.get("ok") or read_payload.get("version") != "0.12.0-p3.34":
-                raise RuntimeError(f"probe_read did not expose current P3.34 product version: {read_payload}")
+            read_payload = _payload(await client.call_tool("probe_read", {"message": "P3.35 OAuth smoke test"}))
+            if not read_payload or not read_payload.get("ok") or read_payload.get("version") != "0.13.0-p3.35":
+                raise RuntimeError(f"probe_read did not expose current P3.35 product version: {read_payload}")
 
             p2_caps = _payload(await client.call_tool("p2_capabilities", {}))
-            if not p2_caps or p2_caps.get("phase") != "P3.34":
+            if not p2_caps or p2_caps.get("phase") != "P3.35":
                 raise RuntimeError(f"p2_capabilities failed: {p2_caps}")
 
             rare_registry = _payload(await client.call_tool("get_rare_feature_registry", {}))

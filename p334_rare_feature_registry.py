@@ -37,17 +37,24 @@ _FEATURES = {
     "tracked_change_resolution": {
         "family": "review",
         "ancestry": ["P3.22", "P3.34-R2"],
-        "state": "SEMANTIC_AND_NATIVE_EVIDENCE_REQUIRED",
+        "state": "NATIVE_SEMANTICS_PASS_IMPLEMENTATION_ROUNDTRIP_REQUIRED",
         "authority": "READ_PRESERVE_ONLY_FOR_RESOLUTION",
         "reason": (
-            "P3.22 tracked insert/delete/replace authoring is established. P3.34-R2 is actively "
-            "measuring Hancom accept/reject final-text semantics, retirement of body/header change "
-            "markers, and the durable track-change protection encoding. No resolution or protection "
-            "writer is admitted before the native capture and protected-artifact follow-up close."
+            "Hancom 13.0.0.3622 native evidence closed Accept All / Reject All semantics for "
+            "P3.22-authored Insert/Delete/Replace and established TrackChangePasswordInfo protection "
+            "behavior. A bounded unprotected whole-document resolver is implemented, but production "
+            "resolution authority remains closed until implementation-generated Hancom open/save "
+            "round-trip plus inherited delivery regression pass. Protected/password resolution and "
+            "selective per-change resolution remain fail-closed."
         ),
         "active_probe": {
-            "resolution_cases": 6,
-            "protection_encoding_case": 1,
+            "resolution_cases_passed": 6,
+            "protected_boundary_cases_passed": 3,
+            "candidate_operations": [
+                "accept_all_tracked_changes",
+                "reject_all_tracked_changes"
+            ],
+            "candidate_scope": "unprotected simple P3.22 inline tracked spans only",
             "production_resolution_authority": False,
             "production_protection_authority": False,
         },

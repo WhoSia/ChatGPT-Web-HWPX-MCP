@@ -48,8 +48,8 @@ def _at(table_payload, row, col):
 
 def test_contract_keeps_production_authority_closed():
     contract = column_insertion_contract()
-    assert contract["status"] == "CANDIDATE_IMPLEMENTATION_COUNT1_ONLY"
-    assert contract["authority"] == "NO_PRODUCTION_EDIT_AUTHORITY_YET"
+    assert contract["status"] == "BOUNDED_PRODUCTION_AUTHORITY"
+    assert contract["authority"] == "COUNT1_LEFT_RIGHT_NATIVE_COLUMN_INSERTION"
     assert contract["holds"]["count_gt_1"] == "NATIVE_EVIDENCE_MISMATCH"
 
 

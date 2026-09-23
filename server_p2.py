@@ -129,6 +129,7 @@ from p335_paragraph import (
     build_role_aware_style_exemplars,
     build_style_transfer_operations,
 )
+from p335_corpus import build_corpus_style_profile, build_style_library
 from p313_capture_custody import (
     near_wrap_positive_sensitivity_spec,
     validate_artifact_custody,
@@ -5885,6 +5886,63 @@ def plan_document_style_transfer(
         "expected_revision": int(target_meta["revision"]),
         "authority": "SAFE_INVERTIBLE_EXEMPLAR_DIMENSIONS_ONLY",
         "native_only_dimensions": "retained as readback and not emitted as mutation keys",
+    }
+
+
+@core.mcp.tool()
+def build_style_corpus_profile(documents: list[dict]) -> dict:
+    """Aggregate owned HWPX documents into a provenance-preserving P3.35-R3 corpus profile."""
+    if not documents:
+        raise ValueError("At least one document is required")
+    items = []
+    for item in documents:
+        if not isinstance(item, dict) or not item.get("document_id"):
+            raise ValueError("Each corpus item requires document_id")
+        metadata, path = _owned_document(str(item["document_id"]))
+        items.append({
+            "path": str(path),
+            "source_id": str(item.get("source_id") or item["document_id"]),
+            "institution": str(item.get("institution") or "unknown"),
+            "document_label": str(item.get("document_label") or metadata.get("filename") or item["document_id"]),
+            "provenance_url": item.get("provenance_url"),
+            "public_status": str(item.get("public_status") or "UNSPECIFIED"),
+            "license_note": item.get("license_note"),
+        })
+    profile = build_corpus_style_profile(items)
+    return {"ok": True, **profile}
+
+
+@core.mcp.tool()
+def build_reusable_style_library(
+    documents: list[dict],
+    min_documents: int = 2,
+    min_share: float = 0.25,
+) -> dict:
+    """Build evidence-guided reusable role presets without selecting a normative winner."""
+    if int(min_documents) < 1:
+        raise ValueError("min_documents must be >= 1")
+    if not (0 < float(min_share) <= 1):
+        raise ValueError("min_share must be in (0, 1]")
+    items = []
+    for item in documents:
+        if not isinstance(item, dict) or not item.get("document_id"):
+            raise ValueError("Each corpus item requires document_id")
+        metadata, path = _owned_document(str(item["document_id"]))
+        items.append({
+            "path": str(path),
+            "source_id": str(item.get("source_id") or item["document_id"]),
+            "institution": str(item.get("institution") or "unknown"),
+            "document_label": str(item.get("document_label") or metadata.get("filename") or item["document_id"]),
+            "provenance_url": item.get("provenance_url"),
+            "public_status": str(item.get("public_status") or "UNSPECIFIED"),
+            "license_note": item.get("license_note"),
+        })
+    profile = build_corpus_style_profile(items)
+    library = build_style_library(profile, min_documents=int(min_documents), min_share=float(min_share))
+    return {
+        "ok": True,
+        "corpus_profile_sha256": profile.get("profile_sha256"),
+        **library,
     }
 
 

@@ -86,7 +86,7 @@ def main() -> int:
             "after_body_text": a_body,
             "before_package": package_ok(before),
             "after_package": package_ok(after),
-            "validator_ok": bool(server.validate_hwpx_package(after).get("ok", False)),
+            "validator_ok": bool(server.validate_hwpx_package(after).get("valid", False)),
             "structure_preserved": structural,
         }
         report["pass"] = report["validator_ok"] and structural

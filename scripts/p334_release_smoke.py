@@ -18,6 +18,8 @@ def main() -> int:
     assert registry["features"]["smart_connectline"]["state"] == "BLOCKED_SEMANTIC_AMBIGUITY"
     assert registry["features"]["column_insertion"]["state"] == "BOUNDED_PRODUCTION_AUTHORITY"
     assert registry["features"]["column_insertion"]["authority"] == "COUNT1_LEFT_RIGHT_NATIVE_COLUMN_INSERTION"
+    assert registry["features"]["tracked_change_resolution"]["state"] == "BOUNDED_PRODUCTION_AUTHORITY"
+    assert registry["features"]["tracked_change_resolution"]["authority"] == "UNPROTECTED_WHOLE_DOCUMENT_ACCEPT_REJECT_ALL"
 
     evidence = {key: True for key in EVIDENCE_KEYS}
     assert evaluate_rare_feature("polygon_preserving_resize", evidence)["promotion_ready"] is True

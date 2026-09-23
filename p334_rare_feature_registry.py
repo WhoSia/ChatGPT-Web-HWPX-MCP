@@ -17,14 +17,22 @@ EVIDENCE_KEYS = (
 _FEATURES = {
     "column_insertion": {
         "family": "tables",
-        "ancestry": ["P2.7", "P2.8", "P3.23"],
-        "state": "NATIVE_EVIDENCE_REQUIRED",
-        "authority": "NONE",
+        "ancestry": ["P2.7", "P2.8", "P3.23", "P3.34-R1"],
+        "state": "BOUNDED_PRODUCTION_AUTHORITY",
+        "authority": "COUNT1_LEFT_RIGHT_NATIVE_COLUMN_INSERTION",
         "reason": (
-            "Neighboring table-structure edits are established, but this repository and "
-            "the pinned python-hwpx surface expose no independent insert-column primitive. "
-            "Do not synthesize one from row operations without native evidence."
+            "Hancom 13.0.0.3622 native before/after evidence plus implementation-generated "
+            "open-save round-trip established count=1 LEFT/RIGHT insertion, anchor-width cloning, "
+            "table-width growth, colAddr shifting, and crossing horizontal colSpan extension. "
+            "count>1, vertical-merge, and nested-table cases remain fail-closed."
         ),
+        "bounds": {
+            "operation": "insert_column_native_bounded",
+            "directions": ["LEFT", "RIGHT"],
+            "count": 1,
+            "vertical_merge": false,
+            "nested_table": false
+        },
     },
     "tracked_change_resolution": {
         "family": "review",

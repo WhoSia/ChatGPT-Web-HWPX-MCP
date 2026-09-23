@@ -12,6 +12,7 @@ from p334r2_package_validation import validate_hwpx_package_light
 from p335_paragraph import (
     build_document_style_exemplar,
     build_paragraph_geometry_profile,
+    build_style_transfer_operations,
     compare_paragraph_geometry_profiles,
     paragraph_geometry_contract,
 )
@@ -86,6 +87,54 @@ class P335ParagraphProfileTests(unittest.TestCase):
             self.assertLess(abs(preset["first_line_indent_mm"] - 2), 0.02)
             self.assertLess(abs(preset["spacing_before_pt"] - 6), 0.02)
             self.assertLess(abs(preset["spacing_after_pt"] - 4), 0.02)
+
+    def test_style_exemplar_compiles_to_existing_atomic_formatting_operations(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            source = Path(tmp) / "source.hwpx"
+            target = Path(tmp) / "target.hwpx"
+            source_loc = _make(source, "스타일 원본")
+            target_loc = _make(target, "스타일 대상")
+
+            apply_formatting_atomic(
+                source,
+                [{
+                    "op": "set_paragraph_format",
+                    "target": source_loc,
+                    "format": {
+                        "alignment": "center",
+                        "line_spacing_percent": 175,
+                        "indent_left_mm": 4,
+                        "first_line_indent_mm": 1.5,
+                        "spacing_after_pt": 5,
+                    },
+                }],
+                expected_revision=1,
+                current_revision=1,
+                validator=validate_hwpx_package_light,
+            )
+
+            exemplar = build_document_style_exemplar(source)
+            operations = build_style_transfer_operations(
+                exemplar,
+                [target_loc],
+                include_typography=False,
+                include_paragraph=True,
+            )
+            self.assertEqual([op["op"] for op in operations], ["set_paragraph_format"])
+
+            apply_formatting_atomic(
+                target,
+                operations,
+                expected_revision=1,
+                current_revision=1,
+                validator=validate_hwpx_package_light,
+            )
+            preset = build_document_style_exemplar(target)["authoring_preset"]["paragraph_format"]
+            self.assertEqual(preset["alignment"], "center")
+            self.assertEqual(preset["line_spacing_percent"], 175)
+            self.assertLess(abs(preset["indent_left_mm"] - 4), 0.02)
+            self.assertLess(abs(preset["first_line_indent_mm"] - 1.5), 0.02)
+            self.assertLess(abs(preset["spacing_after_pt"] - 5), 0.02)
 
     def test_paragraph_profile_comparison_reports_geometry_difference(self):
         with tempfile.TemporaryDirectory() as tmp:

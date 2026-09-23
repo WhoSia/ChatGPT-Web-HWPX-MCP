@@ -36,13 +36,21 @@ _FEATURES = {
     },
     "tracked_change_resolution": {
         "family": "review",
-        "ancestry": ["P3.22"],
+        "ancestry": ["P3.22", "P3.34-R2"],
         "state": "SEMANTIC_AND_NATIVE_EVIDENCE_REQUIRED",
         "authority": "READ_PRESERVE_ONLY_FOR_RESOLUTION",
         "reason": (
-            "Tracked insert/delete/replace authoring exists, but accept/reject/protection "
-            "changes document semantics and requires explicit resolution evidence."
+            "P3.22 tracked insert/delete/replace authoring is established. P3.34-R2 is actively "
+            "measuring Hancom accept/reject final-text semantics, retirement of body/header change "
+            "markers, and the durable track-change protection encoding. No resolution or protection "
+            "writer is admitted before the native capture and protected-artifact follow-up close."
         ),
+        "active_probe": {
+            "resolution_cases": 6,
+            "protection_encoding_case": 1,
+            "production_resolution_authority": False,
+            "production_protection_authority": False,
+        },
     },
     "existing_group_ungroup": {
         "family": "drawing",

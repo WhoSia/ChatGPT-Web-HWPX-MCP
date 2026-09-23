@@ -283,6 +283,54 @@ def _typography_authoring_preset(profile: dict) -> dict:
     return result
 
 
+def build_style_transfer_operations(
+    exemplar: dict,
+    targets: list[str],
+    *,
+    include_typography: bool = True,
+    include_paragraph: bool = True,
+) -> list[dict]:
+    """Compile one extracted exemplar into existing atomic formatting operations.
+
+    This intentionally reuses the already-productionized set_run_format and
+    set_paragraph_format primitives. Native-only/readback-only dimensions are
+    never promoted into mutation keys here.
+    """
+    if not isinstance(exemplar, dict):
+        raise TypeError("exemplar must be a dict")
+    clean_targets = [str(target).strip() for target in targets if str(target).strip()]
+    if not clean_targets:
+        raise ValueError("At least one target paragraph locator is required")
+    if len(set(clean_targets)) != len(clean_targets):
+        raise ValueError("Duplicate target paragraph locator")
+
+    preset = exemplar.get("authoring_preset") or {}
+    run_format = dict(preset.get("run_format") or {})
+    paragraph_format = dict(preset.get("paragraph_format") or {})
+    run_format = {
+        key: value for key, value in run_format.items()
+        if not str(key).endswith("_readback_only")
+    }
+
+    operations: list[dict] = []
+    for target in clean_targets:
+        if include_typography and run_format:
+            operations.append({
+                "op": "set_run_format",
+                "target": target,
+                "format": dict(run_format),
+            })
+        if include_paragraph and paragraph_format:
+            operations.append({
+                "op": "set_paragraph_format",
+                "target": target,
+                "format": dict(paragraph_format),
+            })
+    if not operations:
+        raise ValueError("Exemplar contains no safely reusable authoring dimensions")
+    return operations
+
+
 def build_document_style_exemplar(path: Path) -> dict:
     typography = build_typography_profile(path)
     paragraph = build_paragraph_geometry_profile(path)

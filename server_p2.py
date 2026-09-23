@@ -116,6 +116,11 @@ from p334_rare_feature_registry import (
     plan_rare_feature_promotion as plan_p334_rare_feature_promotion,
     ux_regression_contract as p334_ux_regression_contract,
 )
+from p335_typography import (
+    typography_contract as p335_typography_contract,
+    build_typography_profile,
+    compare_typography_profiles,
+)
 from p313_capture_custody import (
     near_wrap_positive_sensitivity_spec,
     validate_artifact_custody,
@@ -5740,6 +5745,43 @@ def apply_legacy_diagram_refactor(
         "native_render_batch_status": "DEFERRED_BY_DESIGN",
     }
 
+
+
+@core.mcp.tool()
+def get_typography_contract() -> dict:
+    """Return P3.35 native typography bounds, script-font model and mixed-run operations."""
+    core._caller_subject()
+    return {"ok": True, **p335_typography_contract()}
+
+
+@core.mcp.tool()
+def get_typography_profile(document_id: str) -> dict:
+    """Summarize an owned HWPX typography as reusable character-weighted style distributions."""
+    metadata, path = _owned_document(document_id)
+    profile = build_typography_profile(path)
+    return {
+        "ok": True,
+        "document_id": document_id,
+        "revision": int(metadata["revision"]),
+        **profile,
+    }
+
+
+@core.mcp.tool()
+def compare_typography_profiles(left_document_id: str, right_document_id: str) -> dict:
+    """Compare dominant typography choices of two owned HWPX documents without mutating either."""
+    left_meta, left_path = _owned_document(left_document_id)
+    right_meta, right_path = _owned_document(right_document_id)
+    left = build_typography_profile(left_path)
+    right = build_typography_profile(right_path)
+    return {
+        "ok": True,
+        "left_document_id": left_document_id,
+        "left_revision": int(left_meta["revision"]),
+        "right_document_id": right_document_id,
+        "right_revision": int(right_meta["revision"]),
+        **compare_typography_profiles(left, right),
+    }
 
 
 @core.mcp.tool()

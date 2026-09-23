@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -10,6 +11,8 @@ from p323_advanced_tables import build_advanced_table_map
 
 def test_candidate_roundtrip_materializer_builds_three_structurally_valid_outputs(tmp_path: Path):
     out = tmp_path / "pack"
+    env = dict(os.environ)
+    env.pop("PYTHONPATH", None)
     subprocess.run(
         [
             sys.executable,
@@ -18,6 +21,7 @@ def test_candidate_roundtrip_materializer_builds_three_structurally_valid_output
             str(out),
         ],
         check=True,
+        env=env,
     )
     manifest = json.loads((out / "roundtrip-manifest.json").read_text(encoding="utf-8"))
     assert [case["id"] for case in manifest["cases"]] == [
@@ -46,3 +50,41 @@ def test_candidate_roundtrip_materializer_builds_three_structurally_valid_output
     header = next(c for c in merged["cells"] if c["row"] == 0 and c["col"] == 0)
     assert header["col_span"] == 3
     assert header["width"] == 36000
+
+
+def test_candidate_roundtrip_analyzer_runs_by_direct_script_path_without_pythonpath(tmp_path: Path):
+    out = tmp_path / "pack"
+    env = dict(os.environ)
+    env.pop("PYTHONPATH", None)
+    subprocess.run(
+        [
+            sys.executable,
+            "scripts/p334r1_materialize_candidate_roundtrip_pack.py",
+            "--out",
+            str(out),
+        ],
+        check=True,
+        env=env,
+    )
+
+    for case_dir in out.iterdir():
+        if not case_dir.is_dir():
+            continue
+        before = case_dir / "candidate-before-hancom.hwpx"
+        after = case_dir / "candidate-after-hancom.hwpx"
+        after.write_bytes(before.read_bytes())
+
+    subprocess.run(
+        [
+            sys.executable,
+            "scripts/p334r1_analyze_candidate_roundtrip.py",
+            "--pack",
+            str(out),
+        ],
+        check=True,
+        env=env,
+    )
+    summary = json.loads((out / "roundtrip-analysis-summary.json").read_text(encoding="utf-8"))
+    assert summary["pass"] is True
+    assert summary["cases_missing"] == []
+    assert summary["cases_structure_failed"] == []

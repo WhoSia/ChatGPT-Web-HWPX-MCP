@@ -15,8 +15,9 @@ def test_registry_is_deterministic_and_keeps_known_gates_closed():
     first = rare_feature_registry()
     second = rare_feature_registry()
     assert first["registry_sha256"] == second["registry_sha256"]
-    assert first["features"]["column_insertion"]["state"] == "NATIVE_EVIDENCE_REQUIRED"
+    assert first["features"]["column_insertion"]["state"] == "BOUNDED_PRODUCTION_AUTHORITY"
     assert first["features"]["smart_connectline"]["state"] == "BLOCKED_SEMANTIC_AMBIGUITY"
+    assert first["features"]["column_insertion"]["authority"] == "COUNT1_LEFT_RIGHT_NATIVE_COLUMN_INSERTION"
     assert first["authority"] == "EVIDENCE_GATED_REGISTRY_ONLY"
 
 

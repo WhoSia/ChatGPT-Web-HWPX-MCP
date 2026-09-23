@@ -215,6 +215,47 @@ class BrownfieldDiagramTests(unittest.TestCase):
                 )
             self.assertEqual(path.read_bytes(), before)
 
+    def test_shared_anchor_refactor_preserves_every_managed_relation(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path, anchor = self._base(Path(tmp))
+            apply_diagram_lifecycle_atomic(
+                path,
+                [{
+                    "op": "instantiate_template",
+                    "diagram_id": "existing",
+                    "anchor": anchor,
+                    "template": "linear_process",
+                    "origin_y": 30000,
+                }],
+                expected_revision=1,
+                current_revision=1,
+            )
+            self._legacy_pair(path, anchor)
+            candidate = build_brownfield_diagram_map(path)["candidates"][0]
+            adoption = plan_diagram_adoption(path, candidate["candidate_id"], "legacy")
+            promote_diagram_candidate_atomic(path, adoption, expected_revision=2, current_revision=2)
+            before = {
+                d["diagram_id"]: d["relation_sha256"]
+                for d in build_diagram_lifecycle_map(path)["diagrams"]
+            }
+            refactor = plan_legacy_diagram_refactor(
+                path, "legacy", layout_policy="standard", theme="mono"
+            )
+            layout_op = refactor["operations"][0]
+            self.assertGreater(layout_op["origin_y"], 30000)
+            receipt = apply_legacy_diagram_refactor_atomic(
+                path,
+                refactor,
+                expected_revision=3,
+                current_revision=3,
+            )
+            after = {
+                d["diagram_id"]: d["relation_sha256"]
+                for d in build_diagram_lifecycle_map(path)["diagrams"]
+            }
+            self.assertTrue(receipt["global_relation_preserved"])
+            self.assertEqual(after, before)
+
     def test_contract_keeps_visual_and_semantic_inference_gates_closed(self):
         contract = brownfield_diagram_contract()
         self.assertEqual(contract["phase"], "P3.32")

@@ -179,7 +179,8 @@ def evaluate_rare_feature(feature: str, evidence: dict | None = None) -> dict:
     evidence_map = {name: bool(supplied.get(name, False)) for name in EVIDENCE_KEYS}
     missing = [name for name, passed in evidence_map.items() if not passed]
     blocked = spec["state"] == "BLOCKED_SEMANTIC_AMBIGUITY"
-    ready = not blocked and not missing
+    already_promoted = spec["state"] == "BOUNDED_PRODUCTION_AUTHORITY"
+    ready = not blocked and not already_promoted and not missing
     result = {
         "schema": SCHEMA,
         "phase": "P3.34",
@@ -188,12 +189,16 @@ def evaluate_rare_feature(feature: str, evidence: dict | None = None) -> dict:
         "baseline_state": spec["state"],
         "baseline_authority": spec["authority"],
         "evidence": evidence_map,
-        "missing_evidence": missing,
+        "missing_evidence": [] if already_promoted else missing,
         "promotion_ready": ready,
         "verdict": (
-            "BLOCKED_SEMANTIC_AMBIGUITY"
-            if blocked
-            else ("READY_FOR_BOUNDED_PROMOTION" if ready else "EVIDENCE_INCOMPLETE")
+            "ALREADY_PROMOTED_BOUNDED"
+            if already_promoted
+            else (
+                "BLOCKED_SEMANTIC_AMBIGUITY"
+                if blocked
+                else ("READY_FOR_BOUNDED_PROMOTION" if ready else "EVIDENCE_INCOMPLETE")
+            )
         ),
         "reason": spec["reason"],
     }

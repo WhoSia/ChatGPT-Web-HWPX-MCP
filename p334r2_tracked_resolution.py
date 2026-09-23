@@ -15,7 +15,7 @@ CONFIG_NS = "urn:oasis:names:tc:opendocument:xmlns:config:1.0"
 
 HP = f"{{{HP_NS}}}"
 HH = f"{{{HH_NS}}}"
-CONFIG = f"{{{CONFIG_NS}}"
+CONFIG = f"{{{CONFIG_NS}}}"
 
 BEGIN = {"insertBegin": "INSERT", "deleteBegin": "DELETE"}
 END = {"insertEnd": "INSERT", "deleteEnd": "DELETE"}

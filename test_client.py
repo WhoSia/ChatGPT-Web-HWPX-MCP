@@ -244,6 +244,8 @@ async def main() -> None:
             rare_registry = _payload(await client.call_tool("get_rare_feature_registry", {}))
             assert rare_registry["authority"] == "EVIDENCE_GATED_REGISTRY_ONLY"
             assert rare_registry["features"]["smart_connectline"]["state"] == "BLOCKED_SEMANTIC_AMBIGUITY"
+            assert rare_registry["features"]["tracked_change_resolution"]["state"] == "BOUNDED_PRODUCTION_AUTHORITY"
+            assert rare_registry["features"]["tracked_change_resolution"]["authority"] == "UNPROTECTED_WHOLE_DOCUMENT_ACCEPT_REJECT_ALL"
             ux_contract = _payload(await client.call_tool("get_product_ux_regression_contract", {}))
             assert ux_contract["policy"] == "PERIODIC_PRODUCT_UX_SMOKE"
             assert "every production phase before closure" in ux_contract["cadence"]
@@ -423,6 +425,62 @@ async def main() -> None:
                 or review_map["metadata"].get("title") != "P3.22 Transport Review Smoke"
             ):
                 raise RuntimeError(f"P3.22 review read-back failed: {review_map}")
+
+            r2_created = _payload(await client.call_tool("create_document", {
+                "title": "P3.34-R2 OAuth Resolution",
+                "text": "r2 old value",
+                "filename": "p334r2-resolution.hwpx",
+                "request_id": "p334r2-oauth-resolution",
+            }))
+            if not r2_created or r2_created.get("revision") != 1:
+                raise RuntimeError(f"P3.34-R2 fixture creation failed: {r2_created}")
+            r2_document_id = r2_created["document_id"]
+            r2_map = _payload(await client.call_tool("get_document_map", {
+                "document_id": r2_document_id,
+            }))
+            r2_target = next(
+                (p for p in r2_map.get("paragraphs", []) if p.get("text") == "r2 old value"),
+                None,
+            )
+            if not r2_target:
+                raise RuntimeError(f"P3.34-R2 paragraph target missing: {r2_map}")
+            r2_tracked = _payload(await client.call_tool("apply_review_workflow", {
+                "document_id": r2_document_id,
+                "expected_revision": 1,
+                "operations": [{
+                    "op": "tracked_replace",
+                    "paragraph": r2_target["locator"],
+                    "old": "old",
+                    "new": "new",
+                    "author": "CI R2 Reviewer",
+                }],
+            }))
+            if (
+                not r2_tracked
+                or r2_tracked.get("revision_after") != 2
+                or r2_tracked.get("transaction") != "COMMITTED"
+            ):
+                raise RuntimeError(f"P3.34-R2 tracked fixture failed: {r2_tracked}")
+            r2_resolved = _payload(await client.call_tool("apply_review_workflow", {
+                "document_id": r2_document_id,
+                "expected_revision": 2,
+                "operations": [{"op": "accept_all_tracked_changes"}],
+            }))
+            r2_diff = (r2_resolved or {}).get("review_workflow_diff", {})
+            if (
+                not r2_resolved
+                or r2_resolved.get("revision_after") != 3
+                or r2_resolved.get("transaction") != "COMMITTED"
+                or r2_diff.get("authority") != "UNPROTECTED_WHOLE_DOCUMENT_ACCEPT_REJECT_ALL"
+                or r2_diff.get("after_counts", {}).get("tracked_changes") != 0
+                or r2_diff.get("after_counts", {}).get("track_change_authors") != 0
+            ):
+                raise RuntimeError(f"P3.34-R2 bounded resolution failed: {r2_resolved}")
+            r2_text = _payload(await client.call_tool("get_text", {
+                "document_id": r2_document_id,
+            }))
+            if not r2_text or "r2 new value" not in r2_text.get("text", ""):
+                raise RuntimeError(f"P3.34-R2 resolved text mismatch: {r2_text}")
 
             table_contract = _payload(await client.call_tool("get_advanced_table_contract", {}))
             if (
@@ -2203,6 +2261,7 @@ async def main() -> None:
                 bulk_document_id,
                 planned_document_id,
                 planned_ingested["document_id"],
+                r2_document_id,
             ):
                 deleted = _payload(await client.call_tool("delete_document", {"document_id": doc_id}))
                 if not deleted or not deleted.get("deleted"):

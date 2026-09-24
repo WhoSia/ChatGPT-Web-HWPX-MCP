@@ -1,0 +1,113 @@
+{
+  "schema": "chatgpt-web-hwpx-mcp/p3.36-r2-r2-r1/prospective-adjudication/v1",
+  "phase": "P3.36-R2-R2-R1",
+  "preseal_queue_commit": "264facf670c7e01d6bcb3344893a4dc016900acb",
+  "frozen_implementation_head": "02fb8bb214927292f6f8107fcb8b458367c3de15",
+  "no_post_open_tuning": true,
+  "operator_blinding": {
+    "source_identity_visible_at_intake": true,
+    "evaluator_used_prose_semantics": false,
+    "filenames_used_by_role_rules": false,
+    "classification": "PROVENANCE_VISIBLE_RULE_FROZEN_CONTENT_SEMANTICS_UNUSED_NOT_DOUBLE_BLIND"
+  },
+  "evaluation_engine": {
+    "route": "INDEPENDENT_BYTE_REPLAY_OF_FROZEN_R2_R2_RULES",
+    "note": "Public source bytes were inspected locally without committing raw source documents to GitHub. Frozen structural and typographic thresholds were replayed without post-open tuning."
+  },
+  "groups": [
+    {
+      "source_group": "motir_humanoid_safety_center_2026",
+      "institution": "산업통상부",
+      "source_page": "https://www.motir.go.kr/kor/article/ATCLc01b2801b/70943/view",
+      "presealed_requested_hwpx": 3,
+      "observed_hwp5_cfbf": 3,
+      "observed_hwpx": 0,
+      "paired_pdfs": 3,
+      "pair_status": "THREE_SOURCE_NAME_EXACT_HWP5_PDF_PAIRS",
+      "adjudication": "HWPX_ADJUDICATION_NOT_APPLICABLE",
+      "finding": "SOURCE_EXTENSION_DECLARED_HWPX_BUT_BYTES_ARE_HWP5_CFBF",
+      "files": [
+        {
+          "blind_id": "3IGsicjCfzQs",
+          "actual_format": "HWP5_CFBF",
+          "sha256": "e10d898f2a69bf0ccab251f87c2a9ad8276cf29911ba434d5fa00db2a8663b1c",
+          "pdf_sha256": "9db7f550c63895efffa0b7355255bf4463e77a045a7d8c26a7279608ebbbf3ed"
+        },
+        {
+          "blind_id": "o1J2XhJ6bOwj",
+          "actual_format": "HWP5_CFBF",
+          "sha256": "bbb2d91ae8af261123655cf9927123207f9e80fb77331fd5a1b999e0388b264c",
+          "pdf_sha256": "3cf98acf1915ac256cafd73b6c380d3a528d549ed0675c240249ccd1a8cbc52f"
+        },
+        {
+          "blind_id": "BByLNJhhA7pv",
+          "actual_format": "HWP5_CFBF",
+          "sha256": "3cd8d3b59cd6f6dce8b36ef64b4dae1c2682b0d19a6f3dff03f5034eb1ab19a5",
+          "pdf_sha256": "6c4665bef6c7ebdff422a12eb46506376db82a2d4516e5b9262d0ce793f3f219"
+        }
+      ]
+    },
+    {
+      "source_group": "moel_employment_fund_alternative_investments_2026",
+      "institution": "고용노동부",
+      "source_page": "https://moel.go.kr/info/astmgmt/employ/employBbsView.do?bbs_seq=20260800274",
+      "observed_hwpx": 4,
+      "native_parse_pass": 4,
+      "primary_hierarchy_present": 4,
+      "nested_recovery_applied": 0,
+      "nested_recovery_not_needed": 4,
+      "adjudication": "PASS_NATIVE_HWPX_COMPATIBILITY_RECOVERY_NOT_EXERCISED",
+      "files": [
+        {
+          "blind_id": "d08U3ZfYSAM2",
+          "sha256": "77a5ca8614fa25c169d6e8730ad490fa36167510ead3afe3e57b66e3a36079bb",
+          "paragraphs": 178,
+          "median_size_pt": 13,
+          "primary_hierarchy_count": 16,
+          "final_hierarchy_count": 16,
+          "recovery": "NOT_NEEDED"
+        },
+        {
+          "blind_id": "x1Gq1vxGIuTX",
+          "sha256": "a3c2c5d319affe42e1a2c8c13978b992a6699beeaf3eb12551f9ae89c97281df",
+          "paragraphs": 889,
+          "median_size_pt": 10,
+          "primary_hierarchy_count": 26,
+          "final_hierarchy_count": 26,
+          "recovery": "NOT_NEEDED"
+        },
+        {
+          "blind_id": "XVcrq1QtvZyY",
+          "sha256": "c089ab703510124686f434f315a507b29a14cdb37df53a6c4ac21dac033a9d70",
+          "paragraphs": 890,
+          "median_size_pt": 10,
+          "primary_hierarchy_count": 26,
+          "final_hierarchy_count": 26,
+          "recovery": "NOT_NEEDED"
+        },
+        {
+          "blind_id": "zeDdwJSbESZk",
+          "sha256": "b1111e9986bac4a7acd1a67fa75c99ef8aa23ba6fcd56c0165b318d2e07f9623",
+          "paragraphs": 19,
+          "median_size_pt": 12,
+          "primary_hierarchy_count": 3,
+          "final_hierarchy_count": 3,
+          "recovery": "NOT_NEEDED"
+        }
+      ]
+    }
+  ],
+  "overall_verdict": "PARTIAL_PROSPECTIVE_PASS",
+  "claims": [
+    "MOEL fresh HWPX: 4/4 native package and structure replay passed and 4/4 already exposed primary hierarchy.",
+    "Nested-container recovery was not exercised on the fresh MOEL set; fresh generalization authority for the recovery mechanism is not established by Batch-03.",
+    "MOTIR provided three downloads labeled .hwpx whose bytes are legacy HWP5 CFBF; preserve this as a format-compatibility finding.",
+    "No post-open threshold tuning was performed."
+  ],
+  "product_implication": "PRIORITIZE_DELIVERABLE_AUTHORING_AND_HWP5_INTAKE_BRIDGE; DEFER_ADDITIONAL_CORPUS_WORK_TO_PARALLEL_OR_LATER_LANE",
+  "drive_archive": {
+    "holdout_folder_id": "19PZkcPKQ8pr5yr-psQyULcHQx-ZcKPxZ",
+    "paired_visual_folder_id": "1lG2IBw7q9FLsV6BfngkHwyW-GJIbK6zP",
+    "blind_names_applied": true
+  }
+}

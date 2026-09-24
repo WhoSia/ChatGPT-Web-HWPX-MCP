@@ -2,7 +2,7 @@ name: HWPX MCP lifecycle and fidelity CI
 
 on:
   push:
-    branches: [main, p340-rendered-feedback-loop]
+    branches: [main]
   workflow_dispatch:
 
 jobs:

@@ -206,6 +206,71 @@ class P340RenderedFeedbackLoopTests(unittest.TestCase):
             self.assertTrue(all(str(x.get("header") or "") == "1" for x in header_cells))
             self.assertTrue(all(int((x.get("margin") or {}).get("left") or 0) >= 560 for x in header_cells))
 
+    def test_semantic_callout_style_executes_as_native_one_cell_container(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "callout.hwpx"
+            block = semantic_callout_block("핵심 판단은 검증 가능성과 읽기 구조를 함께 보존해야 합니다.", block_id="judgment")
+            compose_document_plan(path, {
+                "preset": "polished-report",
+                "blocks": [
+                    {"id": "title", "type": "title", "text": "Callout execution"},
+                    block,
+                ],
+            })
+            table = build_table_map(path)["tables"][0]
+            paragraph = next(
+                x["locator"] for x in build_document_map(path)["paragraphs"]
+                if "핵심 판단은" in x["text"]
+            )
+            plan = {
+                "repair_plan_sha256": "a" * 64,
+                "actions": [{
+                    "action": "STYLE_SEMANTIC_CALLOUT",
+                    "status": "EXECUTABLE",
+                    "reason": "AUTHORING_SEMANTIC_ROLE",
+                    "operation": {
+                        "op": "style_semantic_callout",
+                        "table": table["locator"],
+                        "paragraph_targets": [paragraph],
+                    },
+                }],
+            }
+            receipt = apply_document_design_repairs_atomic(
+                path, plan, expected_revision=1, current_revision=1
+            )
+            self.assertTrue(receipt["table_format_changed"])
+            after = build_table_map(path)["tables"][0]["cells"][0]
+            self.assertGreaterEqual(int((after.get("margin") or {}).get("left") or 0), 720)
+            para = next(x for x in build_formatting_map(path)["paragraphs"] if x["locator"] == paragraph)
+            self.assertEqual(
+                str((para["paragraph_property"]["alignment"] or {}).get("horizontal")).upper(),
+                "LEFT",
+            )
+
+    def test_section_heading_separator_executes_through_existing_paragraph_primitive(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "heading-separator.hwpx"
+            _table, _nested, heading = _make_document(path)
+            before = build_formatting_map(path)["formatting_sha256"]
+            plan = {
+                "repair_plan_sha256": "b" * 64,
+                "actions": [{
+                    "action": "APPLY_SECTION_HEADING_SEPARATOR",
+                    "status": "EXECUTABLE",
+                    "reason": "SECTION_SEPARATION_WEAK",
+                    "operation": {"op": "style_section_headings", "targets": [heading]},
+                }],
+            }
+            receipt = apply_document_design_repairs_atomic(
+                path, plan, expected_revision=1, current_revision=1
+            )
+            after = build_formatting_map(path)
+            self.assertNotEqual(before, after["formatting_sha256"])
+            self.assertTrue(receipt["formatting_changed"])
+            heading_after = next(x for x in after["paragraphs"] if x["locator"] == heading)
+            prop = heading_after["paragraph_property"] or {}
+            self.assertTrue(prop.get("border") is not None)
+
     def test_before_after_comparison_does_not_fake_native_rerender(self):
         before = {
             "diagnostic_sha256": "e" * 64,

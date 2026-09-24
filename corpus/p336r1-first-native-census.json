@@ -1,0 +1,124 @@
+{
+  "schema": "chatgpt-web-hwpx-mcp/p3.36-r1/native-style-census-receipt/v1",
+  "phase": "P3.36-R1",
+  "observed_at": "2026-09-24",
+  "corpus": {
+    "admitted_public_hwpx": 38,
+    "parseable_plain_xml": 37,
+    "parser_holds": [
+      {
+        "blind_id": "mX5JRNtRfUwZ",
+        "status": "PARSER_HOLD_OPAQUE_XML_PAYLOAD",
+        "sha256": "c77b7af0f3c69fb69b3cea63f0e852c2466dac217ddddd99928ec95573885514",
+        "bytes": 3034487
+      }
+    ],
+    "split_documents": {
+      "DISCOVERY": 22,
+      "CALIBRATION": 8,
+      "HOLDOUT": 8
+    },
+    "split_policy": "SOURCE_GROUPS_ARE_INDIVISIBLE_ACROSS_SPLITS"
+  },
+  "census": {
+    "documents_with_tables": 37,
+    "documents_with_images": 22,
+    "median_table_text_share": 0.364,
+    "mean_alignment_share": {
+      "JUSTIFY": 0.751,
+      "CENTER": 0.162,
+      "LEFT": 0.072,
+      "RIGHT": 0.015
+    },
+    "median_bold_text_share": 0.154,
+    "median_heading_metadata_share": 0,
+    "median_nonempty_paragraphs": 258,
+    "median_text_characters": 7478,
+    "fonts_with_at_least_10pct_text_share": [
+      [
+        "휴먼명조",
+        20
+      ],
+      [
+        "함초롬바탕",
+        16
+      ],
+      [
+        "맑은 고딕",
+        14
+      ],
+      [
+        "함초롬돋움",
+        6
+      ],
+      [
+        "HY헤드라인M",
+        6
+      ],
+      [
+        "한컴산뜻돋움",
+        4
+      ],
+      [
+        "바탕",
+        3
+      ],
+      [
+        "굴림",
+        3
+      ],
+      [
+        "굴림체",
+        3
+      ]
+    ],
+    "sizes_with_at_least_10pct_text_share": [
+      [
+        "12",
+        24
+      ],
+      [
+        "11",
+        22
+      ],
+      [
+        "10",
+        16
+      ],
+      [
+        "13",
+        11
+      ],
+      [
+        "15",
+        10
+      ],
+      [
+        "14",
+        5
+      ],
+      [
+        "9",
+        3
+      ]
+    ],
+    "zero_letter_spacing_dominant_documents": 37
+  },
+  "interpretation": {
+    "authority": "EMPIRICAL_CONVENTION_CENSUS_NOT_AESTHETIC_NORM",
+    "selection_policy": "NO_AUTOMATIC_STYLE_WINNER",
+    "engineering_priorities": [
+      "TABLE_AUTHORING_AND_LAYOUT_ROBUSTNESS",
+      "PRESENTATION_ROLE_HYPOTHESIS_LAYER",
+      "OPAQUE_NATIVE_PAYLOAD_COMPATIBILITY",
+      "DUAL_DESIGN_AUTHORITY"
+    ],
+    "design_authority_ladder": [
+      "NATIVE_STRUCTURE_FACT",
+      "OBSERVED_PUBLIC_DOCUMENT_CONVENTION",
+      "PAIRED_VISUAL_CONTROL",
+      "EXPLICIT_HUMAN_DESIGN_TARGET"
+    ],
+    "rule": "Observed prevalence may guide compatibility and feature priorities, but must not become an aesthetic default without independent visual or human evidence."
+  }
+}

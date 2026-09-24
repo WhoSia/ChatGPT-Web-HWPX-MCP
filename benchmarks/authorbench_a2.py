@@ -400,6 +400,15 @@ payload = {
     "diagnostic_verdict": diagnostic["verdict"],
     "finding_count": diagnostic["finding_count"],
     "finding_codes": [x["code"] for x in diagnostic["findings"]],
+    "finding_details": [
+        {
+            "code": x["code"],
+            "severity": x["severity"],
+            "scope": x["scope"],
+            "evidence": x["evidence"],
+        }
+        for x in diagnostic["findings"]
+    ],
     "strategy_sha256": strategy["strategy_sha256"],
     "compile_sha256": compiled["compile_sha256"],
     "semantic_finish_action_count": len(finish_actions),

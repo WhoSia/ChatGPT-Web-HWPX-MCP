@@ -1,0 +1,45 @@
+{
+  "schema": "chatgpt-web-hwpx-mcp/p3.36-r2-r2/acquisition-queue/v1",
+  "phase": "P3.36-R2-R2",
+  "sealed_before_byte_intake": true,
+  "implementation_target": "container-aware recovery after zero-primary-hierarchy only",
+  "policy": {
+    "prospective_holdout": "All listed HWPX source groups are prospectively sealed before byte intake and must not be used for tuning after upload.",
+    "paired_visual_control": "Exact same-source PDFs may evaluate visual/render correspondence but do not define native HWPX semantics or aesthetic truth.",
+    "rename": "After intake, provenance is bound first; analysis filenames become opaque 12-character IDs and exact HWPX/PDF pairs share a blind stem.",
+    "no_post_open_tuning": "If the frozen recovery rule fails, preserve the failure as evidence and defer any repair to a successor phase."
+  },
+  "sources": [
+    {
+      "queue_id": "motir-humanoid-safety-center-2026",
+      "page_url": "https://www.motir.go.kr/kor/article/ATCLc01b2801b/70943/view",
+      "institution": "산업통상부",
+      "source_group": "motir_humanoid_safety_center_2026",
+      "lane": "PROSPECTIVE_HOLDOUT",
+      "requested": [
+        "붙임 1. 공고문_휴머노이드로봇안전인증센터구축_최종.hwpx",
+        "붙임 2. 과제 제안요구서(RFP)_휴머노이드로봇안전인증센터구축.hwpx",
+        "붙임 3. 연구개발계획서 및 제출 서류 서식_5년차.hwpx",
+        "붙임 1. 공고문_휴머노이드로봇안전인증센터구축_최종.pdf",
+        "붙임 2. 과제 제안요구서(RFP)_휴머노이드로봇안전인증센터구축.pdf",
+        "붙임 3. 연구개발계획서 및 제출 서류 서식_5년차.pdf"
+      ],
+      "pairing": "THREE_EXACT_HWPX_PDF_PAIRS",
+      "reason": "Mixed announcement/RFP/form family with exact official PDF controls; strong test for nested table/form hierarchy plus paired-render comparison."
+    },
+    {
+      "queue_id": "moel-employment-fund-alternative-investments-2026",
+      "page_url": "https://moel.go.kr/info/astmgmt/employ/employBbsView.do?bbs_seq=20260800274",
+      "institution": "고용노동부",
+      "source_group": "moel_employment_fund_alternative_investments_2026",
+      "lane": "PROSPECTIVE_HOLDOUT",
+      "requested": [
+        "1. (공고) 2026년 고용보험기금 대체투자상품(PEF, VC) 선정 공고문.hwpx",
+        "2. [공고] 고용보험기금 대체투자상품 선정 제안요청서(RFP)_PEF.hwpx",
+        "4. [공고] 고용보험기금 대체투자상품 선정 제안요청서(RFP)_VC.hwpx",
+        "6. 고용보험기금 대체투자상품 선정 제안요청서(RFP)_개인정보 동의서.hwpx"
+      ],
+      "reason": "Independent ministry family with announcement/RFP/form variants, expected dense tables and container-heavy layouts."
+    }
+  ]
+}

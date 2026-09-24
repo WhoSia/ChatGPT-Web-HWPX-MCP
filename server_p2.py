@@ -137,6 +137,11 @@ from p336r2_design import (
     infer_presentation_roles as p336r2_infer_presentation_roles,
     evaluate_generated_document as p336r2_evaluate_generated_document,
 )
+from p337_product_workflow import (
+    fill_template_atomic as p337_fill_template_atomic,
+    product_workflow_contract as p337_product_workflow_contract,
+    sniff_hangul_payload as p337_sniff_hangul_payload,
+)
 from p313_capture_custody import (
     near_wrap_positive_sensitivity_spec,
     validate_artifact_custody,
@@ -162,9 +167,9 @@ from common_ir import (
     slice_common_ir,
 )
 
-P2_VERSION = "0.13.1-p3.36"
+P2_VERSION = "0.14.0-p3.37"
 core.VERSION = P2_VERSION
-core.PHASE = "P3.36"
+core.PHASE = "P3.37"
 
 _original_metadata = core._metadata
 
@@ -5169,6 +5174,11 @@ def p2_capabilities() -> dict:
         "phase": core.PHASE,
         "authenticated_subject": subject,
         "tools_added": [
+            "get_product_authoring_contract",
+            "create_and_deliver_document",
+            "edit_and_deliver_document",
+            "fill_template_and_deliver",
+            "ingest_hangul_document",
             "get_rare_feature_registry",
             "evaluate_rare_feature_lane",
             "plan_rare_feature_promotion",
@@ -6007,7 +6017,8 @@ def deliver_document(document_id: str, revision: int | None = None, link_ttl_sec
     return handoff(export_revision(core, document_id, link_ttl_seconds, revision))
 
 
-def _delivery_after_commit(document_id: str, revision: int, link_ttl_seconds: int, workflow: str) -> CallToolResult:
+def _delivery_after_commit(document_id: str, revision: int, link_ttl_seconds: int, workflow: str,
+                           extra: dict | None = None) -> CallToolResult:
     try:
         receipt = export_revision(core, document_id, link_ttl_seconds, revision)
     except Exception as exc:
@@ -6016,10 +6027,266 @@ def _delivery_after_commit(document_id: str, revision: int, link_ttl_seconds: in
                    "workflow": workflow, "transaction": "COMMITTED",
                    "delivery_status": "RETRY_DELIVERY_ONLY", "error_type": type(exc).__name__,
                    "recovery": "Call deliver_document for this document_id and revision; do not repeat the mutation."}
+        if extra:
+            receipt.update(extra)
         return CallToolResult(content=[TextContent(type="text", text=json.dumps(receipt))],
                               structuredContent=receipt, isError=True)
     receipt.update(workflow=workflow, transaction="COMMITTED")
+    if extra:
+        receipt.update(extra)
     return handoff(receipt)
+
+
+@core.mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, openWorldHint=False))
+def get_product_authoring_contract() -> dict:
+    """Return the narrow P3.37 request→native-file product surface and frozen upstream harvest receipt."""
+    core._caller_subject()
+    return {"ok": True, **p337_product_workflow_contract(), "composition": document_plan_contract()}
+
+
+def _product_create_impl(plan: dict, filename: str, request_id: str, design_mode: str,
+                         explicit_tokens: dict | None, link_ttl_seconds: int,
+                         workflow: str) -> CallToolResult:
+    core._caller_subject()
+    core._download_secret()
+    mode = str(design_mode or "").upper()
+    compiled = None
+    effective_plan = plan
+    if mode == "AUTO":
+        if not str(plan.get("preset") or "").strip():
+            compiled = p336r2_compile_design_plan(plan, "POLISHED_REPORT")
+            effective_plan = compiled["plan"]
+    elif mode:
+        compiled = p336r2_compile_design_plan(plan, mode, explicit_tokens=explicit_tokens)
+        effective_plan = compiled["plan"]
+    created = create_document_from_plan(effective_plan, filename, "", request_id)
+    context = {
+        "authoring": {
+            "input_design_mode": mode or "PLAN_DEFINED",
+            "effective_preset": created.get("composition_preset"),
+            "composition_plan_sha256": created.get("composition_plan_sha256"),
+            "composition_sha256": created.get("composition_sha256"),
+            "block_count": created.get("composition_block_count"),
+            "design_plan_sha256": None if compiled is None else compiled.get("design_plan_sha256"),
+            "design_authority": None if compiled is None else compiled.get("authority"),
+        }
+    }
+    return _delivery_after_commit(
+        created["document_id"], int(created.get("revision", 1)), int(link_ttl_seconds),
+        workflow, extra={"phase": "P3.37", "product_context": context},
+    )
+
+
+@core.mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, openWorldHint=False))
+def create_and_deliver_document(plan: dict, filename: str = "document.hwpx", request_id: str = "",
+                                design_mode: str = "AUTO", explicit_tokens: dict | None = None,
+                                link_ttl_seconds: int = 900) -> CallToolResult:
+    """Primary P3.37 authoring path: compile, validate, durably commit and return one native .hwpx resource."""
+    return _product_create_impl(
+        plan, filename, request_id, design_mode, explicit_tokens, link_ttl_seconds,
+        "P337_CREATE_VALIDATE_DELIVER",
+    )
+
+
+@core.mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, openWorldHint=False))
+def fill_template_and_deliver(template_document_id: str, values: dict[str, str],
+                              filename: str = "", request_id: str = "",
+                              require_each: bool = True, require_unique: bool = False,
+                              link_ttl_seconds: int = 900) -> CallToolResult:
+    """Clone one owned HWPX template, fill exact literal placeholders atomically, and return the new native file."""
+    owner_subject = core._caller_subject()
+    core._download_secret()
+    core._cleanup_expired()
+    template_metadata, template_path = _owned_document(template_document_id)
+    template_sha = str(
+        template_metadata.get("sha256") or hashlib.sha256(template_path.read_bytes()).hexdigest()
+    )
+    output_name = core.sanitize_filename(
+        filename or (Path(str(template_metadata.get("filename") or "template.hwpx")).stem + "-filled.hwpx")
+    )
+    normalized_request_id = str(request_id or "").strip()
+    if normalized_request_id and len(normalized_request_id) > 160:
+        raise ValueError("request_id exceeds 160 characters")
+    fingerprint_payload = {
+        "template_document_id": template_document_id,
+        "template_sha256": template_sha,
+        "values": values,
+        "filename": output_name,
+        "require_each": bool(require_each),
+        "require_unique": bool(require_unique),
+    }
+    request_fingerprint = hashlib.sha256(
+        json.dumps(
+            fingerprint_payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+        ).encode("utf-8")
+    ).hexdigest()
+    durable_request = (
+        f"p337-fill:{template_sha}:{normalized_request_id}" if normalized_request_id else ""
+    )
+    document_id = (
+        core._idempotent_document_id(owner_subject, durable_request)
+        if durable_request else core._new_document_id()
+    )
+
+    if durable_request:
+        try:
+            existing = core._load_metadata(document_id)
+        except FileNotFoundError:
+            existing = None
+        if existing is not None:
+            core._require_owner(existing)
+            if existing.get("p337_fill_request_sha256") != request_fingerprint:
+                raise RuntimeError(
+                    "Idempotency conflict: request_id already used with different template-fill payload"
+                )
+            context = {
+                "template_fill": {
+                    "template_document_id": template_document_id,
+                    "template_sha256": template_sha,
+                    "fill_receipt": existing.get("p337_fill_receipt"),
+                    "idempotent_replay": True,
+                }
+            }
+            return _delivery_after_commit(
+                document_id, int(existing.get("revision", 1)), int(link_ttl_seconds),
+                "P337_TEMPLATE_FILL_VALIDATE_DELIVER",
+                extra={"phase": "P3.37", "product_context": context},
+            )
+
+    output_path, _ = core._paths(document_id)
+    try:
+        fill_receipt = p337_fill_template_atomic(
+            template_path,
+            output_path,
+            values,
+            require_each=bool(require_each),
+            require_unique=bool(require_unique),
+            validator=lambda candidate: core.validate_hwpx_package(candidate, ingress=False),
+        )
+        validation = fill_receipt["validation"]
+        metadata = core._metadata(
+            document_id,
+            filename=output_name,
+            owner_subject=owner_subject,
+            validation=validation,
+            title=str(template_metadata.get("title") or ""),
+            source="p337-template-fill",
+        )
+        metadata["template_document_id"] = template_document_id
+        metadata["template_source_sha256"] = template_sha
+        metadata["p337_fill_request_sha256"] = request_fingerprint
+        metadata["p337_fill_receipt"] = fill_receipt
+        if normalized_request_id:
+            metadata["create_request_id_sha256"] = hashlib.sha256(
+                normalized_request_id.encode("utf-8")
+            ).hexdigest()
+        document_map = build_document_map(output_path)
+        formatting_map = build_formatting_map(output_path)
+        inline_map = build_inline_map(output_path)
+        table_map = build_table_map(output_path)
+        object_map = build_object_map(output_path)
+        equation_map = build_equation_map(output_path)
+        _refresh_metadata(
+            document_id, metadata, validation, document_map, formatting_map, inline_map,
+            table_map, object_map, equation_map,
+        )
+        core._write_metadata(document_id, metadata)
+    except Exception:
+        core._delete_document_files(document_id)
+        raise
+
+    context = {
+        "template_fill": {
+            "template_document_id": template_document_id,
+            "template_sha256": template_sha,
+            "fill_receipt": fill_receipt,
+            "idempotent_replay": False,
+        }
+    }
+    return _delivery_after_commit(
+        document_id, int(metadata.get("revision", 1)), int(link_ttl_seconds),
+        "P337_TEMPLATE_FILL_VALIDATE_DELIVER",
+        extra={"phase": "P3.37", "product_context": context},
+    )
+
+
+@core.mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, openWorldHint=False))
+def ingest_hangul_document(content_base64: str, filename: str = "document.hwpx",
+                           hwp5_derivative_mode: str = "NONE", request_id: str = "",
+                           link_ttl_seconds: int = 900) -> CallToolResult:
+    """Unified bytes-first intake for HWPX/HWP5; HWP5 conversion is explicit and source bytes are never mutated."""
+    core._caller_subject()
+    encoded_limit = ((core.MAX_INGEST_BYTES + 2) // 3) * 4 + 16
+    if len(content_base64) > encoded_limit:
+        raise ValueError("Encoded Hangul document exceeds bounded ingress limit")
+    try:
+        payload = base64.b64decode(content_base64, validate=True)
+    except (binascii.Error, ValueError) as exc:
+        raise ValueError("content_base64 is not valid base64") from exc
+    if len(payload) > core.MAX_INGEST_BYTES:
+        raise ValueError(f"Hangul document ingress exceeds {core.MAX_INGEST_BYTES} bytes")
+
+    sniff = p337_sniff_hangul_payload(payload, filename)
+    if sniff["actual_format"] == "HWPX":
+        canonical_name = core.sanitize_filename(
+            Path(filename or "document.hwpx").stem + ".hwpx"
+        )
+        admitted = core.ingest_document(content_base64, canonical_name)
+        return _delivery_after_commit(
+            admitted["document_id"], int(admitted.get("revision", 1)), int(link_ttl_seconds),
+            "P337_HWPX_INGEST_VALIDATE_DELIVER",
+            extra={"phase": "P3.37", "product_context": {"intake": sniff}},
+        )
+
+    if sniff["actual_format"] == "HWP5":
+        mode = str(hwp5_derivative_mode or "NONE").upper()
+        if mode not in {"NONE", "TEXT", "RICH"}:
+            raise ValueError("hwp5_derivative_mode must be NONE, TEXT, or RICH")
+        if mode == "NONE":
+            inspection = inspect_hwp5_document(content_base64, filename)
+            receipt = {
+                "ok": True,
+                "phase": "P3.37",
+                "product_workflow": "P337_HWP5_INSPECT_ONLY",
+                "intake": sniff,
+                "inspection": inspection,
+                "delivery_status": "NO_DERIVATIVE_REQUESTED",
+                "recovery": (
+                    "Request TEXT or RICH derivative mode only when an editable "
+                    "HWPX derivative is wanted."
+                ),
+            }
+            return CallToolResult(
+                content=[TextContent(type="text", text=json.dumps(receipt, ensure_ascii=False))],
+                structuredContent=receipt,
+            )
+        created = (
+            materialize_hwp5_text_derivative(
+                content_base64, filename, request_id=request_id
+            )
+            if mode == "TEXT"
+            else materialize_hwp5_rich_derivative(
+                content_base64, filename, request_id=request_id
+            )
+        )
+        return _delivery_after_commit(
+            created["document_id"], int(created.get("revision", 1)), int(link_ttl_seconds),
+            f"P337_HWP5_{mode}_DERIVATIVE_VALIDATE_DELIVER",
+            extra={
+                "phase": "P3.37",
+                "product_context": {
+                    "intake": sniff,
+                    "derivative_mode": mode,
+                    "source_mutated": False,
+                    "promotion_report": created.get("promotion_report"),
+                },
+            },
+        )
+
+    raise ValueError(
+        f"Unsupported Hangul document bytes: {sniff['actual_format']} "
+        f"({sniff['recommended_route']})"
+    )
 
 
 @core.mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, openWorldHint=False))
@@ -6031,12 +6298,19 @@ def generate_document(plan: dict, filename: str = "document.hwpx", request_id: s
     (get_document_delivery_contract). Reuse request_id after an interrupted create.
     Return the file/link, not an internal document ID, as the user's final deliverable.
     """
-    core._caller_subject()
-    core._download_secret()
-    link_ttl_seconds = int(link_ttl_seconds)
-    created = create_document_from_plan(plan, filename, template_document_id, request_id)
-    return _delivery_after_commit(created["document_id"], int(created.get("revision", 1)),
-                                  link_ttl_seconds, "CREATE_VALIDATE_EXPORT_HANDOFF")
+    if template_document_id:
+        core._caller_subject()
+        core._download_secret()
+        created = create_document_from_plan(plan, filename, template_document_id, request_id)
+        return _delivery_after_commit(
+            created["document_id"], int(created.get("revision", 1)), int(link_ttl_seconds),
+            "CREATE_VALIDATE_EXPORT_HANDOFF",
+            extra={"phase": "P3.37", "compatibility_alias": "generate_document"},
+        )
+    return _product_create_impl(
+        plan, filename, request_id, "", None, int(link_ttl_seconds),
+        "CREATE_VALIDATE_EXPORT_HANDOFF",
+    )
 
 
 @core.mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True, openWorldHint=False))
@@ -6054,6 +6328,23 @@ def edit_document_and_deliver(document_id: str, expected_revision: int, operatio
     edited = apply_edits(document_id, expected_revision, operations, lease_token)
     return _delivery_after_commit(document_id, edited["revision_after"], link_ttl_seconds,
                                   "EDIT_VALIDATE_EXPORT_HANDOFF")
+
+
+@core.mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True, openWorldHint=False))
+def edit_and_deliver_document(document_id: str, expected_revision: int, operations: list[dict],
+                              lease_token: str = "", link_ttl_seconds: int = 900) -> CallToolResult:
+    """Primary P3.37 edit path: one CAS-guarded native edit transaction followed by native file handoff."""
+    core._caller_subject()
+    core._download_secret()
+    edited = apply_edits(document_id, expected_revision, operations, lease_token)
+    return _delivery_after_commit(
+        document_id, int(edited["revision_after"]), int(link_ttl_seconds),
+        "P337_EDIT_VALIDATE_DELIVER",
+        extra={
+            "phase": "P3.37",
+            "product_context": {"edit": {"operation_count": len(operations)}},
+        },
+    )
 
 
 @core.mcp.tool()

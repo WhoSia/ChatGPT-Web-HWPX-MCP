@@ -4,7 +4,10 @@
   "policy": {
     "blind_id": "12-character base62 pseudonym; source semantics are excluded from analysis filenames",
     "split": "source-group indivisible 22/8/8 documents across DISCOVERY/CALIBRATION/HOLDOUT",
-    "aesthetic_authority": "OBSERVED_PUBLIC_HWPX_CONVENTION_IS_NOT_AESTHETIC_GROUND_TRUTH"
+    "aesthetic_authority": "OBSERVED_PUBLIC_HWPX_CONVENTION_IS_NOT_AESTHETIC_GROUND_TRUTH",
+    "holdout_scope": "STRUCTURAL_CENSUS_EXPOSED_NOT_STRICT_PROSPECTIVE_HOLDOUT",
+    "future_holdout": "Acquire a fresh prospective holdout in the next data batch before tuning/evaluating design heuristics.",
+    "feature_priority_source": "DISCOVERY split only; CALIBRATION/HOLDOUT are excluded from R1 engineering-priority derivation."
   },
   "rows": [
     {

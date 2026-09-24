@@ -224,6 +224,11 @@ async def main() -> None:
                 "evaluate_rare_feature_lane",
                 "plan_rare_feature_promotion",
                 "get_product_ux_regression_contract",
+                "get_product_authoring_contract",
+                "create_and_deliver_document",
+                "edit_and_deliver_document",
+                "fill_template_and_deliver",
+                "ingest_hangul_document",
                 "get_typography_contract",
                 "get_typography_profile",
                 "compare_typography_profiles",
@@ -240,13 +245,26 @@ async def main() -> None:
                 if "access_token" in schema_text or "passphrase" in schema_text:
                     raise RuntimeError(f"secret-bearing field leaked into tool schema: {tool.name}")
 
-            read_payload = _payload(await client.call_tool("probe_read", {"message": "P3.36 OAuth smoke test"}))
-            if not read_payload or not read_payload.get("ok") or read_payload.get("version") != "0.13.1-p3.36":
-                raise RuntimeError(f"probe_read did not expose current P3.36 product version: {read_payload}")
+            read_payload = _payload(await client.call_tool("probe_read", {"message": "P3.37 OAuth smoke test"}))
+            if not read_payload or not read_payload.get("ok") or read_payload.get("version") != "0.14.0-p3.37":
+                raise RuntimeError(f"probe_read did not expose current P3.37 product version: {read_payload}")
 
             p2_caps = _payload(await client.call_tool("p2_capabilities", {}))
-            if not p2_caps or p2_caps.get("phase") != "P3.36":
+            if not p2_caps or p2_caps.get("phase") != "P3.37":
                 raise RuntimeError(f"p2_capabilities failed: {p2_caps}")
+
+            product_contract = _payload(await client.call_tool("get_product_authoring_contract", {}))
+            if (
+                not product_contract
+                or product_contract.get("phase") != "P3.37"
+                or set(product_contract.get("primary_tools", [])) != {
+                    "create_and_deliver_document",
+                    "edit_and_deliver_document",
+                    "fill_template_and_deliver",
+                    "ingest_hangul_document",
+                }
+            ):
+                raise RuntimeError(f"P3.37 product authoring contract failed: {product_contract}")
 
             design_contract = _payload(await client.call_tool("get_design_quality_contract", {}))
             if (
@@ -281,9 +299,10 @@ async def main() -> None:
 
             delivery_contract = _payload(await client.call_tool("get_document_delivery_contract", {}))
             assert delivery_contract["evidence_gates"]["rare_features"]["status"] == "EVIDENCE_GATE_CLOSED"
-            delivered = await client.call_tool("generate_document", {
-                "plan": {"blocks": [{"type": "paragraph", "text": "P3.33 original"}]},
-                "filename": "파일 전달 검증.hwpx", "request_id": "p333-oauth-delivery",
+            delivered = await client.call_tool("create_and_deliver_document", {
+                "plan": {"blocks": [{"type": "paragraph", "text": "P3.37 original"}]},
+                "filename": "파일 전달 검증.hwpx", "request_id": "p337-oauth-delivery",
+                "design_mode": "",
             })
             delivery = _payload(delivered)
             assert delivery["ok"] and delivery["revision"] == 1
@@ -295,10 +314,10 @@ async def main() -> None:
                 assert hashlib.sha256(original.content).hexdigest() == delivery["sha256"]
                 assert "attachment" in original.headers["content-disposition"]
                 mapped_delivery = _payload(await client.call_tool("get_document_map", {"document_id": delivery_id}))
-                target = next(p["locator"] for p in mapped_delivery["paragraphs"] if p["text"] == "P3.33 original")
-                edited_delivery = _payload(await client.call_tool("edit_document_and_deliver", {
+                target = next(p["locator"] for p in mapped_delivery["paragraphs"] if p["text"] == "P3.37 original")
+                edited_delivery = _payload(await client.call_tool("edit_and_deliver_document", {
                     "document_id": delivery_id, "expected_revision": 1,
-                    "operations": [{"op": "replace_paragraph_text", "target": target, "text": "P3.33 edited"}],
+                    "operations": [{"op": "replace_paragraph_text", "target": target, "text": "P3.37 edited"}],
                 }))
                 assert edited_delivery["ok"] and edited_delivery["revision"] == 2
                 old_download = await download_client.get(delivery["download_url"])
@@ -308,10 +327,34 @@ async def main() -> None:
                 assert hashlib.sha256(edited_download.content).hexdigest() == edited_delivery["sha256"]
                 forged = await download_client.get(delivery["download_url"].replace("rev=1", "rev=2"))
                 assert forged.status_code == 403
-            delivered_ingest = _payload(await client.call_tool("ingest_document", {
-                "filename": "delivery-reingest.hwpx", "content_base64": base64.b64encode(edited_download.content).decode(),
+            delivered_ingest = _payload(await client.call_tool("ingest_hangul_document", {
+                "filename": "delivery-reingest.hwpx",
+                "content_base64": base64.b64encode(edited_download.content).decode(),
             }))
-            assert delivered_ingest["admission"] == "PASS"
+            assert delivered_ingest["phase"] == "P3.37"
+            assert delivered_ingest["product_context"]["intake"]["actual_format"] == "HWPX"
+
+            template_call = await client.call_tool("create_and_deliver_document", {
+                "plan": {"blocks": [{"type": "paragraph", "text": "성명: {{name}}"}]},
+                "filename": "양식 검증.hwpx", "request_id": "p337-oauth-template",
+                "design_mode": "",
+            })
+            template_delivery = _payload(template_call)
+            filled_call = await client.call_tool("fill_template_and_deliver", {
+                "template_document_id": template_delivery["document_id"],
+                "values": {"{{name}}": "김우준"},
+                "filename": "양식-완성.hwpx",
+                "request_id": "p337-oauth-fill",
+                "require_unique": True,
+            })
+            filled_delivery = _payload(filled_call)
+            assert filled_delivery["phase"] == "P3.37"
+            assert any(block.type == "resource_link" for block in filled_call.content)
+            filled_map = _payload(await client.call_tool(
+                "get_document_map", {"document_id": filled_delivery["document_id"]}
+            ))
+            assert any("성명: 김우준" == p["text"] for p in filled_map["paragraphs"])
+
             renewed = _payload(await client.call_tool("deliver_document", {"document_id": delivery_id, "revision": 1}))
             assert renewed["sha256"] == delivery["sha256"]
             # R4: immutable revision intake -> candidate -> existing atomic
@@ -350,9 +393,14 @@ async def main() -> None:
             }))
             assert excluded["source"]["inclusion_status"] == "EXCLUDED"
             print("P3.35-R4 OAuth intake -> template -> CAS formatting -> artifact download PASS")
-            for delivered_id in (delivery_id, delivered_ingest["document_id"]):
+            for delivered_id in (
+                delivery_id,
+                delivered_ingest["document_id"],
+                template_delivery["document_id"],
+                filled_delivery["document_id"],
+            ):
                 await client.call_tool("delete_document", {"document_id": delivered_id})
-            print("P3.33 OAuth generate/edit/resource-link/download/exact-revision/re-ingest PASS")
+            print("P3.37 OAuth create/edit/fill/bytes-first-ingest/resource-link/download PASS")
 
             plan_checked = _payload(await client.call_tool("validate_document_plan", {
                 "plan": {

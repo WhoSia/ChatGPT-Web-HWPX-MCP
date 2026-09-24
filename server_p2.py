@@ -142,6 +142,12 @@ from p337_product_workflow import (
     product_workflow_contract as p337_product_workflow_contract,
     sniff_hangul_payload as p337_sniff_hangul_payload,
 )
+from p338_rich_builder import (
+    compile_rich_document_plan as p338_compile_rich_document_plan,
+    evaluate_preview_readiness as p338_evaluate_preview_readiness,
+    intelligent_fill_atomic as p338_intelligent_fill_atomic,
+    rich_builder_contract as p338_rich_builder_contract,
+)
 from p313_capture_custody import (
     near_wrap_positive_sensitivity_spec,
     validate_artifact_custody,
@@ -167,9 +173,9 @@ from common_ir import (
     slice_common_ir,
 )
 
-P2_VERSION = "0.14.0-p3.37"
+P2_VERSION = "0.15.0-p3.38"
 core.VERSION = P2_VERSION
-core.PHASE = "P3.37"
+core.PHASE = "P3.38"
 
 _original_metadata = core._metadata
 
@@ -5174,6 +5180,11 @@ def p2_capabilities() -> dict:
         "phase": core.PHASE,
         "authenticated_subject": subject,
         "tools_added": [
+            "get_rich_document_builder_contract",
+            "compile_rich_document_plan",
+            "create_rich_document_and_deliver",
+            "fill_template_intelligently_and_deliver",
+            "evaluate_document_preview_readiness",
             "get_product_authoring_contract",
             "create_and_deliver_document",
             "edit_and_deliver_document",
@@ -6286,6 +6297,277 @@ def ingest_hangul_document(content_base64: str, filename: str = "document.hwpx",
     raise ValueError(
         f"Unsupported Hangul document bytes: {sniff['actual_format']} "
         f"({sniff['recommended_route']})"
+    )
+
+
+@core.mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, openWorldHint=False))
+def get_rich_document_builder_contract() -> dict:
+    """Return the P3.38 rich multi-section authoring, smart-fill and preview-readiness contract."""
+    core._caller_subject()
+    return {"ok": True, **p338_rich_builder_contract()}
+
+
+@core.mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, openWorldHint=False))
+def compile_rich_document_plan(rich_plan: dict) -> dict:
+    """Compile a section-oriented rich plan into the existing native P3.21 composition plan."""
+    core._caller_subject()
+    return {"ok": True, **p338_compile_rich_document_plan(rich_plan)}
+
+
+@core.mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, openWorldHint=False))
+def evaluate_document_preview_readiness(document_id: str, mode: str = "POLISHED_REPORT") -> dict:
+    """Run static native layout-risk checks before visual preview; this does not claim rendered equivalence."""
+    metadata, path = _owned_document(document_id)
+    readiness = p338_evaluate_preview_readiness(
+        path,
+        mode=mode,
+        validator=lambda candidate: core.validate_hwpx_package(
+            candidate,
+            ingress=metadata.get("source") == "existing-ingress",
+        ),
+    )
+    return {
+        "ok": readiness["verdict"] in {"PASS", "PASS_WITH_WARNINGS"},
+        "document_id": document_id,
+        "revision": int(metadata["revision"]),
+        **readiness,
+    }
+
+
+@core.mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, openWorldHint=False))
+def create_rich_document_and_deliver(
+    rich_plan: dict,
+    filename: str = "document.hwpx",
+    request_id: str = "",
+    design_mode: str = "AUTO",
+    explicit_tokens: dict | None = None,
+    link_ttl_seconds: int = 900,
+) -> CallToolResult:
+    """Compile a rich multi-section plan, validate static preview readiness, and return the native HWPX."""
+    core._caller_subject()
+    core._download_secret()
+    compiled = p338_compile_rich_document_plan(rich_plan)
+    effective_plan = compiled["plan"]
+    mode = str(design_mode or "").upper()
+    design = None
+    if mode not in {"", "AUTO"}:
+        design = p336r2_compile_design_plan(
+            effective_plan,
+            mode,
+            explicit_tokens=explicit_tokens,
+        )
+        effective_plan = design["plan"]
+
+    created = create_document_from_plan(effective_plan, filename, "", request_id)
+    metadata, path = _owned_document(created["document_id"])
+    readiness = p338_evaluate_preview_readiness(
+        path,
+        mode=("POLISHED_REPORT" if mode in {"", "AUTO"} else mode),
+        validator=lambda candidate: core.validate_hwpx_package(candidate, ingress=False),
+    )
+    if readiness["verdict"] in {"FAIL", "HOLD"}:
+        if not created.get("idempotent_replay"):
+            core._delete_document_files(created["document_id"])
+        raise ValueError(
+            "P3.38 preview-readiness gate refused delivery: "
+            + readiness["verdict"]
+        )
+
+    metadata["p338_compile_sha256"] = compiled["compile_sha256"]
+    metadata["p338_section_count"] = compiled["section_count"]
+    metadata["p338_preview_readiness_sha256"] = readiness["preview_readiness_sha256"]
+    metadata["p338_preview_verdict"] = readiness["verdict"]
+    core._write_metadata(created["document_id"], metadata)
+
+    return _delivery_after_commit(
+        created["document_id"],
+        int(created.get("revision", 1)),
+        int(link_ttl_seconds),
+        "P338_RICH_CREATE_PREVIEW_GATE_DELIVER",
+        extra={
+            "phase": "P3.38",
+            "product_context": {
+                "rich_authoring": {
+                    "section_count": compiled["section_count"],
+                    "block_count": compiled["block_count"],
+                    "compile_sha256": compiled["compile_sha256"],
+                    "design_mode": mode or "PLAN_DEFINED",
+                    "design_plan_sha256": None if design is None else design.get("design_plan_sha256"),
+                },
+                "preview_readiness": readiness,
+            },
+        },
+    )
+
+
+@core.mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, openWorldHint=False))
+def fill_template_intelligently_and_deliver(
+    template_document_id: str,
+    values: dict[str, str],
+    field_specs: dict[str, dict] | None = None,
+    filename: str = "",
+    request_id: str = "",
+    require_each: bool = True,
+    require_unique: bool = True,
+    preview_mode: str = "POLISHED_REPORT",
+    link_ttl_seconds: int = 900,
+) -> CallToolResult:
+    """Clone a template, resolve exact placeholders/named cells/adjacent label cells, gate, and deliver."""
+    owner_subject = core._caller_subject()
+    core._download_secret()
+    core._cleanup_expired()
+    template_metadata, template_path = _owned_document(template_document_id)
+    template_sha = str(
+        template_metadata.get("sha256")
+        or hashlib.sha256(template_path.read_bytes()).hexdigest()
+    )
+    output_name = core.sanitize_filename(
+        filename
+        or (
+            Path(str(template_metadata.get("filename") or "template.hwpx")).stem
+            + "-filled.hwpx"
+        )
+    )
+    normalized_request_id = str(request_id or "").strip()
+    if normalized_request_id and len(normalized_request_id) > 160:
+        raise ValueError("request_id exceeds 160 characters")
+
+    fingerprint_payload = {
+        "template_document_id": template_document_id,
+        "template_sha256": template_sha,
+        "values": values,
+        "field_specs": field_specs or {},
+        "filename": output_name,
+        "require_each": bool(require_each),
+        "require_unique": bool(require_unique),
+        "preview_mode": str(preview_mode),
+    }
+    request_fingerprint = hashlib.sha256(
+        json.dumps(
+            fingerprint_payload,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    ).hexdigest()
+    durable_request = (
+        f"p338-fill:{template_sha}:{normalized_request_id}"
+        if normalized_request_id
+        else ""
+    )
+    document_id = (
+        core._idempotent_document_id(owner_subject, durable_request)
+        if durable_request
+        else core._new_document_id()
+    )
+
+    if durable_request:
+        try:
+            existing = core._load_metadata(document_id)
+        except FileNotFoundError:
+            existing = None
+        if existing is not None:
+            core._require_owner(existing)
+            if existing.get("p338_fill_request_sha256") != request_fingerprint:
+                raise RuntimeError(
+                    "Idempotency conflict: request_id already used with different intelligent-fill payload"
+                )
+            return _delivery_after_commit(
+                document_id,
+                int(existing.get("revision", 1)),
+                int(link_ttl_seconds),
+                "P338_INTELLIGENT_FILL_PREVIEW_GATE_DELIVER",
+                extra={
+                    "phase": "P3.38",
+                    "product_context": {
+                        "intelligent_template_fill": {
+                            "template_document_id": template_document_id,
+                            "fill_receipt": existing.get("p338_fill_receipt"),
+                            "preview_readiness": existing.get("p338_preview_receipt"),
+                            "idempotent_replay": True,
+                        }
+                    },
+                },
+            )
+
+    output_path, _ = core._paths(document_id)
+    try:
+        fill_receipt = p338_intelligent_fill_atomic(
+            template_path,
+            output_path,
+            values,
+            field_specs=field_specs,
+            require_each=bool(require_each),
+            require_unique=bool(require_unique),
+            validator=lambda candidate: core.validate_hwpx_package(candidate, ingress=False),
+        )
+        readiness = p338_evaluate_preview_readiness(
+            output_path,
+            mode=str(preview_mode or "POLISHED_REPORT").upper(),
+            validator=lambda candidate: core.validate_hwpx_package(candidate, ingress=False),
+        )
+        if readiness["verdict"] in {"FAIL", "HOLD"}:
+            raise ValueError(
+                "P3.38 preview-readiness gate refused intelligent-fill delivery: "
+                + readiness["verdict"]
+            )
+
+        validation = fill_receipt["validation"]
+        metadata = core._metadata(
+            document_id,
+            filename=output_name,
+            owner_subject=owner_subject,
+            validation=validation,
+            title=str(template_metadata.get("title") or ""),
+            source="p338-intelligent-template-fill",
+        )
+        metadata["template_document_id"] = template_document_id
+        metadata["template_source_sha256"] = template_sha
+        metadata["p338_fill_request_sha256"] = request_fingerprint
+        metadata["p338_fill_receipt"] = fill_receipt
+        metadata["p338_preview_receipt"] = readiness
+        if normalized_request_id:
+            metadata["create_request_id_sha256"] = hashlib.sha256(
+                normalized_request_id.encode("utf-8")
+            ).hexdigest()
+        document_map = build_document_map(output_path)
+        formatting_map = build_formatting_map(output_path)
+        inline_map = build_inline_map(output_path)
+        table_map = build_table_map(output_path)
+        object_map = build_object_map(output_path)
+        equation_map = build_equation_map(output_path)
+        _refresh_metadata(
+            document_id,
+            metadata,
+            validation,
+            document_map,
+            formatting_map,
+            inline_map,
+            table_map,
+            object_map,
+            equation_map,
+        )
+    except Exception:
+        core._delete_document_files(document_id)
+        raise
+
+    return _delivery_after_commit(
+        document_id,
+        int(metadata.get("revision", 1)),
+        int(link_ttl_seconds),
+        "P338_INTELLIGENT_FILL_PREVIEW_GATE_DELIVER",
+        extra={
+            "phase": "P3.38",
+            "product_context": {
+                "intelligent_template_fill": {
+                    "template_document_id": template_document_id,
+                    "template_sha256": template_sha,
+                    "fill_receipt": fill_receipt,
+                    "preview_readiness": readiness,
+                    "idempotent_replay": False,
+                }
+            },
+        },
     )
 
 

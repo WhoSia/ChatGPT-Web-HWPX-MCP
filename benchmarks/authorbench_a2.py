@@ -315,21 +315,19 @@ for table in table_map_before_finish.get("tables", []):
                 "policy_evidence": width_plan,
             })
 
-    for cell in cells:
-        finish_actions.append({
-            "action": "ALLOCATE_CELL_PADDING",
-            "status": "EXECUTABLE",
-            "reason": "AUTHORING_DENSITY_POLICY",
-            "operation": {
-                "op": "set_cell_margin",
-                "table": locator,
-                "cell": str(cell["locator"]),
-                "left": 560,
-                "right": 560,
-                "top": 420,
-                "bottom": 420,
-            },
-        })
+    finish_actions.append({
+        "action": "ALLOCATE_TABLE_PADDING",
+        "status": "EXECUTABLE",
+        "reason": "AUTHORING_DENSITY_POLICY",
+        "operation": {
+            "op": "set_table_padding",
+            "table": locator,
+            "left": 560,
+            "right": 560,
+            "top": 420,
+            "bottom": 420,
+        },
+    })
 
 long_nested = [
     str(p["locator"])

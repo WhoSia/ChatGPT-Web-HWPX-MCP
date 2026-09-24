@@ -162,7 +162,7 @@ jobs:
           for i in {1..40}; do
             if curl --fail --silent http://127.0.0.1:8000/health >/tmp/health.json; then
               cat /tmp/health.json
-              grep -q '0.14.0-p3.37' /tmp/health.json
+              grep -q '0.15.0-p3.38' /tmp/health.json
               grep -q 'postgres-encrypted' /tmp/health.json
               exit 0
             fi

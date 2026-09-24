@@ -1,0 +1,60 @@
+name: AuthorBench A2 P3.40 fresh generalization
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "benchmarks/authorbench_a2.py"
+      - "benchmarks/authorbench_a2_p340_evaluation.py"
+      - ".github/workflows/authorbench-a2.yml"
+      - "p340_feedback_loop.py"
+      - "p339_design_intelligence.py"
+      - "p321_document_composer.py"
+      - "p338_rich_builder.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  authorbench-a2:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install authoring dependencies
+        run: pip install -r requirements.txt -r requirements-capture.txt -r requirements-dev.txt
+      - name: Compile A2 benchmark
+        run: python -m compileall -q benchmarks/authorbench_a2.py benchmarks/authorbench_a2_p340_evaluation.py
+      - name: Materialize frozen A1 baseline
+        run: python benchmarks/authorbench_a1.py
+      - name: Generate fresh A2 only after P3.40 implementation validation
+        run: python benchmarks/authorbench_a2.py
+      - name: Evaluate A1 vs fresh A2 and controlled repair probe
+        run: python benchmarks/authorbench_a2_p340_evaluation.py
+      - name: Verify HWPX packages
+        run: |
+          unzip -t artifacts/authorbench-a2-research-data-infrastructure.hwpx
+          unzip -t artifacts/authorbench-a2-repair-probe-before.hwpx
+          unzip -t artifacts/authorbench-a2-repair-probe-after.hwpx
+      - uses: actions/upload-artifact@v4
+        with:
+          name: authorbench-a2-p340
+          path: |
+            artifacts/authorbench-a2-research-data-infrastructure.hwpx
+            artifacts/authorbench-a2-receipt.json
+            artifacts/authorbench-a2-p340-evaluation.json
+            artifacts/authorbench-a2-repair-probe-before.hwpx
+            artifacts/authorbench-a2-repair-probe-after.hwpx
+            artifacts/authorbench-a2-repair-probe-before-diagnostic.json
+            artifacts/authorbench-a2-repair-probe-plan.json
+            artifacts/authorbench-a2-repair-probe-after-diagnostic.json
+            artifacts/authorbench-a2-repair-probe-comparison.json
+            artifacts/authorbench-a2-hancom-capture-manifest.json
+            artifacts/authorbench-a2-human-review-packet.json
+          if-no-files-found: error
+          retention-days: 30

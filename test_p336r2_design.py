@@ -55,7 +55,7 @@ class P336R2DesignTests(unittest.TestCase):
         self.assertEqual(profile["final_hierarchy_count"], 1)
 
         existing = [
-            {"locator": "a", "size_pt": 18, "bold_share": 1.0, "alignment": "CENTER", "container": "body"},
+            {"locator": "a", "size_pt": 30, "bold_share": 1.0, "alignment": "CENTER", "container": "body"},
             {
                 "locator": "b", "size_pt": 20, "bold_share": 1.0, "alignment": "CENTER",
                 "container": "subList", "nested_container": True, "in_table": True,

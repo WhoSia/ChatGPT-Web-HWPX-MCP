@@ -58,6 +58,7 @@ def rendered_feedback_loop_contract() -> dict:
         "new_native_capabilities": {
             "nested_table_paragraph_alignment": "SAFE_PARAPR_CLONE_AND_LOCATOR_BOUND_REBIND",
             "header_row_semantic_styling": "EXISTING_CELL_SHADING_BORDER_MARGIN_PRIMITIVES_BUNDLED_BY_ROW",
+            "table_scoped_padding": "CELL_MARGIN_PRIMITIVES_BUNDLED_BY_TABLE_FOR_TOOL_ECONOMY",
             "section_heading_separator": "EXISTING_PARAGRAPH_SPACING_AND_BOTTOM_RULE_PRIMITIVES_BUNDLED_BY_ROLE",
             "table_column_width_policy": "CONTENT_AWARE_WIDTH_PLAN_COMPILED_TO_SET_COLUMN_WIDTHS",
             "semantic_callout_container": "ONE_CELL_NATIVE_TABLE_WITH_RESTRAINED_FILL_RULE_PADDING",
@@ -527,9 +528,34 @@ def plan_executable_editorial_repairs(
     findings = {str(x.get("code") or "").upper(): x for x in diagnostic.get("findings", [])}
     tables = build_table_map(path)
     actions: list[dict] = []
+    padding_compiled = False
 
     for action in base.get("actions", []):
         reason = str(action.get("reason") or "").upper()
+        if reason == "TABLE_CELL_PADDING_TIGHT":
+            if not padding_compiled:
+                evidence = dict((findings.get(reason) or {}).get("evidence") or {})
+                by_table: dict[str, int] = {}
+                for cell in evidence.get("cells", []):
+                    locator = str(cell.get("table") or "")
+                    if locator:
+                        by_table[locator] = by_table.get(locator, 0) + 1
+                for table, count in sorted(by_table.items()):
+                    actions.append({
+                        "action": "ALLOCATE_TABLE_PADDING",
+                        "status": "EXECUTABLE",
+                        "tool": "apply_document_design_repairs",
+                        "operation": {
+                            "op": "set_table_padding",
+                            "table": table,
+                            **dict(strategy["constraints"]["table_min_padding_hwpunit"]),
+                        },
+                        "target_cell_count": count,
+                        "reason": reason,
+                    })
+                padding_compiled = True
+            continue
+
         if reason == "TABLE_LONG_TEXT_CENTERED":
             evidence = dict((findings.get(reason) or {}).get("evidence") or {})
             targets = [str(x) for x in evidence.get("locators", []) if x]
@@ -671,6 +697,47 @@ def _style_table_header(candidate: Path, operation: dict) -> dict:
     return {"table": table["locator"], "row": row, "cell_count": len(cells), "receipts": receipts}
 
 
+def _set_table_padding(candidate: Path, operation: dict) -> dict:
+    tables = build_table_map(candidate)
+    table = _find_table(tables, str(operation.get("table") or ""))
+    if table is None:
+        raise ValueError("table padding locator is unavailable")
+    margins = {
+        "left": int(operation.get("left", 560)),
+        "right": int(operation.get("right", 560)),
+        "top": int(operation.get("top", 420)),
+        "bottom": int(operation.get("bottom", 420)),
+    }
+    if any(value < 0 or value > 100000 for value in margins.values()):
+        raise ValueError("table padding is outside admitted bounds")
+    ops = [
+        {
+            "op": "set_cell_margin",
+            "table": table["locator"],
+            "cell": str(cell["locator"]),
+            **margins,
+        }
+        for cell in table.get("cells", [])
+    ]
+    if not ops:
+        raise ValueError("table has no addressable cells")
+    receipts = []
+    for chunk in _chunked(ops, 48):
+        receipts.append(apply_table_edits_atomic(
+            candidate,
+            chunk,
+            expected_revision=1,
+            current_revision=1,
+            validator=None,
+        ))
+    return {
+        "table": table["locator"],
+        "cell_count": len(ops),
+        "margins": margins,
+        "receipts": receipts,
+    }
+
+
 def _style_semantic_callout(candidate: Path, operation: dict) -> dict:
     tables = build_table_map(candidate)
     table = _find_table(tables, str(operation.get("table") or ""))
@@ -770,6 +837,8 @@ def apply_document_design_repairs_atomic(
                 )
             elif name == "style_table_header":
                 receipt = _style_table_header(candidate, operation)
+            elif name == "set_table_padding":
+                receipt = _set_table_padding(candidate, operation)
             elif name == "style_semantic_callout":
                 receipt = _style_semantic_callout(candidate, operation)
             elif name == "style_section_headings":

@@ -16,6 +16,7 @@ from p2_document import _local, _paragraph_nodes, build_document_map
 from p22_formatting import apply_formatting_atomic, build_formatting_map
 from p28_tables import apply_table_edits_atomic, build_table_map
 from p312_render_harness import validate_capture
+from p336r2_design import paragraph_features_from_hwpx, infer_presentation_roles
 from p339_design_intelligence import (
     diagnose_document_design as p339_diagnose_document_design,
     plan_design_repairs as p339_plan_design_repairs,
@@ -221,6 +222,107 @@ def diagnose_render_capture(
     return result
 
 
+def _semantic_role_metadata_conflicts(path: Path) -> list[dict]:
+    document = build_document_map(path)
+    doc_index = {str(x.get("locator")): x for x in document.get("paragraphs", [])}
+    features = paragraph_features_from_hwpx(path)
+    roles = infer_presentation_roles(features)
+    role_index = {str(x.get("locator")): x for x in roles.get("hypotheses", [])}
+    conflicts: list[dict] = []
+
+    for feature in features:
+        locator = str(feature.get("locator") or "")
+        if not locator or not bool(feature.get("native_heading")):
+            continue
+        role = role_index.get(locator) or {}
+        doc_item = doc_index.get(locator) or {}
+        direct_text = str(doc_item.get("text") or "").strip()
+        text_chars = int(feature.get("text_characters") or 0)
+        ratio = float(role.get("size_ratio_to_median") or 0.0)
+        bold = float(feature.get("bold_share") or 0.0)
+        alignment = str(feature.get("alignment") or "").upper()
+
+        structural_carrier = not direct_text and text_chars > 0
+        visually_body_like = bool(
+            direct_text
+            and text_chars >= 60
+            and ratio <= 1.05
+            and bold < 0.15
+            and alignment in {"LEFT", "JUSTIFY"}
+        )
+        if not structural_carrier and not visually_body_like:
+            continue
+
+        conflicts.append({
+            "locator": locator,
+            "kind": "STRUCTURAL_CARRIER_DESCENDANT_TEXT" if structural_carrier else "BODY_VISUALS_WITH_OUTLINE_METADATA",
+            "document_text_characters": len(direct_text),
+            "feature_text_characters": text_chars,
+            "size_ratio_to_median": round(ratio, 6),
+            "bold_share": round(bold, 6),
+            "alignment": alignment,
+            "native_heading": True,
+            "presentation_role": role.get("presentation_role"),
+            "role_evidence": list(role.get("evidence") or []),
+        })
+    return conflicts
+
+
+def _reconcile_static_hierarchy_findings(path: Path, base: dict) -> dict:
+    conflicts = _semantic_role_metadata_conflicts(path)
+    conflict_locators = {str(x["locator"]) for x in conflicts}
+    if not conflict_locators:
+        return base
+
+    findings: list[dict] = []
+    for item in base.get("findings", []) or []:
+        code = str(item.get("code") or "").upper()
+        if code not in {"SECTION_HIERARCHY_CONTRAST_WEAK", "SECTION_SEPARATION_WEAK"}:
+            findings.append(dict(item))
+            continue
+        copied = dict(item)
+        evidence = dict(copied.get("evidence") or {})
+        locators = [str(x) for x in evidence.get("locators", []) if str(x) not in conflict_locators]
+        if not locators:
+            continue
+        evidence["locators"] = locators
+        evidence["count"] = len(locators)
+        copied["evidence"] = evidence
+        findings.append(copied)
+
+    findings.append({
+        "code": "NATIVE_HEADING_METADATA_VISUAL_MISMATCH",
+        "severity": "MEDIUM",
+        "scope": "PARAGRAPH_ROLE_METADATA",
+        "evidence": {
+            "count": len(conflicts),
+            "paragraphs": conflicts[:40],
+        },
+        "principle": "SEMANTIC_VISUAL_CONGRUENCE",
+        "recommendation": (
+            "Treat outline metadata and visual/body evidence as conflicting authorities. "
+            "Do not repair this by making body text look like a heading; normalize the semantic carrier or paragraph role separately."
+        ),
+        "authority": "STATIC_STRUCTURE_CROSSCHECK",
+    })
+
+    severity_order = {"INFO": 0, "LOW": 1, "MEDIUM": 2, "HIGH": 3, "CRITICAL": 4}
+    max_severity = max(
+        (severity_order.get(str(x.get("severity") or "").upper(), 1) for x in findings),
+        default=0,
+    )
+    reconciled = dict(base)
+    reconciled["findings"] = findings
+    reconciled["finding_count"] = len(findings)
+    reconciled["verdict"] = (
+        "NEEDS_REPAIR" if max_severity >= 3 else "PASS_WITH_WARNINGS" if findings else "PASS"
+    )
+    summary = dict(reconciled.get("summary") or {})
+    summary["native_heading_metadata_visual_mismatch_count"] = len(conflicts)
+    reconciled["summary"] = summary
+    return reconciled
+
+
 def diagnose_document_with_render(
     path: Path | str,
     *,
@@ -247,6 +349,7 @@ def diagnose_document_with_render(
         render_observation=observation,
         human_feedback=human_feedback,
     )
+    base = _reconcile_static_hierarchy_findings(Path(path), base)
     result = {
         **base,
         "schema": "chatgpt-web-hwpx-mcp/p3.40/design-diagnostic/v1",
@@ -608,6 +711,19 @@ def plan_executable_editorial_repairs(
                     "reason": reason,
                 })
                 continue
+
+        if reason == "NATIVE_HEADING_METADATA_VISUAL_MISMATCH":
+            actions.append({
+                "action": "RECONCILE_PARAGRAPH_ROLE_METADATA",
+                "status": "AGENT_PLAN",
+                "tool": None,
+                "reason": reason,
+                "guidance": (
+                    "Keep the paragraph visually as body text; inspect the structural carrier or outline metadata "
+                    "instead of increasing heading contrast."
+                ),
+            })
+            continue
 
         if reason == "TABLE_DENSITY_HIGH":
             evidence = dict((findings.get(reason) or {}).get("evidence") or {})

@@ -18,7 +18,8 @@
       "CALIBRATION": 8,
       "HOLDOUT": 8
     },
-    "split_policy": "SOURCE_GROUPS_ARE_INDIVISIBLE_ACROSS_SPLITS"
+    "split_policy": "SOURCE_GROUPS_ARE_INDIVISIBLE_ACROSS_SPLITS",
+    "holdout_scope": "STRUCTURAL_CENSUS_EXPOSED_NOT_STRICT_PROSPECTIVE_HOLDOUT"
   },
   "census": {
     "documents_with_tables": 37,
@@ -119,6 +120,130 @@
       "PAIRED_VISUAL_CONTROL",
       "EXPLICIT_HUMAN_DESIGN_TARGET"
     ],
-    "rule": "Observed prevalence may guide compatibility and feature priorities, but must not become an aesthetic default without independent visual or human evidence."
+    "rule": "Observed prevalence may guide compatibility and feature priorities, but must not become an aesthetic default without independent visual or human evidence.",
+    "feature_priority_basis": "DISCOVERY_ONLY",
+    "prospective_holdout_required": true
+  },
+  "discovery_only_primary": {
+    "assigned_sources": 22,
+    "parseable_sources": 21,
+    "parser_holds": [
+      {
+        "blind_id": "mX5JRNtRfUwZ",
+        "status": "PARSER_HOLD_OPAQUE_XML_PAYLOAD"
+      }
+    ],
+    "documents_with_tables": 21,
+    "documents_with_images": 13,
+    "median_table_text_share": 0.3842,
+    "median_bold_text_share": 0.1417,
+    "median_heading_metadata_share": 0,
+    "median_nonempty_paragraphs": 141,
+    "median_text_characters": 6485,
+    "mean_alignment_share": {
+      "JUSTIFY": 0.7413,
+      "CENTER": 0.1495,
+      "LEFT": 0.0928,
+      "RIGHT": 0.0164,
+      "DISTRIBUTE": 0.0001
+    },
+    "fonts_with_at_least_10pct_text_share": [
+      [
+        "휴먼명조",
+        12
+      ],
+      [
+        "맑은 고딕",
+        9
+      ],
+      [
+        "함초롬바탕",
+        6
+      ],
+      [
+        "HY헤드라인M",
+        5
+      ],
+      [
+        "한컴산뜻돋움",
+        4
+      ],
+      [
+        "함초롬돋움",
+        3
+      ],
+      [
+        "HY견고딕",
+        2
+      ],
+      [
+        "바탕",
+        2
+      ],
+      [
+        "휴먼고딕",
+        2
+      ],
+      [
+        "돋움",
+        2
+      ],
+      [
+        "한컴 고딕",
+        2
+      ]
+    ],
+    "sizes_with_at_least_10pct_text_share": [
+      [
+        "12",
+        16
+      ],
+      [
+        "11",
+        10
+      ],
+      [
+        "13",
+        8
+      ],
+      [
+        "10",
+        6
+      ],
+      [
+        "15",
+        6
+      ],
+      [
+        "14",
+        4
+      ],
+      [
+        "9.5",
+        1
+      ],
+      [
+        "20",
+        1
+      ]
+    ],
+    "zero_letter_spacing_dominant_documents": 21,
+    "authority": "PRIMARY_R1_ENGINEERING_EVIDENCE"
+  },
+  "all_source_structural_baseline": {
+    "assigned_sources": 38,
+    "parseable_sources": 37,
+    "documents_with_tables": 37,
+    "documents_with_images": 22,
+    "median_table_text_share": 0.364,
+    "median_bold_text_share": 0.154,
+    "median_heading_metadata_share": 0,
+    "mean_alignment_share": {
+      "JUSTIFY": 0.751,
+      "CENTER": 0.162,
+      "LEFT": 0.072,
+      "RIGHT": 0.015
+    },
+    "authority": "DESCRIPTIVE_STRUCTURAL_BASELINE_NOT_HELDOUT_EVALUATION"
   }
 }

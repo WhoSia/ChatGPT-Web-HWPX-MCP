@@ -11,6 +11,7 @@ if str(ROOT) not in sys.path:
 
 from p2_document import build_document_map
 from p28_tables import apply_table_edits_atomic, build_table_map
+from p339_design_intelligence import diagnose_document_design as diagnose_p339_document_design
 from p340_feedback_loop import (
     apply_document_design_repairs_atomic,
     apply_nested_paragraph_alignment_atomic,
@@ -35,13 +36,14 @@ for path in (A1, A2):
     if not path.exists():
         raise RuntimeError(f"required benchmark artifact missing: {path}")
 
-a1 = diagnose_document_with_render(A1, mode="POLISHED_REPORT")
+a1_frozen = diagnose_p339_document_design(A1, mode="POLISHED_REPORT")
+a1_p340 = diagnose_document_with_render(A1, mode="POLISHED_REPORT")
 a2 = diagnose_document_with_render(A2, mode="POLISHED_REPORT")
 
 severity_high = {"HIGH", "CRITICAL"}
-a1_high = sum(str(x.get("severity") or "").upper() in severity_high for x in a1["findings"])
+a1_high = sum(str(x.get("severity") or "").upper() in severity_high for x in a1_frozen["findings"])
 a2_high = sum(str(x.get("severity") or "").upper() in severity_high for x in a2["findings"])
-a1_codes = {str(x["code"]) for x in a1["findings"]}
+a1_codes = {str(x["code"]) for x in a1_frozen["findings"]}
 a2_codes = {str(x["code"]) for x in a2["findings"]}
 
 frozen_a1_failure_family = {
@@ -58,13 +60,13 @@ fresh_generalization_pass = bool(
     len(observed_a1_family) >= 4
     and not a2_survivors
     and a2_high <= a1_high
-    and a2["finding_count"] < a1["finding_count"]
+    and a2["finding_count"] < a1_frozen["finding_count"]
 )
 if not fresh_generalization_pass:
     raise RuntimeError(
         "A2 fresh generalization gate failed: "
         + json.dumps({
-            "a1_findings": a1["finding_count"],
+            "a1_findings": a1_frozen["finding_count"],
             "a2_findings": a2["finding_count"],
             "a1_high": a1_high,
             "a2_high": a2_high,
@@ -203,14 +205,22 @@ payload = {
     "phase": "P3.40",
     "fresh_generalization": {
         "verdict": "PASS",
-        "a1_finding_count": a1["finding_count"],
+        "a1_finding_count": a1_frozen["finding_count"],
         "a2_finding_count": a2["finding_count"],
         "a1_high_count": a1_high,
         "a2_high_count": a2_high,
         "a1_frozen_failure_family_observed": observed_a1_family,
         "a2_frozen_failure_family_survivors": a2_survivors,
         "a2_codes": sorted(a2_codes),
-        "authority": "STATIC_CROSS_DOMAIN_GENERALIZATION_ONLY",
+        "authority": "FROZEN_P3.39_A1_BASELINE_VS_P3.40_A2",
+    },
+    "diagnostic_reconciliation_audit": {
+        "a1_p339_finding_count": a1_frozen["finding_count"],
+        "a1_p340_finding_count": a1_p340["finding_count"],
+        "a1_p340_codes": sorted(str(x["code"]) for x in a1_p340["findings"]),
+        "a2_p340_finding_count": a2["finding_count"],
+        "a2_p340_codes": sorted(a2_codes),
+        "authority": "DIAGNOSTIC_EVOLUTION_REPORTED_SEPARATELY_FROM_FRESH_DOCUMENT_GENERALIZATION",
     },
     "repair_probe": {
         "before_finding_count": probe_before["finding_count"],

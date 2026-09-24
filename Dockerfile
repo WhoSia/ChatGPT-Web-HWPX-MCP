@@ -42,6 +42,8 @@ COPY scripts/p336r1_release_smoke.py scripts/p336r1_release_smoke.py
 RUN python scripts/p336r1_release_smoke.py
 COPY scripts/p336r2_release_smoke.py scripts/p336r2_release_smoke.py
 RUN python scripts/p336r2_release_smoke.py
+COPY scripts/p336r2r2_release_smoke.py scripts/p336r2r2_release_smoke.py
+RUN python scripts/p336r2r2_release_smoke.py
 
 ENV MCP_HOST=0.0.0.0
 ENV MCP_PORT=8000

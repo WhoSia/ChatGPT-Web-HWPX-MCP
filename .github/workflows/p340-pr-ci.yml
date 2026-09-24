@@ -1,0 +1,37 @@
+name: P3.40 PR validation
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "p340_feedback_loop.py"
+      - "test_p340_feedback_loop.py"
+      - "scripts/p340_release_smoke.py"
+      - "server_p2.py"
+      - "test_client.py"
+      - "Dockerfile"
+      - ".github/workflows/p1-ci.yml"
+      - "skills/hwpx-authoring/SKILL.md"
+      - ".github/workflows/p340-pr-ci.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  p340:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install dependencies
+        run: pip install -r requirements.txt -r requirements-capture.txt -r requirements-dev.txt
+      - name: Compile P3.40 product surface
+        run: python -m compileall -q p340_feedback_loop.py server_p2.py test_p340_feedback_loop.py scripts/p340_release_smoke.py test_client.py
+      - name: P3.40 focused regression
+        run: python -m pytest -q test_p340_feedback_loop.py test_p339_design_intelligence.py
+      - name: P3.40 release smoke
+        run: python scripts/p340_release_smoke.py

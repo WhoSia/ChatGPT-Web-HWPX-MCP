@@ -1,0 +1,55 @@
+{
+  "schema": "authorbench/human-review/v0.1",
+  "benchmark": "A1",
+  "specimen": "artifacts/authorbench-a1-generative-ai-science.hwpx",
+  "reviewer_source": "human_review_2026-09-24",
+  "overall": "STRUCTURALLY_VALID_BUT_EDITORIAL_DESIGN_WEAK",
+  "findings": [
+    {
+      "code": "HIERARCHY_CONTRAST_WEAK",
+      "severity": "HIGH",
+      "summary": "Executive Summary, 핵심 판단, 결론과 일반 본문 사이의 시각적 위계가 약함."
+    },
+    {
+      "code": "INFORMATION_PRIORITY_ENCODING_WEAK",
+      "severity": "HIGH",
+      "summary": "기회·위험·운영 원칙이 중요도에 비해 별도 시각 장치 없이 텍스트로 나열됨."
+    },
+    {
+      "code": "TABLE_READING_ERGONOMICS_WEAK",
+      "severity": "HIGH",
+      "summary": "표 1·표 2의 장문 셀 중앙정렬, 좁은 padding, 열 너비 배분 문제로 가독성이 떨어짐."
+    },
+    {
+      "code": "TABLE_HEADER_CONTRAST_WEAK",
+      "severity": "MEDIUM",
+      "summary": "헤더 행의 bold/배경 대비가 약하고 행 스트라이핑이 없음."
+    },
+    {
+      "code": "SECTION_SEPARATION_WEAK",
+      "severity": "MEDIUM",
+      "summary": "번호와 간격만으로 섹션을 나누어 스캔성이 낮음."
+    },
+    {
+      "code": "NARRATIVE_ORDER_CONCLUSION_EARLY",
+      "severity": "HIGH",
+      "summary": "정식 결론이 Executive Summary 직후 등장하여 전개-결론 순서가 어색함.",
+      "automatic_static_detection": "NOT_SUPPORTED_WITHOUT_SEMANTIC_MANIFEST"
+    },
+    {
+      "code": "ICON_RESTRAINT_PREFERRED",
+      "severity": "INFO",
+      "summary": "보고서에서는 이모지/아이콘을 과하게 쓰면 AI-generated 느낌이 커질 수 있으므로 절제 필요."
+    }
+  ],
+  "preferred_repairs": [
+    "표 장문 셀은 좌측·상단 정렬",
+    "셀 padding 확대",
+    "헤더 행 대비 강화",
+    "미세한 row striping",
+    "핵심 판단은 절제된 callout 처리",
+    "대제목/소제목의 크기·굵기·공백 계층 명확화",
+    "결론은 본문 전개 뒤로 이동"
+  ],
+  "authority": "HUMAN_VISUAL_REVIEW_GROUND_TRUTH_NOT_AUTOMATIC_AESTHETIC_NORM"
+}

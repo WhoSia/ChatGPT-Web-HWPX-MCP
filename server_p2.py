@@ -148,6 +148,12 @@ from p338_rich_builder import (
     intelligent_fill_atomic as p338_intelligent_fill_atomic,
     rich_builder_contract as p338_rich_builder_contract,
 )
+from p339_design_intelligence import (
+    design_intelligence_contract as p339_design_intelligence_contract,
+    prepare_authoring_strategy as p339_prepare_authoring_strategy,
+    diagnose_document_design as p339_diagnose_document_design,
+    plan_design_repairs as p339_plan_design_repairs,
+)
 from p313_capture_custody import (
     near_wrap_positive_sensitivity_spec,
     validate_artifact_custody,
@@ -173,9 +179,9 @@ from common_ir import (
     slice_common_ir,
 )
 
-P2_VERSION = "0.15.0-p3.38"
+P2_VERSION = "0.16.0-p3.39"
 core.VERSION = P2_VERSION
-core.PHASE = "P3.38"
+core.PHASE = "P3.39"
 
 _original_metadata = core._metadata
 
@@ -6667,6 +6673,70 @@ def evaluate_generated_document_quality(document_id: str, mode: str = "POLISHED_
         "document_id": document_id,
         "revision": int(metadata["revision"]),
         **benchmark,
+    }
+
+
+@core.mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, openWorldHint=False))
+def get_document_design_intelligence_contract() -> dict:
+    """Use before professional authoring to get the P3.39 design constitution and agent workflow."""
+    core._caller_subject()
+    return {"ok": True, **p339_design_intelligence_contract()}
+
+
+@core.mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, openWorldHint=False))
+def prepare_authoring_strategy(spec: dict) -> dict:
+    """Normalize document archetype, semantic outline, density and restrained design intent before building HWPX."""
+    core._caller_subject()
+    return {"ok": True, **p339_prepare_authoring_strategy(spec)}
+
+
+@core.mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, openWorldHint=False))
+def diagnose_document_design(
+    document_id: str,
+    mode: str = "POLISHED_REPORT",
+    render_observation: dict | None = None,
+    human_feedback: list[dict] | None = None,
+) -> dict:
+    """Return named, evidence-layered design findings; never reduce document quality to one beauty score."""
+    metadata, path = _owned_document(document_id)
+    diagnostic = p339_diagnose_document_design(
+        path,
+        mode=mode,
+        render_observation=render_observation,
+        human_feedback=human_feedback,
+    )
+    return {
+        "ok": diagnostic["verdict"] == "PASS",
+        "document_id": document_id,
+        "revision": int(metadata["revision"]),
+        **diagnostic,
+    }
+
+
+@core.mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, openWorldHint=False))
+def plan_document_design_repairs(
+    document_id: str,
+    mode: str = "POLISHED_REPORT",
+    archetype: str = "POLISHED_REPORT",
+    render_observation: dict | None = None,
+    human_feedback: list[dict] | None = None,
+) -> dict:
+    """Re-diagnose the current revision and return minimal executable/agent/capability-gap repair actions."""
+    metadata, path = _owned_document(document_id)
+    diagnostic = p339_diagnose_document_design(
+        path,
+        mode=mode,
+        render_observation=render_observation,
+        human_feedback=human_feedback,
+    )
+    strategy = p339_prepare_authoring_strategy({"archetype": archetype})
+    plan = p339_plan_design_repairs(diagnostic, strategy=strategy)
+    return {
+        "ok": True,
+        "document_id": document_id,
+        "revision": int(metadata["revision"]),
+        "diagnostic": diagnostic,
+        **plan,
     }
 
 

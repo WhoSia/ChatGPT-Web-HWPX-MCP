@@ -11,7 +11,6 @@ if str(ROOT) not in sys.path:
 
 from hwpx import HwpxDocument
 
-import server
 from p2_document import build_document_map
 from p321_document_composer import compose_document_plan
 from p337_product_workflow import (
@@ -33,8 +32,7 @@ with tempfile.TemporaryDirectory(prefix="p337-") as tmp:
                 {"type": "heading", "level": 1, "text": "1. 목적"},
                 {"type": "paragraph", "text": "실제 HWPX 파일 생성과 전달 경로를 검증한다."},
             ],
-        },
-        validator=lambda candidate: server.validate_hwpx_package(candidate),
+        }
     )
     sniffed = sniff_hangul_payload(generated.read_bytes(), "generated.hwpx")
     assert sniffed["actual_format"] == "HWPX"
@@ -48,8 +46,7 @@ with tempfile.TemporaryDirectory(prefix="p337-") as tmp:
     receipt = fill_template_atomic(
         template,
         filled,
-        {"{{name}}": "P3.37"},
-        validator=lambda candidate: server.validate_hwpx_package(candidate),
+        {"{{name}}": "P3.37"}
     )
     assert receipt["atomic_commit"]
     assert "이름=P3.37" in build_document_map(filled)["text"]

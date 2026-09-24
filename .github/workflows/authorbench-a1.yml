@@ -4,6 +4,9 @@ on:
   push:
     paths:
       - "benchmarks/authorbench_a1.py"
+      - "benchmarks/authorbench_a1_human_review.json"
+      - "benchmarks/authorbench_a1_p339_diagnostic.py"
+      - "p339_design_intelligence.py"
       - ".github/workflows/authorbench-a1.yml"
   workflow_dispatch:
 
@@ -25,11 +28,15 @@ jobs:
         run: python benchmarks/authorbench_a1.py
       - name: Verify native package archive
         run: unzip -t artifacts/authorbench-a1-generative-ai-science.hwpx
+      - name: Run P3.39 design-intelligence regression on frozen A1
+        run: python benchmarks/authorbench_a1_p339_diagnostic.py
       - uses: actions/upload-artifact@v4
         with:
           name: authorbench-a1-native-hwpx
           path: |
             artifacts/authorbench-a1-generative-ai-science.hwpx
             artifacts/authorbench-a1-receipt.json
+            artifacts/authorbench-a1-p339-diagnostic.json
+            artifacts/authorbench-a1-p339-repair-plan.json
           if-no-files-found: error
           retention-days: 30

@@ -1,0 +1,35 @@
+name: AuthorBench A1 native HWPX
+
+on:
+  push:
+    paths:
+      - "benchmarks/authorbench_a1.py"
+      - ".github/workflows/authorbench-a1.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install authoring dependencies
+        run: pip install -r requirements.txt -r requirements-capture.txt -r requirements-dev.txt
+      - name: Generate AuthorBench A1
+        run: python benchmarks/authorbench_a1.py
+      - name: Verify native package archive
+        run: unzip -t artifacts/authorbench-a1-generative-ai-science.hwpx
+      - uses: actions/upload-artifact@v4
+        with:
+          name: authorbench-a1-native-hwpx
+          path: |
+            artifacts/authorbench-a1-generative-ai-science.hwpx
+            artifacts/authorbench-a1-receipt.json
+          if-no-files-found: error
+          retention-days: 30

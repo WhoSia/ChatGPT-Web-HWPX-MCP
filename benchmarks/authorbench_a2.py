@@ -10,7 +10,9 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from p2_document import build_document_map
+from p22_formatting import build_formatting_map
 from p28_tables import build_table_map
+from p336r2_design import paragraph_features_from_hwpx, infer_presentation_roles
 from p321_document_composer import compose_document_plan
 from p338_rich_builder import compile_rich_document_plan, evaluate_preview_readiness
 from p339_design_intelligence import prepare_authoring_strategy
@@ -377,6 +379,32 @@ preview = evaluate_preview_readiness(OUT, mode="POLISHED_REPORT")
 diagnostic = diagnose_document_with_render(OUT, mode="POLISHED_REPORT")
 doc_map = build_document_map(OUT)
 table_map = build_table_map(OUT)
+formatting_map = build_formatting_map(OUT)
+features = paragraph_features_from_hwpx(OUT)
+roles = infer_presentation_roles(features)
+doc_by_locator = {str(x["locator"]): x for x in doc_map.get("paragraphs", [])}
+fmt_by_locator = {str(x["locator"]): x for x in formatting_map.get("paragraphs", [])}
+feature_by_locator = {str(x["locator"]): x for x in features}
+role_by_locator = {str(x["locator"]): x for x in roles.get("hypotheses", [])}
+residual_locators = []
+for finding in diagnostic["findings"]:
+    evidence = finding.get("evidence") or {}
+    for locator in evidence.get("locators", []) or []:
+        value = str(locator)
+        if value and value not in residual_locators:
+            residual_locators.append(value)
+residual_context = []
+for locator in residual_locators:
+    paragraph = doc_by_locator.get(locator) or {}
+    fmt = fmt_by_locator.get(locator) or {}
+    residual_context.append({
+        "locator": locator,
+        "text": paragraph.get("text"),
+        "container": paragraph.get("container"),
+        "feature": feature_by_locator.get(locator),
+        "role": role_by_locator.get(locator),
+        "paragraph_property": fmt.get("paragraph_property"),
+    })
 
 if preview["verdict"] not in {"PASS", "PASS_WITH_WARNINGS"}:
     raise RuntimeError(f"A2 preview gate failed: {preview['verdict']}")
@@ -409,6 +437,7 @@ payload = {
         }
         for x in diagnostic["findings"]
     ],
+    "residual_locator_context": residual_context,
     "strategy_sha256": strategy["strategy_sha256"],
     "compile_sha256": compiled["compile_sha256"],
     "semantic_finish_action_count": len(finish_actions),

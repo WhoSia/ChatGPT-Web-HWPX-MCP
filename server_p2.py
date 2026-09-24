@@ -154,6 +154,14 @@ from p339_design_intelligence import (
     diagnose_document_design as p339_diagnose_document_design,
     plan_design_repairs as p339_plan_design_repairs,
 )
+from p340_feedback_loop import (
+    rendered_feedback_loop_contract as p340_rendered_feedback_loop_contract,
+    semantic_callout_block as p340_semantic_callout_block,
+    diagnose_document_with_render as p340_diagnose_document_with_render,
+    plan_executable_editorial_repairs as p340_plan_executable_editorial_repairs,
+    apply_document_design_repairs_atomic as p340_apply_document_design_repairs_atomic,
+    compare_design_diagnostics as p340_compare_design_diagnostics,
+)
 from p313_capture_custody import (
     near_wrap_positive_sensitivity_spec,
     validate_artifact_custody,
@@ -179,9 +187,9 @@ from common_ir import (
     slice_common_ir,
 )
 
-P2_VERSION = "0.16.0-p3.39"
+P2_VERSION = "0.17.0-p3.40"
 core.VERSION = P2_VERSION
-core.PHASE = "P3.39"
+core.PHASE = "P3.40"
 
 _original_metadata = core._metadata
 
@@ -6738,6 +6746,142 @@ def plan_document_design_repairs(
         "diagnostic": diagnostic,
         **plan,
     }
+
+
+@core.mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, openWorldHint=False))
+def get_rendered_design_feedback_loop_contract() -> dict:
+    """Return the P3.40 render-diagnose-repair-rerender product contract."""
+    core._caller_subject()
+    return {"ok": True, **p340_rendered_feedback_loop_contract()}
+
+
+@core.mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, openWorldHint=False))
+def compile_semantic_callout_block(
+    text: str,
+    block_id: str = "semantic_callout",
+    role: str = "KEY_JUDGMENT",
+) -> dict:
+    """Compile semantic emphasis into a restrained native one-cell callout block for rich authoring."""
+    core._caller_subject()
+    return {"ok": True, "block": p340_semantic_callout_block(text, block_id=block_id, role=role)}
+
+
+@core.mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, openWorldHint=False))
+def diagnose_rendered_document_design(
+    document_id: str,
+    mode: str = "POLISHED_REPORT",
+    capture: dict | None = None,
+    renderer: dict | None = None,
+    render_observation: dict | None = None,
+    human_feedback: list[dict] | None = None,
+) -> dict:
+    """Merge P3.39 static diagnostics with validated page-render evidence without inflating authority."""
+    metadata, path = _owned_document(document_id)
+    diagnostic = p340_diagnose_document_with_render(
+        path,
+        mode=mode,
+        capture=capture,
+        renderer=renderer,
+        render_observation=render_observation,
+        human_feedback=human_feedback,
+    )
+    return {
+        "ok": diagnostic["verdict"] == "PASS",
+        "document_id": document_id,
+        "revision": int(metadata["revision"]),
+        **diagnostic,
+    }
+
+
+@core.mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, openWorldHint=False))
+def plan_executable_document_design_repairs(
+    document_id: str,
+    mode: str = "POLISHED_REPORT",
+    archetype: str = "POLISHED_REPORT",
+    capture: dict | None = None,
+    renderer: dict | None = None,
+    render_observation: dict | None = None,
+    human_feedback: list[dict] | None = None,
+) -> dict:
+    """Compile supported P3.40 editorial findings into native, locator-bound repair operations."""
+    metadata, path = _owned_document(document_id)
+    diagnostic = p340_diagnose_document_with_render(
+        path,
+        mode=mode,
+        capture=capture,
+        renderer=renderer,
+        render_observation=render_observation,
+        human_feedback=human_feedback,
+    )
+    strategy = p339_prepare_authoring_strategy({"archetype": archetype})
+    plan = p340_plan_executable_editorial_repairs(path, diagnostic, strategy=strategy)
+    return {
+        "ok": True,
+        "document_id": document_id,
+        "revision": int(metadata["revision"]),
+        "diagnostic": diagnostic,
+        **plan,
+    }
+
+
+@core.mcp.tool()
+def apply_document_design_repairs(
+    document_id: str,
+    expected_revision: int,
+    repair_plan: dict,
+    lease_token: str = "",
+) -> dict:
+    """Apply one revision-guarded P3.40 native editorial-repair transaction and preserve semantics."""
+    metadata, path = _owned_document(document_id)
+    current_revision = int(metadata["revision"])
+    ingress = metadata.get("source") == "existing-ingress"
+    transaction = p340_apply_document_design_repairs_atomic(
+        path,
+        repair_plan,
+        expected_revision=int(expected_revision),
+        current_revision=current_revision,
+        validator=lambda candidate: core.validate_hwpx_package(candidate, ingress=ingress),
+    )
+    validation = transaction["validation"]
+    after_document = build_document_map(path)
+    after_formatting = build_formatting_map(path)
+    after_inline = build_inline_map(path)
+    after_tables = build_table_map(path)
+    after_objects = build_object_map(path)
+    after_equations = build_equation_map(path)
+    metadata["revision"] = current_revision + 1
+    metadata["last_edit_at"] = core._utc_iso()
+    if lease_token:
+        metadata["_commit_lease_token"] = lease_token
+    _refresh_metadata(
+        document_id,
+        metadata,
+        validation,
+        after_document,
+        after_formatting,
+        after_inline,
+        after_tables,
+        after_objects,
+        after_equations,
+    )
+    return {
+        "ok": True,
+        "document_id": document_id,
+        "revision_before": current_revision,
+        "revision_after": int(metadata["revision"]),
+        "sha256": validation["sha256"],
+        "design_repair": transaction,
+        "validation": validation,
+        "transaction": "COMMITTED",
+        "authority": "EXECUTED_NATIVE_EDITORIAL_REPAIR_NOT_RENDERED_IMPROVEMENT_CLAIM",
+    }
+
+
+@core.mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, openWorldHint=False))
+def compare_document_design_diagnostics(before: dict, after: dict) -> dict:
+    """Compare two P3.40 diagnostics and state whether real native before/after render evidence exists."""
+    core._caller_subject()
+    return {"ok": True, **p340_compare_design_diagnostics(before, after)}
 
 
 from p335_mcp import register_corpus_tools

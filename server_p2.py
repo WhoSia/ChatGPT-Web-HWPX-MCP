@@ -130,6 +130,13 @@ from p335_paragraph import (
     build_style_transfer_operations,
 )
 from p335_corpus import build_corpus_style_profile, build_style_library
+from p336r2_design import (
+    design_quality_contract as p336r2_design_quality_contract,
+    compile_design_plan as p336r2_compile_design_plan,
+    paragraph_features_from_hwpx as p336r2_paragraph_features,
+    infer_presentation_roles as p336r2_infer_presentation_roles,
+    evaluate_generated_document as p336r2_evaluate_generated_document,
+)
 from p313_capture_custody import (
     near_wrap_positive_sensitivity_spec,
     validate_artifact_custody,
@@ -155,9 +162,9 @@ from common_ir import (
     slice_common_ir,
 )
 
-P2_VERSION = "0.13.0-p3.35"
+P2_VERSION = "0.13.1-p3.36"
 core.VERSION = P2_VERSION
-core.PHASE = "P3.35"
+core.PHASE = "P3.36"
 
 _original_metadata = core._metadata
 
@@ -6047,6 +6054,47 @@ def edit_document_and_deliver(document_id: str, expected_revision: int, operatio
     edited = apply_edits(document_id, expected_revision, operations, lease_token)
     return _delivery_after_commit(document_id, edited["revision_after"], link_ttl_seconds,
                                   "EDIT_VALIDATE_EXPORT_HANDOFF")
+
+
+@core.mcp.tool()
+def get_design_quality_contract() -> dict:
+    """Return the P3.36 dual-design, role-hypothesis and generation-QA contract."""
+    core._caller_subject()
+    return {"ok": True, **p336r2_design_quality_contract()}
+
+
+@core.mcp.tool()
+def compile_document_design(plan: dict, mode: str = "POLISHED_REPORT", explicit_tokens: dict | None = None) -> dict:
+    """Compile a logical document plan into an institutional, polished, or explicit design target."""
+    core._caller_subject()
+    return {"ok": True, **p336r2_compile_design_plan(plan, mode, explicit_tokens=explicit_tokens)}
+
+
+@core.mcp.tool()
+def get_presentation_role_hypotheses(document_id: str) -> dict:
+    """Infer presentation roles from formatting/position evidence without overwriting native semantics."""
+    metadata, path = _owned_document(document_id)
+    features = p336r2_paragraph_features(path)
+    profile = p336r2_infer_presentation_roles(features)
+    return {
+        "ok": True,
+        "document_id": document_id,
+        "revision": int(metadata["revision"]),
+        **profile,
+    }
+
+
+@core.mcp.tool()
+def evaluate_generated_document_quality(document_id: str, mode: str = "POLISHED_REPORT") -> dict:
+    """Run P3.36 generated-document mechanical/design-target checks; no beauty score is emitted."""
+    metadata, path = _owned_document(document_id)
+    benchmark = p336r2_evaluate_generated_document(path, mode)
+    return {
+        "ok": benchmark.get("mechanical_verdict") == "PASS",
+        "document_id": document_id,
+        "revision": int(metadata["revision"]),
+        **benchmark,
+    }
 
 
 from p335_mcp import register_corpus_tools

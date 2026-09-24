@@ -224,6 +224,11 @@ async def main() -> None:
                 "evaluate_rare_feature_lane",
                 "plan_rare_feature_promotion",
                 "get_product_ux_regression_contract",
+                "get_rich_document_builder_contract",
+                "compile_rich_document_plan",
+                "create_rich_document_and_deliver",
+                "fill_template_intelligently_and_deliver",
+                "evaluate_document_preview_readiness",
                 "get_product_authoring_contract",
                 "create_and_deliver_document",
                 "edit_and_deliver_document",
@@ -245,13 +250,21 @@ async def main() -> None:
                 if "access_token" in schema_text or "passphrase" in schema_text:
                     raise RuntimeError(f"secret-bearing field leaked into tool schema: {tool.name}")
 
-            read_payload = _payload(await client.call_tool("probe_read", {"message": "P3.37 OAuth smoke test"}))
-            if not read_payload or not read_payload.get("ok") or read_payload.get("version") != "0.14.0-p3.37":
-                raise RuntimeError(f"probe_read did not expose current P3.37 product version: {read_payload}")
+            read_payload = _payload(await client.call_tool("probe_read", {"message": "P3.38 OAuth smoke test"}))
+            if not read_payload or not read_payload.get("ok") or read_payload.get("version") != "0.15.0-p3.38":
+                raise RuntimeError(f"probe_read did not expose current P3.38 product version: {read_payload}")
 
             p2_caps = _payload(await client.call_tool("p2_capabilities", {}))
-            if not p2_caps or p2_caps.get("phase") != "P3.37":
+            if not p2_caps or p2_caps.get("phase") != "P3.38":
                 raise RuntimeError(f"p2_capabilities failed: {p2_caps}")
+
+            rich_contract = _payload(await client.call_tool("get_rich_document_builder_contract", {}))
+            if (
+                not rich_contract
+                or rich_contract.get("phase") != "P3.38"
+                or rich_contract.get("preview_awareness", {}).get("render_status") != "NOT_RENDERED"
+            ):
+                raise RuntimeError(f"P3.38 rich builder contract failed: {rich_contract}")
 
             product_contract = _payload(await client.call_tool("get_product_authoring_contract", {}))
             if (
@@ -355,6 +368,63 @@ async def main() -> None:
             ))
             assert any("성명: 김우준" == p["text"] for p in filled_map["paragraphs"])
 
+            rich_call = await client.call_tool("create_rich_document_and_deliver", {
+                "rich_plan": {
+                    "preset": "polished-report",
+                    "sections": [
+                        {
+                            "page": {"paper_size": "A4", "orientation": "PORTRAIT"},
+                            "header": "P3.38 OAuth",
+                            "page_numbers": True,
+                            "blocks": [
+                                {"id": "rt", "type": "title", "text": "P3.38 Rich OAuth"},
+                                {"id": "rh", "type": "heading", "level": 1, "text": "Overview"},
+                                {"id": "rp", "type": "paragraph", "text": "Rich native document."},
+                                {
+                                    "id": "rtable", "type": "table", "rows": 2, "cols": 2,
+                                    "first_row_header": True,
+                                    "cells": [["항목", "값"], ["상태", "PASS"]],
+                                },
+                                {"id": "req", "type": "equation", "latex": "x^2=1"},
+                            ],
+                        },
+                        {
+                            "page": {"paper_size": "A4", "orientation": "LANDSCAPE"},
+                            "blocks": [
+                                {"id": "ra", "type": "heading", "level": 1, "text": "Appendix"},
+                                {"id": "rab", "type": "paragraph", "text": "Second section."},
+                            ],
+                        },
+                    ],
+                },
+                "filename": "P3.38-rich-oauth.hwpx",
+                "request_id": "p338-oauth-rich",
+            })
+            rich_delivery = _payload(rich_call)
+            assert rich_delivery["phase"] == "P3.38"
+            assert rich_delivery["product_context"]["rich_authoring"]["section_count"] == 2
+            assert rich_delivery["product_context"]["preview_readiness"]["render_status"] == "NOT_RENDERED"
+            assert any(block.type == "resource_link" for block in rich_call.content)
+            rich_preview = _payload(await client.call_tool("evaluate_document_preview_readiness", {
+                "document_id": rich_delivery["document_id"],
+            }))
+            assert rich_preview["ok"]
+            assert rich_preview["section_count"] == 2
+
+            smart_call = await client.call_tool("fill_template_intelligently_and_deliver", {
+                "template_document_id": template_delivery["document_id"],
+                "values": {"name": "김우준"},
+                "filename": "양식-지능형-완성.hwpx",
+                "request_id": "p338-oauth-smart-fill",
+            })
+            smart_delivery = _payload(smart_call)
+            assert smart_delivery["phase"] == "P3.38"
+            assert any(block.type == "resource_link" for block in smart_call.content)
+            smart_map = _payload(await client.call_tool(
+                "get_document_map", {"document_id": smart_delivery["document_id"]}
+            ))
+            assert any("성명: 김우준" == p["text"] for p in smart_map["paragraphs"])
+
             renewed = _payload(await client.call_tool("deliver_document", {"document_id": delivery_id, "revision": 1}))
             assert renewed["sha256"] == delivery["sha256"]
             # R4: immutable revision intake -> candidate -> existing atomic
@@ -398,8 +468,11 @@ async def main() -> None:
                 delivered_ingest["document_id"],
                 template_delivery["document_id"],
                 filled_delivery["document_id"],
+                rich_delivery["document_id"],
+                smart_delivery["document_id"],
             ):
                 await client.call_tool("delete_document", {"document_id": delivered_id})
+            print("P3.38 OAuth rich-create/smart-fill/static-preview/native-delivery PASS")
             print("P3.37 OAuth create/edit/fill/bytes-first-ingest/resource-link/download PASS")
 
             plan_checked = _payload(await client.call_tool("validate_document_plan", {

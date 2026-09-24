@@ -18,6 +18,7 @@ from p22_formatting import build_formatting_map
 from p23_richtext import apply_rich_formatting_atomic
 from p27_tables import _save_document
 from p28_tables import build_table_map
+from p323_advanced_tables import build_advanced_table_map, apply_advanced_table_edits_atomic
 from p29_objects import build_object_map
 from p210_equations import build_equation_map
 from p318_document_setup import apply_document_setup_atomic, build_document_setup_map
@@ -80,6 +81,57 @@ PRESETS: dict[str, dict[str, Any]] = {
             "paragraph": {"line_spacing_percent": 150},
         },
     },
+    "institutional-report": {
+        "setup": [{
+            "op": "set_page_setup",
+            "section_index": 0,
+            "paper_size": "A4",
+            "orientation": "PORTRAIT",
+            "margin_left_mm": 20,
+            "margin_right_mm": 20,
+            "margin_top_mm": 18,
+            "margin_bottom_mm": 18,
+        }],
+        "title_format": {
+            "run": {"bold": True, "size": 18, "font_by_script": {"hangul": "함초롬바탕", "latin": "Malgun Gothic"}},
+            "paragraph": {"alignment": "CENTER", "spacing_after_pt": 12, "keep_with_next": True},
+        },
+        "heading_format": {
+            "1": {"run": {"bold": True, "size": 14}, "paragraph": {"spacing_before_pt": 12, "spacing_after_pt": 6, "keep_with_next": True}},
+            "2": {"run": {"bold": True, "size": 12}, "paragraph": {"spacing_before_pt": 9, "spacing_after_pt": 4, "keep_with_next": True}},
+        },
+        "body_format": {
+            "run": {"size": 11, "font_by_script": {"hangul": "함초롬바탕", "latin": "Malgun Gothic"}},
+            "paragraph": {"line_spacing_percent": 160},
+        },
+        "table_format": {"page_break": "CELL", "border_color": "808080"},
+    },
+    "polished-report": {
+        "setup": [{
+            "op": "set_page_setup",
+            "section_index": 0,
+            "paper_size": "A4",
+            "orientation": "PORTRAIT",
+            "margin_left_mm": 22,
+            "margin_right_mm": 22,
+            "margin_top_mm": 20,
+            "margin_bottom_mm": 20,
+        }],
+        "title_format": {
+            "run": {"bold": True, "size": 22, "letter_spacing": -2, "font_by_script": {"hangul": "맑은 고딕", "latin": "Malgun Gothic"}},
+            "paragraph": {"alignment": "CENTER", "spacing_after_pt": 18, "keep_with_next": True},
+        },
+        "heading_format": {
+            "1": {"run": {"bold": True, "size": 15, "font_by_script": {"hangul": "맑은 고딕", "latin": "Malgun Gothic"}}, "paragraph": {"spacing_before_pt": 14, "spacing_after_pt": 7, "keep_with_next": True}},
+            "2": {"run": {"bold": True, "size": 13, "font_by_script": {"hangul": "맑은 고딕", "latin": "Malgun Gothic"}}, "paragraph": {"spacing_before_pt": 10, "spacing_after_pt": 5, "keep_with_next": True}},
+            "3": {"run": {"bold": True, "size": 11, "font_by_script": {"hangul": "맑은 고딕", "latin": "Malgun Gothic"}}, "paragraph": {"spacing_before_pt": 8, "spacing_after_pt": 4, "keep_with_next": True}},
+        },
+        "body_format": {
+            "run": {"size": 11, "font_by_script": {"hangul": "맑은 고딕", "latin": "Malgun Gothic"}},
+            "paragraph": {"line_spacing_percent": 155, "spacing_after_pt": 3},
+        },
+        "table_format": {"page_break": "CELL", "border_color": "AEB7C2"},
+    },
 }
 
 
@@ -102,7 +154,7 @@ def document_plan_contract() -> dict:
             "paragraph_fields": ["paragraph", "target_paragraph"],
         },
         "top_level": {
-            "preset": "default | school-report | academic-report",
+            "preset": "one of the advertised presets; P3.36 adds institutional-report and polished-report",
             "document": {"title": "optional logical title"},
             "setup": "optional document-setup operations",
             "blocks": "ordered block list",
@@ -114,6 +166,10 @@ def document_plan_contract() -> dict:
             },
             "annotations": "optional annotation-apparatus operations using $block:<id>",
             "post_operations": "optional structured-publishing operations using $block:<id>",
+            "table_design_fields": {
+                "first_row_header": "bool; explicit semantic hint for repeat-header finishing",
+                "table_format": "optional page_break, border_color, repeat_header overrides",
+            },
         },
         "atomicity": (
             "The compiler builds and validates a private candidate package. "
@@ -229,6 +285,7 @@ def _add_caption(obj: Any, block: dict) -> None:
 def _materialize_blocks(document: HwpxDocument, blocks: list[dict]) -> dict[str, dict]:
     bindings: dict[str, dict] = {}
     list_groups: dict[tuple[str, int, str], list[str]] = {}
+    table_index = 0
 
     for block in blocks:
         kind = block["type"]
@@ -286,7 +343,9 @@ def _materialize_blocks(document: HwpxDocument, blocks: list[dict]) -> dict[str,
             bindings[block_id] = {
                 "kind": kind,
                 "paragraph_id": _paragraph_id(anchor),
+                "table_index": table_index,
             }
+            table_index += 1
             continue
 
         if kind == "equation":
@@ -400,38 +459,89 @@ def _preset_format_operations(
     ops: list[dict] = []
     for block in blocks:
         target = bindings[block["id"]]["locator"]
-        if block["type"] == "title":
-            if spec["title_format"].get("run"):
-                ops.append({
-                    "op": "set_run_format",
-                    "target": target,
-                    "format": dict(spec["title_format"]["run"]),
-                })
-            if spec["title_format"].get("paragraph"):
-                ops.append({
-                    "op": "set_paragraph_format",
-                    "target": target,
-                    "format": dict(spec["title_format"]["paragraph"]),
-                })
-        elif block["type"] == "paragraph" and spec["body_format"].get("paragraph"):
-            ops.append({
-                "op": "set_paragraph_format",
-                "target": target,
-                "format": dict(spec["body_format"]["paragraph"]),
-            })
+        kind = block["type"]
+        run_format: dict = {}
+        paragraph_format: dict = {}
+
+        if kind == "title":
+            run_format.update(spec.get("title_format", {}).get("run") or {})
+            paragraph_format.update(spec.get("title_format", {}).get("paragraph") or {})
+        elif kind == "heading":
+            level = str(int(block.get("level", 1)))
+            heading = spec.get("heading_format", {}).get(level) or {}
+            run_format.update(heading.get("run") or {})
+            paragraph_format.update(heading.get("paragraph") or {})
+        elif kind in {"paragraph", "list_item"}:
+            run_format.update(spec.get("body_format", {}).get("run") or {})
+            paragraph_format.update(spec.get("body_format", {}).get("paragraph") or {})
 
         custom_run = block.get("run_format")
-        if isinstance(custom_run, dict) and custom_run:
-            ops.append({"op": "set_run_format", "target": target, "format": custom_run})
+        if isinstance(custom_run, dict):
+            run_format.update(custom_run)
         custom_para = block.get("paragraph_format")
-        if isinstance(custom_para, dict) and custom_para:
-            ops.append({"op": "set_paragraph_format", "target": target, "format": custom_para})
-        style = block.get("style")
-        if style:
-            # Named styles are applied in the publishing stage.
-            pass
+        if isinstance(custom_para, dict):
+            paragraph_format.update(custom_para)
+
+        if run_format:
+            ops.append({"op": "set_run_format", "target": target, "format": run_format})
+        if paragraph_format:
+            ops.append({"op": "set_paragraph_format", "target": target, "format": paragraph_format})
     return ops
 
+
+def _table_finish_operations(
+    candidate: Path,
+    preset: str,
+    blocks: list[dict],
+    bindings: dict[str, dict],
+) -> list[dict]:
+    table_blocks = [block for block in blocks if block["type"] == "table"]
+    if not table_blocks:
+        return []
+    mapped = build_advanced_table_map(candidate)
+    by_index = {int(table["table_index"]): table for table in mapped.get("tables", [])}
+    receipts = []
+
+    for block in table_blocks:
+        binding = bindings[block["id"]]
+        table = by_index.get(int(binding["table_index"]))
+        if table is None:
+            raise ValueError(f"composed table lost identity: {block['id']}")
+        config = dict(PRESETS[preset].get("table_format") or {})
+        custom = block.get("table_format")
+        if custom is not None and not isinstance(custom, dict):
+            raise ValueError("table_format must be an object")
+        config.update(dict(custom or {}))
+
+        operations: list[dict] = []
+        locator = table["locator"]
+        page_break = config.get("page_break")
+        if page_break:
+            operations.append({"op": "set_table_page_break", "table": locator, "mode": str(page_break).upper()})
+        border_color = config.get("border_color")
+        if border_color:
+            operations.append({"op": "set_table_borders", "table": locator, "color": str(border_color)})
+
+        first_row_header = bool(config.get("first_row_header") or block.get("first_row_header"))
+        repeat_header = bool(config.get("repeat_header", first_row_header))
+        if first_row_header and repeat_header:
+            operations.append({"op": "set_repeat_header", "table": locator, "row": 0, "enabled": True})
+
+        if operations:
+            receipt = apply_advanced_table_edits_atomic(
+                candidate,
+                operations,
+                expected_revision=1,
+                current_revision=1,
+                validator=None,
+            )
+            receipts.append({
+                "block_id": block["id"],
+                "table": locator,
+                "operations": operations,
+                "receipt": receipt,
+            })
+    return receipts
 
 def _publishing_operations(
     plan: dict,
@@ -569,6 +679,20 @@ def compose_document_plan(
             stage_receipts.append({"stage": "formatting", "operations": len(format_ops), "receipt": format_receipt})
             bindings = _resolve_bindings(candidate, materialized["bindings"])
 
+        table_finishing = _table_finish_operations(
+            candidate,
+            normalized["preset"],
+            normalized["blocks"],
+            bindings,
+        )
+        if table_finishing:
+            stage_receipts.append({
+                "stage": "table_finishing",
+                "tables": len(table_finishing),
+                "receipts": table_finishing,
+            })
+            bindings = _resolve_bindings(candidate, materialized["bindings"])
+
         publishing_ops = _publishing_operations(
             normalized,
             normalized["blocks"],
@@ -640,6 +764,7 @@ def compose_document_plan(
                 "block_materialization",
                 "document_setup",
                 "formatting",
+                "table_finishing",
                 "lists_styles_bookmarks_and_references",
                 "native_toc",
                 "annotations",

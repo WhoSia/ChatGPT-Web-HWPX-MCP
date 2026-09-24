@@ -1,0 +1,103 @@
+{
+  "schema": "chatgpt-web-hwpx-mcp/p3.36-r2/acquisition-queue/v1",
+  "phase": "P3.36-R2",
+  "sealed_before_byte_intake": true,
+  "policy": {
+    "prospective_holdout": "Sources marked PROSPECTIVE_HOLDOUT must not be inspected for feature tuning before the R2 implementation freeze.",
+    "discovery": "Sources marked DISCOVERY may inform compatibility and feature work after blind-ID materialization.",
+    "visual_control": "PDF-only controls may inform presentation/design hypotheses but never native HWPX semantics.",
+    "rename": "After intake, analysis filenames must use opaque 12-character blind IDs; exact HWPX/PDF pairs share the same blind stem."
+  },
+  "sources": [
+    {
+      "queue_id": "seoul-master-2026",
+      "page_url": "https://www.seoul.go.kr/news/news_notice.do?nttNo=461541",
+      "institution": "서울특별시",
+      "requested": [
+        "2026 「서울 명장」 선정 공고문.hwpx",
+        "2026년 「서울 명장」 세부심사기준.hwpx",
+        "2026년 「서울 명장」 선정직종 및 직무내용.hwpx",
+        "2026년 「서울 명장」 신청인 구비서류.hwpx",
+        "2026년 「서울 명장」 구비서류 작성시 유의사항.hwpx"
+      ],
+      "source_group": "seoul_master_2026",
+      "lane": "PROSPECTIVE_HOLDOUT",
+      "reason": "One posting with several document roles; tests group-indivisible holdout and table/form robustness."
+    },
+    {
+      "queue_id": "nssc-smr-2026",
+      "page_url": "https://www.nssc.go.kr/ko/cms/FR_BBS_CON/BoardView.do?BBS_SEQ=46253&BOARD_SEQ=4&CONTENTS_NO=1&MENU_ID=180&SITE_NO=2",
+      "institution": "원자력안전위원회",
+      "requested": [
+        "[공고문] 2026년도 소형모듈원자로 안전규제 연구개발사업 신규과제 공고.hwpx",
+        "[붙임 1] 2026년도 소형모듈원자로 규제연구 추진단 소관사업 신규과제 신청안내서.hwpx",
+        "[붙임 2] 사업별 과제제안요구서(RFP).hwpx",
+        "[안내문] 2026년도 SMR 안전규제 신규과제 설명회 안내(배포용).hwpx"
+      ],
+      "source_group": "nssc_smr_2026",
+      "lane": "PROSPECTIVE_HOLDOUT",
+      "reason": "Different ministry ecology and long proposal/RFP structure."
+    },
+    {
+      "queue_id": "seoul-ai-plan-tender",
+      "page_url": "https://www.seoul.go.kr/news/news_tender.do?nttNo=454197",
+      "institution": "서울특별시",
+      "requested": [
+        "입찰공고문_서울특별시 재무공고 제2026-380호.hwpx",
+        "제안요청서.hwpx"
+      ],
+      "source_group": "seoul_ai_plan_tender",
+      "lane": "DISCOVERY",
+      "reason": "Municipal tender + RFP family; dense tables and requirement hierarchy."
+    },
+    {
+      "queue_id": "msit-ai-data-explanation",
+      "page_url": "https://www.msit.go.kr/bbs/view.do?bbsSeqNo=86&mId=309&mPid=208&nttSeqNo=3186369&sCode=user",
+      "institution": "과학기술정보통신부",
+      "requested": [
+        "260813 즉시 (보도설명) 관계부처와 함께 공공부문의 AI학습용데이터를 체계적으로 관리해나가겠습니다.hwpx"
+      ],
+      "source_group": "msit_ai_data_explanation_2026",
+      "lane": "DISCOVERY",
+      "reason": "Central-government press/explanation style outside education."
+    },
+    {
+      "queue_id": "msit-bio-explanation",
+      "page_url": "https://www.msit.go.kr/bbs/view.do?bbsSeqNo=86&mId=309&mPid=208&nttSeqNo=3186372&sCode=user",
+      "institution": "과학기술정보통신부",
+      "requested": [
+        "260915 즉시 (보도설명) 바이오‧의료기술개발사업은 정상 추진 중이며 미래 성장엔진 확보를 위해 지속 지원될 것입니다.hwpx"
+      ],
+      "source_group": "msit_bio_explanation_2026",
+      "lane": "DISCOVERY",
+      "reason": "Same ministry/family with different content; useful within-institution comparison."
+    },
+    {
+      "queue_id": "bok-monetary-report-2026-09",
+      "page_url": "https://www.bok.or.kr/portal/bbs/B0000156/view.do?menuNo=200754&nttId=11064613",
+      "institution": "한국은행",
+      "requested": ["통화신용정책보고서(2026년 9월).pdf"],
+      "source_group": "bok_mpr_2026_09",
+      "lane": "VISUAL_CONTROL_DISCOVERY",
+      "reason": "Polished long-form Korean report with charts, hierarchy and editorial layout."
+    },
+    {
+      "queue_id": "kdi-outlook-2026-h1",
+      "page_url": "https://www.kdi.re.kr/research/reportView?pub_no=19180",
+      "institution": "한국개발연구원",
+      "requested": ["원문 다운로드 PDF"],
+      "source_group": "kdi_outlook_2026_h1",
+      "lane": "VISUAL_CONTROL_DISCOVERY",
+      "reason": "Editorial report design control distinct from ordinary public-office HWPX."
+    },
+    {
+      "queue_id": "seoul-institute-policy-441",
+      "page_url": "https://www.si.re.kr/bbs/view.do?key=2024100154&pstSn=2603180007",
+      "institution": "서울연구원",
+      "requested": ["정책리포트 PDF"],
+      "source_group": "seoul_institute_policy_441",
+      "lane": "VISUAL_CONTROL_DISCOVERY",
+      "reason": "Compact policy-report visual system; useful for polished-report comparison."
+    }
+  ]
+}

@@ -67,7 +67,7 @@ def verify(base, version, commit, fetch=request, sleep=time.sleep):
 
 
 if __name__=='__main__':
-    p=argparse.ArgumentParser();p.add_argument('--base-url',required=True);p.add_argument('--version',default='0.16.0-p3.39');p.add_argument('--commit');p.add_argument('--receipt',default='production-boundary.json');a=p.parse_args()
+    p=argparse.ArgumentParser();p.add_argument('--base-url',required=True);p.add_argument('--version',default='0.17.0-p3.40');p.add_argument('--commit');p.add_argument('--receipt',default='production-boundary.json');a=p.parse_args()
     result=verify(a.base_url.rstrip('/'),a.version,a.commit)
     Path(a.receipt).write_text(json.dumps(result,indent=2)+'\n',encoding='utf-8')
     print(json.dumps(result));raise SystemExit(0 if result['ok'] else 1)

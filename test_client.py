@@ -233,6 +233,12 @@ async def main() -> None:
                 "prepare_authoring_strategy",
                 "diagnose_document_design",
                 "plan_document_design_repairs",
+                "get_rendered_design_feedback_loop_contract",
+                "compile_semantic_callout_block",
+                "diagnose_rendered_document_design",
+                "plan_executable_document_design_repairs",
+                "apply_document_design_repairs",
+                "compare_document_design_diagnostics",
                 "get_product_authoring_contract",
                 "create_and_deliver_document",
                 "edit_and_deliver_document",
@@ -254,12 +260,12 @@ async def main() -> None:
                 if "access_token" in schema_text or "passphrase" in schema_text:
                     raise RuntimeError(f"secret-bearing field leaked into tool schema: {tool.name}")
 
-            read_payload = _payload(await client.call_tool("probe_read", {"message": "P3.39 OAuth smoke test"}))
-            if not read_payload or not read_payload.get("ok") or read_payload.get("version") != "0.16.0-p3.39":
-                raise RuntimeError(f"probe_read did not expose current P3.39 product version: {read_payload}")
+            read_payload = _payload(await client.call_tool("probe_read", {"message": "P3.40 OAuth smoke test"}))
+            if not read_payload or not read_payload.get("ok") or read_payload.get("version") != "0.17.0-p3.40":
+                raise RuntimeError(f"probe_read did not expose current P3.40 product version: {read_payload}")
 
             p2_caps = _payload(await client.call_tool("p2_capabilities", {}))
-            if not p2_caps or p2_caps.get("phase") != "P3.39":
+            if not p2_caps or p2_caps.get("phase") != "P3.40":
                 raise RuntimeError(f"p2_capabilities failed: {p2_caps}")
 
             design_intelligence = _payload(await client.call_tool("get_document_design_intelligence_contract", {}))
@@ -282,6 +288,21 @@ async def main() -> None:
             }))
             if strategy.get("warnings"):
                 raise RuntimeError(f"P3.39 clean strategy unexpectedly warned: {strategy}")
+
+            p340_contract = _payload(await client.call_tool("get_rendered_design_feedback_loop_contract", {}))
+            if (
+                not p340_contract
+                or p340_contract.get("phase") != "P3.40"
+                or "RENDER_AGAIN" not in p340_contract.get("closed_loop", [])
+            ):
+                raise RuntimeError(f"P3.40 rendered feedback contract failed: {p340_contract}")
+            callout = _payload(await client.call_tool("compile_semantic_callout_block", {
+                "text": "핵심 판단은 장식이 아니라 의미를 인코딩해야 합니다.",
+                "block_id": "oauth_callout",
+                "role": "KEY_JUDGMENT",
+            }))
+            assert callout["block"]["type"] == "table"
+            assert callout["block"]["p340_container"] == "SEMANTIC_CALLOUT"
 
             rich_contract = _payload(await client.call_tool("get_rich_document_builder_contract", {}))
             if (
@@ -458,6 +479,56 @@ async def main() -> None:
             assert rich_repair_plan["phase"] == "P3.39"
             assert rich_repair_plan["repair_policy"].startswith("MINIMAL_EVIDENCE_BOUND_REPAIR")
 
+            p340_before = _payload(await client.call_tool("diagnose_rendered_document_design", {
+                "document_id": rich_delivery["document_id"],
+                "mode": "POLISHED_REPORT",
+                "render_observation": {
+                    "authority": "EXTERNAL_RENDER_OBSERVATION",
+                    "findings": [{
+                        "code": "P3_40_OAUTH_RENDER_NOTE",
+                        "severity": "INFO",
+                        "scope": "PAGE_1",
+                        "evidence": {"source": "oauth-smoke"},
+                        "recommendation": "Do not promote this synthetic observation to native render evidence.",
+                    }],
+                },
+            }))
+            assert p340_before["phase"] == "P3.40"
+            assert "EXTERNAL_RENDER_OBSERVATION" in p340_before["authorities"]
+
+            p340_plan = _payload(await client.call_tool("plan_executable_document_design_repairs", {
+                "document_id": rich_delivery["document_id"],
+                "mode": "POLISHED_REPORT",
+                "archetype": "POLISHED_REPORT",
+            }))
+            assert p340_plan["phase"] == "P3.40"
+            assert p340_plan["executable_count"] >= 1
+            assert p340_plan["capability_gap_count"] == 0
+
+            p340_applied = _payload(await client.call_tool("apply_document_design_repairs", {
+                "document_id": rich_delivery["document_id"],
+                "expected_revision": rich_delivery["revision"],
+                "repair_plan": {
+                    "repair_plan_sha256": p340_plan["repair_plan_sha256"],
+                    "actions": p340_plan["actions"],
+                },
+            }))
+            assert p340_applied["ok"]
+            assert p340_applied["revision_after"] == rich_delivery["revision"] + 1
+            assert p340_applied["design_repair"]["semantic_changed"] is False
+            assert p340_applied["design_repair"]["structure_changed"] is False
+
+            p340_after = _payload(await client.call_tool("diagnose_rendered_document_design", {
+                "document_id": rich_delivery["document_id"],
+                "mode": "POLISHED_REPORT",
+            }))
+            comparison = _payload(await client.call_tool("compare_document_design_diagnostics", {
+                "before": p340_before,
+                "after": p340_after,
+            }))
+            assert comparison["high_severity_nonincrease"]
+            assert comparison["native_rerender_verified"] is False
+
             smart_call = await client.call_tool("fill_template_intelligently_and_deliver", {
                 "template_document_id": template_delivery["document_id"],
                 "values": {"name": "김우준"},
@@ -519,7 +590,7 @@ async def main() -> None:
                 smart_delivery["document_id"],
             ):
                 await client.call_tool("delete_document", {"document_id": delivered_id})
-            print("P3.39 OAuth authoring-strategy/design-diagnostic/repair-plan + P3.38 rich-native-delivery PASS")
+            print("P3.40 OAuth rendered-diagnostic/executable-repair/compare + P3.39 design-intelligence PASS")
             print("P3.37 OAuth create/edit/fill/bytes-first-ingest/resource-link/download PASS")
 
             plan_checked = _payload(await client.call_tool("validate_document_plan", {

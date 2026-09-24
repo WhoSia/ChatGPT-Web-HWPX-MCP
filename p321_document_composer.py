@@ -5,6 +5,7 @@ import binascii
 import hashlib
 import json
 import os
+import re
 import shutil
 import tempfile
 from pathlib import Path
@@ -520,7 +521,12 @@ def _table_finish_operations(
             operations.append({"op": "set_table_page_break", "table": locator, "mode": str(page_break).upper()})
         border_color = config.get("border_color")
         if border_color:
-            operations.append({"op": "set_table_borders", "table": locator, "color": str(border_color)})
+            normalized_color = str(border_color).strip()
+            if re.fullmatch(r"[0-9A-Fa-f]{6}", normalized_color):
+                normalized_color = "#" + normalized_color
+            if not re.fullmatch(r"#[0-9A-Fa-f]{6}", normalized_color):
+                raise ValueError("table border_color must be #RRGGBB or RRGGBB")
+            operations.append({"op": "set_table_borders", "table": locator, "color": normalized_color})
 
         first_row_header = bool(config.get("first_row_header") or block.get("first_row_header"))
         repeat_header = bool(config.get("repeat_header", first_row_header))

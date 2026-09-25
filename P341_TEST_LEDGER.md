@@ -28,10 +28,17 @@ The closed P3.40-R1 A2 capture showed that Hancom line-box evidence includes rep
 ## AuthorBench A3
 A3 is fresh post-implementation evidence with three synthetic archetypes: RESEARCH_BRIEF, INSTITUTIONAL_REPORT, and ACADEMIC_REPORT. A3 generation is downstream of Python, Rust, and TypeScript gates. Native page-composition authority remains pending until external Hancom capture.
 
+## A3 freshness / replay authority split
+- The **fresh first-completed A3** is immutable benchmark evidence from workflow run `36186044354` at commit `7872a8a5cf063c547f65ccd823d1063a51c17ee1`.
+- Later invocations of `benchmarks/authorbench_a3.py` after composer or diagnostic changes are **CURRENT_GENERATOR_REGRESSION_REPLAY**, not replacement fresh evidence.
+- The capture runner no longer regenerates A3 from current HEAD and compares it to historical hashes. It exports the frozen authority commit into an isolated source tree, regenerates there, and admits fixtures only if the original three SHA-256 locks are reproduced exactly.
+- Materialization authority: `GIT_ARCHIVE_FROZEN_COMMIT_REGENERATION_EXACT_SHA256`. CI fetches full history and executes this reconstruction gate.
+- Current-generator workflow artifacts use `regression-replay` naming so benchmark freshness and implementation regression cannot be conflated.
+
 ## P3.41-R1 native A3 capture readiness
 - Frozen A3 authority is bound to workflow run `36186044354` at commit `7872a8a5cf063c547f65ccd823d1063a51c17ee1`.
 - Exact A3 SHA-256 locks: RESEARCH_BRIEF `de7ae36c3f6d1602f1b8f6f846349ac8737b5c2e33b918b2d96a4ad7b9974555`; INSTITUTIONAL_REPORT `bc14b5a8b13bf473c2ad0b484d3b8b7a16accb8b8b8359853fdb221dddd5bcff`; ACADEMIC_REPORT `32b42461d4645b8db417b06b9db0518539900afc39e39ea39f2f7c501e023163`.
-- The one-click Windows runner re-materializes A3 and fails closed if any frozen hash changes. It records Hancom executable/version/hash, DPI, PDF/raster/font custody, and a page-composition diagnostic for each archetype.
+- The one-click Windows runner re-materializes the **frozen authority commit in an isolated Git archive** and fails closed if any original frozen hash changes. It never substitutes current-generator replay bytes for the first-pass benchmark. It records Hancom executable/version/hash, DPI, PDF/raster/font custody, and a page-composition diagnostic for each archetype.
 - Hancom export handling is promoted to a shared PowerShell helper so P3.42+ corpus capture does not fork phase-specific Windows process semantics.
 - Windows CI parses the full runner/helper surface and exercises explicit executable resolution before external Hancom world-contact.
 

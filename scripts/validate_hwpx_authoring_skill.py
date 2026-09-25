@@ -7,10 +7,14 @@ ROOT = Path(__file__).resolve().parents[1]
 SKILL_ROOT = ROOT / "skills" / "hwpx-authoring"
 SKILL = SKILL_ROOT / "SKILL.md"
 SERVER = ROOT / "server_p2.py"
+P342_MCP = ROOT / "p342_mcp.py"
+TOOL_SOURCES = (SERVER, P342_MCP)
 
 REQUIRED_REFERENCES = (
     "references/evidence-authority.md",
     "references/page-composition.md",
+    "references/mutation-footprint.md",
+    "references/corpus-evidence.md",
 )
 REQUIRED_TOOL_NAMES = (
     "get_document_design_intelligence_contract",
@@ -25,6 +29,11 @@ REQUIRED_TOOL_NAMES = (
     "diagnose_page_composition",
     "plan_render_guided_page_layout",
     "compare_page_composition_diagnostics",
+    "get_mutation_footprint_contract",
+    "certify_document_revision_mutation_footprint",
+    "get_corpus_evidence_contract",
+    "query_corpus_coverage_ledger",
+    "query_evidence_grounded_design_generalizations",
 )
 MAX_SKILL_LINES = 220
 
@@ -98,12 +107,20 @@ def validate() -> list[str]:
                     f"broken local reference link in {path.name}: {target}"
                 )
 
-    server = SERVER.read_text(encoding="utf-8")
+    tool_sources = {
+        path.relative_to(ROOT).as_posix(): path.read_text(encoding="utf-8")
+        for path in TOOL_SOURCES
+        if path.is_file()
+    }
+    combined_tool_source = "\n".join(tool_sources.values())
     for tool in REQUIRED_TOOL_NAMES:
         if tool not in text:
             failures.append(f"skill routing omits required tool: {tool}")
-        if not re.search(rf"(?m)^def\s+{re.escape(tool)}\s*\(", server):
-            failures.append(f"server surface omits skill-required tool: {tool}")
+        if not re.search(
+            rf"(?m)^\s*def\s+{re.escape(tool)}\s*\(",
+            combined_tool_source,
+        ):
+            failures.append(f"registered product surface omits skill-required tool: {tool}")
 
     evidence_reference = SKILL_ROOT / "references" / "evidence-authority.md"
     if evidence_reference.is_file():

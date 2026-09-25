@@ -97,6 +97,7 @@ def page_composition_contract() -> dict:
             "PAGE_TOP_HEAVY_COMPOSITION",
             "PAGE_BOTTOM_HEAVY_COMPOSITION",
             "PAGE_BOUNDARY_SINGLE_LINE_PARAGRAPH",
+            "PAGE_BOUNDARY_SINGLE_LINE_BLOCK_RISK",
             "DOCUMENT_PAGE_DENSITY_VARIANCE_HIGH",
         ],
         "policy_boundary": "AGENT_PLAN_ONLY_UNTIL_LOCATOR_TO_PAGE_BREAK_MUTATION_IS_PROVEN",
@@ -359,23 +360,55 @@ def diagnose_page_composition(
             })
 
     for left, right in zip(primitives, primitives[1:]):
-        locator = str(left.get("last_paragraph_locator") or "")
-        if not locator or locator != str(right.get("first_paragraph_locator") or ""):
-            continue
-        left_count = int((left.get("paragraph_line_counts") or {}).get(locator, 0))
-        right_count = int((right.get("paragraph_line_counts") or {}).get(locator, 0))
-        if min(left_count, right_count) <= 1:
+        left_locator = str(left.get("last_paragraph_locator") or "")
+        right_locator = str(right.get("first_paragraph_locator") or "")
+        left_count = int((left.get("paragraph_line_counts") or {}).get(left_locator, 0))
+        right_count = int((right.get("paragraph_line_counts") or {}).get(right_locator, 0))
+        scope = f"PAGE_{int(left['page_index']) + 1}_TO_{int(right['page_index']) + 1}"
+
+        # Exact paragraph-continuation authority requires a locator whose identity
+        # survives the page boundary. PDF text extraction instead emits page-local
+        # block locators such as page:0/block:3; those cannot prove that two edge
+        # blocks are the same source paragraph.
+        same_durable_locator = (
+            bool(left_locator)
+            and left_locator == right_locator
+            and not left_locator.startswith("page:")
+        )
+        if same_durable_locator and min(left_count, right_count) <= 1:
             findings.append({
                 "code": "PAGE_BOUNDARY_SINGLE_LINE_PARAGRAPH",
                 "severity": "MEDIUM",
-                "scope": f"PAGE_{int(left['page_index']) + 1}_TO_{int(right['page_index']) + 1}",
+                "scope": scope,
                 "principle": "READING_GEOMETRY",
                 "evidence": {
-                    "paragraph_locator": locator,
+                    "paragraph_locator": left_locator,
                     "lines_before_break": left_count,
                     "lines_after_break": right_count,
+                    "identity_authority": "DURABLE_CROSS_PAGE_LOCATOR",
                 },
                 "recommendation": "Review keep-with-next/keep-together or local repagination; do not mutate from raster evidence alone.",
+            })
+            continue
+
+        page_local_pdf_blocks = (
+            left_locator.startswith("page:")
+            and right_locator.startswith("page:")
+        )
+        if page_local_pdf_blocks and (left_count <= 1 or right_count <= 1):
+            findings.append({
+                "code": "PAGE_BOUNDARY_SINGLE_LINE_BLOCK_RISK",
+                "severity": "LOW",
+                "scope": scope,
+                "principle": "READING_GEOMETRY",
+                "evidence": {
+                    "left_pdf_block_locator": left_locator,
+                    "right_pdf_block_locator": right_locator,
+                    "left_block_line_count": left_count,
+                    "right_block_line_count": right_count,
+                    "identity_authority": "PAGE_LOCAL_PDF_BLOCK_HEURISTIC",
+                },
+                "recommendation": "Review the page boundary visually; PDF block geometry cannot prove cross-page paragraph identity.",
             })
 
     densities = [m["line_area_ppm"] for m in page_metrics if m["line_area_ppm"] > 0]
@@ -468,6 +501,7 @@ def plan_render_guided_layout_policy(diagnostic: dict) -> dict:
         "PAGE_TOP_HEAVY_COMPOSITION": "REVIEW_PAGE_BREAK_OR_BLOCK_ORDER",
         "PAGE_BOTTOM_HEAVY_COMPOSITION": "REVIEW_PAGE_BREAK_OR_BLOCK_ORDER",
         "PAGE_BOUNDARY_SINGLE_LINE_PARAGRAPH": "REVIEW_KEEP_TOGETHER_OR_REPAGINATION",
+        "PAGE_BOUNDARY_SINGLE_LINE_BLOCK_RISK": "REVIEW_PAGE_BOUNDARY_BLOCK_RISK",
         "DOCUMENT_PAGE_DENSITY_VARIANCE_HIGH": "NORMALIZE_CROSS_PAGE_DENSITY",
     }
     seen: set[tuple[str, str]] = set()

@@ -65,3 +65,16 @@ A3 is fresh post-implementation evidence with three synthetic archetypes: RESEAR
 - One-shot reseal run `36193645366` re-downloaded the original GitHub artifact by ID, verified exact digest and size, regenerated the shards, reconstructed them, passed CRC verification, and committed the exact original bytes as `fa05ff8126478c022199fc152a7b90670b9fffdd`.
 - The exact original Actions ZIP is also archived in Google Drive under `ChatGPT Web HWPX MCP/artifacts/P3.41 — Page Composition & A3 Evidence`.
 - Historical-code regeneration remains explicitly non-authoritative; later A3 generator runs remain regression replay.
+
+
+## P3.41-R1 native capture adjudication and airmang ecosystem harvest
+- User-returned frozen A3 capture pack validates **3/3 archetypes / 6 native Hancom pages** with authority `NATIVE_HANCOM_A3_PAGE_COMPOSITION_COMPLETE`.
+- Hancom environment: Hangul 2024 `13.0.0.3622`, executable SHA-256 `91541f8c16e592516d0265c795b565a14a2cacef0b64f616b0626f54f3d3ece2`, 144 DPI.
+- Native diagnostics remain `PASS_WITH_WARNINGS`: all three carry the page-local `PAGE_BOUNDARY_SINGLE_LINE_BLOCK_RISK`; RESEARCH_BRIEF additionally carries LOW `PAGE_BOTTOM_HEAVY_COMPOSITION`.
+- Coarse cross-archetype geometry is intentionally not hidden: all three currently render to 2 pages with line-count signature `[8, 19]`; first-page bottom-margin proportions are approximately 39.7%, 42.2%, and 43.0%. This is a review/generalization signal, not an automatic layout failure.
+- Human authority is strengthened from open-ended questions to **criterion-bound evidence coverage**. Required IDs: `first_page_whitespace`, `archetype_differentiation`, `page_boundary_integrity`, `mechanical_styling`. Every criterion requires `USER_VISUAL_OBSERVATION`; machine/native evidence cannot silently satisfy it.
+- `finalize_human_review` fails closed on missing criterion coverage, empty manual observations, unsupported states, or an overall PASS inconsistent with criterion residual/HOLD states.
+- Authoring skill guidance now uses `skills/hwpx-authoring/references/evidence-authority.md` and `page-composition.md`; `scripts/validate_hwpx_authoring_skill.py` checks skill front matter, links/references, required routing, and actual `server_p2.py` tool presence. Its PASS is explicitly structural only.
+- Full public `airmang` ecosystem review is recorded in `docs/p341-airmang-ecosystem-harvest.md`: 15 public repositories were inventoried, with deep review of python-hwpx / python-hwpx-automation / hwpx-plugins / DIVE / dive-school-vibe-builder and bounded review of the remaining repositories.
+- Immediate adoptions: criterion-bound human evidence and skill/tool drift validation. Successor placements: P3.42 mutation-footprint certificate + public-corpus probe/verdict/coverage ledger; P3.42/P3.43 generated tool-contract binding; later optional live Hancom session authority.
+- Explicit non-adoptions: tool-count targets, language-count targets, wholesale workflow-engine copying, credential-bearing examples, brittle UI-selector automation when a native/package contract exists, and machine-to-human authority promotion.

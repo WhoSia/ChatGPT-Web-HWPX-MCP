@@ -22,33 +22,92 @@ function Find-HancomExe([string]$Explicit) {
   throw "Hwp.exe was not auto-detected. Re-run with -HancomExe 'C:\path\to\Hwp.exe'."
 }
 
-function Export-HancomPdf([string]$InputPath, [string]$OutputPath, [int]$TimeoutSeconds) {
-  $stdout = "$OutputPath.stdout.log"; $stderr = "$OutputPath.stderr.log"
-  $arguments = @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", (Join-Path $PSScriptRoot "p313r1_hancom_export_once.ps1"), "-InputPath", $InputPath, "-OutputPath", $OutputPath)
-  $before = @{}; Get-Process -Name Hwp -ErrorAction SilentlyContinue | ForEach-Object { $before[$_.Id] = $true }
+function Export-HancomPdf {
+  param(
+    [Parameter(Mandatory=$true)][string]$InputPath,
+    [Parameter(Mandatory=$true)][string]$OutputPath,
+    [int]$TimeoutSeconds = 90
+  )
+
+  $helper = Join-Path $PSScriptRoot "p313r1_hancom_export_once.ps1"
+  $stdout = "$OutputPath.stdout.log"
+  $stderr = "$OutputPath.stderr.log"
+  foreach ($path in @($stdout, $stderr)) {
+    if (Test-Path -LiteralPath $path) { Remove-Item -LiteralPath $path -Force }
+  }
+
+  $before = @{}
+  Get-Process -Name Hwp -ErrorAction SilentlyContinue | ForEach-Object { $before[$_.Id] = $true }
+
+  $arguments = @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $helper, "-InputPath", $InputPath, "-OutputPath", $OutputPath)
   $proc = Start-Process -FilePath "powershell.exe" -ArgumentList $arguments -PassThru -RedirectStandardOutput $stdout -RedirectStandardError $stderr
+
   if (-not $proc.WaitForExit($TimeoutSeconds * 1000)) {
     try { $proc.Kill() } catch {}
-    Get-Process -Name Hwp -ErrorAction SilentlyContinue | Where-Object { -not $before.ContainsKey($_.Id) } | Stop-Process -Force -ErrorAction SilentlyContinue
-    throw "Hancom export timed out after $TimeoutSeconds seconds."
+    Start-Sleep -Milliseconds 500
+    Get-Process -Name Hwp -ErrorAction SilentlyContinue | ForEach-Object {
+      if (-not $before.ContainsKey($_.Id)) {
+        try { Stop-Process -Id $_.Id -Force -ErrorAction SilentlyContinue } catch {}
+      }
+    }
+    throw "Hancom export timed out after $TimeoutSeconds seconds for $InputPath"
   }
-  $proc.WaitForExit()
-  if ($proc.ExitCode -ne 0 -or -not (Test-Path -LiteralPath $OutputPath) -or (Get-Item -LiteralPath $OutputPath).Length -le 0) {
-    $detail = @($stderr, $stdout) | Where-Object { Test-Path -LiteralPath $_ } | ForEach-Object { (Get-Content -LiteralPath $_ -Raw -ErrorAction SilentlyContinue).Trim() }
-    throw "Hancom PDF export failed (exit $($proc.ExitCode)): $($detail -join ' | ')"
+
+  try { $proc.WaitForExit() } catch {}
+  try { $proc.Refresh() } catch {}
+
+  $exitCode = $null
+  try { $exitCode = [int]$proc.ExitCode } catch {}
+
+  $outputValid = $false
+  if (Test-Path -LiteralPath $OutputPath) {
+    try { $outputValid = ((Get-Item -LiteralPath $OutputPath).Length -gt 0) } catch {}
+  }
+
+  if (-not $outputValid -or ($null -ne $exitCode -and $exitCode -ne 0)) {
+    $detailParts = @()
+    if (Test-Path -LiteralPath $stderr) {
+      $stderrText = Get-Content -LiteralPath $stderr -Raw -ErrorAction SilentlyContinue
+      if ($stderrText) { $detailParts += $stderrText.Trim() }
+    }
+    if (Test-Path -LiteralPath $stdout) {
+      $stdoutText = Get-Content -LiteralPath $stdout -Raw -ErrorAction SilentlyContinue
+      if ($stdoutText) { $detailParts += $stdoutText.Trim() }
+    }
+    $detail = [string]::Join(" | ", $detailParts)
+    if (-not $detail) { $detail = "helper exited without diagnostic output" }
+    $exitLabel = if ($null -eq $exitCode) { "unavailable" } else { [string]$exitCode }
+    throw "Hancom export failed for $InputPath. ExitCode=$exitLabel. OutputValid=$outputValid. $detail"
+  }
+
+  if ($null -eq $exitCode) {
+    Write-Host "WARN: helper ExitCode unavailable, but non-empty PDF exists; accepting output by artifact evidence."
   }
 }
 
-function Export-HancomPdfWithRetry([string]$InputPath, [string]$OutputPath) {
+function Export-HancomPdfWithRetry {
+  param(
+    [Parameter(Mandatory=$true)][string]$InputPath,
+    [Parameter(Mandatory=$true)][string]$OutputPath
+  )
+
   $timeouts = @(90, 150, 240)
   for ($attempt = 1; $attempt -le $MaxAttempts; $attempt++) {
     try {
-      if ($attempt -gt 1) { Write-Host "Retry ${attempt}/${MaxAttempts}: $InputPath" }
-      Export-HancomPdf $InputPath $OutputPath $timeouts[[Math]::Min($attempt - 1, $timeouts.Count - 1)]; return
+      if ($attempt -gt 1) {
+        Write-Host "Retry ${attempt}/${MaxAttempts}: $InputPath"
+        Start-Sleep -Seconds 3
+      }
+      $timeout = $timeouts[[Math]::Min($attempt - 1, $timeouts.Count - 1)]
+      Export-HancomPdf -InputPath $InputPath -OutputPath $OutputPath -TimeoutSeconds $timeout
+      return
     } catch {
       if ($attempt -eq $MaxAttempts) { throw }
-      Write-Host "Transient failure: $($_.Exception.Message)"
-      Get-Process -Name Hwp -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+      Write-Host "Transient Hancom export failure: $($_.Exception.Message)"
+      Write-Host "RECOVER: clearing leftover Hwp processes before retry."
+      Get-Process -Name Hwp -ErrorAction SilentlyContinue | ForEach-Object {
+        try { Stop-Process -Id $_.Id -Force -ErrorAction SilentlyContinue } catch {}
+      }
       Start-Sleep -Seconds 2
     }
   }

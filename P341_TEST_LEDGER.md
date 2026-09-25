@@ -31,14 +31,14 @@ A3 is fresh post-implementation evidence with three synthetic archetypes: RESEAR
 ## A3 freshness / replay authority split
 - The **fresh first-completed A3** is immutable benchmark evidence from workflow run `36186044354` at commit `7872a8a5cf063c547f65ccd823d1063a51c17ee1`.
 - Later invocations of `benchmarks/authorbench_a3.py` after composer or diagnostic changes are **CURRENT_GENERATOR_REGRESSION_REPLAY**, not replacement fresh evidence.
-- The capture runner no longer regenerates A3 from current HEAD and compares it to historical container bytes. It exports the frozen authority commit into an isolated source tree, regenerates there, and admits fixtures only if the **uncompressed HWPX package-content digest** matches the original first-pass artifact. Original whole-file SHA-256 values remain immutable custody identifiers; replay SHA-256 is recorded separately because ZIP timestamps/container metadata are not document semantics.
-- Materialization authority: `GIT_ARCHIVE_FROZEN_COMMIT_PACKAGE_CONTENT_EQUIVALENCE`. CI fetches full history and executes this reconstruction gate. The gate hashes sorted entry names + uncompressed entry bytes, so ZIP timestamps cannot masquerade as semantic benchmark drift.
+- The capture runner does **not** regenerate fresh A3 from current HEAD or from historical source execution. It materializes the repository-sealed bytes of the original first-pass GitHub Actions artifact and admits fixtures only if the outer artifact SHA-256, ZIP CRC, each frozen HWPX whole-file SHA-256, and each package-content SHA-256 all match.
+- Materialization authority: `REPOSITORY_SEALED_WORKFLOW_ARTIFACT_BYTES_EXACT_SHA256`. Historical-code regeneration is non-authoritative because dependency/runtime changes can alter container bytes even when source code is identical.
 - Current-generator workflow artifacts use `regression-replay` naming so benchmark freshness and implementation regression cannot be conflated.
 
 ## P3.41-R1 native A3 capture readiness
 - Frozen A3 authority is bound to workflow run `36186044354` at commit `7872a8a5cf063c547f65ccd823d1063a51c17ee1`.
 - Exact A3 SHA-256 locks: RESEARCH_BRIEF `de7ae36c3f6d1602f1b8f6f846349ac8737b5c2e33b918b2d96a4ad7b9974555`; INSTITUTIONAL_REPORT `bc14b5a8b13bf473c2ad0b484d3b8b7a16accb8b8b8359853fdb221dddd5bcff`; ACADEMIC_REPORT `32b42461d4645b8db417b06b9db0518539900afc39e39ea39f2f7c501e023163`.
-- The one-click Windows runner reconstructs the repository-sealed artifact recontainer and fails closed unless every HWPX matches the original frozen **whole-file SHA-256 and package-content digest**. It never substitutes current-generator replay semantics for the first-pass benchmark. The original GitHub Actions ZIP envelope is preserved separately as provenance evidence. It records Hancom executable/version/hash, DPI, PDF/raster/font custody, and a page-composition diagnostic for each archetype.
+- The one-click Windows runner reconstructs the **sealed original workflow artifact bytes** and fails closed unless the outer ZIP SHA-256/CRC and every HWPX whole-file/package-content digest match the frozen authority. It never substitutes current-generator replay semantics for the first-pass benchmark. It records Hancom executable/version/hash, DPI, PDF/raster/font custody, and a page-composition diagnostic for each archetype.
 - Hancom export handling is promoted to a shared PowerShell helper so P3.42+ corpus capture does not fork phase-specific Windows process semantics.
 - Windows CI parses the full runner/helper surface and exercises explicit executable resolution before external Hancom world-contact.
 
@@ -57,10 +57,11 @@ A3 is fresh post-implementation evidence with three synthetic archetypes: RESEAR
 - No language-count target exists. C#/Kotlin/C++/other languages require a distinct technical boundary before adoption.
 
 
-## Frozen A3 artifact custody
-- Original GitHub Actions artifact `authorbench-a3-p341-first-pass` (artifact ID `10885019734`) remains the provenance source.
-- Exact original workflow-artifact ZIP size: **30,497 bytes**.
-- Exact original workflow-artifact ZIP SHA-256: `c3f737403a914fd5c3da4ff33ca8ef2d8d2378818fa566434d548cd7680542b9`.
-- The repository contains **five** ordered base64 shards (`.00`–`.04`) of a sealed recontainer. Its outer ZIP SHA-256 is separately locked as `607ebe5ad23b2997333dab33965aeb016c4980e8f7af223148f9aaee52539b9c`; it is not mislabeled as the original Actions envelope.
-- Benchmark identity is carried by the three frozen HWPX members: each must match its original **whole-file SHA-256** and **package-content SHA-256**, and the embedded A3 receipt must agree with those hashes. Any mismatch fails closed.
-- The original Actions ZIP envelope is preserved separately in durable evidence storage, while repo materialization is authorized only by exact member-byte equivalence. Historical-code regeneration remains non-authoritative for frozen artifact custody.
+## Frozen A3 artifact container completion
+- Original GitHub Actions artifact `authorbench-a3-p341-first-pass` (artifact ID `10885019734`) remains the custody source.
+- Exact workflow-artifact ZIP size: **30,497 bytes**.
+- Exact workflow-artifact ZIP SHA-256: `c3f737403a914fd5c3da4ff33ca8ef2d8d2378818fa566434d548cd7680542b9`.
+- Repository custody is complete as **five** ordered base64 shards (`.00`–`.04`). Materialization concatenates them, decodes once, verifies the exact original artifact-container SHA-256 and ZIP CRC, then verifies all three frozen HWPX whole-file and package-content hashes.
+- One-shot reseal run `36193645366` re-downloaded the original GitHub artifact by ID, verified exact digest and size, regenerated the shards, reconstructed them, passed CRC verification, and committed the exact original bytes as `fa05ff8126478c022199fc152a7b90670b9fffdd`.
+- The exact original Actions ZIP is also archived in Google Drive under `ChatGPT Web HWPX MCP/artifacts/P3.41 — Page Composition & A3 Evidence`.
+- Historical-code regeneration remains explicitly non-authoritative; later A3 generator runs remain regression replay.

@@ -41,3 +41,60 @@ export interface PageCompositionDiagnostic {
   finding_count: number;
   verdict: "PASS" | "PASS_WITH_WARNINGS" | "REVIEW_REQUIRED";
 }
+
+
+export interface PagePrimitive {
+  width: number;
+  height: number;
+  line_count: number;
+  left: number;
+  right: number;
+  top: number;
+  bottom: number;
+  line_area: number;
+  largest_gap: number;
+  top_area: number;
+  bottom_area: number;
+}
+
+function ppm(numerator: number, denominator: number): number {
+  if (denominator <= 0) return 0;
+  return Math.floor((numerator * 1_000_000 + Math.floor(denominator / 2)) / denominator);
+}
+
+export function analyzePagePrimitive(
+  p: PagePrimitive,
+  archetype: CompositionArchetype,
+): CompositionFindingCode[] {
+  const t = PAGE_COMPOSITION_THRESHOLDS[archetype];
+  const verticalSpan = Math.max(0, p.bottom - p.top);
+  const verticalSpanPpm = ppm(verticalSpan, p.height);
+  const lineAreaPpm = ppm(p.line_area, p.width * p.height);
+  const gapPpm = ppm(p.largest_gap, p.height);
+  const totalArea = p.top_area + p.bottom_area;
+  const balancePpm = ppm(Math.abs(p.top_area - p.bottom_area), totalArea);
+  const codes: CompositionFindingCode[] = [];
+
+  if (
+    p.line_count >= t.max_lines ||
+    verticalSpanPpm >= t.max_vertical_span_ppm ||
+    lineAreaPpm >= t.max_line_area_ppm
+  ) {
+    codes.push("PAGE_COMPOSITION_OVERFULL");
+  }
+  if (p.line_count >= 8 && gapPpm >= t.max_internal_gap_ppm) {
+    codes.push("PAGE_RHYTHM_LARGE_WHITESPACE_BAND");
+  }
+  if (
+    p.line_count >= 12 &&
+    verticalSpanPpm >= 500_000 &&
+    balancePpm >= t.max_balance_delta_ppm
+  ) {
+    codes.push(
+      p.top_area > p.bottom_area
+        ? "PAGE_TOP_HEAVY_COMPOSITION"
+        : "PAGE_BOTTOM_HEAVY_COMPOSITION",
+    );
+  }
+  return codes;
+}

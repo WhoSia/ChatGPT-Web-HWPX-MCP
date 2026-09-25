@@ -60,3 +60,13 @@ A static preview PASS means native/layout mechanics look safe. It does **not** m
 - Long prose inside table cells may now be repaired through the nested-paragraph alignment lane rather than left as a capability gap.
 - Header-row contrast and column-width policy are editorial bundles over existing native table primitives.
 - Native before/after render verification requires two valid Hancom-native capture receipts. If either side is absent, report render verification as pending rather than infer it from static structure.
+
+
+## P3.41 page-composition boundary
+
+- After a real page capture exists, call **diagnose_page_composition** in addition to element-level P3.40 diagnosis when page rhythm, density, whitespace, or cross-page transitions matter.
+- Use **get_page_composition_contract** to select the declared archetype and understand its bounded thresholds. These thresholds produce named evidence signals; they are not a beauty score.
+- Use **plan_render_guided_page_layout** to turn page-level findings into reviewable layout policy. P3.41 deliberately keeps these as AGENT_PLAN: raster evidence alone does not authorize automatic page-break or narrative mutation.
+- Use **compare_page_composition_diagnostics** only to claim before/after page-composition change when both sides carry the required evidence. Native Hancom authority must not be inferred from static structure.
+- Repeating page furniture is separated from body-composition geometry using repeated edge evidence; do not treat headers, footers, or narrow page numbers as body density.
+- Internal implementation follows polyglot-by-comparative-advantage: Python research/reference semantics, Rust deterministic geometry decisions, TypeScript product contract, PowerShell Hancom world contact. Cross-language disagreement is a regression, not an acceptable implementation detail.

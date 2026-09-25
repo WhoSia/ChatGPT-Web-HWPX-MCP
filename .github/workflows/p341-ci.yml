@@ -14,6 +14,7 @@ on:
       - "scripts/p341_*"
       - "benchmarks/authorbench_a3*"
       - "skills/hwpx-authoring/SKILL.md"
+      - "P341_TEST_LEDGER.md"
       - ".github/workflows/p341-ci.yml"
   pull_request:
     branches: [main]
@@ -28,6 +29,7 @@ on:
       - "scripts/p341_*"
       - "benchmarks/authorbench_a3*"
       - "skills/hwpx-authoring/SKILL.md"
+      - "P341_TEST_LEDGER.md"
       - ".github/workflows/p341-ci.yml"
 
 permissions:
@@ -45,10 +47,12 @@ jobs:
           cache: pip
       - name: Install Python dependencies
         run: pip install -r requirements.txt -r requirements-capture.txt -r requirements-dev.txt
-      - name: Compile page-composition reference
-        run: python -m compileall -q p341_page_composition.py test_p341_page_composition.py
+      - name: Compile P3.41 product surface
+        run: python -m compileall -q p341_page_composition.py test_p341_page_composition.py server_p2.py test_client.py benchmarks/authorbench_a3.py benchmarks/authorbench_a3_p341_evaluation.py scripts/p341_release_smoke.py
       - name: Python P3.41 regression
         run: python -m pytest -q test_p341_page_composition.py test_p340_feedback_loop.py
+      - name: P3.41 release smoke
+        run: python scripts/p341_release_smoke.py
 
   rust-exact-kernel:
     runs-on: ubuntu-latest
@@ -69,3 +73,33 @@ jobs:
           node-version: "22"
       - name: TypeScript contract check
         run: npx --yes -p typescript@5.9.2 tsc --noEmit --strict --target ES2022 contracts/p341_page_composition.ts
+
+  authorbench-a3:
+    needs: [python-reference, rust-exact-kernel, typescript-contract]
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install authoring dependencies
+        run: pip install -r requirements.txt -r requirements-capture.txt -r requirements-dev.txt
+      - name: Generate A3 only after all polyglot gates pass
+        run: python benchmarks/authorbench_a3.py
+      - name: Evaluate fresh cross-archetype A3
+        run: python benchmarks/authorbench_a3_p341_evaluation.py
+      - name: Verify native HWPX packages
+        run: |
+          unzip -t artifacts/authorbench-a3-research-brief.hwpx
+          unzip -t artifacts/authorbench-a3-institutional-report.hwpx
+          unzip -t artifacts/authorbench-a3-academic-report.hwpx
+      - uses: actions/upload-artifact@v4
+        with:
+          name: authorbench-a3-p341
+          path: |
+            artifacts/authorbench-a3-*.hwpx
+            artifacts/authorbench-a3-receipt.json
+            artifacts/authorbench-a3-p341-evaluation.json
+          if-no-files-found: error

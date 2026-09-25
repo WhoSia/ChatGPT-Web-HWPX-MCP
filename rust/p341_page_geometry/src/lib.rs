@@ -54,7 +54,7 @@ pub fn analyze_page(p: &PagePrimitive, archetype: &str) -> Vec<&'static str> {
     if p.line_count >= 8 && gap_ppm >= t.max_internal_gap_ppm {
         codes.push("PAGE_RHYTHM_LARGE_WHITESPACE_BAND");
     }
-    if p.line_count >= 8 && vertical_span_ppm >= 500_000 && balance_ppm >= t.max_balance_delta_ppm {
+    if p.line_count >= 12 && vertical_span_ppm >= 500_000 && balance_ppm >= t.max_balance_delta_ppm {
         if p.top_area > p.bottom_area {
             codes.push("PAGE_TOP_HEAVY_COMPOSITION");
         } else {

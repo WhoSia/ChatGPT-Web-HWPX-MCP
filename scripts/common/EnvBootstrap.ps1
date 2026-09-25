@@ -50,23 +50,38 @@ function Resolve-HwpxBasePythonCommand {
     }
 
     $candidates = @()
-    $launcher = Get-Command py -CommandType Application -ErrorAction SilentlyContinue
-    if ($launcher) {
-        $candidates += [pscustomobject]@{Executable=$launcher.Source; PrefixArguments=@('-3.12'); Label='py -3.12'}
+    $seen = @{}
+    foreach ($launcher in @(Get-Command py -CommandType Application -All -ErrorAction SilentlyContinue)) {
+        foreach ($source in @($launcher.Source)) {
+            if (-not $source) { continue }
+            $key = "py|$source"
+            if (-not $seen.ContainsKey($key)) {
+                $seen[$key] = $true
+                $candidates += [pscustomobject]@{Executable=[string]$source; PrefixArguments=@('-3.12'); Label="py -3.12 ($source)"}
+            }
+        }
     }
     foreach ($name in @('python3.12','python')) {
-        $command = Get-Command $name -CommandType Application -ErrorAction SilentlyContinue
-        if ($command) {
-            $candidates += [pscustomobject]@{Executable=$command.Source; PrefixArguments=@(); Label=$name}
+        foreach ($command in @(Get-Command $name -CommandType Application -All -ErrorAction SilentlyContinue)) {
+            foreach ($source in @($command.Source)) {
+                if (-not $source) { continue }
+                $key = "$name|$source"
+                if (-not $seen.ContainsKey($key)) {
+                    $seen[$key] = $true
+                    $candidates += [pscustomobject]@{Executable=[string]$source; PrefixArguments=@(); Label="$name ($source)"}
+                }
+            }
         }
     }
 
     foreach ($candidate in $candidates) {
-        $version = Get-HwpxPythonVersion -Executable $candidate.Executable -PrefixArguments $candidate.PrefixArguments
+        $executable = [string]$candidate.Executable
+        $prefixArguments = [string[]]@($candidate.PrefixArguments)
+        $version = Get-HwpxPythonVersion -Executable $executable -PrefixArguments $prefixArguments
         if ($version -eq '3.12') {
             return [pscustomobject]@{
-                Executable=$candidate.Executable
-                PrefixArguments=@($candidate.PrefixArguments)
+                Executable=$executable
+                PrefixArguments=$prefixArguments
                 Version=$version
                 Label=$candidate.Label
             }

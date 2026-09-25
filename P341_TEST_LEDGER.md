@@ -38,7 +38,7 @@ A3 is fresh post-implementation evidence with three synthetic archetypes: RESEAR
 ## P3.41-R1 native A3 capture readiness
 - Frozen A3 authority is bound to workflow run `36186044354` at commit `7872a8a5cf063c547f65ccd823d1063a51c17ee1`.
 - Exact A3 SHA-256 locks: RESEARCH_BRIEF `de7ae36c3f6d1602f1b8f6f846349ac8737b5c2e33b918b2d96a4ad7b9974555`; INSTITUTIONAL_REPORT `bc14b5a8b13bf473c2ad0b484d3b8b7a16accb8b8b8359853fdb221dddd5bcff`; ACADEMIC_REPORT `32b42461d4645b8db417b06b9db0518539900afc39e39ea39f2f7c501e023163`.
-- The one-click Windows runner reconstructs the **sealed original workflow artifact bytes** and fails closed unless every HWPX matches the original frozen SHA-256 and package-content digest. It never substitutes current-generator replay semantics for the first-pass benchmark. It records Hancom executable/version/hash, DPI, PDF/raster/font custody, and a page-composition diagnostic for each archetype.
+- The one-click Windows runner reconstructs the repository-sealed artifact recontainer and fails closed unless every HWPX matches the original frozen **whole-file SHA-256 and package-content digest**. It never substitutes current-generator replay semantics for the first-pass benchmark. The original GitHub Actions ZIP envelope is preserved separately as provenance evidence. It records Hancom executable/version/hash, DPI, PDF/raster/font custody, and a page-composition diagnostic for each archetype.
 - Hancom export handling is promoted to a shared PowerShell helper so P3.42+ corpus capture does not fork phase-specific Windows process semantics.
 - Windows CI parses the full runner/helper surface and exercises explicit executable resolution before external Hancom world-contact.
 
@@ -57,9 +57,10 @@ A3 is fresh post-implementation evidence with three synthetic archetypes: RESEAR
 - No language-count target exists. C#/Kotlin/C++/other languages require a distinct technical boundary before adoption.
 
 
-## Frozen A3 artifact container completion
-- Original GitHub Actions artifact `authorbench-a3-p341-first-pass` (artifact ID `10885019734`) remains the custody source.
-- Exact workflow-artifact ZIP size: **30,497 bytes**.
-- Exact workflow-artifact ZIP SHA-256: `c3f737403a914fd5c3da4ff33ca8ef2d8d2378818fa566434d548cd7680542b9`.
-- Repository custody is now complete as **five** ordered base64 shards (`.00`–`.04`). Materialization concatenates the encoded shards, decodes once, verifies the artifact-container SHA-256, then verifies all three frozen HWPX whole-file and package-content hashes.
-- This closes the earlier incomplete-shard defect; historical-code regeneration remains explicitly non-authoritative for frozen artifact custody.
+## Frozen A3 artifact custody
+- Original GitHub Actions artifact `authorbench-a3-p341-first-pass` (artifact ID `10885019734`) remains the provenance source.
+- Exact original workflow-artifact ZIP size: **30,497 bytes**.
+- Exact original workflow-artifact ZIP SHA-256: `c3f737403a914fd5c3da4ff33ca8ef2d8d2378818fa566434d548cd7680542b9`.
+- The repository contains **five** ordered base64 shards (`.00`–`.04`) of a sealed recontainer. Its outer ZIP SHA-256 is separately locked as `607ebe5ad23b2997333dab33965aeb016c4980e8f7af223148f9aaee52539b9c`; it is not mislabeled as the original Actions envelope.
+- Benchmark identity is carried by the three frozen HWPX members: each must match its original **whole-file SHA-256** and **package-content SHA-256**, and the embedded A3 receipt must agree with those hashes. Any mismatch fails closed.
+- The original Actions ZIP envelope is preserved separately in durable evidence storage, while repo materialization is authorized only by exact member-byte equivalence. Historical-code regeneration remains non-authoritative for frozen artifact custody.

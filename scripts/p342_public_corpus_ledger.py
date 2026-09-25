@@ -2,12 +2,16 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 from p335_registry import intake_source
 from p342_corpus_evidence import build_corpus_coverage_ledger
 
-ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_METADATA = ROOT / "corpus" / "p342-public-corpus-metadata.json"
 
 

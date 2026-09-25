@@ -74,6 +74,37 @@ Source: https://github.com/searaylee/office-mcp-server
 
 **HWPX transfer:** defer template-learning to the P3.42/P3.43 corpus/design-system lineage, where learned patterns are separated from frozen evaluation specimens.
 
+### r12f/office-mcp (Rust + in-process Office add-ins)
+Source: https://github.com/r12f/office-mcp
+
+- The authoritative context is the live Office document the user is actually editing, bridged through in-process add-ins and a local MCP daemon.
+- This avoids treating an on-disk snapshot as equivalent to host-managed/open/protected document state.
+
+**HWPX transfer:** evolve the Hancom bridge from batch SaveAs automation toward an optional live-host adapter with explicit live-document/session authority. File custody and live-host state must remain distinct evidence layers.
+
+### flyfish-dev/word-ai (.NET Open XML + Office.js)
+Source: https://github.com/flyfish-dev/word-ai
+
+- Writes are expressed as constrained PatchSets with source/content hash preconditions, dry-run, validation, audit, diff, rollback, and live-session support.
+- Offline package mutation and live Word-session editing are separate backends behind one safety model.
+
+**HWPX transfer:** successor executable layout repair should be PatchSet-like: source hash + durable locator + expected-old evidence + requested mutation + dry-run + changed-part certificate + rollback/read-back. Hancom live editing, when introduced, should not weaken offline HWPX transaction guards.
+
+### zavora-ai/docx-mcp (engine-authoritative layout frames)
+Source: https://github.com/zavora-ai/docx-mcp
+
+- The same engine that produces PDF exposes positioned page frames for glyph runs, lines, rectangles, and images.
+- WYSIWYG consumers therefore do not recreate pagination by browser-side measurement.
+
+**HWPX transfer:** distinguish inferred raster geometry from future **engine-authoritative layout geometry**. If Hancom exposes stable layout/frame information, prefer it over reconstructing page semantics from PDF line boxes; retain PDF/raster evidence as an independent verification layer.
+
+### paradyno/PDF-MCP-Server (Rust/C++ PDF kernel)
+Source: https://github.com/paradyno/pdf-mcp-server
+
+- A Rust MCP layer delegates rendering/manipulation to specialized PDF engines and exposes bounded page-image/page-info operations with caching.
+
+**HWPX transfer:** keep heavy geometry/render analysis behind a deterministic native kernel when measurements justify it, while the MCP/product layer remains language-neutral. Rust expansion must be benchmark-driven rather than language-count driven.
+
 ## P3.41 adoption decisions
 
 1. **Adopt now — cross-language semantic parity.** Python remains the research/reference layer; Rust is the deterministic geometry kernel; TypeScript must execute the same golden-fixture decisions at runtime, not merely compile interfaces; PowerShell owns Windows/Hancom world-contact.

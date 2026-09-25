@@ -144,5 +144,31 @@ class P339DesignIntelligenceTests(unittest.TestCase):
         self.assertEqual(op["left"], 560)
 
 
+    def test_single_cell_semantic_container_is_not_analytical_table_density(self):
+        plan = {
+            "preset": "polished-report",
+            "sections": [{
+                "blocks": [
+                    {"id": "title", "type": "title", "text": "Callout density ontology"},
+                    {"id": "heading", "type": "heading", "level": 1, "text": "판단"},
+                    {
+                        "id": "callout",
+                        "type": "table",
+                        "rows": 1,
+                        "cols": 1,
+                        "cells": [["이 문장은 의미 강조를 위한 한 칸 컨테이너에 들어 있는 긴 설명이며 분석표의 셀 밀도로 해석하면 안 된다."]],
+                    },
+                ]
+            }],
+        }
+        compiled = compile_rich_document_plan(plan)
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "callout.hwpx"
+            compose_document_plan(path, compiled["plan"])
+            diagnostic = diagnose_document_design(path)
+        codes = {item["code"] for item in diagnostic["findings"]}
+        self.assertNotIn("TABLE_DENSITY_HIGH", codes)
+
+
 if __name__ == "__main__":
     unittest.main()

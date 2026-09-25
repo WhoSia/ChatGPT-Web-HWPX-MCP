@@ -1,5 +1,12 @@
 from __future__ import annotations
 import json
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
 from p341_page_composition import compare_page_composition_diagnostics, diagnose_page_composition, page_composition_contract, plan_render_guided_layout_policy
 
 def line(y: int, index: int, *, width: int = 430) -> dict:

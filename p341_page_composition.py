@@ -141,7 +141,16 @@ def _primitive_from_page(page: dict) -> dict:
             "raster_sha256": str(page.get("raster_sha256") or ""),
         }
 
-    ordered = sorted(lines, key=lambda x: (float(x["y"]), float(x["x"])))
+    ordered_all = sorted(lines, key=lambda x: (float(x["y"]), float(x["x"])))
+    # Repeating headers/footers are page furniture, not body-composition mass.
+    # P3.40-R1 native Hancom evidence places recurring furniture near the
+    # outer ~12% bands; retain it in custody, but exclude it from body rhythm.
+    ordered = [
+        x for x in ordered_all
+        if 0.13 <= (float(x["y"]) + float(x["height"]) / 2.0) / height <= 0.87
+    ]
+    if not ordered:
+        ordered = ordered_all
     left = int(round(min(float(x["x"]) for x in ordered)))
     right = int(round(max(float(x["x"]) + float(x["width"]) for x in ordered)))
     top = int(round(min(float(x["y"]) for x in ordered)))
@@ -277,13 +286,29 @@ def _renderer_authority(renderer: dict | None, normalized: dict) -> tuple[str, b
     return ("HANCOM_NATIVE_RENDER_EVIDENCE" if valid else "EXTERNAL_RENDER_OBSERVATION", valid)
 
 
+def _canonicalize_capture(capture: dict) -> dict:
+    if not isinstance(capture, dict):
+        raise ValueError("capture must be an object")
+    out = dict(capture)
+    pages = []
+    for page in list(capture.get("pages") or []):
+        item = dict(page)
+        item["line_boxes"] = sorted(
+            list(page.get("line_boxes") or []),
+            key=lambda x: (float(x.get("y", 0)), float(x.get("x", 0))),
+        )
+        pages.append(item)
+    out["pages"] = pages
+    return out
+
+
 def diagnose_page_composition(
     capture: dict,
     *,
     renderer: dict | None = None,
     archetype: str = "POLISHED_REPORT",
 ) -> dict:
-    normalized = validate_capture(capture)
+    normalized = validate_capture(_canonicalize_capture(capture))
     authority, world_contact = _renderer_authority(renderer, normalized)
     primitives = [_primitive_from_page(page) for page in normalized["pages"]]
     page_metrics: list[dict] = []

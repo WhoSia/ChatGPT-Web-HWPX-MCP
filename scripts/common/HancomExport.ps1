@@ -114,7 +114,7 @@ function Export-HwpxHancomPdfWithRetry {
   for ($attempt = 1; $attempt -le $MaxAttempts; $attempt++) {
     try {
       if ($attempt -gt 1) {
-        Write-Host "Retry $attempt/$MaxAttempts: $InputPath"
+        Write-Host ("Retry {0}/{1}: {2}" -f $attempt, $MaxAttempts, $InputPath)
         Start-Sleep -Seconds 3
       }
       $timeout = $timeouts[[Math]::Min($attempt - 1, $timeouts.Count - 1)]

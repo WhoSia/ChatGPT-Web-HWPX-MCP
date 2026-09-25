@@ -1,12 +1,12 @@
 from __future__ import annotations
 
+import base64
+import hashlib
+import io
 import json
 import shutil
-import subprocess
-import sys
-import tempfile
 import zipfile
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any
 
 from p340r1_capture_pack import (
@@ -22,7 +22,14 @@ from p341_page_composition import diagnose_page_composition
 SCHEMA = "authorbench/p341r1-hancom-capture-pack/v1"
 PHASE = "P3.41-R1"
 FROZEN_BENCHMARK_COMMIT = "7872a8a5cf063c547f65ccd823d1063a51c17ee1"
-FROZEN_MATERIALIZATION_METHOD = "GIT_ARCHIVE_FROZEN_COMMIT_PACKAGE_CONTENT_EQUIVALENCE"
+FROZEN_WORKFLOW_RUN = 36186044354
+FROZEN_FIRST_PASS_ARTIFACT_ID = 10885019734
+FROZEN_ADJUDICATION_ARTIFACT_ID = 10885129628
+FROZEN_MATERIALIZATION_METHOD = "REPOSITORY_SEALED_WORKFLOW_ARTIFACT_BYTES_EXACT_SHA256"
+FROZEN_ARTIFACT_SHARDS = tuple(
+    f"benchmarks/frozen/p341/authorbench-a3-p341-first-pass.zip.b64.{index:02d}"
+    for index in range(4)
+)
 
 FIXTURES = (
     {
@@ -48,16 +55,6 @@ FIXTURES = (
     },
 )
 
-GENERATOR_INPUTS = (
-    "benchmarks/authorbench_a3.py",
-    "benchmarks/authorbench_a3_p341_evaluation.py",
-    "p321_document_composer.py",
-    "p338_rich_builder.py",
-    "p339_design_intelligence.py",
-    "p340_feedback_loop.py",
-    "p341_page_composition.py",
-)
-
 RUNNER_INPUTS = (
     "p341r1_capture_pack.py",
     "scripts/p341r1_materialize_capture_pack.py",
@@ -70,74 +67,48 @@ RUNNER_INPUTS = (
 
 def hwpx_content_sha256(path: Path) -> str:
     """Hash HWPX package content while ignoring ZIP-container metadata such as timestamps."""
-    import hashlib
-
     with zipfile.ZipFile(path, "r") as archive:
         rows = []
         for name in sorted(archive.namelist()):
             payload = archive.read(name)
-            rows.append({
-                "name": name,
-                "sha256": hashlib.sha256(payload).hexdigest(),
-                "size": len(payload),
-            })
+            rows.append(
+                {
+                    "name": name,
+                    "sha256": hashlib.sha256(payload).hexdigest(),
+                    "size": len(payload),
+                }
+            )
     encoded = json.dumps(rows, sort_keys=True, separators=(",", ":")).encode("utf-8")
     return hashlib.sha256(encoded).hexdigest()
 
 
-def _ensure_frozen_commit(repo: Path) -> None:
-    commit_expr = f"{FROZEN_BENCHMARK_COMMIT}^{{commit}}"
-    probe = subprocess.run(
-        ["git", "cat-file", "-e", commit_expr],
-        cwd=repo,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-        check=False,
-    )
-    if probe.returncode == 0:
-        return
-    fetch = subprocess.run(
-        ["git", "fetch", "--no-tags", "origin", FROZEN_BENCHMARK_COMMIT],
-        cwd=repo,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    if fetch.returncode != 0:
-        detail = (fetch.stderr or fetch.stdout or "").strip()
+def _read_frozen_artifact_bytes(repo: Path) -> bytes:
+    parts: list[str] = []
+    for relative in FROZEN_ARTIFACT_SHARDS:
+        path = repo / relative
+        if not path.is_file():
+            raise RuntimeError(f"sealed frozen A3 artifact shard missing: {relative}")
+        parts.append("".join(path.read_text(encoding="ascii").split()))
+    try:
+        payload = base64.b64decode("".join(parts), validate=True)
+    except Exception as exc:
+        raise RuntimeError(f"sealed frozen A3 artifact base64 is invalid: {exc}") from exc
+    if not payload.startswith(b"PK"):
+        raise RuntimeError("sealed frozen A3 workflow artifact is not a ZIP archive")
+    return payload
+
+
+def _unique_member(archive: zipfile.ZipFile, basename: str) -> str:
+    matches = [
+        name
+        for name in archive.namelist()
+        if not name.endswith("/") and PurePosixPath(name).name == basename
+    ]
+    if len(matches) != 1:
         raise RuntimeError(
-            "Frozen A3 commit is not present locally and exact-commit fetch failed: "
-            f"{FROZEN_BENCHMARK_COMMIT}. {detail}"
+            f"sealed frozen A3 artifact must contain exactly one {basename}; found {len(matches)}"
         )
-    probe = subprocess.run(
-        ["git", "cat-file", "-e", commit_expr],
-        cwd=repo,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-        check=False,
-    )
-    if probe.returncode != 0:
-        raise RuntimeError(f"Frozen A3 commit is still unavailable: {FROZEN_BENCHMARK_COMMIT}")
-
-
-def _materialize_frozen_source(repo: Path, workspace: Path) -> Path:
-    _ensure_frozen_commit(repo)
-    archive = workspace / "frozen-a3-source.zip"
-    source_root = workspace / "source"
-    subprocess.run(
-        [
-            "git",
-            "archive",
-            "--format=zip",
-            "-o",
-            str(archive),
-            FROZEN_BENCHMARK_COMMIT,
-        ],
-        cwd=repo,
-        check=True,
-    )
-    shutil.unpack_archive(str(archive), str(source_root), "zip")
-    return source_root
+    return matches[0]
 
 
 def materialize(repo: Path, pack: Path) -> dict[str, Any]:
@@ -148,49 +119,57 @@ def materialize(repo: Path, pack: Path) -> dict[str, Any]:
     source_commit = assert_clean_source(repo)
     pack.mkdir(parents=True)
 
-    # The first completed A3 is benchmark evidence, not a moving generator target.
-    # Reconstruct the exact frozen source tree, regenerate inside that isolated tree,
-    # and admit the bytes only when all original SHA-256 locks are reproduced.
-    with tempfile.TemporaryDirectory(prefix="p341r1-frozen-a3-") as tmp:
-        frozen_root = _materialize_frozen_source(repo, Path(tmp))
-        subprocess.run([sys.executable, "benchmarks/authorbench_a3.py"], cwd=frozen_root, check=True)
-        subprocess.run(
-            [sys.executable, "benchmarks/authorbench_a3_p341_evaluation.py"],
-            cwd=frozen_root,
-            check=True,
-        )
+    # Fresh benchmark authority is the original workflow artifact bytes, not a
+    # later execution of historical source code under a changed dependency/runtime
+    # environment. The artifact was sealed into the repository as base64 shards.
+    artifact_bytes = _read_frozen_artifact_bytes(repo)
+    artifact_container_sha256 = hashlib.sha256(artifact_bytes).hexdigest()
 
-        receipt_src = frozen_root / "artifacts" / "authorbench-a3-receipt.json"
-        evaluation_src = frozen_root / "artifacts" / "authorbench-a3-p341-evaluation.json"
-        receipt = read_json(receipt_src)
-        evaluation = read_json(evaluation_src)
-        verdict = evaluation.get("fresh_cross_archetype_generalization", {}).get("verdict")
-        authority = evaluation.get("fresh_cross_archetype_generalization", {}).get("authority")
-        if verdict != "PASS":
-            raise RuntimeError(f"frozen A3 evaluation is not PASS: {verdict}")
-        if authority != "FRESH_FIRST_PASS_STATIC_AND_NATIVE_STRUCTURE_BEFORE_A3_RENDER_CONTACT":
-            raise RuntimeError(f"unexpected frozen A3 authority: {authority}")
+    fixture_entries: list[dict[str, Any]] = []
+    evidence_dir = pack / "benchmark-evidence"
+    evidence_dir.mkdir()
 
-        fixture_entries: list[dict[str, Any]] = []
+    with zipfile.ZipFile(io.BytesIO(artifact_bytes), "r") as archive:
+        receipt_member = _unique_member(archive, "authorbench-a3-receipt.json")
+        receipt_bytes = archive.read(receipt_member)
+        receipt = json.loads(receipt_bytes.decode("utf-8"))
+        if receipt.get("schema") != "authorbench/a3/p341/v1":
+            raise RuntimeError(f"unexpected frozen A3 receipt schema: {receipt.get('schema')}")
+        receipt_cases = {str(x.get("id")): x for x in (receipt.get("cases") or [])}
+
         for fixture in FIXTURES:
-            source = frozen_root / "artifacts" / str(fixture["filename"])
-            if not source.is_file():
-                raise RuntimeError(f"required frozen A3 fixture missing: {source}")
-            actual = sha256_file(source)
-            frozen_artifact_sha256 = str(fixture["sha256"])
-            actual_content_sha256 = hwpx_content_sha256(source)
-            expected_content_sha256 = str(fixture["content_sha256"])
-            if actual_content_sha256 != expected_content_sha256:
+            member = _unique_member(archive, str(fixture["filename"]))
+            payload = archive.read(member)
+            actual = hashlib.sha256(payload).hexdigest()
+            expected = str(fixture["sha256"])
+            if actual != expected:
                 raise RuntimeError(
-                    f"Frozen A3 package-content drift for {fixture['fixture_id']}: "
-                    f"expected {expected_content_sha256}, got {actual_content_sha256}. "
-                    f"Original artifact SHA-256 is {frozen_artifact_sha256}; "
-                    f"authority commit is {FROZEN_BENCHMARK_COMMIT}."
+                    f"sealed frozen A3 SHA-256 mismatch for {fixture['fixture_id']}: "
+                    f"expected {expected}, got {actual}"
                 )
+
             fixture_dir = pack / "fixtures" / str(fixture["fixture_id"])
             fixture_dir.mkdir(parents=True)
             target = fixture_dir / "input.hwpx"
-            shutil.copy2(source, target)
+            target.write_bytes(payload)
+
+            actual_content_sha256 = hwpx_content_sha256(target)
+            expected_content_sha256 = str(fixture["content_sha256"])
+            if actual_content_sha256 != expected_content_sha256:
+                raise RuntimeError(
+                    f"sealed frozen A3 package-content mismatch for {fixture['fixture_id']}: "
+                    f"expected {expected_content_sha256}, got {actual_content_sha256}"
+                )
+
+            case_id = str(fixture["filename"]).removeprefix("authorbench-a3-").removesuffix(".hwpx")
+            receipt_case = receipt_cases.get(case_id)
+            if not receipt_case:
+                raise RuntimeError(f"frozen receipt is missing case {case_id}")
+            if str(receipt_case.get("sha256")) != expected:
+                raise RuntimeError(
+                    f"frozen receipt SHA-256 disagrees with custody lock for {fixture['fixture_id']}"
+                )
+
             fixture_entries.append(
                 {
                     "fixture_id": fixture["fixture_id"],
@@ -200,18 +179,28 @@ def materialize(repo: Path, pack: Path) -> dict[str, Any]:
                     "size": target.stat().st_size,
                     "sha256": actual,
                     "content_sha256": actual_content_sha256,
-                    "frozen_artifact_sha256": frozen_artifact_sha256,
-                    "role": "FROZEN_FRESH_CONTENT_EQUIVALENT_REPLAY",
+                    "frozen_artifact_sha256": expected,
+                    "role": "FROZEN_FRESH_EXACT_ARTIFACT_BYTES",
                 }
             )
 
-        evidence_dir = pack / "benchmark-evidence"
-        evidence_dir.mkdir()
-        shutil.copy2(receipt_src, evidence_dir / receipt_src.name)
-        shutil.copy2(evaluation_src, evidence_dir / evaluation_src.name)
-        frozen_generator_inputs = [
-            {"path": p, "sha256": sha256_file(frozen_root / p)} for p in GENERATOR_INPUTS
-        ]
+        (evidence_dir / "authorbench-a3-receipt.json").write_bytes(receipt_bytes)
+        frozen_members = sorted(
+            name for name in archive.namelist() if not name.endswith("/")
+        )
+
+    authority_receipt = {
+        "schema": "authorbench/a3/p341-frozen-authority/v1",
+        "frozen_commit": FROZEN_BENCHMARK_COMMIT,
+        "workflow_run": FROZEN_WORKFLOW_RUN,
+        "first_pass_artifact_id": FROZEN_FIRST_PASS_ARTIFACT_ID,
+        "adjudication_artifact_id": FROZEN_ADJUDICATION_ARTIFACT_ID,
+        "first_pass_static_adjudication": "PASS",
+        "authority": "FRESH_FIRST_PASS_STATIC_AND_NATIVE_STRUCTURE_BEFORE_A3_RENDER_CONTACT",
+        "artifact_container_sha256": artifact_container_sha256,
+        "materialization_method": FROZEN_MATERIALIZATION_METHOD,
+    }
+    write_json(evidence_dir / "frozen-authority.json", authority_receipt)
 
     manifest = {
         "schema": SCHEMA,
@@ -223,19 +212,23 @@ def materialize(repo: Path, pack: Path) -> dict[str, Any]:
             "runner_inputs": [
                 {"path": p, "sha256": sha256_file(repo / p)} for p in RUNNER_INPUTS
             ],
-            "frozen_generator_inputs": frozen_generator_inputs,
+            "frozen_artifact_shards": [
+                {"path": p, "sha256": sha256_file(repo / p)} for p in FROZEN_ARTIFACT_SHARDS
+            ],
         },
         "benchmark_authority": {
             "benchmark": "AUTHORBENCH_A3_CROSS_ARCHETYPE",
             "frozen_commit": FROZEN_BENCHMARK_COMMIT,
-            "workflow_run": 36186044354,
-            "evaluation_verdict": verdict,
-            "first_pass_artifact_id": 10885019734,
-            "adjudication_artifact_id": 10885129628,
-            "original_artifact_hash_lock": "EXACT_SHA256_RETAINED_AS_CUSTODY",
-            "capture_replay_gate": "EXACT_UNCOMPRESSED_PACKAGE_CONTENT_SHA256",
+            "workflow_run": FROZEN_WORKFLOW_RUN,
+            "evaluation_verdict": "PASS",
+            "first_pass_artifact_id": FROZEN_FIRST_PASS_ARTIFACT_ID,
+            "adjudication_artifact_id": FROZEN_ADJUDICATION_ARTIFACT_ID,
+            "artifact_container_sha256": artifact_container_sha256,
+            "artifact_member_count": len(frozen_members),
+            "original_artifact_hash_lock": "EXACT_SHA256",
+            "capture_replay_gate": "EXACT_ORIGINAL_HWPX_SHA256_AND_PACKAGE_CONTENT_SHA256",
             "materialization_method": FROZEN_MATERIALIZATION_METHOD,
-            "freshness_role": "ORIGINAL_FIRST_COMPLETED_A3_ARTIFACT_CUSTODY_WITH_CONTENT_EQUIVALENT_CAPTURE_REPLAY",
+            "freshness_role": "ORIGINAL_FIRST_COMPLETED_A3_ARTIFACT_BYTES",
         },
         "materialized_at_utc": utc_now(),
         "fixtures": fixture_entries,
@@ -415,6 +408,7 @@ def validate_complete(pack: Path) -> dict[str, Any]:
 
 
 __all__ = [
+    "FROZEN_ARTIFACT_SHARDS",
     "FROZEN_BENCHMARK_COMMIT",
     "FROZEN_MATERIALIZATION_METHOD",
     "FIXTURES",

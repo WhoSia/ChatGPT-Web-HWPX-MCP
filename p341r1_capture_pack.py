@@ -83,19 +83,22 @@ def hwpx_content_sha256(path: Path) -> str:
 
 
 def _read_frozen_artifact_bytes(repo: Path) -> bytes:
-    decoded_parts: list[bytes] = []
+    encoded_parts: list[str] = []
     for relative in FROZEN_ARTIFACT_SHARDS:
         path = repo / relative
         if not path.is_file():
             raise RuntimeError(f"sealed frozen A3 artifact shard missing: {relative}")
-        encoded = "".join(path.read_text(encoding="ascii").split())
-        try:
-            decoded_parts.append(base64.b64decode(encoded, validate=True))
-        except Exception as exc:
-            raise RuntimeError(
-                f"sealed frozen A3 artifact shard base64 is invalid ({relative}): {exc}"
-            ) from exc
-    payload = b"".join(decoded_parts)
+        encoded_parts.append("".join(path.read_text(encoding="ascii").split()))
+    try:
+        payload = base64.b64decode("".join(encoded_parts), validate=True)
+    except Exception as exc:
+        raise RuntimeError(f"sealed frozen A3 artifact base64 is invalid: {exc}") from exc
+    actual = hashlib.sha256(payload).hexdigest()
+    if actual != FROZEN_ARTIFACT_CONTAINER_SHA256:
+        raise RuntimeError(
+            "sealed frozen A3 workflow artifact SHA-256 mismatch: "
+            f"expected {FROZEN_ARTIFACT_CONTAINER_SHA256}, got {actual}"
+        )
     if not payload.startswith(b"PK"):
         raise RuntimeError("sealed frozen A3 workflow artifact is not a ZIP archive")
     return payload
@@ -411,7 +414,7 @@ def validate_complete(pack: Path) -> dict[str, Any]:
 
 
 __all__ = [
-    "FROZEN_ARTIFACT_SHARDS",
+    "FROZEN_ARTIFACT_CONTAINER_SHA256",\n    "FROZEN_ARTIFACT_SHARDS",
     "FROZEN_BENCHMARK_COMMIT",
     "FROZEN_MATERIALIZATION_METHOD",
     "FIXTURES",

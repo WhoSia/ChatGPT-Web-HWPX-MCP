@@ -6,6 +6,7 @@ import tempfile
 from pathlib import Path
 
 from p341r1_capture_pack import (
+    FROZEN_ARTIFACT_SHARDS,
     FIXTURES,
     FROZEN_BENCHMARK_COMMIT,
     FROZEN_MATERIALIZATION_METHOD,

@@ -3,6 +3,9 @@ from __future__ import annotations
 import base64
 import tempfile
 import unittest
+import zipfile
+
+from lxml import etree
 from pathlib import Path
 
 from hwpx import HwpxDocument
@@ -187,6 +190,48 @@ class P321DocumentComposerTests(unittest.TestCase):
                     validator=lambda candidate: server.validate_hwpx_package(candidate),
                 )
             self.assertEqual(out.read_bytes(), before)
+
+
+    def test_non_heading_blocks_do_not_inherit_outline_style_and_academic_has_heading_contract(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp) / "academic.hwpx"
+            compose_document_plan(out, {
+                "preset": "academic-report",
+                "blocks": [
+                    {"id": "h1", "type": "heading", "level": 1, "text": "분석 설계"},
+                    {"id": "body", "type": "paragraph", "text": "본문은 제목 개요 수준을 상속하면 안 된다."},
+                    {"id": "table", "type": "table", "rows": 1, "cols": 1, "cells": [["callout"]]},
+                ],
+            })
+            with zipfile.ZipFile(out) as archive:
+                header = etree.fromstring(archive.read("Contents/header.xml"))
+                section = etree.fromstring(archive.read("Contents/section0.xml"))
+            para_props = {
+                e.get("id"): e
+                for e in header.iter()
+                if etree.QName(e).localname == "paraPr"
+            }
+            rows = {}
+            for p in [e for e in section.iter() if etree.QName(e).localname == "p"]:
+                text = "".join(
+                    (e.text or "") for e in p.iter()
+                    if etree.QName(e).localname == "t"
+                ).strip()
+                if text in {"분석 설계", "본문은 제목 개요 수준을 상속하면 안 된다."}:
+                    rows[text] = p
+            self.assertEqual(set(rows), {"분석 설계", "본문은 제목 개요 수준을 상속하면 안 된다."})
+            heading_p = rows["분석 설계"]
+            body_p = rows["본문은 제목 개요 수준을 상속하면 안 된다."]
+            heading_prop = para_props[heading_p.get("paraPrIDRef")]
+            body_prop = para_props[body_p.get("paraPrIDRef")]
+            heading_meta = next(e for e in heading_prop.iter() if etree.QName(e).localname == "heading")
+            body_meta = next(e for e in body_prop.iter() if etree.QName(e).localname == "heading")
+            self.assertEqual(heading_meta.get("type"), "OUTLINE")
+            self.assertEqual(body_meta.get("type"), "NONE")
+            self.assertNotEqual(
+                next(e for e in heading_p if etree.QName(e).localname == "run").get("charPrIDRef"),
+                next(e for e in body_p if etree.QName(e).localname == "run").get("charPrIDRef"),
+            )
 
 
 if __name__ == "__main__":

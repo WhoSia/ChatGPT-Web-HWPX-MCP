@@ -7,6 +7,10 @@ on:
       - "p340_feedback_loop.py"
       - "test_p340_feedback_loop.py"
       - "scripts/p340_release_smoke.py"
+      - "p340r1_capture_pack.py"
+      - "test_p340r1_capture_pack.py"
+      - "scripts/p340r1_*.py"
+      - "scripts/p340r1_*.ps1"
       - "server_p2.py"
       - "test_client.py"
       - "Dockerfile"
@@ -30,8 +34,8 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt -r requirements-capture.txt -r requirements-dev.txt
       - name: Compile P3.40 product surface
-        run: python -m compileall -q p340_feedback_loop.py server_p2.py test_p340_feedback_loop.py scripts/p340_release_smoke.py test_client.py
+        run: python -m compileall -q p340_feedback_loop.py p340r1_capture_pack.py server_p2.py test_p340_feedback_loop.py test_p340r1_capture_pack.py scripts/p340_release_smoke.py scripts/p340r1_materialize_capture_pack.py scripts/p340r1_capture_pdf.py scripts/p340r1_finalize_capture_pack.py test_client.py
       - name: P3.40 focused regression
-        run: python -m pytest -q test_p340_feedback_loop.py test_p339_design_intelligence.py
+        run: python -m pytest -q test_p340_feedback_loop.py test_p339_design_intelligence.py test_p340r1_capture_pack.py
       - name: P3.40 release smoke
         run: python scripts/p340_release_smoke.py

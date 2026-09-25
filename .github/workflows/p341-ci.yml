@@ -88,18 +88,28 @@ jobs:
         run: pip install -r requirements.txt -r requirements-capture.txt -r requirements-dev.txt
       - name: Generate A3 only after all polyglot gates pass
         run: python benchmarks/authorbench_a3.py
+      - name: Preserve first-pass A3 before adjudication
+        uses: actions/upload-artifact@v4
+        with:
+          name: authorbench-a3-p341-first-pass
+          path: |
+            artifacts/authorbench-a3-*.hwpx
+            artifacts/authorbench-a3-receipt.json
+          if-no-files-found: error
       - name: Evaluate fresh cross-archetype A3
         run: python benchmarks/authorbench_a3_p341_evaluation.py
       - name: Verify native HWPX packages
+        if: always()
         run: |
           unzip -t artifacts/authorbench-a3-research-brief.hwpx
           unzip -t artifacts/authorbench-a3-institutional-report.hwpx
           unzip -t artifacts/authorbench-a3-academic-report.hwpx
-      - uses: actions/upload-artifact@v4
+      - name: Preserve A3 adjudication
+        if: always()
+        uses: actions/upload-artifact@v4
         with:
-          name: authorbench-a3-p341
+          name: authorbench-a3-p341-adjudication
           path: |
-            artifacts/authorbench-a3-*.hwpx
             artifacts/authorbench-a3-receipt.json
             artifacts/authorbench-a3-p341-evaluation.json
-          if-no-files-found: error
+          if-no-files-found: warn

@@ -117,7 +117,7 @@ def page_composition_contract() -> dict:
     }
 
 
-def _primitive_from_page(page: dict) -> dict:
+def _primitive_from_page(page: dict, furniture_hashes: set[str] | None = None) -> dict:
     width = int(page["width_px"])
     height = int(page["height_px"])
     lines = list(page.get("line_boxes") or [])
@@ -142,13 +142,19 @@ def _primitive_from_page(page: dict) -> dict:
         }
 
     ordered_all = sorted(lines, key=lambda x: (float(x["y"]), float(x["x"])))
-    # Repeating headers/footers are page furniture, not body-composition mass.
-    # P3.40-R1 native Hancom evidence places recurring furniture near the
-    # outer ~12% bands; retain it in custody, but exclude it from body rhythm.
-    ordered = [
-        x for x in ordered_all
-        if 0.13 <= (float(x["y"]) + float(x["height"]) / 2.0) / height <= 0.87
-    ]
+    furniture_hashes = set(furniture_hashes or set())
+    # Do not classify page furniture from position alone: a legitimate first
+    # body line may begin near the top band. Repeated edge text hashes identify
+    # recurring headers; narrow bottom-edge glyphs identify page numbers.
+    ordered = []
+    for line in ordered_all:
+        text_hash = str(line.get("text_sha256") or "")
+        center_ratio = (float(line["y"]) + float(line["height"]) / 2.0) / height
+        width_ratio = float(line["width"]) / width
+        repeated_furniture = bool(text_hash and text_hash in furniture_hashes)
+        page_number_like = center_ratio >= 0.88 and width_ratio <= 0.08
+        if not repeated_furniture and not page_number_like:
+            ordered.append(line)
     if not ordered:
         ordered = ordered_all
     left = int(round(min(float(x["x"]) for x in ordered)))
@@ -255,7 +261,7 @@ def analyze_page_primitive(primitive: dict, archetype: str = "POLISHED_REPORT") 
         })
 
     if (
-        line_count >= 8
+        line_count >= 12
         and metrics["vertical_span_ppm"] >= 500_000
         and metrics["top_bottom_balance_delta_ppm"] >= t["max_balance_delta_ppm"]
     ):
@@ -271,6 +277,21 @@ def analyze_page_primitive(primitive: dict, archetype: str = "POLISHED_REPORT") 
         "findings": findings,
         "finding_codes": [x["code"] for x in findings],
     }
+
+
+def _detect_furniture_hashes(normalized: dict) -> set[str]:
+    page_sets: dict[str, set[int]] = {}
+    for page in normalized.get("pages", []):
+        height = float(page["height_px"])
+        page_index = int(page["page_index"])
+        for line in page.get("line_boxes") or []:
+            center_ratio = (float(line["y"]) + float(line["height"]) / 2.0) / height
+            if not (center_ratio <= 0.12 or center_ratio >= 0.88):
+                continue
+            text_hash = str(line.get("text_sha256") or "")
+            if text_hash:
+                page_sets.setdefault(text_hash, set()).add(page_index)
+    return {key for key, pages in page_sets.items() if len(pages) >= 2}
 
 
 def _renderer_authority(renderer: dict | None, normalized: dict) -> tuple[str, bool]:
@@ -310,7 +331,8 @@ def diagnose_page_composition(
 ) -> dict:
     normalized = validate_capture(_canonicalize_capture(capture))
     authority, world_contact = _renderer_authority(renderer, normalized)
-    primitives = [_primitive_from_page(page) for page in normalized["pages"]]
+    furniture_hashes = _detect_furniture_hashes(normalized)
+    primitives = [_primitive_from_page(page, furniture_hashes) for page in normalized["pages"]]
     page_metrics: list[dict] = []
     findings: list[dict] = []
 

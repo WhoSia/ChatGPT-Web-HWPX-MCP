@@ -1,0 +1,71 @@
+name: P3.41 page-composition polyglot validation
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "p341_page_composition.py"
+      - "test_p341_page_composition.py"
+      - "benchmarks/p341_*"
+      - "rust/p341_page_geometry/**"
+      - "contracts/p341_page_composition.ts"
+      - "server_p2.py"
+      - "test_client.py"
+      - "scripts/p341_*"
+      - "benchmarks/authorbench_a3*"
+      - "skills/hwpx-authoring/SKILL.md"
+      - ".github/workflows/p341-ci.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "p341_page_composition.py"
+      - "test_p341_page_composition.py"
+      - "benchmarks/p341_*"
+      - "rust/p341_page_geometry/**"
+      - "contracts/p341_page_composition.ts"
+      - "server_p2.py"
+      - "test_client.py"
+      - "scripts/p341_*"
+      - "benchmarks/authorbench_a3*"
+      - "skills/hwpx-authoring/SKILL.md"
+      - ".github/workflows/p341-ci.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  python-reference:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt -r requirements-capture.txt -r requirements-dev.txt
+      - name: Compile page-composition reference
+        run: python -m compileall -q p341_page_composition.py test_p341_page_composition.py
+      - name: Python P3.41 regression
+        run: python -m pytest -q test_p341_page_composition.py test_p340_feedback_loop.py
+
+  rust-exact-kernel:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Rust golden-fixture parity
+        run: cargo test --manifest-path rust/p341_page_geometry/Cargo.toml --locked
+
+  typescript-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: TypeScript contract check
+        run: npx --yes -p typescript@5.9.2 tsc --noEmit --strict --target ES2022 contracts/p341_page_composition.ts

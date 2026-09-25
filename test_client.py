@@ -251,6 +251,11 @@ async def main() -> None:
                 "compile_document_design",
                 "get_presentation_role_hypotheses",
                 "evaluate_generated_document_quality",
+                "get_mutation_footprint_contract",
+                "certify_document_revision_mutation_footprint",
+                "get_corpus_evidence_contract",
+                "query_corpus_coverage_ledger",
+                "query_evidence_grounded_design_generalizations",
             }
             missing = expected - set(names)
             if missing:
@@ -260,12 +265,12 @@ async def main() -> None:
                 if "access_token" in schema_text or "passphrase" in schema_text:
                     raise RuntimeError(f"secret-bearing field leaked into tool schema: {tool.name}")
 
-            read_payload = _payload(await client.call_tool("probe_read", {"message": "P3.41 OAuth smoke test"}))
-            if not read_payload or not read_payload.get("ok") or read_payload.get("version") != "0.18.0-p3.41":
-                raise RuntimeError(f"probe_read did not expose current P3.41 product version: {read_payload}")
+            read_payload = _payload(await client.call_tool("probe_read", {"message": "P3.42 OAuth smoke test"}))
+            if not read_payload or not read_payload.get("ok") or read_payload.get("version") != "0.19.0-p3.42":
+                raise RuntimeError(f"probe_read did not expose current P3.42 product version: {read_payload}")
 
             p2_caps = _payload(await client.call_tool("p2_capabilities", {}))
-            if not p2_caps or p2_caps.get("phase") != "P3.41":
+            if not p2_caps or p2_caps.get("phase") != "P3.42":
                 raise RuntimeError(f"p2_capabilities failed: {p2_caps}")
 
             design_intelligence = _payload(await client.call_tool("get_document_design_intelligence_contract", {}))
@@ -305,6 +310,24 @@ async def main() -> None:
                 or p341_contract.get("polyglot", {}).get("rule") != "POLYGLOT_BY_COMPARATIVE_ADVANTAGE_NOT_LANGUAGE_COUNT"
             ):
                 raise RuntimeError(f"P3.41 page composition contract failed: {p341_contract}")
+
+            p342_mutation = _payload(await client.call_tool("get_mutation_footprint_contract", {}))
+            if (
+                not p342_mutation
+                or p342_mutation.get("phase") != "P3.42"
+                or p342_mutation.get("grades_strongest_first", [None])[0] != "PACKAGE_IDENTICAL"
+                or p342_mutation.get("scope_policy", {}).get("exact_paths_only") is not True
+            ):
+                raise RuntimeError(f"P3.42 mutation-footprint contract failed: {p342_mutation}")
+
+            p342_corpus = _payload(await client.call_tool("get_corpus_evidence_contract", {}))
+            if (
+                not p342_corpus
+                or p342_corpus.get("phase") != "P3.42"
+                or "WITHHELD" not in p342_corpus.get("statuses", [])
+                or "NOT_APPLICABLE" not in p342_corpus.get("statuses", [])
+            ):
+                raise RuntimeError(f"P3.42 corpus evidence contract failed: {p342_corpus}")
             callout = _payload(await client.call_tool("compile_semantic_callout_block", {
                 "text": "핵심 판단은 장식이 아니라 의미를 인코딩해야 합니다.",
                 "block_id": "oauth_callout",
@@ -561,6 +584,9 @@ async def main() -> None:
             assert p340_applied["revision_after"] == rich_delivery["revision"] + 1
             assert p340_applied["design_repair"]["semantic_changed"] is False
             assert p340_applied["design_repair"]["structure_changed"] is False
+            assert p340_applied["design_repair"]["phase"] == "P3.42"
+            assert p340_applied["design_repair"]["mutation_footprint"]["preservation"]["actual_grade"] == "TARGETED_PARTS_ONLY"
+            assert p340_applied["design_repair"]["preservation_enforcement"]["passed"] is True
 
             p340_after = _payload(await client.call_tool("diagnose_rendered_document_design", {
                 "document_id": rich_delivery["document_id"],

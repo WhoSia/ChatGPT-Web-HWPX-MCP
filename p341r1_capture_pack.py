@@ -4,6 +4,7 @@ import json
 import shutil
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -20,6 +21,7 @@ from p341_page_composition import diagnose_page_composition
 SCHEMA = "authorbench/p341r1-hancom-capture-pack/v1"
 PHASE = "P3.41-R1"
 FROZEN_BENCHMARK_COMMIT = "7872a8a5cf063c547f65ccd823d1063a51c17ee1"
+FROZEN_MATERIALIZATION_METHOD = "GIT_ARCHIVE_FROZEN_COMMIT_REGENERATION_EXACT_SHA256"
 
 FIXTURES = (
     {
@@ -52,6 +54,70 @@ GENERATOR_INPUTS = (
     "p341_page_composition.py",
 )
 
+RUNNER_INPUTS = (
+    "p341r1_capture_pack.py",
+    "scripts/p341r1_materialize_capture_pack.py",
+    "scripts/p341r1_capture_pdf.py",
+    "scripts/p341r1_finalize_capture_pack.py",
+    "scripts/p341r1_run_authorbench_hancom_capture.ps1",
+    "scripts/common/HancomExport.ps1",
+)
+
+
+def _ensure_frozen_commit(repo: Path) -> None:
+    commit_expr = f"{FROZEN_BENCHMARK_COMMIT}^{{commit}}"
+    probe = subprocess.run(
+        ["git", "cat-file", "-e", commit_expr],
+        cwd=repo,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        check=False,
+    )
+    if probe.returncode == 0:
+        return
+    fetch = subprocess.run(
+        ["git", "fetch", "--no-tags", "origin", FROZEN_BENCHMARK_COMMIT],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if fetch.returncode != 0:
+        detail = (fetch.stderr or fetch.stdout or "").strip()
+        raise RuntimeError(
+            "Frozen A3 commit is not present locally and exact-commit fetch failed: "
+            f"{FROZEN_BENCHMARK_COMMIT}. {detail}"
+        )
+    probe = subprocess.run(
+        ["git", "cat-file", "-e", commit_expr],
+        cwd=repo,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        check=False,
+    )
+    if probe.returncode != 0:
+        raise RuntimeError(f"Frozen A3 commit is still unavailable: {FROZEN_BENCHMARK_COMMIT}")
+
+
+def _materialize_frozen_source(repo: Path, workspace: Path) -> Path:
+    _ensure_frozen_commit(repo)
+    archive = workspace / "frozen-a3-source.zip"
+    source_root = workspace / "source"
+    subprocess.run(
+        [
+            "git",
+            "archive",
+            "--format=zip",
+            "-o",
+            str(archive),
+            FROZEN_BENCHMARK_COMMIT,
+        ],
+        cwd=repo,
+        check=True,
+    )
+    shutil.unpack_archive(str(archive), str(source_root), "zip")
+    return source_root
+
 
 def materialize(repo: Path, pack: Path) -> dict[str, Any]:
     repo = repo.resolve()
@@ -61,49 +127,62 @@ def materialize(repo: Path, pack: Path) -> dict[str, Any]:
     source_commit = assert_clean_source(repo)
     pack.mkdir(parents=True)
 
-    subprocess.run([sys.executable, "benchmarks/authorbench_a3.py"], cwd=repo, check=True)
-    subprocess.run([sys.executable, "benchmarks/authorbench_a3_p341_evaluation.py"], cwd=repo, check=True)
-
-    receipt_src = repo / "artifacts" / "authorbench-a3-receipt.json"
-    evaluation_src = repo / "artifacts" / "authorbench-a3-p341-evaluation.json"
-    receipt = read_json(receipt_src)
-    evaluation = read_json(evaluation_src)
-    verdict = (
-        evaluation.get("fresh_cross_archetype_generalization", {})
-        .get("verdict")
-    )
-    if verdict != "PASS":
-        raise RuntimeError(f"frozen A3 evaluation is not PASS: {verdict}")
-
-    fixture_entries: list[dict[str, Any]] = []
-    for fixture in FIXTURES:
-        source = repo / "artifacts" / str(fixture["filename"])
-        if not source.is_file():
-            raise RuntimeError(f"required A3 fixture missing: {source}")
-        actual = sha256_file(source)
-        expected = str(fixture["sha256"])
-        if actual != expected:
-            raise RuntimeError(
-                f"A3 benchmark drift for {fixture['fixture_id']}: expected {expected}, got {actual}. "
-                f"Frozen authority commit is {FROZEN_BENCHMARK_COMMIT}."
-            )
-        fixture_dir = pack / "fixtures" / str(fixture["fixture_id"])
-        fixture_dir.mkdir(parents=True)
-        target = fixture_dir / "input.hwpx"
-        shutil.copy2(source, target)
-        fixture_entries.append(
-            {
-                **fixture,
-                "path": target.relative_to(pack).as_posix(),
-                "size": target.stat().st_size,
-                "role": "FRESH_CROSS_ARCHETYPE_FIRST_PASS",
-            }
+    # The first completed A3 is benchmark evidence, not a moving generator target.
+    # Reconstruct the exact frozen source tree, regenerate inside that isolated tree,
+    # and admit the bytes only when all original SHA-256 locks are reproduced.
+    with tempfile.TemporaryDirectory(prefix="p341r1-frozen-a3-") as tmp:
+        frozen_root = _materialize_frozen_source(repo, Path(tmp))
+        subprocess.run([sys.executable, "benchmarks/authorbench_a3.py"], cwd=frozen_root, check=True)
+        subprocess.run(
+            [sys.executable, "benchmarks/authorbench_a3_p341_evaluation.py"],
+            cwd=frozen_root,
+            check=True,
         )
 
-    evidence_dir = pack / "benchmark-evidence"
-    evidence_dir.mkdir()
-    shutil.copy2(receipt_src, evidence_dir / receipt_src.name)
-    shutil.copy2(evaluation_src, evidence_dir / evaluation_src.name)
+        receipt_src = frozen_root / "artifacts" / "authorbench-a3-receipt.json"
+        evaluation_src = frozen_root / "artifacts" / "authorbench-a3-p341-evaluation.json"
+        receipt = read_json(receipt_src)
+        evaluation = read_json(evaluation_src)
+        verdict = evaluation.get("fresh_cross_archetype_generalization", {}).get("verdict")
+        authority = evaluation.get("fresh_cross_archetype_generalization", {}).get("authority")
+        if verdict != "PASS":
+            raise RuntimeError(f"frozen A3 evaluation is not PASS: {verdict}")
+        if authority != "FRESH_FIRST_PASS_STATIC_AND_NATIVE_STRUCTURE_BEFORE_A3_RENDER_CONTACT":
+            raise RuntimeError(f"unexpected frozen A3 authority: {authority}")
+
+        fixture_entries: list[dict[str, Any]] = []
+        for fixture in FIXTURES:
+            source = frozen_root / "artifacts" / str(fixture["filename"])
+            if not source.is_file():
+                raise RuntimeError(f"required frozen A3 fixture missing: {source}")
+            actual = sha256_file(source)
+            expected = str(fixture["sha256"])
+            if actual != expected:
+                raise RuntimeError(
+                    f"Frozen A3 reproduction drift for {fixture['fixture_id']}: "
+                    f"expected {expected}, got {actual}. "
+                    f"Authority commit is {FROZEN_BENCHMARK_COMMIT}."
+                )
+            fixture_dir = pack / "fixtures" / str(fixture["fixture_id"])
+            fixture_dir.mkdir(parents=True)
+            target = fixture_dir / "input.hwpx"
+            shutil.copy2(source, target)
+            fixture_entries.append(
+                {
+                    **fixture,
+                    "path": target.relative_to(pack).as_posix(),
+                    "size": target.stat().st_size,
+                    "role": "FROZEN_FRESH_CROSS_ARCHETYPE_FIRST_PASS",
+                }
+            )
+
+        evidence_dir = pack / "benchmark-evidence"
+        evidence_dir.mkdir()
+        shutil.copy2(receipt_src, evidence_dir / receipt_src.name)
+        shutil.copy2(evaluation_src, evidence_dir / evaluation_src.name)
+        frozen_generator_inputs = [
+            {"path": p, "sha256": sha256_file(frozen_root / p)} for p in GENERATOR_INPUTS
+        ]
 
     manifest = {
         "schema": SCHEMA,
@@ -112,9 +191,10 @@ def materialize(repo: Path, pack: Path) -> dict[str, Any]:
             "repository": "https://github.com/WhoSia/ChatGPT-Web-HWPX-MCP.git",
             "runner_commit": source_commit,
             "tracked_tree_clean": True,
-            "generator_inputs": [
-                {"path": p, "sha256": sha256_file(repo / p)} for p in GENERATOR_INPUTS
+            "runner_inputs": [
+                {"path": p, "sha256": sha256_file(repo / p)} for p in RUNNER_INPUTS
             ],
+            "frozen_generator_inputs": frozen_generator_inputs,
         },
         "benchmark_authority": {
             "benchmark": "AUTHORBENCH_A3_CROSS_ARCHETYPE",
@@ -124,6 +204,8 @@ def materialize(repo: Path, pack: Path) -> dict[str, Any]:
             "first_pass_artifact_id": 10885019734,
             "adjudication_artifact_id": 10885129628,
             "hash_lock": "EXACT_SHA256_REQUIRED",
+            "materialization_method": FROZEN_MATERIALIZATION_METHOD,
+            "freshness_role": "ORIGINAL_FIRST_COMPLETED_A3_NOT_CURRENT_GENERATOR_REPLAY",
         },
         "materialized_at_utc": utc_now(),
         "fixtures": fixture_entries,
@@ -302,6 +384,7 @@ def validate_complete(pack: Path) -> dict[str, Any]:
 
 __all__ = [
     "FROZEN_BENCHMARK_COMMIT",
+    "FROZEN_MATERIALIZATION_METHOD",
     "FIXTURES",
     "capture_pdf",
     "deterministic_zip",

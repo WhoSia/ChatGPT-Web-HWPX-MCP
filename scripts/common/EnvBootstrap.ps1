@@ -1,10 +1,10 @@
 function Get-HwpxEnvironmentPlan {
     param([Parameter(Mandatory=$true)][string]$RepoRoot)
-    $root = [IO.Path]::GetFullPath($RepoRoot).TrimEnd('\','/')
+    $root = [IO.Path]::GetFullPath($RepoRoot).TrimEnd('\\','/')
     $chosen = $env:HWPX_MCP_VENV
-    if (-not $chosen) { $chosen = Join-Path $env:LOCALAPPDATA 'ChatGPT-Web-HWPX-MCP\venv\py312' }
+    if (-not $chosen) { $chosen = Join-Path $env:LOCALAPPDATA 'ChatGPT-Web-HWPX-MCP\\venv\\py312' }
     if (-not [IO.Path]::IsPathRooted($chosen)) { throw 'HWPX_MCP_VENV must be absolute and outside the clone.' }
-    $chosen = [IO.Path]::GetFullPath($chosen).TrimEnd('\','/')
+    $chosen = [IO.Path]::GetFullPath($chosen).TrimEnd('\\','/')
     if ($chosen -eq $root -or $chosen.StartsWith($root + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase) -or $root.StartsWith($chosen + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) {
         throw 'Shared environment must be outside the clone, and must not contain it.'
     }
@@ -14,7 +14,66 @@ function Get-HwpxEnvironmentPlan {
         if (-not (Test-Path -LiteralPath $p)) { throw "Missing dependency input: $_" }
         $_ + ':' + (Get-FileHash -LiteralPath $p -Algorithm SHA256).Hash
     }) -join ';'
-    [pscustomobject]@{Root=$chosen; Python=(Join-Path $chosen 'Scripts\python.exe'); Fingerprint=$fingerprint; Inputs=$inputs; RepoRoot=$root}
+    [pscustomobject]@{Root=$chosen; Python=(Join-Path $chosen 'Scripts\\python.exe'); Fingerprint=$fingerprint; Inputs=$inputs; RepoRoot=$root}
+}
+
+function Get-HwpxPythonVersion {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true)][string]$Executable,
+        [string[]]$PrefixArguments=@()
+    )
+    $argv = @($PrefixArguments) + @('--version')
+    try {
+        $lines = @(& $Executable @argv 2>&1)
+        $exitCode = $LASTEXITCODE
+    } catch {
+        return $null
+    }
+    if ($exitCode -ne 0) { return $null }
+    $text = ($lines | ForEach-Object { "$_" }) -join "`n"
+    $match = [regex]::Match($text, '(?im)^\s*Python\s+(\d+)\.(\d+)(?:\.\d+)?(?:\s.*)?$')
+    if (-not $match.Success) { return $null }
+    return "$($match.Groups[1].Value).$($match.Groups[2].Value)"
+}
+
+function Resolve-HwpxBasePythonCommand {
+    [CmdletBinding()]
+    param([string]$Override=$env:HWPX_MCP_PYTHON)
+
+    if ($Override) {
+        $version = Get-HwpxPythonVersion -Executable $Override
+        if ($version -ne '3.12') {
+            throw 'HWPX_MCP_PYTHON does not resolve to Python 3.12. Point it to a Python 3.12 executable.'
+        }
+        return [pscustomobject]@{Executable=$Override; PrefixArguments=@(); Version=$version; Label='HWPX_MCP_PYTHON'}
+    }
+
+    $candidates = @()
+    $launcher = Get-Command py -CommandType Application -ErrorAction SilentlyContinue
+    if ($launcher) {
+        $candidates += [pscustomobject]@{Executable=$launcher.Source; PrefixArguments=@('-3.12'); Label='py -3.12'}
+    }
+    foreach ($name in @('python3.12','python')) {
+        $command = Get-Command $name -CommandType Application -ErrorAction SilentlyContinue
+        if ($command) {
+            $candidates += [pscustomobject]@{Executable=$command.Source; PrefixArguments=@(); Label=$name}
+        }
+    }
+
+    foreach ($candidate in $candidates) {
+        $version = Get-HwpxPythonVersion -Executable $candidate.Executable -PrefixArguments $candidate.PrefixArguments
+        if ($version -eq '3.12') {
+            return [pscustomobject]@{
+                Executable=$candidate.Executable
+                PrefixArguments=@($candidate.PrefixArguments)
+                Version=$version
+                Label=$candidate.Label
+            }
+        }
+    }
+
+    throw 'Python 3.12 was not found. Tried py -3.12, python3.12, and python. Install Python 3.12 or set HWPX_MCP_PYTHON to its executable.'
 }
 
 function Initialize-HwpxEnvironment {
@@ -31,7 +90,7 @@ function Initialize-HwpxEnvironment {
     try {
         if ($RebuildVenv -and (Test-Path -LiteralPath $plan.Root)) {
             # Never recursively remove an unowned directory or a junction.
-            $resolved = (Resolve-Path -LiteralPath $plan.Root).Path.TrimEnd('\','/')
+            $resolved = (Resolve-Path -LiteralPath $plan.Root).Path.TrimEnd('\\','/')
             if ($resolved -ne $plan.Root -or -not (Test-Path -LiteralPath $receiptPath) -or -not (Test-Path -LiteralPath (Join-Path $resolved 'pyvenv.cfg'))) { throw 'Refusing rebuild: target is not a registered HWPX environment.' }
             $old = Get-Content -LiteralPath $receiptPath -Raw | ConvertFrom-Json
             if ($old.schema -ne 'hwpx-shared-environment/v1' -or $old.root -ne $resolved) { throw 'Refusing rebuild: environment receipt does not match target.' }
@@ -40,20 +99,15 @@ function Initialize-HwpxEnvironment {
             Remove-Item -LiteralPath $resolved -Recurse -Force
         }
         if (-not (Test-Path -LiteralPath $plan.Root)) {
-            if (-not $BasePython) {
-                $launcher = Get-Command py -ErrorAction SilentlyContinue
-                if ($launcher) { $BasePython = & $launcher.Source -3.12 -c 'import sys; print(sys.executable)' }
-                if (-not $BasePython) { $candidate = Get-Command python -ErrorAction SilentlyContinue; if ($candidate) { $BasePython=$candidate.Source } }
-            }
-            if (-not $BasePython) { throw 'Install Python 3.12 or set HWPX_MCP_PYTHON to its executable.' }
-            $version = & $BasePython -c 'import sys; print(str(sys.version_info.major)+"."+str(sys.version_info.minor))'
-            if ($LASTEXITCODE -ne 0 -or $version -ne '3.12') { throw 'Python 3.12 is required; set HWPX_MCP_PYTHON to a supported interpreter.' }
-            & $BasePython -m venv $plan.Root
+            $base = Resolve-HwpxBasePythonCommand -Override $BasePython
+            $baseExe = $base.Executable
+            $baseArgs = @($base.PrefixArguments) + @('-m','venv',$plan.Root)
+            & $baseExe @baseArgs
             if ($LASTEXITCODE -ne 0) { throw 'Environment creation failed. Inspect the target; it will not be silently recreated.' }
         }
         if (-not (Test-Path -LiteralPath $plan.Python) -or -not (Test-Path -LiteralPath (Join-Path $plan.Root 'pyvenv.cfg'))) { throw 'Shared environment is incomplete. Repair it or explicitly rebuild a registered environment.' }
-        $version = & $plan.Python -c 'import sys; print(str(sys.version_info.major)+"."+str(sys.version_info.minor))'
-        if ($LASTEXITCODE -ne 0 -or $version -ne '3.12') { throw 'Shared Python ABI mismatch. Select a Python 3.12 environment; no automatic recreation was performed.' }
+        $version = Get-HwpxPythonVersion -Executable $plan.Python
+        if ($version -ne '3.12') { throw 'Shared Python ABI mismatch. Select a Python 3.12 environment; no automatic recreation was performed.' }
         $receipt = $null
         if (Test-Path -LiteralPath $receiptPath) { $receipt = Get-Content -LiteralPath $receiptPath -Raw | ConvertFrom-Json }
         if ($receipt -and ($receipt.schema -ne 'hwpx-shared-environment/v1' -or $receipt.root -ne $plan.Root)) { throw 'Environment receipt mismatch. Inspect the configured environment before reuse.' }

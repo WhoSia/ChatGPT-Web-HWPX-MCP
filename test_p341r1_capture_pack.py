@@ -21,7 +21,7 @@ def _sha(data: bytes) -> str:
 
 def test_frozen_a3_identity_is_explicit_and_cross_archetype():
     assert FROZEN_BENCHMARK_COMMIT == "7872a8a5cf063c547f65ccd823d1063a51c17ee1"
-    assert FROZEN_MATERIALIZATION_METHOD == "GIT_ARCHIVE_FROZEN_COMMIT_REGENERATION_EXACT_SHA256"
+    assert FROZEN_MATERIALIZATION_METHOD == "GIT_ARCHIVE_FROZEN_COMMIT_PACKAGE_CONTENT_EQUIVALENCE"
     assert [x["archetype"] for x in FIXTURES] == [
         "RESEARCH_BRIEF",
         "INSTITUTIONAL_REPORT",
@@ -29,6 +29,7 @@ def test_frozen_a3_identity_is_explicit_and_cross_archetype():
     ]
     assert len({x["sha256"] for x in FIXTURES}) == 3
     assert all(len(x["sha256"]) == 64 for x in FIXTURES)
+    assert all(len(x["content_sha256"]) == 64 for x in FIXTURES)
 
 
 def test_complete_validation_requires_native_diagnostic_authority():

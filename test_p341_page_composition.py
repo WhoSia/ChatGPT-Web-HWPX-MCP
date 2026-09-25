@@ -16,7 +16,7 @@ from p341_page_composition import (
 ROOT = Path(__file__).resolve().parent
 
 
-def _line(y: int, *, locator: str, x: int = 100, width: int = 700, height: int = 20) -> dict:
+def _line(y: int, *, locator: str, x: int = 100, width: int = 400, height: int = 20) -> dict:
     return {
         "x": x,
         "y": y,

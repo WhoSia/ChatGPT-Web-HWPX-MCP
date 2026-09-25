@@ -159,3 +159,28 @@ The same principle should govern future live Hancom automation: the skill may as
 ## A3-specific lesson
 
 The frozen A3 native capture is intentionally not repaired in place. It is evidence. If it exposes first-page underfill or macro-composition convergence across archetypes, those observations remain part of P3.41-R1 adjudication and feed successor design work rather than retroactively changing the fresh benchmark.
+
+
+## Audit snapshot provenance — 2026-09-26
+
+The exhaustive 15-repository review above is pinned to the following public default-branch heads. This is an **inspection snapshot**, not a vendored dependency lock. Later upstream changes require a new review before they are treated as adopted architecture.
+
+| Repository | Default branch | Inspected head |
+|---|---|---|
+| `python-hwpx` | `main` | `0760ba978e8e0fd51f3ce578fc0c2c78a4f7e74d` |
+| `python-hwpx-automation` | `main` | `8e8b95a8adff5d6a86e853a119a081c3c410512a` |
+| `hwpx-plugins` | `main` | `9165a79dd94ba16416617ca5416194e6ff6110c0` |
+| `DIVE` | `main` | `3493d411204e3908f717080a1f16f529c772caee` |
+| `dive-school-vibe-builder` | `main` | `4829150a0d45b0b2e47fde6d81f17811f0fa9c17` |
+| `MEETutorial` | `master` | `1303083a1aec7e80f84b0b7e4dfd91e44507025c` |
+| `EasyOCRCodex` | `main` | `e923c98ffcf886c11a7253c938ccd0dabfcf76c7` |
+| `Bareun_Linux` | `main` | `a6f1b0e5b12c791004eca6c6a949f8a39a502cf9` |
+| `AIEDAP_Bareun` | `main` | `1466d432ca9b7cafb6d47f7549d1463fa502ab71` |
+| `tutorial-test` | `master` | `be7e469fbf842a9ce758fe8135a39bd0fd2f5e1c` |
+| `Streamlitapp` | `main` | `2a55fc1dc9d53052adf8bad58a59441a16333a0a` |
+| `BareunPyQt5` | `main` | `9f2fc6f04e251493aefd622faf5cdac8fd63574b` |
+| `assignment` | `main` | **empty repository** |
+| `autodiagnosis` | `main` | `a43ddcd4ffc6df37e7ceb26f9f22bbe62780b431` |
+| `Minecraft` | `main` | `88179bd2e13cf1b09b4a648daeb5b53957b6aa14` |
+
+Deep-code inspection concentrated on the repositories with transferable architecture rather than mechanically reading every generated/binary asset: safe-write/product-boundary/probe contracts in `python-hwpx`; generated tool contract and workflow/render boundaries in `python-hwpx-automation`; canonical `SKILL.md`, evidence contract and bundle validator in `hwpx-plugins`; evidence-gated decision logic and QA gap ledgers in `DIVE`; and the short-skill/reference/local-harness design in `dive-school-vibe-builder`. The remaining repositories were inspected at README/root/source level and explicitly classified above as concept-only, low-priority, none, or anti-pattern rather than silently omitted.

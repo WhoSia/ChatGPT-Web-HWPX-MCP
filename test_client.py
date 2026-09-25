@@ -260,12 +260,12 @@ async def main() -> None:
                 if "access_token" in schema_text or "passphrase" in schema_text:
                     raise RuntimeError(f"secret-bearing field leaked into tool schema: {tool.name}")
 
-            read_payload = _payload(await client.call_tool("probe_read", {"message": "P3.40 OAuth smoke test"}))
-            if not read_payload or not read_payload.get("ok") or read_payload.get("version") != "0.17.0-p3.40":
-                raise RuntimeError(f"probe_read did not expose current P3.40 product version: {read_payload}")
+            read_payload = _payload(await client.call_tool("probe_read", {"message": "P3.41 OAuth smoke test"}))
+            if not read_payload or not read_payload.get("ok") or read_payload.get("version") != "0.18.0-p3.41":
+                raise RuntimeError(f"probe_read did not expose current P3.41 product version: {read_payload}")
 
             p2_caps = _payload(await client.call_tool("p2_capabilities", {}))
-            if not p2_caps or p2_caps.get("phase") != "P3.40":
+            if not p2_caps or p2_caps.get("phase") != "P3.41":
                 raise RuntimeError(f"p2_capabilities failed: {p2_caps}")
 
             design_intelligence = _payload(await client.call_tool("get_document_design_intelligence_contract", {}))
@@ -296,6 +296,15 @@ async def main() -> None:
                 or "RENDER_AGAIN" not in p340_contract.get("closed_loop", [])
             ):
                 raise RuntimeError(f"P3.40 rendered feedback contract failed: {p340_contract}")
+
+            p341_contract = _payload(await client.call_tool("get_page_composition_contract", {}))
+            if (
+                not p341_contract
+                or p341_contract.get("phase") != "P3.41"
+                or p341_contract.get("purpose") != "PAGE_LEVEL_COMPOSITION_GRAMMAR_WITHOUT_BEAUTY_SCORING"
+                or p341_contract.get("polyglot", {}).get("rule") != "POLYGLOT_BY_COMPARATIVE_ADVANTAGE_NOT_LANGUAGE_COUNT"
+            ):
+                raise RuntimeError(f"P3.41 page composition contract failed: {p341_contract}")
             callout = _payload(await client.call_tool("compile_semantic_callout_block", {
                 "text": "핵심 판단은 장식이 아니라 의미를 인코딩해야 합니다.",
                 "block_id": "oauth_callout",
@@ -496,6 +505,41 @@ async def main() -> None:
             assert p340_before["phase"] == "P3.40"
             assert "EXTERNAL_RENDER_OBSERVATION" in p340_before["authorities"]
 
+            p341_capture = {
+                "pages": [{
+                    "page_index": 0,
+                    "width_px": 1000,
+                    "height_px": 1400,
+                    "raster_sha256": "1" * 64,
+                    "line_boxes": [
+                        {
+                            "x": 100, "y": 180 + i * 34, "width": 420, "height": 18,
+                            "baseline": 198 + i * 34,
+                            "text_sha256": ("%064x" % (i + 1)),
+                            "paragraph_locator": f"oauth-p341-{i // 3}",
+                        }
+                        for i in range(24)
+                    ],
+                }],
+            }
+            p341_diag = _payload(await client.call_tool("diagnose_page_composition", {
+                "document_id": rich_delivery["document_id"],
+                "capture": p341_capture,
+                "archetype": "POLISHED_REPORT",
+                "mode": "POLISHED_REPORT",
+            }))
+            assert p341_diag["phase"] == "P3.41"
+            assert p341_diag["page_composition"]["phase"] == "P3.41"
+            p341_policy = _payload(await client.call_tool("plan_render_guided_page_layout", {
+                "document_id": rich_delivery["document_id"],
+                "capture": p341_capture,
+                "archetype": "POLISHED_REPORT",
+                "mode": "POLISHED_REPORT",
+            }))
+            assert p341_policy["phase"] == "P3.41"
+            assert p341_policy["executable_count"] == 0
+            assert p341_policy["authority"] == "RENDER_GUIDED_LAYOUT_POLICY_NOT_AUTOMATIC_PAGE_MUTATION_AUTHORITY"
+
             p340_plan = _payload(await client.call_tool("plan_executable_document_design_repairs", {
                 "document_id": rich_delivery["document_id"],
                 "mode": "POLISHED_REPORT",
@@ -590,7 +634,7 @@ async def main() -> None:
                 smart_delivery["document_id"],
             ):
                 await client.call_tool("delete_document", {"document_id": delivered_id})
-            print("P3.40 OAuth rendered-diagnostic/executable-repair/compare + P3.39 design-intelligence PASS")
+            print("P3.41 OAuth page-composition/layout-policy + P3.40 rendered-repair + P3.39 design-intelligence PASS")
             print("P3.37 OAuth create/edit/fill/bytes-first-ingest/resource-link/download PASS")
 
             plan_checked = _payload(await client.call_tool("validate_document_plan", {

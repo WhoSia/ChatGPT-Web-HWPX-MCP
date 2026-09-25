@@ -299,7 +299,10 @@ def _materialize_blocks(document: HwpxDocument, blocks: list[dict]) -> dict[str,
 
         if kind in {"title", "paragraph", "list_item"}:
             text = str(block.get("text") or "")
-            paragraph = document.add_paragraph(text)
+            # Composition semantics must be independent of the preceding block.
+            # python-hwpx inherits para/style/run refs by default, which can leak
+            # OUTLINE metadata from a heading into following body/title/list text.
+            paragraph = document.add_paragraph(text, inherit_style=False)
             pid = _paragraph_id(paragraph)
             bindings[block_id] = {"kind": kind, "paragraph_id": pid}
             if kind == "list_item":
@@ -329,7 +332,7 @@ def _materialize_blocks(document: HwpxDocument, blocks: list[dict]) -> dict[str,
             cols = int(block.get("cols", 0))
             if not 1 <= rows <= 200 or not 1 <= cols <= 100:
                 raise ValueError("table rows/cols are outside admitted bounds")
-            anchor = document.add_paragraph("")
+            anchor = document.add_paragraph("", inherit_style=False)
             kwargs: dict[str, Any] = {}
             if block.get("width") is not None:
                 kwargs["width"] = int(block["width"])
@@ -359,7 +362,7 @@ def _materialize_blocks(document: HwpxDocument, blocks: list[dict]) -> dict[str,
             if not latex:
                 raise ValueError("equation block requires latex")
             script = latex_to_eqedit(latex)
-            anchor = document.add_paragraph("")
+            anchor = document.add_paragraph("", inherit_style=False)
             base_unit = int(block.get("base_unit", 1100))
             size = None
             if block.get("width") is not None or block.get("height") is not None:
@@ -383,7 +386,7 @@ def _materialize_blocks(document: HwpxDocument, blocks: list[dict]) -> dict[str,
         if kind == "picture":
             payload, fmt = _image_bytes(block)
             media = document.media.add_image(payload, fmt)
-            anchor = document.add_paragraph("")
+            anchor = document.add_paragraph("", inherit_style=False)
             kwargs = {
                 "width": int(block.get("width", 10000)),
                 "height": int(block.get("height", 8000)),
@@ -399,7 +402,7 @@ def _materialize_blocks(document: HwpxDocument, blocks: list[dict]) -> dict[str,
             continue
 
         if kind == "page_break":
-            paragraph = document.add_paragraph("")
+            paragraph = document.add_paragraph("", inherit_style=False)
             paragraph.element.set("pageBreak", "1")
             paragraph.section.mark_dirty()
             bindings[block_id] = {"kind": kind, "paragraph_id": _paragraph_id(paragraph)}

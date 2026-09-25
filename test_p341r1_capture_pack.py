@@ -6,6 +6,7 @@ import tempfile
 from pathlib import Path
 
 from p341r1_capture_pack import (
+    FROZEN_ARTIFACT_CONTAINER_SHA256,
     FROZEN_ARTIFACT_SHARDS,
     FIXTURES,
     FROZEN_BENCHMARK_COMMIT,
@@ -23,8 +24,9 @@ def _sha(data: bytes) -> str:
 def test_frozen_a3_identity_is_explicit_and_cross_archetype():
     assert FROZEN_BENCHMARK_COMMIT == "7872a8a5cf063c547f65ccd823d1063a51c17ee1"
     assert FROZEN_MATERIALIZATION_METHOD == "REPOSITORY_SEALED_WORKFLOW_ARTIFACT_BYTES_EXACT_SHA256"
-    assert len(FROZEN_ARTIFACT_SHARDS) == 4
+    assert len(FROZEN_ARTIFACT_SHARDS) == 5
     assert all(path.startswith("benchmarks/frozen/p341/") for path in FROZEN_ARTIFACT_SHARDS)
+    assert FROZEN_ARTIFACT_CONTAINER_SHA256 == "c3f737403a914fd5c3da4ff33ca8ef2d8d2378818fa566434d548cd7680542b9"
     assert [x["archetype"] for x in FIXTURES] == [
         "RESEARCH_BRIEF",
         "INSTITUTIONAL_REPORT",

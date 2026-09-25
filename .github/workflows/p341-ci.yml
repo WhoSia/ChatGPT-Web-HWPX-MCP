@@ -5,6 +5,8 @@ on:
     branches: [main]
     paths:
       - "p341_page_composition.py"
+      - "p341r1_capture_pack.py"
+      - "test_p341r1_capture_pack.py"
       - "p321_document_composer.py"
       - "test_p321_document_composer.py"
       - "p339_design_intelligence.py"
@@ -26,6 +28,8 @@ on:
     branches: [main]
     paths:
       - "p341_page_composition.py"
+      - "p341r1_capture_pack.py"
+      - "test_p341r1_capture_pack.py"
       - "p321_document_composer.py"
       - "test_p321_document_composer.py"
       - "p339_design_intelligence.py"
@@ -53,6 +57,8 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -63,6 +69,8 @@ jobs:
         run: python -m compileall -q p321_document_composer.py p339_design_intelligence.py p340_feedback_loop.py p341_page_composition.py p341r1_capture_pack.py test_p321_document_composer.py test_p339_design_intelligence.py test_p340_feedback_loop.py test_p341_page_composition.py test_p341r1_capture_pack.py server_p2.py test_client.py benchmarks/authorbench_a3.py benchmarks/authorbench_a3_p341_evaluation.py scripts/p341_release_smoke.py scripts/p341r1_materialize_capture_pack.py scripts/p341r1_capture_pdf.py scripts/p341r1_finalize_capture_pack.py scripts/p341r1_verify_frozen_a3.py
       - name: Python P3.41 regression
         run: python -m pytest -q test_p339_design_intelligence.py test_p340_feedback_loop.py test_p341_page_composition.py test_p341r1_capture_pack.py
+      - name: Frozen A3 exact-commit materialization
+        run: python scripts/p341r1_verify_frozen_a3.py
       - name: P3.41 release smoke
         run: python scripts/p341_release_smoke.py
 
@@ -127,17 +135,17 @@ jobs:
           cache: pip
       - name: Install authoring dependencies
         run: pip install -r requirements.txt -r requirements-capture.txt -r requirements-dev.txt
-      - name: Generate A3 only after all polyglot gates pass
+      - name: Generate current A3 regression replay after all polyglot gates pass
         run: python benchmarks/authorbench_a3.py
-      - name: Preserve first-pass A3 before adjudication
+      - name: Preserve current-generator A3 regression replay
         uses: actions/upload-artifact@v4
         with:
-          name: authorbench-a3-p341-first-pass
+          name: authorbench-a3-p341-regression-replay
           path: |
             artifacts/authorbench-a3-*.hwpx
             artifacts/authorbench-a3-receipt.json
           if-no-files-found: error
-      - name: Evaluate fresh cross-archetype A3
+      - name: Evaluate current-generator cross-archetype replay
         run: python benchmarks/authorbench_a3_p341_evaluation.py
       - name: Verify native HWPX packages
         if: always()
@@ -145,11 +153,11 @@ jobs:
           unzip -t artifacts/authorbench-a3-research-brief.hwpx
           unzip -t artifacts/authorbench-a3-institutional-report.hwpx
           unzip -t artifacts/authorbench-a3-academic-report.hwpx
-      - name: Preserve A3 adjudication
+      - name: Preserve A3 regression adjudication
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: authorbench-a3-p341-adjudication
+          name: authorbench-a3-p341-regression-adjudication
           path: |
             artifacts/authorbench-a3-receipt.json
             artifacts/authorbench-a3-p341-evaluation.json

@@ -38,7 +38,7 @@ A3 is fresh post-implementation evidence with three synthetic archetypes: RESEAR
 ## P3.41-R1 native A3 capture readiness
 - Frozen A3 authority is bound to workflow run `36186044354` at commit `7872a8a5cf063c547f65ccd823d1063a51c17ee1`.
 - Exact A3 SHA-256 locks: RESEARCH_BRIEF `de7ae36c3f6d1602f1b8f6f846349ac8737b5c2e33b918b2d96a4ad7b9974555`; INSTITUTIONAL_REPORT `bc14b5a8b13bf473c2ad0b484d3b8b7a16accb8b8b8359853fdb221dddd5bcff`; ACADEMIC_REPORT `32b42461d4645b8db417b06b9db0518539900afc39e39ea39f2f7c501e023163`.
-- The one-click Windows runner re-materializes the **frozen authority commit in an isolated Git archive** and fails closed if any frozen package-content digest changes. It retains original artifact SHA-256 as custody and never substitutes current-generator replay semantics for the first-pass benchmark. It records Hancom executable/version/hash, DPI, PDF/raster/font custody, and a page-composition diagnostic for each archetype.
+- The one-click Windows runner reconstructs the **sealed original workflow artifact bytes** and fails closed unless every HWPX matches the original frozen SHA-256 and package-content digest. It never substitutes current-generator replay semantics for the first-pass benchmark. It records Hancom executable/version/hash, DPI, PDF/raster/font custody, and a page-composition diagnostic for each archetype.
 - Hancom export handling is promoted to a shared PowerShell helper so P3.42+ corpus capture does not fork phase-specific Windows process semantics.
 - Windows CI parses the full runner/helper surface and exercises explicit executable resolution before external Hancom world-contact.
 
@@ -47,3 +47,11 @@ A3 is fresh post-implementation evidence with three synthetic archetypes: RESEAR
 - `PAGE_BOUNDARY_SINGLE_LINE_PARAGRAPH` is therefore reserved for durable cross-page locator identity.
 - Native PDF geometry may instead emit `PAGE_BOUNDARY_SINGLE_LINE_BLOCK_RISK`, explicitly labeled `PAGE_LOCAL_PDF_BLOCK_HEURISTIC`, as review evidence only.
 - This prevents PDF geometry from being over-interpreted as document-semantic paragraph identity.
+
+
+## Cross-MCP architecture harvest / runtime polyglot strengthening
+- Survey recorded in `docs/p341-cross-mcp-architecture-harvest.md`.
+- Adopted patterns: progressive tool disclosure, stable anchors, conservative/dirty-part mutation accounting, native-app world-contact adapters, measure-before-layout, resource-style design rules, and template learning only after benchmark separation.
+- TypeScript is no longer contract-only: `analyzePagePrimitive` executes the shared geometry semantics and CI runs it against the same `benchmarks/p341_page_geometry_golden.tsv` used by Python and Rust.
+- P3.41 polyglot rule is now operational: **Python reference + Rust exact kernel + TypeScript runtime + PowerShell Hancom bridge**. Cross-language disagreement is a blocking regression.
+- No language-count target exists. C#/Kotlin/C++/other languages require a distinct technical boundary before adoption.

@@ -1,16 +1,58 @@
 from __future__ import annotations
 
-import json
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping
 
 from p340r1_capture_pack import read_json, sha256_file, write_json
 
-SCHEMA = "chatgpt-web-hwpx-mcp/p3.41-r1-adjudication/v1"
-HUMAN_REVIEW_SCHEMA = "chatgpt-web-hwpx-mcp/p3.41-r1-human-review/v1"
+SCHEMA = "chatgpt-web-hwpx-mcp/p3.41-r1-adjudication/v2"
+HUMAN_REVIEW_SCHEMA = "chatgpt-web-hwpx-mcp/p3.41-r1-human-review/v2"
+HUMAN_REVIEW_RECEIPT_SCHEMA = "chatgpt-web-hwpx-mcp/p3.41-r1-human-review-receipt/v1"
 
 FIRST_PAGE_BOTTOM_MARGIN_RISK_PPM = 350_000
 FIRST_PAGE_VERTICAL_SPAN_RISK_PPM = 450_000
+
+REVIEW_CRITERIA = (
+    {
+        "id": "first_page_whitespace",
+        "question": (
+            "Are the large first-page whitespace fields appropriate for these short "
+            "two-page archetypes, rather than feeling prematurely page-broken?"
+        ),
+        "required_evidence_class": "USER_VISUAL_OBSERVATION",
+        "machine_signal_codes": ("CROSS_ARCHETYPE_FIRST_PAGE_UNDERFILL_RISK",),
+    },
+    {
+        "id": "archetype_differentiation",
+        "question": (
+            "Do RESEARCH_BRIEF, INSTITUTIONAL_REPORT, and ACADEMIC_REPORT feel "
+            "sufficiently different in page-level composition, not only typography/content?"
+        ),
+        "required_evidence_class": "USER_VISUAL_OBSERVATION",
+        "machine_signal_codes": ("CROSS_ARCHETYPE_COMPOSITION_SIGNATURE_COLLISION",),
+    },
+    {
+        "id": "page_boundary_integrity",
+        "question": (
+            "Does any page boundary visibly split a sentence, table, heading, or semantic "
+            "unit awkwardly?"
+        ),
+        "required_evidence_class": "USER_VISUAL_OBSERVATION",
+        "machine_signal_codes": ("PAGE_BOUNDARY_HEURISTIC_REQUIRES_VISUAL_REVIEW",),
+    },
+    {
+        "id": "mechanical_styling",
+        "question": (
+            "Is there any distracting mechanical repetition, imbalance, or density problem "
+            "that should block P3.41 closure?"
+        ),
+        "required_evidence_class": "USER_VISUAL_OBSERVATION",
+        "machine_signal_codes": (),
+    },
+)
+
+MANUAL_CRITERION_STATUSES = ("MANUAL_PASS", "MANUAL_PASS_WITH_RESIDUAL", "HOLD")
+OVERALL_HUMAN_STATUSES = ("PASS", "PASS_WITH_RESIDUALS", "HOLD")
 
 
 def _load_diagnostics(pack: Path) -> list[dict[str, Any]]:
@@ -93,6 +135,7 @@ def adjudicate_capture(pack: Path) -> dict[str, Any]:
                 ],
                 "composition_signature": _composition_signature(diagnostic),
                 "first_page_underfill_risk": _first_page_underfill(row),
+                "page_metrics": diagnostic.get("page_metrics") or [],
             }
         )
 
@@ -154,11 +197,13 @@ def adjudicate_capture(pack: Path) -> dict[str, Any]:
                 "archetypes": [x["archetype"] for x in boundary_heuristics],
                 "interpretation": (
                     "Page-local PDF blocks cannot prove cross-page paragraph identity. "
-                    "Keep the warning observational until a human or durable document locator resolves it."
+                    "Keep the warning observational until a human or durable document locator "
+                    "resolves it."
                 ),
             }
         )
 
+    signal_codes = [str(x["code"]) for x in review_signals]
     return {
         "schema": SCHEMA,
         "phase": "P3.41-R1",
@@ -180,6 +225,12 @@ def adjudicate_capture(pack: Path) -> dict[str, Any]:
         "human_review": {
             "status": "PENDING_USER_SIGNOFF",
             "authority": "NOT_MACHINE_PROMOTABLE",
+            "required_criteria": [str(x["id"]) for x in REVIEW_CRITERIA],
+            "machine_signal_codes": signal_codes,
+            "policy": (
+                "Machine/native evidence may trigger or support a criterion, but only an "
+                "explicit user visual observation can satisfy USER_VISUAL_OBSERVATION."
+            ),
         },
         "recommended_authority": (
             "NATIVE_WORLD_CONTACT_PASS / CROSS_ARCHETYPE_VISUAL_GENERALIZATION_REVIEW_REQUIRED "
@@ -188,49 +239,125 @@ def adjudicate_capture(pack: Path) -> dict[str, Any]:
     }
 
 
+def _machine_evidence_for_criterion(
+    adjudication: Mapping[str, Any], criterion: Mapping[str, Any]
+) -> list[dict[str, Any]]:
+    wanted = set(criterion.get("machine_signal_codes") or ())
+    return [
+        {
+            "code": signal.get("code"),
+            "severity": signal.get("severity"),
+            "authority": signal.get("authority"),
+            "archetypes": signal.get("archetypes") or [],
+            "interpretation": signal.get("interpretation"),
+        }
+        for signal in adjudication.get("review_signals", [])
+        if signal.get("code") in wanted
+    ]
+
+
 def build_human_review_packet(adjudication: dict[str, Any]) -> dict[str, Any]:
+    criteria = []
+    for criterion in REVIEW_CRITERIA:
+        criteria.append(
+            {
+                "id": criterion["id"],
+                "question": criterion["question"],
+                "required_evidence_class": criterion["required_evidence_class"],
+                "machine_evidence": _machine_evidence_for_criterion(
+                    adjudication, criterion
+                ),
+                "status": "PENDING_USER_OBSERVATION",
+            }
+        )
     return {
         "schema": HUMAN_REVIEW_SCHEMA,
         "phase": "P3.41-R1",
         "source": adjudication["source"],
         "native_world_contact": adjudication["native_world_contact"],
         "review_signals": adjudication["review_signals"],
-        "questions": [
-            {
-                "id": "first_page_whitespace",
-                "question": (
-                    "Are the large first-page whitespace fields appropriate for these short "
-                    "two-page archetypes, or do they feel prematurely page-broken?"
-                ),
-            },
-            {
-                "id": "archetype_differentiation",
-                "question": (
-                    "Do RESEARCH_BRIEF, INSTITUTIONAL_REPORT, and ACADEMIC_REPORT feel "
-                    "sufficiently different in page-level composition, not only typography?"
-                ),
-            },
-            {
-                "id": "page_boundary",
-                "question": (
-                    "Does any page boundary visibly split a sentence, table, heading, or "
-                    "semantic unit awkwardly?"
-                ),
-            },
-            {
-                "id": "mechanical_styling",
-                "question": (
-                    "Is there any distracting mechanical repetition, imbalance, or density "
-                    "problem that should block P3.41 closure?"
-                ),
-            },
-        ],
-        "allowed_statuses": ["PASS", "PASS_WITH_RESIDUALS", "HOLD"],
+        "criteria": criteria,
+        "coverage": {
+            "required": len(criteria),
+            "manual_observed": 0,
+            "complete": False,
+        },
+        "evidence_policy": {
+            "machine_pass_is_human_pass": False,
+            "page_local_pdf_block_is_document_identity": False,
+            "required_manual_class": "USER_VISUAL_OBSERVATION",
+        },
+        "allowed_statuses": list(OVERALL_HUMAN_STATUSES),
+        "criterion_allowed_statuses": list(MANUAL_CRITERION_STATUSES),
         "status": "PENDING_USER_SIGNOFF",
     }
 
 
-def write_adjudication(pack: Path, output: Path, human_output: Path | None = None) -> dict[str, Any]:
+def finalize_human_review(
+    packet: Mapping[str, Any],
+    *,
+    overall_status: str,
+    decisions: Mapping[str, Mapping[str, str]],
+) -> dict[str, Any]:
+    if overall_status not in OVERALL_HUMAN_STATUSES:
+        raise ValueError(f"unsupported overall human-review status: {overall_status}")
+
+    required = [str(x["id"]) for x in packet.get("criteria", [])]
+    missing = [criterion_id for criterion_id in required if criterion_id not in decisions]
+    unexpected = sorted(set(decisions) - set(required))
+    if missing or unexpected:
+        raise ValueError(
+            f"criterion coverage mismatch: missing={missing}, unexpected={unexpected}"
+        )
+
+    rows = []
+    for criterion in packet.get("criteria", []):
+        criterion_id = str(criterion["id"])
+        decision = decisions[criterion_id]
+        status = str(decision.get("status") or "")
+        observation = str(decision.get("observation") or "").strip()
+        if status not in MANUAL_CRITERION_STATUSES:
+            raise ValueError(f"unsupported criterion status for {criterion_id}: {status}")
+        if not observation:
+            raise ValueError(f"manual observation required for {criterion_id}")
+        rows.append(
+            {
+                "id": criterion_id,
+                "status": status,
+                "observation": observation,
+                "evidence_class": "USER_VISUAL_OBSERVATION",
+                "machine_evidence": criterion.get("machine_evidence") or [],
+            }
+        )
+
+    any_hold = any(x["status"] == "HOLD" for x in rows)
+    any_residual = any(x["status"] == "MANUAL_PASS_WITH_RESIDUAL" for x in rows)
+    if overall_status == "PASS" and (any_hold or any_residual):
+        raise ValueError("overall PASS cannot contain HOLD or residual criterion decisions")
+    if overall_status == "PASS_WITH_RESIDUALS" and any_hold:
+        raise ValueError("PASS_WITH_RESIDUALS cannot contain a HOLD criterion")
+    if overall_status == "HOLD" and not any_hold:
+        raise ValueError("overall HOLD requires at least one HOLD criterion")
+
+    return {
+        "schema": HUMAN_REVIEW_RECEIPT_SCHEMA,
+        "phase": "P3.41-R1",
+        "source": packet["source"],
+        "native_world_contact": packet["native_world_contact"],
+        "status": overall_status,
+        "authority": "EXPLICIT_USER_VISUAL_REVIEW",
+        "criteria": rows,
+        "coverage": {
+            "required": len(rows),
+            "manual_observed": len(rows),
+            "complete": True,
+        },
+    }
+
+
+def write_adjudication(
+    pack: Path, output: Path, human_output: Path | None = None
+) -> dict[str, Any]:
     adjudication = adjudicate_capture(pack)
     write_json(output, adjudication)
     if human_output is not None:
@@ -241,7 +368,14 @@ def write_adjudication(pack: Path, output: Path, human_output: Path | None = Non
 __all__ = [
     "FIRST_PAGE_BOTTOM_MARGIN_RISK_PPM",
     "FIRST_PAGE_VERTICAL_SPAN_RISK_PPM",
+    "HUMAN_REVIEW_RECEIPT_SCHEMA",
+    "HUMAN_REVIEW_SCHEMA",
+    "MANUAL_CRITERION_STATUSES",
+    "OVERALL_HUMAN_STATUSES",
+    "REVIEW_CRITERIA",
+    "SCHEMA",
     "adjudicate_capture",
     "build_human_review_packet",
+    "finalize_human_review",
     "write_adjudication",
 ]

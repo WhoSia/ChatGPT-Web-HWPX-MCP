@@ -252,9 +252,17 @@ def main() -> int:
         "cases": results,
         "case_count": len(results),
         "archetypes": [x["archetype"] for x in results],
+        "run_role": "CURRENT_GENERATOR_REGRESSION_REPLAY",
+        "frozen_fresh_authority": {
+            "commit": "7872a8a5cf063c547f65ccd823d1063a51c17ee1",
+            "workflow_run": 36186044354,
+            "first_pass_artifact_id": 10885019734,
+            "authority": "FRESH_FIRST_COMPLETED_A3",
+        },
         "freshness_boundary": (
-            "A3 cases are first completed only after P3.41 page-composition implementation exists. "
-            "No A3 diagnosis is used to choose first-pass content or semantic-role finishing."
+            "Fresh first-completed A3 authority is frozen at commit 7872a8a5cf063c547f65ccd823d1063a51c17ee1 "
+            "and workflow run 36186044354. This invocation is a current-generator regression replay and "
+            "must not replace the frozen first-pass benchmark merely because implementation evolved."
         ),
         "content_basis": "three synthetic scenarios; no external factual claims",
         "render_world_contact": "PENDING_EXTERNAL_HANCOM_WORLD_CONTACT",

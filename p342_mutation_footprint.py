@@ -125,6 +125,7 @@ def _canonical_part_name(value: str) -> str:
         or len(name) > 512
         or name.startswith("/")
         or "\\" in name
+        or any(ch in name for ch in "*?[]")
         or any(piece in {"", ".", ".."} for piece in name.split("/"))
     ):
         raise ValueError(f"invalid HWPX part path: {value!r}")

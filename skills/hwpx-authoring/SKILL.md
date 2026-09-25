@@ -71,3 +71,12 @@ A static preview PASS means native/layout mechanics look safe. It does **not** m
 - Repeating page furniture is separated from body-composition geometry using repeated edge evidence; do not treat headers, footers, or narrow page numbers as body density.
 - Treat PDF-extracted `page:N/block:M` locators as page-local geometry only. They may justify `PAGE_BOUNDARY_SINGLE_LINE_BLOCK_RISK`, but never promote that heuristic to cross-page paragraph identity without a durable document locator.
 - Internal implementation follows polyglot-by-comparative-advantage: Python research/reference semantics, Rust deterministic geometry decisions, TypeScript product contract, PowerShell Hancom world contact. Cross-language disagreement is a regression, not an acceptable implementation detail.
+
+
+## Cross-MCP and polyglot implementation rule
+
+- External document MCP patterns are harvested in `docs/p341-cross-mcp-architecture-harvest.md`; copy architecture lessons, not entire implementations.
+- Prefer stable document-native locators over shifting block indexes for multi-step edits.
+- Preserve mutation footprint: future executable page-layout repair should report which HWPX package parts changed and which remained byte-identical.
+- Use pre-layout measurement when a reliable native/portable measurement primitive exists; do not rely only on post-render critique.
+- Polyglot roles are semantic boundaries, not badges: Python reference/research, Rust exact geometry, TypeScript runtime/product contract, PowerShell Hancom bridge. Add another language only when it owns a real boundary.

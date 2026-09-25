@@ -1,9 +1,14 @@
 from __future__ import annotations
 
 import csv
+import tempfile
+import zipfile
 from pathlib import Path
 
 import pytest
+from lxml import etree
+
+from p321_document_composer import compose_document_plan
 
 from p341_page_composition import (
     analyze_page_primitive,
@@ -89,6 +94,41 @@ def test_native_comparison_preserves_authority_boundary():
     result = compare_page_composition_diagnostics(base, after)
     assert result["native_before_after_available"] is True
     assert result["resolved"] == [{"code": "PAGE_COMPOSITION_OVERFULL", "scope": "PAGE_1"}]
+
+
+def test_composer_non_heading_carriers_do_not_inherit_outline_semantics():
+    with tempfile.TemporaryDirectory() as tmp:
+        out = Path(tmp) / "semantic-isolation.hwpx"
+        compose_document_plan(out, {
+            "preset": "academic-report",
+            "blocks": [
+                {"id": "h1", "type": "heading", "level": 1, "text": "분석 설계"},
+                {"id": "body", "type": "paragraph", "text": "본문은 개요 메타데이터를 상속하지 않는다."},
+                {"id": "table", "type": "table", "rows": 1, "cols": 1, "cells": [["callout"]]},
+            ],
+        })
+        with zipfile.ZipFile(out) as archive:
+            header = etree.fromstring(archive.read("Contents/header.xml"))
+            section = etree.fromstring(archive.read("Contents/section0.xml"))
+        para_props = {
+            e.get("id"): e
+            for e in header.iter()
+            if etree.QName(e).localname == "paraPr"
+        }
+        paragraphs = [e for e in section.iter() if etree.QName(e).localname == "p"]
+        body = next(
+            p for p in paragraphs
+            if "".join((e.text or "") for e in p.iter() if etree.QName(e).localname == "t").strip()
+            == "본문은 개요 메타데이터를 상속하지 않는다."
+        )
+        table_anchor = next(
+            p for p in paragraphs
+            if any(etree.QName(e).localname == "tbl" for e in p.iter())
+        )
+        for paragraph in (body, table_anchor):
+            prop = para_props[paragraph.get("paraPrIDRef")]
+            heading = next(e for e in prop.iter() if etree.QName(e).localname == "heading")
+            assert heading.get("type") == "NONE"
 
 
 def test_golden_page_kernel_fixture_matches_python_reference():

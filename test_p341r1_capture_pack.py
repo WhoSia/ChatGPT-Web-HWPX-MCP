@@ -8,6 +8,7 @@ from pathlib import Path
 from p341r1_capture_pack import (
     FIXTURES,
     FROZEN_BENCHMARK_COMMIT,
+    FROZEN_MATERIALIZATION_METHOD,
     deterministic_zip,
     validate_complete,
     write_json,
@@ -20,6 +21,7 @@ def _sha(data: bytes) -> str:
 
 def test_frozen_a3_identity_is_explicit_and_cross_archetype():
     assert FROZEN_BENCHMARK_COMMIT == "7872a8a5cf063c547f65ccd823d1063a51c17ee1"
+    assert FROZEN_MATERIALIZATION_METHOD == "GIT_ARCHIVE_FROZEN_COMMIT_REGENERATION_EXACT_SHA256"
     assert [x["archetype"] for x in FIXTURES] == [
         "RESEARCH_BRIEF",
         "INSTITUTIONAL_REPORT",

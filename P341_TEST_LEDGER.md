@@ -55,3 +55,11 @@ A3 is fresh post-implementation evidence with three synthetic archetypes: RESEAR
 - TypeScript is no longer contract-only: `analyzePagePrimitive` executes the shared geometry semantics and CI runs it against the same `benchmarks/p341_page_geometry_golden.tsv` used by Python and Rust.
 - P3.41 polyglot rule is now operational: **Python reference + Rust exact kernel + TypeScript runtime + PowerShell Hancom bridge**. Cross-language disagreement is a blocking regression.
 - No language-count target exists. C#/Kotlin/C++/other languages require a distinct technical boundary before adoption.
+
+
+## Frozen A3 artifact container completion
+- Original GitHub Actions artifact `authorbench-a3-p341-first-pass` (artifact ID `10885019734`) remains the custody source.
+- Exact workflow-artifact ZIP size: **30,497 bytes**.
+- Exact workflow-artifact ZIP SHA-256: `c3f737403a914fd5c3da4ff33ca8ef2d8d2378818fa566434d548cd7680542b9`.
+- Repository custody is now complete as **five** ordered base64 shards (`.00`–`.04`). Materialization concatenates the encoded shards, decodes once, verifies the artifact-container SHA-256, then verifies all three frozen HWPX whole-file and package-content hashes.
+- This closes the earlier incomplete-shard defect; historical-code regeneration remains explicitly non-authoritative for frozen artifact custody.

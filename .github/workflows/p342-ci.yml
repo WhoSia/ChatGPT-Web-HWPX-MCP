@@ -56,11 +56,13 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt -r requirements-capture.txt -r requirements-dev.txt
       - name: Compile P3.42 evidence surface
-        run: python -m compileall -q p342_mutation_footprint.py p342_corpus_evidence.py test_p342_mutation_footprint.py test_p342_corpus_evidence.py scripts/p342_release_smoke.py
+        run: python -m compileall -q p342_mutation_footprint.py p342_corpus_evidence.py p342_mcp.py test_p342_mutation_footprint.py test_p342_corpus_evidence.py scripts/p342_release_smoke.py scripts/p342_public_corpus_ledger.py server_p2.py test_client.py
       - name: P3.42 focused regression
         run: python -m pytest -q test_p342_mutation_footprint.py test_p342_corpus_evidence.py test_p335_registry_atlas.py test_p340_feedback_loop.py
       - name: P3.42 release smoke
         run: python scripts/p342_release_smoke.py
+      - name: Prospective public-HWPX denominator ledger
+        run: python scripts/p342_public_corpus_ledger.py --out /tmp/p342-public-corpus-ledger.json
 
   rust-exact-grade:
     runs-on: ubuntu-latest

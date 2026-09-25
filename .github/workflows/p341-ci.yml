@@ -16,7 +16,7 @@ on:
       - "test_p341_page_composition.py"
       - "benchmarks/p341_*"
       - "rust/p341_page_geometry/**"
-      - "contracts/p341_page_composition.ts"
+      - "contracts/p341_page_composition.ts"\n      - "scripts/p341_typescript_parity.cjs"\n      - "docs/p341-cross-mcp-architecture-harvest.md"\n      - "scripts/p341_typescript_parity.cjs"\n      - "docs/p341-cross-mcp-architecture-harvest.md"
       - "server_p2.py"
       - "test_client.py"
       - "scripts/p341_*"
@@ -97,6 +97,12 @@ jobs:
           node-version: "22"
       - name: TypeScript contract check
         run: npx --yes -p typescript@5.9.2 tsc --noEmit --strict --target ES2022 contracts/p341_page_composition.ts
+      - name: TypeScript runtime golden-fixture parity
+        run: |
+          rm -rf .tmp/p341-ts
+          mkdir -p .tmp/p341-ts
+          npx --yes -p typescript@5.9.2 tsc --strict --target ES2022 --module commonjs --outDir .tmp/p341-ts contracts/p341_page_composition.ts
+          node scripts/p341_typescript_parity.cjs
 
   windows-capture-bootstrap:
     runs-on: windows-latest

@@ -105,6 +105,12 @@ Source: https://github.com/paradyno/pdf-mcp-server
 
 **HWPX transfer:** keep heavy geometry/render analysis behind a deterministic native kernel when measurements justify it, while the MCP/product layer remains language-neutral. Rust expansion must be benchmark-driven rather than language-count driven.
 
+## airmang ecosystem deep-dive
+
+A repository-wide review of all 15 public `airmang` repositories is recorded separately in [p341-airmang-ecosystem-harvest.md](p341-airmang-ecosystem-harvest.md). It covers the core/automation/plugin HWPX stack, DIVE supervision/evidence gates, composable skills and harness validation, and the smaller educational/legacy repositories including explicit non-adoptions and security anti-patterns.
+
+The immediate transfers are criterion-bound human evidence, skill/reference structural validation, and a clear successor placement for mutation-footprint and probe/coverage-ledger work. No wholesale source copy is authorized by the harvest.
+
 ## P3.41 adoption decisions
 
 1. **Adopt now — cross-language semantic parity.** Python remains the research/reference layer; Rust is the deterministic geometry kernel; TypeScript must execute the same golden-fixture decisions at runtime, not merely compile interfaces; PowerShell owns Windows/Hancom world-contact.

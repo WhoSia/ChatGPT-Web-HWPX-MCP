@@ -112,6 +112,8 @@ jobs:
           . .\\scripts\\common\\HancomExport.ps1
           if (-not (Get-Command Find-HwpxHancomExe -ErrorAction SilentlyContinue)) { exit 1 }
           if (-not (Get-Command Export-HwpxHancomPdfWithRetry -ErrorAction SilentlyContinue)) { exit 1 }
+          $explicit = Find-HwpxHancomExe -Explicit $PSHOME\\powershell.exe
+          if (-not (Test-Path -LiteralPath $explicit -PathType Leaf)) { exit 1 }
 
   authorbench-a3:
     needs: [python-reference, rust-exact-kernel, typescript-contract, windows-capture-bootstrap]

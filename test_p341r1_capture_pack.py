@@ -21,7 +21,7 @@ def _sha(data: bytes) -> str:
 
 def test_frozen_a3_identity_is_explicit_and_cross_archetype():
     assert FROZEN_BENCHMARK_COMMIT == "7872a8a5cf063c547f65ccd823d1063a51c17ee1"
-    assert FROZEN_MATERIALIZATION_METHOD == "GIT_ARCHIVE_FROZEN_COMMIT_PACKAGE_CONTENT_EQUIVALENCE"
+    assert FROZEN_MATERIALIZATION_METHOD == "REPOSITORY_SEALED_WORKFLOW_ARTIFACT_BYTES_EXACT_SHA256"\n    assert len(FROZEN_ARTIFACT_SHARDS) == 4\n    assert all(path.startswith("benchmarks/frozen/p341/") for path in FROZEN_ARTIFACT_SHARDS)
     assert [x["archetype"] for x in FIXTURES] == [
         "RESEARCH_BRIEF",
         "INSTITUTIONAL_REPORT",

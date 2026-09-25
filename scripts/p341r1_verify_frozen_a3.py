@@ -35,7 +35,9 @@ def main() -> int:
             rows.append({
                 "fixture_id": fixture["fixture_id"],
                 "archetype": fixture["archetype"],
-                "sha256": actual,
+                "replay_sha256": actual,
+                "frozen_artifact_sha256": fixture.get("frozen_artifact_sha256"),
+                "content_sha256": fixture.get("content_sha256"),
             })
 
     print(json.dumps({

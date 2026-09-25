@@ -1,0 +1,117 @@
+name: P3.42 mutation-footprint and corpus-evidence validation
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "p342_*"
+      - "test_p342_*"
+      - "benchmarks/p342_*"
+      - "contracts/p342_*"
+      - "rust/p342_footprint_grade/**"
+      - "scripts/p342_*"
+      - "p340_feedback_loop.py"
+      - "p335_*.py"
+      - "server_p2.py"
+      - "test_client.py"
+      - "skills/hwpx-authoring/**"
+      - "docs/p342-*"
+      - "corpus/p342-*"
+      - "P342_TEST_LEDGER.md"
+      - "scripts/verify_production_boundary.py"
+      - ".github/workflows/p342-ci.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "p342_*"
+      - "test_p342_*"
+      - "benchmarks/p342_*"
+      - "contracts/p342_*"
+      - "rust/p342_footprint_grade/**"
+      - "scripts/p342_*"
+      - "p340_feedback_loop.py"
+      - "p335_*.py"
+      - "server_p2.py"
+      - "test_client.py"
+      - "skills/hwpx-authoring/**"
+      - "docs/p342-*"
+      - "corpus/p342-*"
+      - "P342_TEST_LEDGER.md"
+      - "scripts/verify_production_boundary.py"
+      - ".github/workflows/p342-ci.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  python-evidence:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install dependencies
+        run: pip install -r requirements.txt -r requirements-capture.txt -r requirements-dev.txt
+      - name: Compile P3.42 evidence surface
+        run: python -m compileall -q p342_mutation_footprint.py p342_corpus_evidence.py test_p342_mutation_footprint.py test_p342_corpus_evidence.py scripts/p342_release_smoke.py
+      - name: P3.42 focused regression
+        run: python -m pytest -q test_p342_mutation_footprint.py test_p342_corpus_evidence.py test_p335_registry_atlas.py test_p340_feedback_loop.py
+      - name: P3.42 release smoke
+        run: python scripts/p342_release_smoke.py
+
+  rust-exact-grade:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Rust preservation-grade golden parity
+        run: cargo test --manifest-path rust/p342_footprint_grade/Cargo.toml --locked
+
+  typescript-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: TypeScript evidence contract check
+        run: npx --yes -p typescript@5.9.2 tsc --noEmit --strict --target ES2022 contracts/p342_evidence.ts
+      - name: TypeScript preservation-grade parity
+        run: |
+          rm -rf .tmp/p342-ts
+          mkdir -p .tmp/p342-ts
+          npx --yes -p typescript@5.9.2 tsc --strict --target ES2022 --module commonjs --outDir .tmp/p342-ts contracts/p342_evidence.ts
+          node scripts/p342_typescript_parity.cjs
+
+  inherited-hancom-boundary:
+    runs-on: windows-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - name: Parse shared native-world-contact bridge
+        shell: powershell
+        run: |
+          $tokens = $null
+          $errors = $null
+          [void][System.Management.Automation.Language.Parser]::ParseFile(
+            (Resolve-Path ".\scripts\common\HancomExport.ps1").Path,
+            [ref]$tokens,
+            [ref]$errors
+          )
+          if ($errors.Count -gt 0) {
+            $errors | ForEach-Object { Write-Error $_.Message }
+            exit 1
+          }
+          . .\scripts\common\HancomExport.ps1
+          if (-not (Get-Command Find-HwpxHancomExe -ErrorAction SilentlyContinue)) { exit 1 }
+
+  evidence-gate:
+    needs: [python-evidence, rust-exact-grade, typescript-contract, inherited-hancom-boundary]
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "P3.42 cross-language evidence gate PASS"

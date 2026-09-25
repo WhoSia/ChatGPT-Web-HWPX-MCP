@@ -515,12 +515,22 @@ def apply_nested_paragraph_alignment_atomic(
                                         paragraph.remove(child)
                             payload = ElementTree.tostring(root, encoding="utf-8", xml_declaration=True)
                         target_zip.writestr(info, payload)
-                os.replace(out_path, candidate)
-            finally:
+            except Exception:
                 try:
                     out_path.unlink()
                 except FileNotFoundError:
                     pass
+                raise
+
+        # On Windows the source archive keeps ``candidate`` locked until its
+        # context exits, so replacement must happen after the ``with`` block.
+        try:
+            os.replace(out_path, candidate)
+        finally:
+            try:
+                out_path.unlink()
+            except FileNotFoundError:
+                pass
 
         after_doc = build_document_map(candidate)
         after_fmt = build_formatting_map(candidate)

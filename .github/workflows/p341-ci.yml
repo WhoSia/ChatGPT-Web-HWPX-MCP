@@ -7,6 +7,8 @@ on:
       - "p341_page_composition.py"
       - "p341r1_capture_pack.py"
       - "test_p341r1_capture_pack.py"
+      - "p341r1_adjudicate.py"
+      - "test_p341r1_adjudicate.py"
       - "p321_document_composer.py"
       - "test_p321_document_composer.py"
       - "p339_design_intelligence.py"
@@ -34,6 +36,8 @@ on:
       - "p341_page_composition.py"
       - "p341r1_capture_pack.py"
       - "test_p341r1_capture_pack.py"
+      - "p341r1_adjudicate.py"
+      - "test_p341r1_adjudicate.py"
       - "p321_document_composer.py"
       - "test_p321_document_composer.py"
       - "p339_design_intelligence.py"
@@ -74,7 +78,7 @@ jobs:
       - name: Install Python dependencies
         run: pip install -r requirements.txt -r requirements-capture.txt -r requirements-dev.txt
       - name: Compile P3.41 product surface
-        run: python -m compileall -q p321_document_composer.py p339_design_intelligence.py p340_feedback_loop.py p341_page_composition.py p341r1_capture_pack.py test_p321_document_composer.py test_p339_design_intelligence.py test_p340_feedback_loop.py test_p341_page_composition.py test_p341r1_capture_pack.py server_p2.py test_client.py benchmarks/authorbench_a3.py benchmarks/authorbench_a3_p341_evaluation.py scripts/p341_release_smoke.py scripts/p341r1_materialize_capture_pack.py scripts/p341r1_capture_pdf.py scripts/p341r1_finalize_capture_pack.py scripts/p341r1_verify_frozen_a3.py
+        run: python -m compileall -q p321_document_composer.py p339_design_intelligence.py p340_feedback_loop.py p341_page_composition.py p341r1_capture_pack.py p341r1_adjudicate.py test_p321_document_composer.py test_p339_design_intelligence.py test_p340_feedback_loop.py test_p341_page_composition.py test_p341r1_capture_pack.py test_p341r1_adjudicate.py test_p341r1_adjudicate.py server_p2.py test_client.py benchmarks/authorbench_a3.py benchmarks/authorbench_a3_p341_evaluation.py scripts/p341_release_smoke.py scripts/p341r1_materialize_capture_pack.py scripts/p341r1_capture_pdf.py scripts/p341r1_finalize_capture_pack.py scripts/p341r1_verify_frozen_a3.py scripts/p341r1_adjudicate_capture.py
       - name: Python P3.41 regression
         run: python -m pytest -q test_p339_design_intelligence.py test_p340_feedback_loop.py test_p341_page_composition.py test_p341r1_capture_pack.py
       - name: Frozen A3 package-content materialization

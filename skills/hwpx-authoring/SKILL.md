@@ -18,9 +18,10 @@ Produce an editable native HWPX that is not merely valid, but readable, professi
 5. Call **diagnose_document_design** before treating a structurally valid file as visually successful.
 6. When page capture exists, call **diagnose_rendered_document_design** so validated page geometry is layered over the static diagnosis. Keep non-Hancom render evidence explicitly below Hancom-native world contact.
 7. Call **plan_executable_document_design_repairs**. Prefer native, locator-bound repairs for table reading geometry, padding, header contrast, section separators, and safe column-width rebalancing.
-8. Apply the bounded plan with **apply_document_design_repairs**. Do not reinterpret AGENT_PLAN actions as automatic mutation authority.
-9. Re-render when native render authority is available, diagnose again, and use **compare_document_design_diagnostics** for before/after evidence. A static improvement is not a native-render improvement claim.
-10. Deliver only after native validity and the relevant design gates are satisfied or the user accepts remaining warnings.
+8. Apply the bounded plan with **apply_document_design_repairs**. P3.42 requires a measured mutation-footprint certificate and fail-closed preservation-grade enforcement before the atomic commit. Do not reinterpret AGENT_PLAN actions as automatic mutation authority.
+9. Inspect the returned `mutation_footprint`; for bounded design repair require `TARGETED_PARTS_ONLY` unless the contract explicitly says otherwise.
+10. Re-render when native render authority is available, diagnose again, and use **compare_document_design_diagnostics** for before/after evidence. A package-preservation PASS is not a native-render improvement claim.
+11. Deliver only after native validity and the relevant design gates are satisfied or the user accepts remaining warnings.
 
 ## Design constitution
 
@@ -45,7 +46,8 @@ For normal professional authoring, prefer:
 5. diagnose_rendered_document_design when page evidence exists
 6. plan_executable_document_design_repairs
 7. apply_document_design_repairs
-8. compare_document_design_diagnostics after re-render
+8. get_mutation_footprint_contract / certify_document_revision_mutation_footprint when auditing durable revisions
+9. compare_document_design_diagnostics after re-render
 
 Use apply_formatting/apply_table_edits/apply_advanced_table_edits only as repair escape hatches or when the user explicitly requests low-level control.
 
@@ -68,6 +70,16 @@ A static preview PASS means native/layout mechanics look safe. It does **not** m
 - Use **plan_render_guided_page_layout** only for reviewable AGENT_PLAN actions; raster evidence alone does not authorize page-break or narrative mutation.
 - After re-render, use **compare_page_composition_diagnostics** and preserve the evidence authority of both sides.
 - For locator limits, repeated furniture, cross-archetype signals, human-review criteria, and polyglot semantics, follow [page composition](references/page-composition.md) and [evidence authority](references/evidence-authority.md).
+
+
+## P3.42 mutation/corpus evidence boundary
+
+- Treat **get_mutation_footprint_contract** as the package-preservation constitution. A generic success flag is weaker than a measured part footprint.
+- **apply_document_design_repairs** now fails before commit when observed package-part changes escape its locator-derived expected scope.
+- Use **certify_document_revision_mutation_footprint** only when an expected scope is independently known; do not invent the scope after seeing the diff.
+- Use **get_corpus_evidence_contract** → **query_corpus_coverage_ledger** when making corpus-support claims. `WITHHELD` and `NOT_APPLICABLE` remain in the denominator.
+- Use **query_evidence_grounded_design_generalizations** only for descriptive cross-document candidates. Frequency is not design authority and structural evidence is not visual evidence.
+- Follow [mutation footprint](references/mutation-footprint.md), [corpus evidence](references/corpus-evidence.md), and [evidence authority](references/evidence-authority.md) for claim boundaries.
 
 
 ## Cross-MCP and polyglot implementation rule

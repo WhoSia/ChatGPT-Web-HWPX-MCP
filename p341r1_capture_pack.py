@@ -25,8 +25,9 @@ FROZEN_BENCHMARK_COMMIT = "7872a8a5cf063c547f65ccd823d1063a51c17ee1"
 FROZEN_WORKFLOW_RUN = 36186044354
 FROZEN_FIRST_PASS_ARTIFACT_ID = 10885019734
 FROZEN_ADJUDICATION_ARTIFACT_ID = 10885129628
-FROZEN_MATERIALIZATION_METHOD = "REPOSITORY_SEALED_WORKFLOW_ARTIFACT_BYTES_EXACT_SHA256"
-FROZEN_ARTIFACT_CONTAINER_SHA256 = "c3f737403a914fd5c3da4ff33ca8ef2d8d2378818fa566434d548cd7680542b9"
+FROZEN_MATERIALIZATION_METHOD = "REPOSITORY_SEALED_RECONTAINER_EXACT_MEMBER_SHA256"
+FROZEN_ORIGINAL_ARTIFACT_CONTAINER_SHA256 = "c3f737403a914fd5c3da4ff33ca8ef2d8d2378818fa566434d548cd7680542b9"
+FROZEN_REPOSITORY_CONTAINER_SHA256 = "607ebe5ad23b2997333dab33965aeb016c4980e8f7af223148f9aaee52539b9c"
 FROZEN_ARTIFACT_SHARDS = tuple(
     f"benchmarks/frozen/p341/authorbench-a3-p341-first-pass.zip.b64.{index:02d}"
     for index in range(5)
@@ -95,10 +96,10 @@ def _read_frozen_artifact_bytes(repo: Path) -> bytes:
     except Exception as exc:
         raise RuntimeError(f"sealed frozen A3 artifact base64 is invalid: {exc}") from exc
     actual = hashlib.sha256(payload).hexdigest()
-    if actual != FROZEN_ARTIFACT_CONTAINER_SHA256:
+    if actual != FROZEN_REPOSITORY_CONTAINER_SHA256:
         raise RuntimeError(
-            "sealed frozen A3 workflow artifact SHA-256 mismatch: "
-            f"expected {FROZEN_ARTIFACT_CONTAINER_SHA256}, got {actual}"
+            "sealed frozen A3 repository recontainer SHA-256 mismatch: "
+            f"expected {FROZEN_REPOSITORY_CONTAINER_SHA256}, got {actual}"
         )
     if not payload.startswith(b"PK"):
         raise RuntimeError("sealed frozen A3 workflow artifact is not a ZIP archive")
@@ -204,7 +205,9 @@ def materialize(repo: Path, pack: Path) -> dict[str, Any]:
         "adjudication_artifact_id": FROZEN_ADJUDICATION_ARTIFACT_ID,
         "first_pass_static_adjudication": "PASS",
         "authority": "FRESH_FIRST_PASS_STATIC_AND_NATIVE_STRUCTURE_BEFORE_A3_RENDER_CONTACT",
-        "artifact_container_sha256": artifact_container_sha256,
+        "original_workflow_artifact_container_sha256": FROZEN_ORIGINAL_ARTIFACT_CONTAINER_SHA256,
+        "repository_recontainer_sha256": artifact_container_sha256,
+        "container_relation": "OUTER_ZIP_RECONTAINERED_MEMBER_BYTES_MUST_MATCH_EXACT_FIXTURE_SHA256",
         "materialization_method": FROZEN_MATERIALIZATION_METHOD,
     }
     write_json(evidence_dir / "frozen-authority.json", authority_receipt)
@@ -230,9 +233,10 @@ def materialize(repo: Path, pack: Path) -> dict[str, Any]:
             "evaluation_verdict": "PASS",
             "first_pass_artifact_id": FROZEN_FIRST_PASS_ARTIFACT_ID,
             "adjudication_artifact_id": FROZEN_ADJUDICATION_ARTIFACT_ID,
-            "artifact_container_sha256": artifact_container_sha256,
+            "original_workflow_artifact_container_sha256": FROZEN_ORIGINAL_ARTIFACT_CONTAINER_SHA256,
+            "repository_recontainer_sha256": artifact_container_sha256,
             "artifact_member_count": len(frozen_members),
-            "original_artifact_hash_lock": "EXACT_SHA256",
+            "original_artifact_hash_lock": "EXACT_HWPX_MEMBER_SHA256",
             "capture_replay_gate": "EXACT_ORIGINAL_HWPX_SHA256_AND_PACKAGE_CONTENT_SHA256",
             "materialization_method": FROZEN_MATERIALIZATION_METHOD,
             "freshness_role": "ORIGINAL_FIRST_COMPLETED_A3_ARTIFACT_BYTES",
@@ -415,7 +419,8 @@ def validate_complete(pack: Path) -> dict[str, Any]:
 
 
 __all__ = [
-    "FROZEN_ARTIFACT_CONTAINER_SHA256",
+    "FROZEN_ORIGINAL_ARTIFACT_CONTAINER_SHA256",
+    "FROZEN_REPOSITORY_CONTAINER_SHA256",
     "FROZEN_ARTIFACT_SHARDS",
     "FROZEN_BENCHMARK_COMMIT",
     "FROZEN_MATERIALIZATION_METHOD",

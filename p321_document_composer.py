@@ -76,10 +76,15 @@ PRESETS: dict[str, dict[str, Any]] = {
         }],
         "title_format": {
             "run": {"bold": True, "size": 18},
-            "paragraph": {"alignment": "CENTER", "spacing_after_pt": 12},
+            "paragraph": {"alignment": "CENTER", "spacing_after_pt": 12, "keep_with_next": True},
+        },
+        "heading_format": {
+            "1": {"run": {"bold": True, "size": 14}, "paragraph": {"spacing_before_pt": 12, "spacing_after_pt": 6, "keep_with_next": True}},
+            "2": {"run": {"bold": True, "size": 12}, "paragraph": {"spacing_before_pt": 9, "spacing_after_pt": 4, "keep_with_next": True}},
         },
         "body_format": {
-            "paragraph": {"line_spacing_percent": 150},
+            "run": {"size": 10},
+            "paragraph": {"line_spacing_percent": 150, "spacing_after_pt": 3},
         },
     },
     "institutional-report": {

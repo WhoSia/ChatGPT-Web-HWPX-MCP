@@ -408,13 +408,19 @@ def diagnose_document_design(
                     "margin": margin,
                 })
         text_lengths = [len(str(cell.get("text") or "")) for cell in cells]
-        if text_lengths and (statistics.mean(text_lengths) >= 24 or max(text_lengths) >= 80):
+        rows = int(table.get("rows") or 0)
+        cols = int(table.get("cols") or 0)
+        # A one-cell native container is commonly used as a semantic callout or
+        # layout surface. Density of its prose is not analytical-table density.
+        # Keep padding/alignment diagnostics active, but reserve TABLE_DENSITY_HIGH
+        # for genuinely multi-cell tables.
+        if rows * cols > 1 and text_lengths and (statistics.mean(text_lengths) >= 24 or max(text_lengths) >= 80):
             dense_tables.append({
                 "table": table.get("locator"),
                 "mean_cell_characters": round(statistics.mean(text_lengths), 2),
                 "max_cell_characters": max(text_lengths),
-                "rows": table.get("rows"),
-                "cols": table.get("cols"),
+                "rows": rows,
+                "cols": cols,
             })
         header_cells = [c for c in cells if str(c.get("header") or "0") == "1"]
         body_cells = [c for c in cells if str(c.get("header") or "0") != "1"]

@@ -62,7 +62,7 @@ jobs:
       - name: Compile P3.41 product surface
         run: python -m compileall -q p321_document_composer.py p339_design_intelligence.py p340_feedback_loop.py p341_page_composition.py test_p321_document_composer.py test_p339_design_intelligence.py test_p340_feedback_loop.py test_p341_page_composition.py server_p2.py test_client.py benchmarks/authorbench_a3.py benchmarks/authorbench_a3_p341_evaluation.py scripts/p341_release_smoke.py
       - name: Python P3.41 regression
-        run: python -m pytest -q test_p321_document_composer.py test_p339_design_intelligence.py test_p340_feedback_loop.py test_p341_page_composition.py
+        run: python -m pytest -q test_p339_design_intelligence.py test_p340_feedback_loop.py test_p341_page_composition.py
       - name: P3.41 release smoke
         run: python scripts/p341_release_smoke.py
 

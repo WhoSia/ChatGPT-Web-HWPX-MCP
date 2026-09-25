@@ -6,6 +6,10 @@ on:
     paths:
       - "benchmarks/authorbench_a2.py"
       - "benchmarks/authorbench_a2_p340_evaluation.py"
+      - "p340r1_capture_pack.py"
+      - "test_p340r1_capture_pack.py"
+      - "scripts/p340r1_*.py"
+      - "scripts/p340r1_*.ps1"
       - ".github/workflows/authorbench-a2.yml"
       - "p340_feedback_loop.py"
       - "p339_design_intelligence.py"
@@ -36,6 +40,10 @@ jobs:
         run: python benchmarks/authorbench_a2.py
       - name: Evaluate A1 vs fresh A2 and controlled repair probe
         run: python benchmarks/authorbench_a2_p340_evaluation.py
+      - name: Validate P3.40-R1 capture-pack contract
+        run: python -m pytest -q test_p340r1_capture_pack.py
+      - name: Smoke-materialize the P3.40-R1 capture-ready pack
+        run: python scripts/p340r1_materialize_capture_pack.py --out artifacts/p340r1-ci-pack
       - name: Verify HWPX packages
         run: |
           unzip -t artifacts/authorbench-a2-research-data-infrastructure.hwpx
@@ -56,5 +64,7 @@ jobs:
             artifacts/authorbench-a2-repair-probe-comparison.json
             artifacts/authorbench-a2-hancom-capture-manifest.json
             artifacts/authorbench-a2-human-review-packet.json
+            artifacts/p340r1-ci-pack/capture-ready-manifest.json
+            artifacts/p340r1-ci-pack/fixtures/*/input.hwpx
           if-no-files-found: error
           retention-days: 30

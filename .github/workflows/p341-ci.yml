@@ -23,6 +23,8 @@ on:
       - "benchmarks/authorbench_a3*"
       - "skills/hwpx-authoring/SKILL.md"
       - "P341_TEST_LEDGER.md"
+      - "Dockerfile"
+      - "scripts/verify_production_boundary.py"
       - ".github/workflows/p341-ci.yml"
   pull_request:
     branches: [main]
@@ -46,6 +48,8 @@ on:
       - "benchmarks/authorbench_a3*"
       - "skills/hwpx-authoring/SKILL.md"
       - "P341_TEST_LEDGER.md"
+      - "Dockerfile"
+      - "scripts/verify_production_boundary.py"
       - ".github/workflows/p341-ci.yml"
 
 permissions:

@@ -7,7 +7,13 @@ from pathlib import Path
 
 import pytest
 
+from p2_document import build_document_map
+from p22_formatting import build_formatting_map
+from p28_tables import build_table_map
+from p321_document_composer import compose_document_plan
+from p340_feedback_loop import apply_nested_paragraph_alignment_atomic
 from p342_mutation_footprint import (
+    apply_document_design_repairs_with_footprint_atomic,
     build_mutation_footprint,
     classify_footprint_grade,
     enforce_preservation_grade,
@@ -132,6 +138,76 @@ def test_expected_scope_is_exact_path_only() -> None:
         normalize_expected_scope({"changed_parts": ["Contents/*.xml"]})
     with pytest.raises(ValueError):
         normalize_expected_scope({"changed_parts": ["../header.xml"]})
+
+
+def test_real_nested_table_repair_certifies_exact_target_parts() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        path = Path(tmp) / "real-repair.hwpx"
+        compose_document_plan(
+            path,
+            {
+                "preset": "polished-report",
+                "blocks": [
+                    {"id": "title", "type": "title", "text": "P3.42 footprint integration"},
+                    {
+                        "id": "table",
+                        "type": "table",
+                        "rows": 2,
+                        "cols": 2,
+                        "first_row_header": True,
+                        "cells": [
+                            ["항목", "설명"],
+                            ["A", "장문 표 문단의 정렬을 국소적으로 수정합니다."],
+                        ],
+                    },
+                ],
+            },
+        )
+        doc = build_document_map(path)
+        table = build_table_map(path)["tables"][0]
+        nested = next(
+            item["locator"]
+            for item in doc["paragraphs"]
+            if "장문 표 문단" in item["text"] and item["body_global_index"] is None
+        )
+        apply_nested_paragraph_alignment_atomic(path, [nested], alignment="CENTER")
+        before_semantic = build_document_map(path)["semantic_sha256"]
+        plan = {
+            "repair_plan_sha256": "9" * 64,
+            "actions": [
+                {
+                    "action": "LEFT_ALIGN_LONG_TABLE_TEXT",
+                    "status": "EXECUTABLE",
+                    "reason": "TABLE_LONG_TEXT_CENTERED",
+                    "operation": {
+                        "op": "align_nested_table_paragraphs",
+                        "targets": [nested],
+                        "alignment": "LEFT",
+                    },
+                }
+            ],
+        }
+        receipt = apply_document_design_repairs_with_footprint_atomic(
+            path,
+            plan,
+            expected_revision=1,
+            current_revision=1,
+        )
+        footprint = receipt["mutation_footprint"]
+        assert footprint["preservation"]["actual_grade"] == "TARGETED_PARTS_ONLY"
+        assert footprint["divergence"]["count"] == 0
+        assert footprint["observed"]["changed_parts"] == sorted(
+            ["Contents/header.xml", table["section_path"]]
+        )
+        assert build_document_map(path)["semantic_sha256"] == before_semantic
+        after = next(
+            item
+            for item in build_formatting_map(path)["paragraphs"]
+            if item["locator"] == nested
+        )
+        assert str(
+            (after["paragraph_property"]["alignment"] or {}).get("horizontal")
+        ).upper() == "LEFT"
 
 
 @pytest.mark.parametrize(

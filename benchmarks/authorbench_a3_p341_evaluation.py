@@ -60,7 +60,13 @@ def main() -> int:
             "case_count": len(cases),
             "archetypes": [x["archetype"] for x in cases],
             "checks": checks,
-            "authority": "FRESH_FIRST_PASS_STATIC_AND_NATIVE_STRUCTURE_BEFORE_A3_RENDER_CONTACT",
+            "authority": "CURRENT_GENERATOR_CROSS_ARCHETYPE_REGRESSION_REPLAY",
+            "frozen_fresh_authority": {
+                "commit": "7872a8a5cf063c547f65ccd823d1063a51c17ee1",
+                "workflow_run": 36186044354,
+                "first_pass_artifact_id": 10885019734,
+                "authority": "FRESH_FIRST_PASS_STATIC_AND_NATIVE_STRUCTURE_BEFORE_A3_RENDER_CONTACT",
+            },
         },
         "polyglot_kernel": {
             "python_reference": "CI_REQUIRED",
@@ -70,7 +76,10 @@ def main() -> int:
         },
         "render_world_contact": "PENDING_EXTERNAL_HANCOM_WORLD_CONTACT",
         "human_review": "PENDING_AFTER_NATIVE_RENDER",
-        "non_claim": "A3 static/structural pass is not yet page-composition native-render authority.",
+        "non_claim": (
+            "This evaluation is a current-generator regression replay. It does not replace the frozen "
+            "fresh A3 authority and is not yet page-composition native-render authority."
+        ),
     }
     OUT.write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     print(json.dumps(result, ensure_ascii=False))

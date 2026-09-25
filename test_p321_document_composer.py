@@ -232,6 +232,13 @@ class P321DocumentComposerTests(unittest.TestCase):
                 next(e for e in heading_p if etree.QName(e).localname == "run").get("charPrIDRef"),
                 next(e for e in body_p if etree.QName(e).localname == "run").get("charPrIDRef"),
             )
+            table_anchor = next(
+                p for p in [e for e in section.iter() if etree.QName(e).localname == "p"]
+                if any(etree.QName(e).localname == "tbl" for e in p.iter())
+            )
+            table_prop = para_props[table_anchor.get("paraPrIDRef")]
+            table_meta = next(e for e in table_prop.iter() if etree.QName(e).localname == "heading")
+            self.assertEqual(table_meta.get("type"), "NONE")
 
 
 if __name__ == "__main__":

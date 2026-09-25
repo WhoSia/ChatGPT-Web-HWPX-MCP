@@ -1,0 +1,10 @@
+case	package_identical	expected_declared	unexpected_changed	unexpected_added	unexpected_removed	missing_required	record_drift	require_record_identity	expected_grade
+noop	1	0	0	0	0	0	0	0	PACKAGE_IDENTICAL
+targeted	0	1	0	0	0	0	0	0	TARGETED_PARTS_ONLY
+undeclared	0	0	0	0	0	0	0	0	PACKAGE_VALID_ONLY
+unexpected-change	0	1	1	0	0	0	0	0	PACKAGE_VALID_ONLY
+unexpected-add	0	1	0	1	0	0	0	0	PACKAGE_VALID_ONLY
+unexpected-remove	0	1	0	0	1	0	0	0	PACKAGE_VALID_ONLY
+missing-required	0	1	0	0	0	1	0	0	PACKAGE_VALID_ONLY
+record-drift-observed	0	1	0	0	0	0	3	0	TARGETED_PARTS_ONLY
+record-drift-required	0	1	0	0	0	0	3	1	PACKAGE_VALID_ONLY

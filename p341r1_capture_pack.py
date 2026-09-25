@@ -5,6 +5,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import zipfile
 from pathlib import Path
 from typing import Any
 
@@ -21,7 +22,7 @@ from p341_page_composition import diagnose_page_composition
 SCHEMA = "authorbench/p341r1-hancom-capture-pack/v1"
 PHASE = "P3.41-R1"
 FROZEN_BENCHMARK_COMMIT = "7872a8a5cf063c547f65ccd823d1063a51c17ee1"
-FROZEN_MATERIALIZATION_METHOD = "GIT_ARCHIVE_FROZEN_COMMIT_REGENERATION_EXACT_SHA256"
+FROZEN_MATERIALIZATION_METHOD = "GIT_ARCHIVE_FROZEN_COMMIT_PACKAGE_CONTENT_EQUIVALENCE"
 
 FIXTURES = (
     {
@@ -29,18 +30,21 @@ FIXTURES = (
         "filename": "authorbench-a3-research-brief.hwpx",
         "archetype": "RESEARCH_BRIEF",
         "sha256": "de7ae36c3f6d1602f1b8f6f846349ac8737b5c2e33b918b2d96a4ad7b9974555",
+        "content_sha256": "cdd6584584fa8201bc780d0ce91bcd257e12155bdeb37391063d3a3cc7a53e87",
     },
     {
         "fixture_id": "AUTHORBENCH_A3_INSTITUTIONAL_REPORT",
         "filename": "authorbench-a3-institutional-report.hwpx",
         "archetype": "INSTITUTIONAL_REPORT",
         "sha256": "bc14b5a8b13bf473c2ad0b484d3b8b7a16accb8b8b8359853fdb221dddd5bcff",
+        "content_sha256": "7778d251642cfc3e34f2491b038668f653168f599952ecb6d772bdf8bd373dcf",
     },
     {
         "fixture_id": "AUTHORBENCH_A3_ACADEMIC_REPORT",
         "filename": "authorbench-a3-academic-report.hwpx",
         "archetype": "ACADEMIC_REPORT",
         "sha256": "32b42461d4645b8db417b06b9db0518539900afc39e39ea39f2f7c501e023163",
+        "content_sha256": "f027816f7666d5b553a80857ba5123ea33b91ba5585f1d4c94df0fb29da2353b",
     },
 )
 
@@ -62,6 +66,23 @@ RUNNER_INPUTS = (
     "scripts/p341r1_run_authorbench_hancom_capture.ps1",
     "scripts/common/HancomExport.ps1",
 )
+
+
+def hwpx_content_sha256(path: Path) -> str:
+    """Hash HWPX package content while ignoring ZIP-container metadata such as timestamps."""
+    import hashlib
+
+    with zipfile.ZipFile(path, "r") as archive:
+        rows = []
+        for name in sorted(archive.namelist()):
+            payload = archive.read(name)
+            rows.append({
+                "name": name,
+                "sha256": hashlib.sha256(payload).hexdigest(),
+                "size": len(payload),
+            })
+    encoded = json.dumps(rows, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
 
 
 def _ensure_frozen_commit(repo: Path) -> None:
@@ -156,12 +177,15 @@ def materialize(repo: Path, pack: Path) -> dict[str, Any]:
             if not source.is_file():
                 raise RuntimeError(f"required frozen A3 fixture missing: {source}")
             actual = sha256_file(source)
-            expected = str(fixture["sha256"])
-            if actual != expected:
+            frozen_artifact_sha256 = str(fixture["sha256"])
+            actual_content_sha256 = hwpx_content_sha256(source)
+            expected_content_sha256 = str(fixture["content_sha256"])
+            if actual_content_sha256 != expected_content_sha256:
                 raise RuntimeError(
-                    f"Frozen A3 reproduction drift for {fixture['fixture_id']}: "
-                    f"expected {expected}, got {actual}. "
-                    f"Authority commit is {FROZEN_BENCHMARK_COMMIT}."
+                    f"Frozen A3 package-content drift for {fixture['fixture_id']}: "
+                    f"expected {expected_content_sha256}, got {actual_content_sha256}. "
+                    f"Original artifact SHA-256 is {frozen_artifact_sha256}; "
+                    f"authority commit is {FROZEN_BENCHMARK_COMMIT}."
                 )
             fixture_dir = pack / "fixtures" / str(fixture["fixture_id"])
             fixture_dir.mkdir(parents=True)
@@ -169,10 +193,15 @@ def materialize(repo: Path, pack: Path) -> dict[str, Any]:
             shutil.copy2(source, target)
             fixture_entries.append(
                 {
-                    **fixture,
+                    "fixture_id": fixture["fixture_id"],
+                    "filename": fixture["filename"],
+                    "archetype": fixture["archetype"],
                     "path": target.relative_to(pack).as_posix(),
                     "size": target.stat().st_size,
-                    "role": "FROZEN_FRESH_CROSS_ARCHETYPE_FIRST_PASS",
+                    "sha256": actual,
+                    "content_sha256": actual_content_sha256,
+                    "frozen_artifact_sha256": frozen_artifact_sha256,
+                    "role": "FROZEN_FRESH_CONTENT_EQUIVALENT_REPLAY",
                 }
             )
 
@@ -203,9 +232,10 @@ def materialize(repo: Path, pack: Path) -> dict[str, Any]:
             "evaluation_verdict": verdict,
             "first_pass_artifact_id": 10885019734,
             "adjudication_artifact_id": 10885129628,
-            "hash_lock": "EXACT_SHA256_REQUIRED",
+            "original_artifact_hash_lock": "EXACT_SHA256_RETAINED_AS_CUSTODY",
+            "capture_replay_gate": "EXACT_UNCOMPRESSED_PACKAGE_CONTENT_SHA256",
             "materialization_method": FROZEN_MATERIALIZATION_METHOD,
-            "freshness_role": "ORIGINAL_FIRST_COMPLETED_A3_NOT_CURRENT_GENERATOR_REPLAY",
+            "freshness_role": "ORIGINAL_FIRST_COMPLETED_A3_ARTIFACT_CUSTODY_WITH_CONTENT_EQUIVALENT_CAPTURE_REPLAY",
         },
         "materialized_at_utc": utc_now(),
         "fixtures": fixture_entries,
@@ -311,6 +341,8 @@ def capture_pdf(
         "source_commit": manifest["source"]["runner_commit"],
         "benchmark_frozen_commit": manifest["benchmark_authority"]["frozen_commit"],
         "source_sha256": fixture["sha256"],
+        "benchmark_frozen_artifact_sha256": fixture.get("frozen_artifact_sha256"),
+        "benchmark_content_sha256": fixture.get("content_sha256"),
         "source_size": fixture["size"],
         "pdf_sha256": sha256_file(pdf),
         "renderer": renderer,
@@ -390,5 +422,6 @@ __all__ = [
     "deterministic_zip",
     "materialize",
     "validate_complete",
+    "hwpx_content_sha256",
     "write_json",
 ]

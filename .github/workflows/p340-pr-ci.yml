@@ -1,6 +1,24 @@
 name: P3.40 PR validation
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - "p340_feedback_loop.py"
+      - "test_p340_feedback_loop.py"
+      - "scripts/p340_release_smoke.py"
+      - "p340r1_capture_pack.py"
+      - "test_p340r1_capture_pack.py"
+      - "scripts/p340r1_*.py"
+      - "scripts/p340r1_*.ps1"
+      - "scripts/common/EnvBootstrap.ps1"
+      - "scripts/test_shared_environment.ps1"
+      - "server_p2.py"
+      - "test_client.py"
+      - "Dockerfile"
+      - ".github/workflows/p1-ci.yml"
+      - "skills/hwpx-authoring/SKILL.md"
+      - ".github/workflows/p340-pr-ci.yml"
   pull_request:
     branches: [main]
     paths:

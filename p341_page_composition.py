@@ -420,14 +420,15 @@ def diagnose_document_page_composition(
     mode: str = "POLISHED_REPORT",
     human_feedback: list[dict] | None = None,
 ) -> dict:
+    canonical_capture = _canonicalize_capture(capture)
     base = diagnose_document_with_render(
         Path(path),
         mode=mode,
-        capture=capture,
+        capture=canonical_capture,
         renderer=renderer,
         human_feedback=human_feedback,
     )
-    composition = diagnose_page_composition(capture, renderer=renderer, archetype=archetype)
+    composition = diagnose_page_composition(canonical_capture, renderer=renderer, archetype=archetype)
     merged = list(base.get("findings") or [])
     seen = {(str(x.get("code")), str(x.get("scope"))) for x in merged}
     for finding in composition["findings"]:

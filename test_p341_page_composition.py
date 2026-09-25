@@ -80,6 +80,21 @@ def test_single_line_cross_page_paragraph_is_transition_risk():
     assert any(x["action"] == "REVIEW_KEEP_TOGETHER_OR_REPAGINATION" for x in policy["actions"])
 
 
+def test_page_local_pdf_blocks_do_not_claim_cross_page_paragraph_identity():
+    p0 = [_line(160 + i * 35, locator=f"page:0/block:{i}") for i in range(7)] + [_line(1050, locator="page:0/block:99")]
+    p1 = [_line(120, locator="page:1/block:0")] + [_line(190 + i * 35, locator=f"page:1/block:{i+1}") for i in range(7)]
+    capture = {"pages": [
+        {"page_index": 0, "width_px": 1000, "height_px": 1400, "raster_sha256": "8" * 64, "line_boxes": p0},
+        {"page_index": 1, "width_px": 1000, "height_px": 1400, "raster_sha256": "9" * 64, "line_boxes": p1},
+    ]}
+    result = diagnose_page_composition(capture, archetype="RESEARCH_BRIEF")
+    codes = [x["code"] for x in result["findings"]]
+    assert "PAGE_BOUNDARY_SINGLE_LINE_PARAGRAPH" not in codes
+    assert "PAGE_BOUNDARY_SINGLE_LINE_BLOCK_RISK" in codes
+    finding = next(x for x in result["findings"] if x["code"] == "PAGE_BOUNDARY_SINGLE_LINE_BLOCK_RISK")
+    assert finding["evidence"]["identity_authority"] == "PAGE_LOCAL_PDF_BLOCK_HEURISTIC"
+
+
 def test_native_comparison_preserves_authority_boundary():
     base = {
         "authority": "HANCOM_NATIVE_RENDER_EVIDENCE",

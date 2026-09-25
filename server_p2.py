@@ -162,6 +162,12 @@ from p340_feedback_loop import (
     apply_document_design_repairs_atomic as p340_apply_document_design_repairs_atomic,
     compare_design_diagnostics as p340_compare_design_diagnostics,
 )
+from p341_page_composition import (
+    page_composition_contract as p341_page_composition_contract,
+    diagnose_document_page_composition as p341_diagnose_document_page_composition,
+    plan_render_guided_layout_policy as p341_plan_render_guided_layout_policy,
+    compare_page_composition_diagnostics as p341_compare_page_composition_diagnostics,
+)
 from p313_capture_custody import (
     near_wrap_positive_sensitivity_spec,
     validate_artifact_custody,
@@ -187,9 +193,9 @@ from common_ir import (
     slice_common_ir,
 )
 
-P2_VERSION = "0.17.0-p3.40"
+P2_VERSION = "0.18.0-p3.41"
 core.VERSION = P2_VERSION
-core.PHASE = "P3.40"
+core.PHASE = "P3.41"
 
 _original_metadata = core._metadata
 
@@ -6882,6 +6888,74 @@ def compare_document_design_diagnostics(before: dict, after: dict) -> dict:
     """Compare two P3.40 diagnostics and state whether real native before/after render evidence exists."""
     core._caller_subject()
     return {"ok": True, **p340_compare_design_diagnostics(before, after)}
+
+
+@core.mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, openWorldHint=False))
+def get_page_composition_contract() -> dict:
+    """Return the P3.41 page-level composition grammar and polyglot authority contract."""
+    core._caller_subject()
+    return {"ok": True, **p341_page_composition_contract()}
+
+
+@core.mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, openWorldHint=False))
+def diagnose_page_composition(
+    document_id: str,
+    capture: dict,
+    renderer: dict | None = None,
+    archetype: str = "POLISHED_REPORT",
+    mode: str = "POLISHED_REPORT",
+    human_feedback: list[dict] | None = None,
+) -> dict:
+    """Layer page-level rhythm/density/transition diagnostics over P3.40 render evidence."""
+    metadata, path = _owned_document(document_id)
+    diagnostic = p341_diagnose_document_page_composition(
+        path,
+        capture=capture,
+        renderer=renderer,
+        archetype=archetype,
+        mode=mode,
+        human_feedback=human_feedback,
+    )
+    return {
+        "ok": diagnostic["verdict"] != "REVIEW_REQUIRED",
+        "document_id": document_id,
+        "revision": int(metadata["revision"]),
+        **diagnostic,
+    }
+
+
+@core.mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, openWorldHint=False))
+def plan_render_guided_page_layout(
+    document_id: str,
+    capture: dict,
+    renderer: dict | None = None,
+    archetype: str = "POLISHED_REPORT",
+    mode: str = "POLISHED_REPORT",
+) -> dict:
+    """Compile P3.41 composition findings into reviewable layout policy without page-break mutation authority."""
+    metadata, path = _owned_document(document_id)
+    diagnostic = p341_diagnose_document_page_composition(
+        path,
+        capture=capture,
+        renderer=renderer,
+        archetype=archetype,
+        mode=mode,
+    )
+    policy = p341_plan_render_guided_layout_policy(diagnostic)
+    return {
+        "ok": True,
+        "document_id": document_id,
+        "revision": int(metadata["revision"]),
+        "diagnostic": diagnostic,
+        **policy,
+    }
+
+
+@core.mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, openWorldHint=False))
+def compare_page_composition_diagnostics(before: dict, after: dict) -> dict:
+    """Compare two P3.41 page-composition diagnostics while preserving native-render authority."""
+    core._caller_subject()
+    return {"ok": True, **p341_compare_page_composition_diagnostics(before, after)}
 
 
 from p335_mcp import register_corpus_tools

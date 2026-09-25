@@ -11,6 +11,8 @@ on:
       - "test_p340r1_capture_pack.py"
       - "scripts/p340r1_*.py"
       - "scripts/p340r1_*.ps1"
+      - "scripts/common/EnvBootstrap.ps1"
+      - "scripts/test_shared_environment.ps1"
       - "server_p2.py"
       - "test_client.py"
       - "Dockerfile"
@@ -39,3 +41,17 @@ jobs:
         run: python -m pytest -q test_p340_feedback_loop.py test_p339_design_intelligence.py test_p340r1_capture_pack.py
       - name: P3.40 release smoke
         run: python scripts/p340_release_smoke.py
+
+  windows-bootstrap:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Windows shared-environment regression
+        shell: powershell
+        run: |
+          $py = (Get-Command python).Source
+          .\scripts\test_shared_environment.ps1 -BasePython $py

@@ -159,8 +159,10 @@ from p340_feedback_loop import (
     semantic_callout_block as p340_semantic_callout_block,
     diagnose_document_with_render as p340_diagnose_document_with_render,
     plan_executable_editorial_repairs as p340_plan_executable_editorial_repairs,
-    apply_document_design_repairs_atomic as p340_apply_document_design_repairs_atomic,
     compare_design_diagnostics as p340_compare_design_diagnostics,
+)
+from p342_mutation_footprint import (
+    apply_document_design_repairs_with_footprint_atomic as p342_apply_document_design_repairs_with_footprint_atomic,
 )
 from p341_page_composition import (
     page_composition_contract as p341_page_composition_contract,
@@ -193,9 +195,9 @@ from common_ir import (
     slice_common_ir,
 )
 
-P2_VERSION = "0.18.0-p3.41"
+P2_VERSION = "0.19.0-p3.42"
 core.VERSION = P2_VERSION
-core.PHASE = "P3.41"
+core.PHASE = "P3.42"
 
 _original_metadata = core._metadata
 
@@ -6841,7 +6843,7 @@ def apply_document_design_repairs(
     metadata, path = _owned_document(document_id)
     current_revision = int(metadata["revision"])
     ingress = metadata.get("source") == "existing-ingress"
-    transaction = p340_apply_document_design_repairs_atomic(
+    transaction = p342_apply_document_design_repairs_with_footprint_atomic(
         path,
         repair_plan,
         expected_revision=int(expected_revision),
@@ -6960,6 +6962,9 @@ def compare_page_composition_diagnostics(before: dict, after: dict) -> dict:
 
 from p335_mcp import register_corpus_tools
 CORPUS_REGISTRY = register_corpus_tools(core, _owned_document)
+
+from p342_mcp import register_p342_tools
+P342_EVIDENCE = register_p342_tools(core, _owned_document, CORPUS_REGISTRY)
 
 
 if __name__ == "__main__":

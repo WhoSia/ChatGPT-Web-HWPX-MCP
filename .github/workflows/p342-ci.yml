@@ -10,6 +10,7 @@ on:
       - "contracts/p342_*"
       - "rust/p342_footprint_grade/**"
       - "scripts/p342_*"
+      - "scripts/validate_hwpx_authoring_skill.py"
       - "p340_feedback_loop.py"
       - "p335_*.py"
       - "server_p2.py"
@@ -29,6 +30,7 @@ on:
       - "contracts/p342_*"
       - "rust/p342_footprint_grade/**"
       - "scripts/p342_*"
+      - "scripts/validate_hwpx_authoring_skill.py"
       - "p340_feedback_loop.py"
       - "p335_*.py"
       - "server_p2.py"
@@ -63,6 +65,18 @@ jobs:
         run: python scripts/p342_release_smoke.py
       - name: Prospective public-HWPX denominator ledger
         run: python scripts/p342_public_corpus_ledger.py --out /tmp/p342-public-corpus-ledger.json
+      - name: HWPX authoring skill/evidence routing contract
+        run: python scripts/validate_hwpx_authoring_skill.py
+      - name: Preserve P3.42 evidence artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: p342-evidence-ledger
+          path: |
+            /tmp/p342-public-corpus-ledger.json
+            corpus/p342-public-corpus-metadata.json
+          if-no-files-found: warn
+          retention-days: 30
 
   rust-exact-grade:
     runs-on: ubuntu-latest

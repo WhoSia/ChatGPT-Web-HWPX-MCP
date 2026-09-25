@@ -47,7 +47,7 @@ REVIEW_CRITERIA = (
             "that should block P3.41 closure?"
         ),
         "required_evidence_class": "USER_VISUAL_OBSERVATION",
-        "machine_signal_codes": (),
+        "machine_signal_codes": ("PAGE_COMPOSITION_IMBALANCE_REQUIRES_VISUAL_REVIEW",),
     },
 )
 
@@ -179,6 +179,27 @@ def adjudicate_capture(pack: Path) -> dict[str, Any]:
                     "All archetypes share the same coarse page-count/line-count signature. "
                     "Review whether archetype differentiation is sufficiently compositional "
                     "rather than mostly typographic/content-level."
+                ),
+            }
+        )
+
+    composition_imbalance = [
+        x
+        for x in fixtures
+        if "PAGE_BOTTOM_HEAVY_COMPOSITION" in x["finding_codes"]
+    ]
+    if composition_imbalance:
+        review_signals.append(
+            {
+                "code": "PAGE_COMPOSITION_IMBALANCE_REQUIRES_VISUAL_REVIEW",
+                "severity": "LOW",
+                "authority": "NATIVE_GEOMETRY_REVIEW_SIGNAL",
+                "archetypes": [x["archetype"] for x in composition_imbalance],
+                "finding_codes": ["PAGE_BOTTOM_HEAVY_COMPOSITION"],
+                "interpretation": (
+                    "A native page-composition heuristic flagged a bottom-heavy page. "
+                    "Keep this as criterion-bound visual-review evidence; it is not "
+                    "automatic mutation or failure authority."
                 ),
             }
         )

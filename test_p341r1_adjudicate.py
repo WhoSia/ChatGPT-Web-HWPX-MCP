@@ -63,6 +63,8 @@ def _write_pack(root: Path, *, complete: bool = True, vary_signature: bool = Fal
         findings = []
         if index != 1:
             findings.append({"code": "PAGE_BOUNDARY_SINGLE_LINE_BLOCK_RISK"})
+        if index == 0:
+            findings.append({"code": "PAGE_BOTTOM_HEAVY_COMPOSITION"})
         write_json(
             capture / "page-composition-diagnostic.json",
             {
@@ -119,6 +121,7 @@ def test_adjudication_keeps_native_pass_separate_from_human_authority():
         assert "CROSS_ARCHETYPE_FIRST_PAGE_UNDERFILL_RISK" in codes
         assert "CROSS_ARCHETYPE_COMPOSITION_SIGNATURE_COLLISION" in codes
         assert "PAGE_BOUNDARY_HEURISTIC_REQUIRES_VISUAL_REVIEW" in codes
+        assert "PAGE_COMPOSITION_IMBALANCE_REQUIRES_VISUAL_REVIEW" in codes
 
 
 def test_signature_collision_is_bounded_to_actual_collision():
@@ -146,6 +149,10 @@ def test_human_review_packet_requires_criterion_bound_user_observations():
         assert packet["status"] == "PENDING_USER_SIGNOFF"
         assert packet["allowed_statuses"] == ["PASS", "PASS_WITH_RESIDUALS", "HOLD"]
         assert len(packet["criteria"]) == 4
+        mechanical = next(x for x in packet["criteria"] if x["id"] == "mechanical_styling")
+        assert [x["code"] for x in mechanical["machine_evidence"]] == [
+            "PAGE_COMPOSITION_IMBALANCE_REQUIRES_VISUAL_REVIEW"
+        ]
         assert packet["coverage"] == {
             "required": 4,
             "manual_observed": 0,

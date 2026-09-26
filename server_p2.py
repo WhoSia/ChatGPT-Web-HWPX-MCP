@@ -195,9 +195,9 @@ from common_ir import (
     slice_common_ir,
 )
 
-P2_VERSION = "0.21.0-p3.44"
+P2_VERSION = "0.22.0-p3.45"
 core.VERSION = P2_VERSION
-core.PHASE = "P3.44"
+core.PHASE = "P3.45"
 
 _original_metadata = core._metadata
 
@@ -6992,6 +6992,76 @@ P344_AUTONOMOUS_AUTHORING = register_p344_tools(
     plan_repairs=plan_executable_document_design_repairs,
     apply_repairs=apply_document_design_repairs,
     delivery_after_commit=_delivery_after_commit,
+)
+
+
+from p345_runtime_bridge import host_receipt_sha256 as _p345_host_sha
+
+
+def _p345_snapshot_adapter(*, document_id: str, current_revision: int, inputs: dict, lease_token: str = "") -> dict:
+    metadata, path = _owned_document(document_id)
+    if int(metadata["revision"]) != int(current_revision):
+        raise ValueError("P3.45 snapshot adapter revision mismatch")
+    document = build_document_map(path)
+    formatting = build_formatting_map(path)
+    inline = build_inline_map(path)
+    tables = build_table_map(path)
+    objects = build_object_map(path)
+    equations = build_equation_map(path)
+    receipt = {
+        "revision": int(current_revision),
+        "view": str(inputs.get("view") or "document"),
+        "semantic_sha256": document["semantic_sha256"],
+        "structure_sha256": document["structure_sha256"],
+        "formatting_sha256": formatting["formatting_sha256"],
+        "inline_structure_sha256": inline["inline_structure_sha256"],
+        "table_structure_sha256": tables["table_structure_sha256"],
+        "object_structure_sha256": objects["object_structure_sha256"],
+        "equation_structure_sha256": equations["equation_structure_sha256"],
+    }
+    digest = _p345_host_sha(receipt)
+    return {
+        "revision_after": int(current_revision),
+        "output_sha256": digest,
+        "receipt_sha256": digest,
+        "snapshot": receipt,
+        "authority": "P3.45_PURE_STRUCTURAL_SNAPSHOT",
+    }
+
+
+def _p345_text_adapter(*, document_id: str, current_revision: int, inputs: dict, lease_token: str = "") -> dict:
+    operations = inputs.get("operations")
+    if not isinstance(operations, list) or not operations:
+        raise ValueError("P3.45 text-edit node requires non-empty operations")
+    return apply_edits(document_id, int(current_revision), operations, lease_token)
+
+
+def _p345_format_adapter(*, document_id: str, current_revision: int, inputs: dict, lease_token: str = "") -> dict:
+    operations = inputs.get("operations")
+    if not isinstance(operations, list) or not operations:
+        raise ValueError("P3.45 format-edit node requires non-empty operations")
+    return apply_formatting(document_id, int(current_revision), operations, lease_token)
+
+
+def _p345_design_repair_adapter(*, document_id: str, current_revision: int, inputs: dict, lease_token: str = "") -> dict:
+    repair_plan = inputs.get("repair_plan")
+    if not isinstance(repair_plan, dict):
+        raise ValueError("P3.45 design-repair node requires repair_plan")
+    return apply_document_design_repairs(
+        document_id, int(current_revision), repair_plan, lease_token
+    )
+
+
+from p345_mcp import register_p345_tools
+P345_DOCUMENT_RUNTIME = register_p345_tools(
+    core,
+    _owned_document,
+    {
+        "DOCUMENT_SNAPSHOT": _p345_snapshot_adapter,
+        "DOCUMENT_TEXT_EDIT": _p345_text_adapter,
+        "DOCUMENT_FORMAT_EDIT": _p345_format_adapter,
+        "DOCUMENT_DESIGN_REPAIR": _p345_design_repair_adapter,
+    },
 )
 
 

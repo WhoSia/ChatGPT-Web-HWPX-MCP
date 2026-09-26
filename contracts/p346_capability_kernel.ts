@@ -2,7 +2,7 @@ declare function require(name:string):any;
 declare const Buffer:any;
 const crypto=require("crypto");
 
-export type Effect="READ_ONLY"|"PURE"|"DOCUMENT_MUTATION"|"EXTERNAL_WORLD_CONTACT"|"DELIVERY";
+export type Effect="READ_ONLY"|"PURE"|"DOCUMENT_MUTATION"|"RUNTIME_CONFIGURATION"|"EXTERNAL_WORLD_CONTACT"|"DELIVERY";
 export type EffectAction="EXECUTE"|"REUSE"|"WAIT_EXTERNAL";
 
 export interface CapabilitySpec {
@@ -25,7 +25,7 @@ export interface ExtensionManifest {
   capabilities:CapabilitySpec[]; node_kinds:NodeSpec[]; tools?:ToolSpec[];
 }
 
-const EFFECTS:Effect[]=["READ_ONLY","PURE","DOCUMENT_MUTATION","EXTERNAL_WORLD_CONTACT","DELIVERY"];
+const EFFECTS:Effect[]=["READ_ONLY","PURE","DOCUMENT_MUTATION","RUNTIME_CONFIGURATION","EXTERNAL_WORLD_CONTACT","DELIVERY"];
 const EFFECT_SET=new Set<string>(EFFECTS);
 
 function assertId(v:string,label:string){
@@ -67,7 +67,7 @@ function shaBytes(v:any):string{
 function annotations(effect:Effect){
   return {
     readOnlyHint:effect==="READ_ONLY"||effect==="PURE",
-    destructiveHint:effect==="DOCUMENT_MUTATION",
+    destructiveHint:effect==="DOCUMENT_MUTATION"||effect==="RUNTIME_CONFIGURATION",
     openWorldHint:effect==="EXTERNAL_WORLD_CONTACT"||effect==="DELIVERY",
     p346_effect:effect,
   };
@@ -100,8 +100,8 @@ export const BUILTIN_TOOLS:ToolSpec[]=[
   {name:"inspect_document_runtime",capability:"platform.inspect",effect:"READ_ONLY",description:"Inspect a replay-verified transaction DAG and event chain.",input_schema:{type:"object",required:["document_id","run_id"],properties:{document_id:{type:"string"},run_id:{type:"string"}},additionalProperties:false}},
   {name:"get_document_runtime_diagnostics",capability:"platform.inspect",effect:"READ_ONLY",description:"Return structured diagnostics without mutating runtime state.",input_schema:{type:"object",required:["document_id","run_id"],properties:{document_id:{type:"string"},run_id:{type:"string"}},additionalProperties:false}},
   {name:"get_host_adapter_registry",capability:"platform.inspect",effect:"READ_ONLY",description:"Inspect admitted host-adapter profiles.",input_schema:{type:"object",properties:{},additionalProperties:false}},
-  {name:"hot_swap_document_host_adapter_profile",capability:"platform.codegen",effect:"DOCUMENT_MUTATION",description:"CAS-switch to a pre-admitted host-adapter profile.",input_schema:{type:"object",required:["target_profile","expected_generation"],properties:{target_profile:{type:"string"},expected_generation:{type:"integer"}},additionalProperties:false}},
-  {name:"rollback_document_host_adapter_profile",capability:"platform.codegen",effect:"DOCUMENT_MUTATION",description:"Rollback the host-adapter profile under generation CAS.",input_schema:{type:"object",required:["expected_generation"],properties:{expected_generation:{type:"integer"}},additionalProperties:false}},
+  {name:"hot_swap_document_host_adapter_profile",capability:"platform.codegen",effect:"RUNTIME_CONFIGURATION",description:"CAS-switch to a pre-admitted host-adapter profile.",input_schema:{type:"object",required:["target_profile","expected_generation"],properties:{target_profile:{type:"string"},expected_generation:{type:"integer"}},additionalProperties:false}},
+  {name:"rollback_document_host_adapter_profile",capability:"platform.codegen",effect:"RUNTIME_CONFIGURATION",description:"Rollback the host-adapter profile under generation CAS.",input_schema:{type:"object",required:["expected_generation"],properties:{expected_generation:{type:"integer"}},additionalProperties:false}},
   {name:"validate_sandboxed_document_extension",capability:"platform.codegen",effect:"PURE",description:"Validate one deterministic no-import WASM extension.",input_schema:{type:"object",required:["manifest"],properties:{manifest:{type:"object"}},additionalProperties:false}},
   {name:"execute_sandboxed_document_extension_probe",capability:"platform.codegen",effect:"PURE",description:"Execute one bounded pure WASM extension probe.",input_schema:{type:"object",required:["manifest","module_base64"],properties:{manifest:{type:"object"},module_base64:{type:"string"}},additionalProperties:false}},
   {name:"generate_document_platform_contracts",capability:"platform.codegen",effect:"PURE",description:"Generate canonical effect/capability/node/tool contracts.",input_schema:{type:"object",properties:{extensions:{type:"array"}},additionalProperties:false}},

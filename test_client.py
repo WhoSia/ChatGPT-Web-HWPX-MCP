@@ -284,6 +284,16 @@ async def main() -> None:
                 "get_host_adapter_registry",
                 "hot_swap_document_host_adapter_profile",
                 "rollback_document_host_adapter_profile",
+                "get_extension_supply_chain_contract",
+                "verify_extension_package",
+                "compare_extension_build_reproducibility",
+                "solve_extension_package_compatibility",
+                "compare_extension_host_conformance",
+                "certify_document_extension_package",
+                "get_certified_extension_registry",
+                "install_certified_extension_package",
+                "advance_extension_package_rollout",
+                "rollback_extension_package_rollout",
                 "validate_sandboxed_document_extension",
                 "execute_sandboxed_document_extension_probe",
                 "generate_document_platform_contracts",
@@ -313,12 +323,12 @@ async def main() -> None:
                     f"inspector={inspector_annotations} swap={swap_annotations}"
                 )
 
-            read_payload = _payload(await client.call_tool("probe_read", {"message": "P3.46 OAuth smoke test"}))
-            if not read_payload or not read_payload.get("ok") or read_payload.get("version") != "0.23.0-p3.46":
+            read_payload = _payload(await client.call_tool("probe_read", {"message": "P3.47 OAuth smoke test"}))
+            if not read_payload or not read_payload.get("ok") or read_payload.get("version") != "0.24.0-p3.47":
                 raise RuntimeError(f"probe_read did not expose current P3.45 product version: {read_payload}")
 
             p2_caps = _payload(await client.call_tool("p2_capabilities", {}))
-            if not p2_caps or p2_caps.get("phase") != "P3.46":
+            if not p2_caps or p2_caps.get("phase") != "P3.47":
                 raise RuntimeError(f"p2_capabilities failed: {p2_caps}")
 
             design_intelligence = _payload(await client.call_tool("get_document_design_intelligence_contract", {}))

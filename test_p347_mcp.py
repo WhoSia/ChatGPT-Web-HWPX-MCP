@@ -69,6 +69,21 @@ def test_owner_scoped_certified_registry_rollout_replacement_and_rollback(monkey
             "rust": {"from": f, "to": t, "authority": "RUST_ROLLOUT_TRANSITION_PASS"},
         },
     )
+    monkeypatch.setattr(
+        p347_mcp,
+        "validate_certified_rollback",
+        lambda current, target: {
+            "typescript": {
+                "current_package_id": current["package_id"],
+                "target_package_id": target["package_id"],
+            },
+            "rust": {
+                "current_package_id": current["package_id"],
+                "target_package_id": target["package_id"],
+            },
+            "authority": "CROSS_RUNTIME_CERTIFIED_ROLLBACK_PASS",
+        },
+    )
 
     registry = CertifiedPackageRegistry()
     a = registry.install({"package_id": pkg1}, _certificate(pkg1), document_id="doc-a", expected_generation=1)
@@ -98,6 +113,7 @@ def test_owner_scoped_certified_registry_rollout_replacement_and_rollback(monkey
     rolled = registry.rollback("ext", document_id="doc-a", expected_generation=after["generation"])
     assert rolled["restored_package_id"] == pkg1
     assert rolled["promoted_by_extension"]["ext"] == pkg1
+    assert rolled["rollback_guard"]["authority"] == "CROSS_RUNTIME_CERTIFIED_ROLLBACK_PASS"
 
 
 def test_registry_generation_cas(monkeypatch):

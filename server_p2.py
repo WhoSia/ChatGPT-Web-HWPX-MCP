@@ -7052,16 +7052,28 @@ def _p345_design_repair_adapter(*, document_id: str, current_revision: int, inpu
     )
 
 
+P346_HOST_ADAPTERS = {
+    "DOCUMENT_SNAPSHOT": _p345_snapshot_adapter,
+    "DOCUMENT_TEXT_EDIT": _p345_text_adapter,
+    "DOCUMENT_FORMAT_EDIT": _p345_format_adapter,
+    "DOCUMENT_DESIGN_REPAIR": _p345_design_repair_adapter,
+}
+
+from p346_mcp import AdapterRegistry, register_p346_tools
+P346_ADAPTER_REGISTRY = AdapterRegistry(P346_HOST_ADAPTERS)
+
 from p345_mcp import register_p345_tools
 P345_DOCUMENT_RUNTIME = register_p345_tools(
     core,
     _owned_document,
-    {
-        "DOCUMENT_SNAPSHOT": _p345_snapshot_adapter,
-        "DOCUMENT_TEXT_EDIT": _p345_text_adapter,
-        "DOCUMENT_FORMAT_EDIT": _p345_format_adapter,
-        "DOCUMENT_DESIGN_REPAIR": _p345_design_repair_adapter,
-    },
+    P346_HOST_ADAPTERS,
+    adapter_resolver=P346_ADAPTER_REGISTRY.resolve,
+)
+
+P346_DEVELOPER_PLATFORM = register_p346_tools(
+    core,
+    _owned_document,
+    P346_ADAPTER_REGISTRY,
 )
 
 

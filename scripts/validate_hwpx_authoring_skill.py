@@ -10,7 +10,8 @@ SERVER = ROOT / "server_p2.py"
 P342_MCP = ROOT / "p342_mcp.py"
 P343_MCP = ROOT / "p343_mcp.py"
 P344_MCP = ROOT / "p344_mcp.py"
-TOOL_SOURCES = (SERVER, P342_MCP, P343_MCP, P344_MCP)
+P345_MCP = ROOT / "p345_mcp.py"
+TOOL_SOURCES = (SERVER, P342_MCP, P343_MCP, P344_MCP, P345_MCP)
 
 REQUIRED_REFERENCES = (
     "references/evidence-authority.md",
@@ -19,6 +20,7 @@ REQUIRED_REFERENCES = (
     "references/corpus-evidence.md",
     "references/organization-template-policy.md",
     "references/autonomous-authoring.md",
+    "references/document-transaction-runtime.md",
 )
 REQUIRED_TOOL_NAMES = (
     "get_document_design_intelligence_contract",
@@ -47,6 +49,16 @@ REQUIRED_TOOL_NAMES = (
     "get_autonomous_authoring_run",
     "start_autonomous_professional_authoring",
     "resume_autonomous_professional_authoring",
+    "get_document_transaction_runtime_contract",
+    "get_document_runtime_capabilities",
+    "validate_document_runtime_extension",
+    "compile_document_transaction",
+    "get_document_transaction_run",
+    "advance_document_transaction",
+    "resolve_document_transaction_external",
+    "abort_document_transaction",
+    "replay_document_transaction",
+    "get_document_transaction_observability",
 )
 MAX_SKILL_LINES = 220
 

@@ -1,0 +1,72 @@
+from __future__ import annotations
+
+import pytest
+
+from p346_mcp import AdapterRegistry
+
+
+def _readonly(**kwargs):
+    return {
+        "revision_after": int(kwargs["current_revision"]),
+        "output_sha256": "a" * 64,
+    }
+
+
+def _mutation(**kwargs):
+    return {
+        "revision_after": int(kwargs["current_revision"]) + 1,
+        "output_sha256": "b" * 64,
+    }
+
+
+def test_hot_swap_registry_cas_guard_and_rollback():
+    registry = AdapterRegistry({
+        "DOCUMENT_SNAPSHOT": _readonly,
+        "DOCUMENT_TEXT_EDIT": _mutation,
+    })
+    snap = registry.snapshot()
+    assert snap["active_profile"] == "p3.46-guarded"
+    assert registry.resolve("DOCUMENT_SNAPSHOT")(
+        document_id="d",
+        current_revision=3,
+        inputs={},
+        lease_token="",
+    )["revision_after"] == 3
+    mutation = registry.resolve("DOCUMENT_TEXT_EDIT")(
+        document_id="d",
+        current_revision=3,
+        inputs={},
+        lease_token="",
+    )
+    assert mutation["revision_after"] == 4
+    assert mutation["p346_adapter_profile"] == "p3.46-guarded"
+
+    swapped = registry.swap("p3.45-compat", snap["generation"])
+    assert swapped["swapped"] is True
+    assert swapped["active_profile"] == "p3.45-compat"
+    with pytest.raises(RuntimeError, match="generation CAS"):
+        registry.swap("p3.46-guarded", snap["generation"])
+
+    rolled = registry.rollback(swapped["generation"])
+    assert rolled["rolled_back_to"] == "p3.46-guarded"
+    assert rolled["active_profile"] == "p3.46-guarded"
+
+
+def test_guard_rejects_revision_contract_violation():
+    def bad(**kwargs):
+        return {"revision_after": int(kwargs["current_revision"]) + 2}
+
+    registry = AdapterRegistry({"DOCUMENT_TEXT_EDIT": bad})
+    with pytest.raises(RuntimeError, match="revision contract failed"):
+        registry.resolve("DOCUMENT_TEXT_EDIT")(
+            document_id="d",
+            current_revision=7,
+            inputs={},
+            lease_token="",
+        )
+
+
+def test_arbitrary_profile_registration_is_not_exposed():
+    registry = AdapterRegistry({"DOCUMENT_SNAPSHOT": _readonly})
+    with pytest.raises(ValueError, match="not pre-admitted"):
+        registry.swap("uploaded-python-code", registry.snapshot()["generation"])

@@ -24,16 +24,16 @@ def test_hot_swap_registry_cas_guard_and_rollback():
         "DOCUMENT_SNAPSHOT": _readonly,
         "DOCUMENT_TEXT_EDIT": _mutation,
     })
-    snap = registry.snapshot()
+    snap = registry.snapshot("doc-a")
     assert snap["active_profile"] == "p3.46-guarded"
-    assert registry.resolve("DOCUMENT_SNAPSHOT")(
-        document_id="d",
+    assert registry.resolve("DOCUMENT_SNAPSHOT", document_id="doc-a")(
+        document_id="doc-a",
         current_revision=3,
         inputs={},
         lease_token="",
     )["revision_after"] == 3
-    mutation = registry.resolve("DOCUMENT_TEXT_EDIT")(
-        document_id="d",
+    mutation = registry.resolve("DOCUMENT_TEXT_EDIT", document_id="doc-a")(
+        document_id="doc-a",
         current_revision=3,
         inputs={},
         lease_token="",
@@ -41,13 +41,26 @@ def test_hot_swap_registry_cas_guard_and_rollback():
     assert mutation["revision_after"] == 4
     assert mutation["p346_adapter_profile"] == "p3.46-guarded"
 
-    swapped = registry.swap("p3.45-compat", snap["generation"])
+    swapped = registry.swap(
+        "p3.45-compat",
+        snap["generation"],
+        document_id="doc-a",
+    )
     assert swapped["swapped"] is True
     assert swapped["active_profile"] == "p3.45-compat"
+    assert registry.snapshot("doc-b")["active_profile"] == "p3.46-guarded"
+    assert registry.snapshot("doc-b")["generation"] == 1
     with pytest.raises(RuntimeError, match="generation CAS"):
-        registry.swap("p3.46-guarded", snap["generation"])
+        registry.swap(
+            "p3.46-guarded",
+            snap["generation"],
+            document_id="doc-a",
+        )
 
-    rolled = registry.rollback(swapped["generation"])
+    rolled = registry.rollback(
+        swapped["generation"],
+        document_id="doc-a",
+    )
     assert rolled["rolled_back_to"] == "p3.46-guarded"
     assert rolled["active_profile"] == "p3.46-guarded"
 
@@ -58,7 +71,7 @@ def test_guard_rejects_revision_contract_violation():
 
     registry = AdapterRegistry({"DOCUMENT_TEXT_EDIT": bad})
     with pytest.raises(RuntimeError, match="revision contract failed"):
-        registry.resolve("DOCUMENT_TEXT_EDIT")(
+        registry.resolve("DOCUMENT_TEXT_EDIT", document_id="doc-a")(
             document_id="d",
             current_revision=7,
             inputs={},
@@ -69,4 +82,8 @@ def test_guard_rejects_revision_contract_violation():
 def test_arbitrary_profile_registration_is_not_exposed():
     registry = AdapterRegistry({"DOCUMENT_SNAPSHOT": _readonly})
     with pytest.raises(ValueError, match="not pre-admitted"):
-        registry.swap("uploaded-python-code", registry.snapshot()["generation"])
+        registry.swap(
+            "uploaded-python-code",
+            registry.snapshot("doc-a")["generation"],
+            document_id="doc-a",
+        )

@@ -86,3 +86,18 @@ The guarded profile independently checks adapter revision deltas. Profile switch
 TYPED_CAPABILITY_KERNEL_PASS / EFFECT_SAFE_TOOL_PROJECTION_PASS / CONTRACT_SCHEMA_CODEGEN_PASS / RUST_EFFECT_INVARIANT_PASS / PURE_WASM_SANDBOX_PASS / REPLAY_AWARE_INSPECTOR_PASS / STRUCTURED_RUNTIME_DIAGNOSTICS_PASS / HOST_ADAPTER_HOT_SWAP_ROLLBACK_PASS.
 
 Product integration, Docker packaging, OAuth lifecycle and exact-head production deployment remain separate closure gates after this kernel passes dedicated CI.
+
+
+## Adversarial audit repair — owner-scoped adapter configuration
+
+A pre-closure tenancy audit found that the first CAS adapter registry was process-global. Although it admitted only two fixed profiles, an authenticated caller could change the profile used by another document's later transaction.
+
+Repair:
+- adapter selection/generation/history are now keyed by owned `document_id`;
+- hot-swap and rollback require document ownership before configuration mutation;
+- P3.45 passes its owned `document_id` into the P3.46 adapter resolver;
+- untouched documents remain independently at guarded generation 1;
+- OAuth write smoke mutates only its own generated document;
+- unit tests prove document-A swaps do not change document-B state.
+
+Required closure authority: `OWNER_SCOPED_ADAPTER_CONFIGURATION_PASS / CROSS_DOCUMENT_CONFIGURATION_NONINTERFERENCE_PASS`.

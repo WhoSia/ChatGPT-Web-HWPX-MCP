@@ -4,6 +4,8 @@ import threading
 from dataclasses import dataclass
 from typing import Any, Callable, Mapping
 
+from mcp.types import ToolAnnotations
+
 from p345_runtime_bridge import verify_replay
 from p346_platform_bridge import (
     codegen,
@@ -154,6 +156,17 @@ def register_p346_tools(
     owned_document: Callable[[str], tuple[dict, Any]],
     adapter_registry: AdapterRegistry,
 ):
+    read_only = ToolAnnotations(
+        readOnlyHint=True,
+        destructiveHint=False,
+        openWorldHint=False,
+    )
+    runtime_config = ToolAnnotations(
+        readOnlyHint=False,
+        destructiveHint=True,
+        openWorldHint=False,
+    )
+
     def _load_run(document_id: str, run_id: str) -> tuple[dict, dict]:
         metadata, _ = owned_document(document_id)
         runs = metadata.get("p345_transaction_runs") or {}
@@ -167,7 +180,7 @@ def register_p346_tools(
         verify_replay(state)
         return metadata, state
 
-    @core.mcp.tool()
+    @core.mcp.tool(annotations=read_only)
     def get_developer_platform_contract() -> dict:
         core._caller_subject()
         return {
@@ -176,24 +189,24 @@ def register_p346_tools(
             "adapter_registry": adapter_registry.snapshot(),
         }
 
-    @core.mcp.tool()
+    @core.mcp.tool(annotations=read_only)
     def project_document_tool_surface(
         extensions: list[dict] | None = None,
     ) -> dict:
         core._caller_subject()
         return {"ok": True, **project_tools(extensions or [])}
 
-    @core.mcp.tool()
+    @core.mcp.tool(annotations=read_only)
     def validate_document_effect_composition(plan: dict) -> dict:
         core._caller_subject()
         return {"ok": True, **validate_composition(plan)}
 
-    @core.mcp.tool()
+    @core.mcp.tool(annotations=read_only)
     def validate_document_tool_sequence(effects: list[str]) -> dict:
         core._caller_subject()
         return {"ok": True, **validate_sequence(effects)}
 
-    @core.mcp.tool()
+    @core.mcp.tool(annotations=read_only)
     def inspect_document_runtime(document_id: str, run_id: str) -> dict:
         metadata, state = _load_run(document_id, run_id)
         inspected = inspect_runtime(state)
@@ -205,7 +218,7 @@ def register_p346_tools(
             "authority": "READ_ONLY_REPLAY_VERIFIED_DEVELOPER_INSPECTOR",
         }
 
-    @core.mcp.tool()
+    @core.mcp.tool(annotations=read_only)
     def get_document_runtime_diagnostics(
         document_id: str,
         run_id: str,
@@ -220,12 +233,12 @@ def register_p346_tools(
             "authority": "READ_ONLY_STRUCTURED_RUNTIME_DIAGNOSTICS",
         }
 
-    @core.mcp.tool()
+    @core.mcp.tool(annotations=read_only)
     def get_host_adapter_registry() -> dict:
         core._caller_subject()
         return {"ok": True, **adapter_registry.snapshot()}
 
-    @core.mcp.tool()
+    @core.mcp.tool(annotations=runtime_config)
     def hot_swap_document_host_adapter_profile(
         target_profile: str,
         expected_generation: int,
@@ -236,7 +249,7 @@ def register_p346_tools(
             **adapter_registry.swap(target_profile, int(expected_generation)),
         }
 
-    @core.mcp.tool()
+    @core.mcp.tool(annotations=runtime_config)
     def rollback_document_host_adapter_profile(
         expected_generation: int,
     ) -> dict:
@@ -246,12 +259,12 @@ def register_p346_tools(
             **adapter_registry.rollback(int(expected_generation)),
         }
 
-    @core.mcp.tool()
+    @core.mcp.tool(annotations=read_only)
     def validate_sandboxed_document_extension(manifest: dict) -> dict:
         core._caller_subject()
         return {"ok": True, "extension": validate_extension(manifest)}
 
-    @core.mcp.tool()
+    @core.mcp.tool(annotations=read_only)
     def execute_sandboxed_document_extension_probe(
         manifest: dict,
         module_base64: str,
@@ -264,15 +277,38 @@ def register_p346_tools(
             "authority": "SEPARATE_PROCESS_PURE_WASM_NO_IMPORTS_EXECUTION",
         }
 
-    @core.mcp.tool()
+    @core.mcp.tool(annotations=read_only)
     def generate_document_platform_contracts(
         extensions: list[dict] | None = None,
     ) -> dict:
         core._caller_subject()
         return {"ok": True, **codegen(extensions or [])}
 
+    projected = project_tools()
+    projected_names = {str(row.get("name")) for row in projected.get("tools", [])}
+    bound_names = {
+        "get_developer_platform_contract",
+        "project_document_tool_surface",
+        "validate_document_effect_composition",
+        "validate_document_tool_sequence",
+        "inspect_document_runtime",
+        "get_document_runtime_diagnostics",
+        "get_host_adapter_registry",
+        "hot_swap_document_host_adapter_profile",
+        "rollback_document_host_adapter_profile",
+        "validate_sandboxed_document_extension",
+        "execute_sandboxed_document_extension_probe",
+        "generate_document_platform_contracts",
+    }
+    if projected_names != bound_names:
+        raise RuntimeError(
+            "P3.46 projected tool surface diverged from Python MCP bindings: "
+            f"projected={sorted(projected_names)} bound={sorted(bound_names)}"
+        )
+
     return {
         "phase": "P3.46",
         "contract": platform_contract(),
+        "tool_surface_sha256": projected.get("surface_sha256"),
         "adapter_registry": adapter_registry.snapshot(),
     }

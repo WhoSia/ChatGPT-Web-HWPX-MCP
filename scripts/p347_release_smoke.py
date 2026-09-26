@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import copy
 import hashlib
 import sys
 from pathlib import Path
@@ -81,11 +82,6 @@ assert contract["product"] == "0.24.0-p3.47"
 normalized = normalize_extension_package(package)
 assert normalized["package_id"].startswith("sha256:")
 
-gates = contract["certification"]["required_gates"]
-evidence = [
-    {"gate": gate, "status": "PASS", "evidence_sha256": hashlib.sha256(gate.encode()).hexdigest()}
-    for gate in gates
-]
 obs = {
     "semantic_sha256": "a" * 64,
     "mutation_footprint_sha256": "b" * 64,
@@ -93,16 +89,32 @@ obs = {
     "package_part_sha256": "c" * 64,
     "render_observable_sha256": "d" * 64,
 }
+rebuild_package = copy.deepcopy(package)
+rebuild_package["build_attestation"]["builder"]["id"] = "hwpx-mcp-release-smoke-rebuild"
 certified = certify_extension_package(
     package,
-    evidence=evidence,
+    rebuild_package=rebuild_package,
     host_observations=[
-        {"host_id": "release-host-a", **obs},
-        {"host_id": "release-host-b", **obs},
+        {
+            "host_id": "release-host-a",
+            "host_contract_sha256": "e" * 64,
+            "receipt_sha256": hashlib.sha256(b"release-host-a").hexdigest(),
+            **obs,
+        },
+        {
+            "host_id": "release-host-b",
+            "host_contract_sha256": "f" * 64,
+            "receipt_sha256": hashlib.sha256(b"release-host-b").hexdigest(),
+            **obs,
+        },
     ],
 )
 assert certified["certificate"]["status"] == "PASS"
 assert certified["rust"]["authority"] == "RUST_CERTIFICATE_SEAL_PASS"
+assert certified["derived_evidence"]["authority"] == "P347_DERIVED_CERTIFICATION_EVIDENCE_PASS"
+assert certified["derived_evidence"]["reproducibility"]["independent_builder"] is True
+assert certified["derived_evidence"]["execution"]["deterministic"] is True
+assert all(certified["derived_evidence"]["execution"]["negative_controls"].values())
 promotion = validate_rollout_transition("CANARY", "PROMOTED", certified["certificate"])
 assert promotion["rust"]["authority"] == "RUST_ROLLOUT_TRANSITION_PASS"
 print("P3.47 release smoke PASS")

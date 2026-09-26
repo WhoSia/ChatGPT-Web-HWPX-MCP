@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 
 from p345_mcp import register_p345_tools
+from p345_runtime_bridge import host_receipt_sha256
 
 
 class _MCP:
@@ -368,7 +369,30 @@ def test_tampered_p346_sidecar_fails_before_next_host_execution():
     assert first["status"] == "RUNNING"
     assert calls == {"snapshot": 1, "text": 0}
 
-    row = core.meta["p346_runtime_host_receipts"][compiled["run_id"]]["snapshot"]
+    run_rows = core.meta["p346_runtime_host_receipts"][compiled["run_id"]]
+    original = dict(run_rows["snapshot"])
+
+    orphan = dict(original)
+    orphan["node_id"] = "orphan"
+    orphan.pop("provenance_sha256", None)
+    orphan["provenance_sha256"] = host_receipt_sha256(orphan)
+    run_rows["orphan"] = orphan
+
+    with pytest.raises(RuntimeError, match="no sealed runtime output"):
+        tools["advance_document_transaction"]("doc", compiled["run_id"])
+    assert calls == {"snapshot": 1, "text": 0}
+    del run_rows["orphan"]
+
+    row = run_rows["snapshot"]
+    row["output_sha256"] = "f" * 64
+    row.pop("provenance_sha256", None)
+    row["provenance_sha256"] = host_receipt_sha256(row)
+    with pytest.raises(RuntimeError, match="host output diverges"):
+        tools["advance_document_transaction"]("doc", compiled["run_id"])
+    assert calls == {"snapshot": 1, "text": 0}
+
+    run_rows["snapshot"] = dict(original)
+    row = run_rows["snapshot"]
     row["adapter_profile"] = "p3.45-compat"
 
     with pytest.raises(RuntimeError, match="provenance seal mismatch"):

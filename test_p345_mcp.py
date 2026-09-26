@@ -337,6 +337,7 @@ def test_tampered_p346_sidecar_fails_before_next_host_execution():
         fn = adapters[adapter_name]
         profile = pinned_profile or "p3.46-guarded"
         generation = int(pinned_generation or 1)
+        contract_sha256 = pinned_contract_sha256 or ("c" * 64)
 
         def invoke(**kwargs):
             result = dict(fn(**kwargs))

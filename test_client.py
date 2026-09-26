@@ -265,6 +265,16 @@ async def main() -> None:
                 "get_autonomous_authoring_run",
                 "start_autonomous_professional_authoring",
                 "resume_autonomous_professional_authoring",
+                "get_document_transaction_runtime_contract",
+                "get_document_runtime_capabilities",
+                "validate_document_runtime_extension",
+                "compile_document_transaction",
+                "get_document_transaction_run",
+                "advance_document_transaction",
+                "resolve_document_transaction_external",
+                "abort_document_transaction",
+                "replay_document_transaction",
+                "get_document_transaction_observability",
             }
             missing = expected - set(names)
             if missing:
@@ -274,12 +284,12 @@ async def main() -> None:
                 if "access_token" in schema_text or "passphrase" in schema_text:
                     raise RuntimeError(f"secret-bearing field leaked into tool schema: {tool.name}")
 
-            read_payload = _payload(await client.call_tool("probe_read", {"message": "P3.44 OAuth smoke test"}))
-            if not read_payload or not read_payload.get("ok") or read_payload.get("version") != "0.21.0-p3.44":
-                raise RuntimeError(f"probe_read did not expose current P3.44 product version: {read_payload}")
+            read_payload = _payload(await client.call_tool("probe_read", {"message": "P3.45 OAuth smoke test"}))
+            if not read_payload or not read_payload.get("ok") or read_payload.get("version") != "0.22.0-p3.45":
+                raise RuntimeError(f"probe_read did not expose current P3.45 product version: {read_payload}")
 
             p2_caps = _payload(await client.call_tool("p2_capabilities", {}))
-            if not p2_caps or p2_caps.get("phase") != "P3.44":
+            if not p2_caps or p2_caps.get("phase") != "P3.45":
                 raise RuntimeError(f"p2_capabilities failed: {p2_caps}")
 
             design_intelligence = _payload(await client.call_tool("get_document_design_intelligence_contract", {}))
@@ -355,6 +365,28 @@ async def main() -> None:
                 or p344_contract.get("resume_semantics", {}).get("render_evidence_invalidated_after_repair") is not True
             ):
                 raise RuntimeError(f"P3.44 autonomous authoring contract failed: {p344_contract}")
+
+            p345_contract = _payload(await client.call_tool("get_document_transaction_runtime_contract", {}))
+            if (
+                not p345_contract
+                or p345_contract.get("phase") != "P3.45"
+                or p345_contract.get("language_authority", {}).get("typescript")
+                != "PRIMARY_IR_COMPILER_SCHEDULER_AND_RUNTIME_STATE_MACHINE"
+                or p345_contract.get("language_authority", {}).get("rust")
+                != "AUTHORITATIVE_EVENT_REPLAY_AND_INVARIANT_KERNEL"
+                or p345_contract.get("incremental_recompilation", {}).get("document_mutations_never_cache_reused") is not True
+                or p345_contract.get("extensions", {}).get("dynamic_code_loading") is not False
+            ):
+                raise RuntimeError(f"P3.45 transaction runtime contract failed: {p345_contract}")
+
+            p345_caps = _payload(await client.call_tool("get_document_runtime_capabilities", {}))
+            if (
+                not p345_caps
+                or p345_caps.get("phase") != "P3.45"
+                or "document.render.evidence" not in p345_caps.get("supported_builtin_node_kinds", [])
+                or "DOCUMENT_SNAPSHOT" not in p345_caps.get("host_adapter_allowlist", [])
+            ):
+                raise RuntimeError(f"P3.45 runtime capability catalog failed: {p345_caps}")
 
             callout = _payload(await client.call_tool("compile_semantic_callout_block", {
                 "text": "핵심 판단은 장식이 아니라 의미를 인코딩해야 합니다.",

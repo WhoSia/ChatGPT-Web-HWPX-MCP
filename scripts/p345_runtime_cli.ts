@@ -1,3 +1,4 @@
+export {};
 declare const process:any;
 declare function require(name:string):any;
 const fs=require("fs");

@@ -38,7 +38,7 @@ jobs:
         with: {node-version: "22"}
       - run: |
           rm -rf .tmp/p344-ts
-          npx --yes -p typescript@5.9.2 tsc --strict --target ES2022 --module commonjs --rootDir . --outDir .tmp/p344-ts contracts/p344_orchestrator.ts benchmarks/authorbench_p344_evaluator.ts
+          npx --yes -p typescript@5.9.2 tsc --strict --target ES2022 --module commonjs --rootDir . --outDir .tmp/p344-ts contracts/p344_orchestrator.ts benchmarks/authorbench_p344_evaluator.ts benchmarks/authorbench_p344_native_adjudicator.ts
           node scripts/p344_typescript_gate_test.cjs
 
   python-native-adapter:
@@ -50,7 +50,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - run: pip install -r requirements.txt -r requirements-capture.txt -r requirements-dev.txt
       - run: cargo build --release --manifest-path rust/p344_gate/Cargo.toml
-      - run: python -m compileall -q p344_autonomous_authoring.py p344_mcp.py test_p344_autonomous_authoring.py benchmarks/authorbench_p344_materialize.py scripts/p344_release_smoke.py server_p2.py test_client.py
+      - run: python -m compileall -q p344_autonomous_authoring.py p344_mcp.py test_p344_autonomous_authoring.py benchmarks/authorbench_p344_materialize.py scripts/p344_capture_pdf.py scripts/p344_release_smoke.py server_p2.py test_client.py
       - run: python -m pytest -q test_p344_autonomous_authoring.py test_p340_feedback_loop.py test_p342_mutation_footprint.py test_p343_design_system.py
       - run: P344_GATE_BIN="$PWD/rust/p344_gate/target/release/p344-gate" P344_REQUIRE_RUST_GATE=1 python scripts/p344_release_smoke.py
       - run: python scripts/validate_hwpx_authoring_skill.py

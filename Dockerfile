@@ -56,6 +56,8 @@ COPY scripts/p341_release_smoke.py scripts/p341_release_smoke.py
 RUN python scripts/p341_release_smoke.py
 COPY scripts/p342_release_smoke.py scripts/p342_release_smoke.py
 RUN python scripts/p342_release_smoke.py
+COPY scripts/p343_release_smoke.py scripts/p343_release_smoke.py
+RUN python scripts/p343_release_smoke.py
 
 ENV MCP_HOST=0.0.0.0
 ENV MCP_PORT=8000

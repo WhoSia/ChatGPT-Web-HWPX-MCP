@@ -336,6 +336,7 @@ export const P345_RUNTIME_CONTRACT={
   language_authority:{typescript:"PRIMARY_IR_COMPILER_SCHEDULER_AND_RUNTIME_STATE_MACHINE",rust:"AUTHORITATIVE_EVENT_REPLAY_AND_INVARIANT_KERNEL",python:"HWPX_HOST_ADAPTER_AND_MCP_BINDING_ONLY",powershell:"HANCOM_WORLD_CONTACT_ONLY"},
   incremental_recompilation:{pure_node_reuse_only:true,document_mutations_never_cache_reused:true,external_world_contact_never_cache_reused:true,transitive_invalidation:true},
   deterministic_payload:{canonical_json:"JCS_COMPATIBLE_SAFE_INTEGER_SUBSET",timestamps_excluded_from_hash:true,floats_forbidden:true},
+  builtin_provider:BUILTIN_PROVIDER,supported_builtin_node_kinds:Object.keys(NODE_KINDS).sort(),
   extensions:{dynamic_code_loading:false,manifest_only:true,host_adapter_allowlist:true},
   observability:{event_names_low_cardinality:true,deterministic_event_core_separate_from_observation_time:true},
   non_claims:["Runtime replay does not recreate external world contact.","A cached PURE node does not authorize reuse of a document mutation.","Extension manifests do not load arbitrary code."]

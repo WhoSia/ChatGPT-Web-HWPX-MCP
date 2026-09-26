@@ -17,3 +17,10 @@ P3.44 turns the design stack into a bounded resumable workflow.
 Rust is the production repair/delivery gate. TypeScript independently reproduces gate semantics and scores AuthorBench blind packets. Python remains the HWPX-native adapter. PowerShell/Hancom supplies native world contact.
 
 A static PASS is not a native-render PASS, and delivery is not a human visual approval.
+
+
+## Frozen AuthorBench native closure
+
+P3.44 first-pass benchmark artifacts must not be regenerated to replace native evidence. The Windows capture runner accepts the exact frozen first-pass ZIP by SHA-256, then PowerShell owns Hancom export and TypeScript owns blind native scoring/promotion. Python is restricted to the PDF/raster/HWPX bridge.
+
+A native-render PASS is still not a human visual approval. If a workflow requires human approval, keep the run in `WAIT_HUMAN` until explicit review is supplied.

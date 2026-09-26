@@ -175,6 +175,32 @@ def register_p345_tools(
         compiled = compile_ir(request)
         state = create_run(compiled)
         verify_replay(state)
+        existing_runs = metadata.get("p345_transaction_runs") or {}
+        existing = existing_runs.get(state["run_id"]) if isinstance(existing_runs, dict) else None
+        if isinstance(existing, dict):
+            verify_replay(existing)
+            if (
+                str((existing.get("compiled") or {}).get("plan_sha256") or "")
+                != str(compiled.get("plan_sha256") or "")
+            ):
+                raise RuntimeError("P3.45 deterministic run-id collision")
+            return {
+                "ok": True,
+                "document_id": document_id,
+                "revision": current_revision,
+                "run_id": existing["run_id"],
+                "run_sha256": existing["run_sha256"],
+                "ir_sha256": compiled["ir_sha256"],
+                "plan_sha256": compiled["plan_sha256"],
+                "topological_order": compiled["topological_order"],
+                "actions": compiled["actions"],
+                "affected_nodes": compiled["affected_nodes"],
+                "reused_nodes": compiled["reused_nodes"],
+                "provider_bindings": compiled["provider_bindings"],
+                "status": existing["status"],
+                "idempotent_existing_run": True,
+                "authority": "TYPESCRIPT_COMPILED_RUST_VERIFIED_TRANSACTION_PLAN",
+            }
         _persist(document_id, state)
         return {
             "ok": True,
@@ -218,6 +244,20 @@ def register_p345_tools(
         metadata, state = _load(document_id, run_id)
         if int(metadata["revision"]) != int(state["current_revision"]):
             raise RuntimeError("P3.45 runtime is stale relative to the document revision")
+        if state.get("status") == "COMPLETED":
+            return {
+                "ok": True,
+                "document_id": document_id,
+                "run_id": run_id,
+                "revision": int(state["current_revision"]),
+                "status": "COMPLETED",
+                "executed": [],
+                "run_sha256": state["run_sha256"],
+                "head_event_hash": state["head_event_hash"],
+                "idempotent_terminal_read": True,
+            }
+        if state.get("status") in {"ABORTED", "HOLD"}:
+            raise RuntimeError(f"P3.45 runtime is terminal/non-runnable: {state.get('status')}")
         if any(value == "RUNNING" for value in (state.get("node_states") or {}).values()):
             raise RuntimeError(
                 "P3.45 found an in-flight node after interruption; automatic commit inference is forbidden"
@@ -352,6 +392,15 @@ def register_p345_tools(
         _metadata, state = _load(document_id, run_id)
         if (state.get("node_states") or {}).get(node_id) != "WAITING_EXTERNAL":
             raise ValueError("P3.45 node is not waiting for external evidence")
+        if not isinstance(evidence_receipt, dict) or not evidence_receipt:
+            raise ValueError("P3.45 external evidence receipt must be a non-empty object")
+        if evidence_receipt.get("world_contact_valid") is not True:
+            raise ValueError("P3.45 external evidence must explicitly assert world_contact_valid=true")
+        if int(evidence_receipt.get("revision") or 0) != int(state["current_revision"]):
+            raise ValueError("P3.45 external evidence revision is stale")
+        receipt_document_id = str(evidence_receipt.get("document_id") or "")
+        if receipt_document_id and receipt_document_id != document_id:
+            raise ValueError("P3.45 external evidence document_id mismatch")
         receipt_sha = host_receipt_sha256(evidence_receipt)
         state = transition(
             state,
@@ -374,6 +423,48 @@ def register_p345_tools(
             "evidence_receipt_sha256": receipt_sha,
             "run_sha256": state["run_sha256"],
             "head_event_hash": state["head_event_hash"],
+        }
+
+    @core.mcp.tool()
+    def abort_document_transaction(
+        document_id: str,
+        run_id: str,
+        reason_code: str = "operator.cancelled",
+    ) -> dict:
+        """Explicitly abort a P3.45 run when durable revision custody still matches the runtime."""
+        metadata, state = _load(document_id, run_id)
+        if int(metadata["revision"]) != int(state["current_revision"]):
+            raise RuntimeError(
+                "P3.45 cannot abort while durable revision diverges; explicit reconciliation is required"
+            )
+        if state.get("status") == "COMPLETED":
+            raise ValueError("P3.45 completed run cannot be aborted")
+        if state.get("status") == "ABORTED":
+            return {
+                "ok": True,
+                "document_id": document_id,
+                "run_id": run_id,
+                "revision": int(state["current_revision"]),
+                "status": "ABORTED",
+                "run_sha256": state["run_sha256"],
+                "head_event_hash": state["head_event_hash"],
+                "idempotent_terminal_read": True,
+            }
+        state = transition(
+            state,
+            {"type": "ABORT_RUN", "reason_code": str(reason_code or "operator.cancelled")},
+        )
+        verify_replay(state)
+        _persist(document_id, state)
+        return {
+            "ok": True,
+            "document_id": document_id,
+            "run_id": run_id,
+            "revision": int(state["current_revision"]),
+            "status": state["status"],
+            "run_sha256": state["run_sha256"],
+            "head_event_hash": state["head_event_hash"],
+            "authority": "EXPLICIT_ABORT_WITHOUT_COMMIT_INFERENCE",
         }
 
     @core.mcp.tool()

@@ -1,0 +1,329 @@
+{
+  "schema": "authorbench/p3.44/prospective-cross-domain-manifest/v1",
+  "phase": "P3.44",
+  "frozen_before_p344_implementation": true,
+  "evaluation_blinding": {
+    "method": "CASE_ID_ONLY_EVALUATOR_PACKET",
+    "hidden_from_evaluator": [
+      "domain",
+      "audience",
+      "generation_notes",
+      "split"
+    ],
+    "visible_to_evaluator": [
+      "case_id",
+      "artifact_sha256",
+      "static_diagnostic",
+      "render_receipt",
+      "mutation_receipts",
+      "policy_receipt"
+    ],
+    "claim_boundary": "EVALUATOR_BLIND_TO_DOMAIN_AND_SPLIT; GENERATOR_IS_NOT_CLAIMED_BLIND_TO_CASE_PROMPT"
+  },
+  "promotion": {
+    "discovery_cases": 4,
+    "holdout_cases": 4,
+    "required_holdout_domains": 4,
+    "rule": "NO_FAILED_HOLDOUT; NO_POST_FREEZE_THRESHOLD_TUNING; WITHHELD_RENDER_STAYS_WITHHELD"
+  },
+  "cases": [
+    {
+      "case_id": "AB44-01",
+      "split": "DISCOVERY",
+      "domain": "SCIENTIFIC_RESEARCH_BRIEF",
+      "archetype": "RESEARCH_BRIEF",
+      "preset": "polished-report",
+      "audience": "technical reviewers",
+      "title": "센서 교정 이상 징후 재검증 브리프",
+      "section1": "관찰 경계",
+      "section2": "재검증 설계",
+      "body1": "서로 다른 측정 경로에서 같은 이상 값이 나타나더라도 원자료 누락, 시간 정렬, 변환 버전 변화가 같은 표면 현상을 만들 수 있다. 따라서 원인 단정 전에 관찰 가능한 차이를 분리한다.",
+      "body2": "원자료 해시, 변환 단계별 입력·출력, 독립 재실행 결과를 연결해 어떤 추가 관찰이 경쟁 설명을 실제로 구분하는지 기록한다.",
+      "table": [
+        [
+          "검증 지점",
+          "증거",
+          "다음 행동"
+        ],
+        [
+          "원자료",
+          "수집 파일·해시",
+          "불변 보존"
+        ],
+        [
+          "변환",
+          "입력·출력 쌍",
+          "단계 재실행"
+        ],
+        [
+          "판정",
+          "독립 결과",
+          "불일치 국소화"
+        ]
+      ],
+      "conclusion": "결론은 가장 그럴듯한 원인을 고르는 것이 아니라, 다음 관찰이 후보 설명을 갈라놓도록 검증 경로를 설계하는 것이다."
+    },
+    {
+      "case_id": "AB44-02",
+      "split": "DISCOVERY",
+      "domain": "INSTITUTIONAL_OPERATIONS_MEMO",
+      "archetype": "INSTITUTIONAL_REPORT",
+      "preset": "institutional-report",
+      "audience": "operations committee",
+      "title": "공용장비 예약 운영 개선안",
+      "section1": "현행 문제",
+      "section2": "운영 구조",
+      "body1": "예약·변경·취소가 서로 다른 채널에서 처리되면 최종 일정은 맞아도 상태가 바뀐 근거를 재구성하기 어렵다. 예외 승인도 동일한 기준으로 추적하기 어렵다.",
+      "body2": "예약 상태와 변경 사유를 같은 기록에 연결하고 예외 승인은 최소 근거와 유효 기간을 남긴다. 관리자 개입은 가능한 한 되돌릴 수 있게 설계한다.",
+      "table": [
+        [
+          "항목",
+          "기본 규칙",
+          "예외"
+        ],
+        [
+          "예약",
+          "단일 상태 기록",
+          "사유·만료 기록"
+        ],
+        [
+          "변경",
+          "전후 상태 보존",
+          "승인 근거 연결"
+        ],
+        [
+          "취소",
+          "취소 상태 명시",
+          "복원 가능성 표시"
+        ]
+      ],
+      "conclusion": "규칙 수를 늘리는 대신 현재 상태와 그 상태가 만들어진 과정을 함께 설명할 수 있게 하는 것이 목표다."
+    },
+    {
+      "case_id": "AB44-03",
+      "split": "DISCOVERY",
+      "domain": "TECHNICAL_INCIDENT_REPORT",
+      "archetype": "POLISHED_REPORT",
+      "preset": "polished-report",
+      "audience": "engineering team",
+      "title": "문서 변환 파이프라인 장애 분석",
+      "section1": "장애 범위",
+      "section2": "복구와 재발 방지",
+      "body1": "일부 파일에서 변환 결과는 생성되었지만 후속 검증 단계가 누락되어 성공 상태가 과대 보고되었다. 장애를 생성 실패와 검증 실패로 분리해 추적한다.",
+      "body2": "각 단계의 성공 조건을 독립 receipt로 기록하고, 후속 단계가 실패하면 이전 단계의 성공을 유지하되 전체 완료 상태는 승격하지 않는다.",
+      "table": [
+        [
+          "단계",
+          "관측",
+          "판정"
+        ],
+        [
+          "생성",
+          "파일 생성",
+          "PASS"
+        ],
+        [
+          "검증",
+          "후속 receipt 부재",
+          "FAIL"
+        ],
+        [
+          "배포",
+          "미실행",
+          "WITHHELD"
+        ]
+      ],
+      "conclusion": "복구의 핵심은 성공 플래그 하나가 아니라 단계별 권한과 실패 위치를 보존하는 것이다."
+    },
+    {
+      "case_id": "AB44-04",
+      "split": "DISCOVERY",
+      "domain": "EDUCATIONAL_HANDOUT",
+      "archetype": "ACADEMIC_REPORT",
+      "preset": "academic-report",
+      "audience": "students",
+      "title": "실험 보고서 작성 체크리스트",
+      "section1": "측정 기록",
+      "section2": "해석 기록",
+      "body1": "측정값은 단위, 기기 조건, 반복 횟수와 함께 기록해야 한다. 표에는 원자료와 계산 결과를 구분해 표시한다.",
+      "body2": "해석은 관찰 사실과 추론을 분리하고, 예상과 다른 결과가 나왔을 때 삭제하지 않고 가능한 원인과 추가 확인 방법을 적는다.",
+      "table": [
+        [
+          "구분",
+          "필수 항목",
+          "주의"
+        ],
+        [
+          "측정",
+          "값·단위·조건",
+          "원자료 보존"
+        ],
+        [
+          "계산",
+          "식·결과",
+          "중간값 확인"
+        ],
+        [
+          "해석",
+          "근거·한계",
+          "사실/추론 분리"
+        ]
+      ],
+      "conclusion": "좋은 보고서는 정답처럼 보이는 문서보다 다른 사람이 측정과 판단 과정을 다시 확인할 수 있는 문서다."
+    },
+    {
+      "case_id": "AB44-05",
+      "split": "HOLDOUT",
+      "domain": "PROJECT_DECISION_MEMO",
+      "archetype": "POLISHED_REPORT",
+      "preset": "polished-report",
+      "audience": "project leads",
+      "title": "프로젝트 의사결정 기록 체계 제안",
+      "section1": "의사결정 손실",
+      "section2": "최소 기록 단위",
+      "body1": "결론만 남기면 이후 조건이 달라졌을 때 무엇을 재검토해야 하는지 알기 어렵다. 선택 당시의 제약과 대안, 기각 이유를 함께 보존해야 한다.",
+      "body2": "결정마다 문제 정의, 고려한 대안, 선택 근거, 남은 불확실성, 재검토 조건을 최소 단위로 기록하고 후속 변경과 연결한다.",
+      "table": [
+        [
+          "기록 항목",
+          "내용",
+          "후속 사용"
+        ],
+        [
+          "문제",
+          "결정 대상",
+          "범위 확인"
+        ],
+        [
+          "대안",
+          "검토 후보",
+          "재평가"
+        ],
+        [
+          "근거",
+          "선택 이유",
+          "변경 비교"
+        ],
+        [
+          "재검토",
+          "조건",
+          "트리거"
+        ]
+      ],
+      "conclusion": "의사결정 기록은 과거를 정당화하기 위한 문서가 아니라 미래의 재검토 비용을 낮추는 인프라다."
+    },
+    {
+      "case_id": "AB44-06",
+      "split": "HOLDOUT",
+      "domain": "PUBLIC_INFORMATION_NOTICE",
+      "archetype": "INSTITUTIONAL_REPORT",
+      "preset": "institutional-report",
+      "audience": "general public",
+      "title": "시설 이용 절차 변경 안내",
+      "section1": "변경 내용",
+      "section2": "이용자 확인 사항",
+      "body1": "예약 확인 방식이 변경되어 신청 완료와 이용 승인 상태가 분리된다. 신청 접수만으로 이용이 확정된 것은 아니며 승인 상태를 별도로 확인해야 한다.",
+      "body2": "이용자는 예약 시간 전 승인 상태와 준비 사항을 확인하고 변경이 필요한 경우 지정된 창구를 이용한다. 기존 예약은 별도 취소 안내가 없는 한 유지된다.",
+      "table": [
+        [
+          "구분",
+          "이전",
+          "변경"
+        ],
+        [
+          "신청",
+          "접수 즉시 확정",
+          "접수 후 승인 확인"
+        ],
+        [
+          "변경",
+          "개별 연락",
+          "지정 창구"
+        ],
+        [
+          "기존 예약",
+          "유지",
+          "원칙적 유지"
+        ]
+      ],
+      "conclusion": "핵심은 신청과 승인 상태를 혼동하지 않고 현재 상태를 확인하는 것이다."
+    },
+    {
+      "case_id": "AB44-07",
+      "split": "HOLDOUT",
+      "domain": "COMPLIANCE_CHECKLIST",
+      "archetype": "FORM",
+      "preset": "institutional-report",
+      "audience": "internal reviewers",
+      "title": "자료 공개 전 확인표",
+      "section1": "공개 전 확인",
+      "section2": "승인 기록",
+      "body1": "공개 대상 파일이 최종본인지, 민감 정보가 포함되어 있지 않은지, 공개 범위와 라이선스가 확인되었는지 순서대로 점검한다.",
+      "body2": "예외가 있으면 승인자, 승인 근거, 적용 범위와 만료 조건을 기록하고 이후 수정본이 생기면 동일 확인 절차를 다시 적용한다.",
+      "table": [
+        [
+          "점검",
+          "상태",
+          "근거"
+        ],
+        [
+          "최종본 확인",
+          "□",
+          "버전·해시"
+        ],
+        [
+          "민감정보 확인",
+          "□",
+          "검토 기록"
+        ],
+        [
+          "공개권한 확인",
+          "□",
+          "라이선스/승인"
+        ],
+        [
+          "예외 승인",
+          "□",
+          "근거·만료"
+        ]
+      ],
+      "conclusion": "확인표의 목적은 체크 표시가 아니라 공개 판단을 나중에 재구성할 수 있게 하는 것이다."
+    },
+    {
+      "case_id": "AB44-08",
+      "split": "HOLDOUT",
+      "domain": "ACADEMIC_METHODS_NOTE",
+      "archetype": "ACADEMIC_REPORT",
+      "preset": "academic-report",
+      "audience": "research collaborators",
+      "title": "반복 분석의 방법 기록 노트",
+      "section1": "분석 입력",
+      "section2": "민감도 확인",
+      "body1": "같은 원자료라도 전처리 규칙과 제외 기준이 달라지면 결과가 달라질 수 있으므로 입력 데이터 식별자와 처리 버전을 함께 기록한다.",
+      "body2": "주요 결론이 특정 처리 규칙에만 의존하는지 확인하기 위해 사전에 정한 대체 규칙으로 민감도 분석을 수행하고 차이를 보고한다.",
+      "table": [
+        [
+          "층",
+          "고정",
+          "변화"
+        ],
+        [
+          "원자료",
+          "데이터 식별자",
+          "반복 측정"
+        ],
+        [
+          "전처리",
+          "입력",
+          "처리 규칙"
+        ],
+        [
+          "요약",
+          "전처리 출력",
+          "집계 정의"
+        ]
+      ],
+      "conclusion": "재현성은 같은 수치를 다시 얻는 것뿐 아니라 결론의 적용 범위가 어떤 처리 선택에 의존하는지 설명하는 능력까지 포함한다."
+    }
+  ]
+}

@@ -109,8 +109,8 @@ jobs:
       - name: Verify packaged runtime contracts and release smoke
         run: |
           docker run --rm --entrypoint /bin/sh hwpx-mcp-p346:${{ github.sha }} -c '
-            test "$(p344-gate --contract)" = "p3.44-autonomous-authoring-gate-v1" &&
-            test "$(p345-replay --contract)" = "p3.45-runtime-replay-v1" &&
+            test "$(p344-gate --contract)" = "p3.44-gate-v1" &&
+            test "$(p345-replay --contract)" = "p3.45-replay-v1" &&
             test "$(p346-guard --contract)" = "p3.46-effect-guard-v1" &&
             python scripts/p346_release_smoke.py
           '

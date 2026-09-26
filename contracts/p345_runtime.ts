@@ -219,7 +219,7 @@ export function compileAuthoringIR(request:CompileRequest){
   const order=topo(ir.nodes), by=new Map(ir.nodes.map(n=>[n.id,n]));
   const extensions=request.extensions||[], kinds=nodeKindTable(extensions);
   const providers=[BUILTIN_PROVIDER,...(request.providers||[])];
-  const bindings:Record<string,any>={}, specs:Record<string,string>={}, actions:Record<string,PlanAction>={}, sideEffects:Record<string,SideEffect>={};
+  const bindings:Record<string,any>={}, bindingHashes:Record<string,string>={}, specs:Record<string,string>={}, actions:Record<string,PlanAction>={}, sideEffects:Record<string,SideEffect>={};
   const directDirty=new Set<string>(request.changed_node_ids||[]);
   const prior=request.prior_snapshot||{};
   for(const id of order){
@@ -227,9 +227,9 @@ export function compileAuthoringIR(request:CompileRequest){
     const requirements:[CapabilityRequirement,...CapabilityRequirement[]]=[{name:kind.capability,hard:true},...(n.requires||[])] as any;
     const negotiation=negotiate(requirements,providers);
     const binding={kind:n.kind,adapter:kind.adapter,primary:negotiation.selected[kind.capability],all:negotiation.selected,missing_soft:negotiation.missing_soft};
-    bindings[id]=binding;sideEffects[id]=kind.side_effect;
+    bindings[id]=binding;bindingHashes[id]=sha256(binding);sideEffects[id]=kind.side_effect;
     specs[id]=sha256({id:n.id,kind:n.kind,deps:[...(n.deps||[])].sort(),inputs:n.inputs??null,requires:n.requires||[],reusable:Boolean(n.reusable??kind.reusable)});
-    const bindHash=sha256(binding), prev=prior[id];
+    const bindHash=bindingHashes[id], prev=prior[id];
     if(!prev||prev.node_spec_sha256!==specs[id]||prev.provider_binding_sha256!==bindHash) directDirty.add(id);
     if(kind.side_effect!=="PURE") directDirty.add(id);
   }
@@ -247,7 +247,7 @@ export function compileAuthoringIR(request:CompileRequest){
   const compiled={
     schema:"chatgpt-web-hwpx-mcp/p3.45/compiled-runtime-plan/v1",phase:"P3.45",
     ir:normalizedIR,ir_sha256:sha256(normalizedIR),topological_order:order,
-    node_spec_sha256:specs,provider_bindings:bindings,side_effects:sideEffects,actions,
+    node_spec_sha256:specs,provider_bindings:bindings,provider_binding_sha256:bindingHashes,side_effects:sideEffects,actions,
     affected_nodes:order.filter(id=>dirty.has(id)),reused_nodes:order.filter(id=>actions[id]==="REUSE"),
     extension_sha256:extensions.map(e=>validateExtensionManifest(e).manifest_sha256).sort(),
     prior_snapshot: prior,

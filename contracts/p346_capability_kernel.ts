@@ -181,6 +181,7 @@ export function validateExtensionManifest(raw:any):ExtensionManifest&{manifest_s
   const tools=(raw.tools||[]).map(normTool) as ToolSpec[];
   if(caps.length<1||caps.length>32||nodes.length>32||tools.length>32) throw new Error("extension inventory bound violated");
   const capNames=new Set(caps.map(x=>x.name));
+  if(capNames.size!==caps.length) throw new Error("extension capability name collision");
   const capBy=new Map(caps.map(x=>[x.name,x] as const));
   for(const cap of caps) if(cap.effect!=="PURE") throw new Error("WASM extension capabilities are PURE-only");
   for(const n of nodes){

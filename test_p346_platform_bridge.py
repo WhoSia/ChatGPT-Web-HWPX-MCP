@@ -121,6 +121,9 @@ def test_pure_wasm_executes_and_imported_wasm_is_denied():
     receipt = execute_wasm(manifest, base64.b64encode(valid).decode("ascii"))
     assert receipt["result"] == 42
     assert receipt["sandbox"]["no_imports"] is True
+    assert receipt["sandbox"]["linear_memory"] is False
+    assert receipt["sandbox"]["tables"] is False
+    assert receipt["sandbox"]["timeout_ms"] == 250
     assert receipt["sandbox"]["host_functions"] == 0
 
     imported = bytes.fromhex(
@@ -131,6 +134,17 @@ def test_pure_wasm_executes_and_imported_wasm_is_denied():
     )
     with pytest.raises(RuntimeError, match="denies all WASM imports"):
         execute_wasm(_manifest(imported), base64.b64encode(imported).decode("ascii"))
+
+    memory = bytes.fromhex(
+        "0061736d01000000"
+        "0105016000017f"
+        "03020100"
+        "0503010001"
+        "070c0108703334365f72756e0000"
+        "0a06010400412a0b"
+    )
+    with pytest.raises(RuntimeError, match="denies WASM table/memory/element/data sections"):
+        execute_wasm(_manifest(memory), base64.b64encode(memory).decode("ascii"))
 
 
 def test_executable_extension_cannot_claim_mutation_effect():

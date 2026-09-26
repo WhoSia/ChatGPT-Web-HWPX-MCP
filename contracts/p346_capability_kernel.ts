@@ -64,6 +64,38 @@ export function sha256(v:any):string{
 function shaBytes(v:any):string{
   return crypto.createHash("sha256").update(v).digest("hex");
 }
+function readVarUint32(bytes:any,start:number):{value:number;next:number}{
+  let value=0,shift=0,index=start;
+  for(let i=0;i<5;i++){
+    if(index>=bytes.length) throw new Error("truncated WASM varuint32");
+    const b=Number(bytes[index++]);
+    value|=(b&0x7f)<<shift;
+    if((b&0x80)===0) return {value:value>>>0,next:index};
+    shift+=7;
+  }
+  throw new Error("invalid WASM varuint32");
+}
+function wasmSectionIds(bytes:any):number[]{
+  if(bytes.length<8||bytes[0]!==0x00||bytes[1]!==0x61||bytes[2]!==0x73||bytes[3]!==0x6d||
+     bytes[4]!==0x01||bytes[5]!==0x00||bytes[6]!==0x00||bytes[7]!==0x00){
+    throw new Error("invalid WASM header/version");
+  }
+  const ids:number[]=[];let offset=8;
+  while(offset<bytes.length){
+    const id=Number(bytes[offset++]);
+    const size=readVarUint32(bytes,offset);offset=size.next;
+    if(size.value>bytes.length-offset) throw new Error("truncated WASM section");
+    ids.push(id);offset+=size.value;
+  }
+  return ids;
+}
+function assertScalarWasmResourceShape(bytes:any):void{
+  const ids=wasmSectionIds(bytes);
+  const forbidden=new Set([4,5,9,11,12]);
+  if(ids.some(id=>forbidden.has(id))){
+    throw new Error("sandbox denies WASM table/memory/element/data sections");
+  }
+}
 function annotations(effect:Effect){
   return {
     readOnlyHint:effect==="READ_ONLY"||effect==="PURE",
@@ -307,6 +339,7 @@ export async function executeSandboxedWasm(request:any){
   const bytes=Buffer.from(raw,"base64");
   if(bytes.length>manifest.execution.max_module_bytes) throw new Error("WASM module bound exceeded");
   if(shaBytes(bytes)!==manifest.execution.module_sha256) throw new Error("WASM module hash mismatch");
+  assertScalarWasmResourceShape(bytes);
   const module=new WebAssembly.Module(bytes);
   if(WebAssembly.Module.imports(module).length!==0) throw new Error("sandbox denies all WASM imports");
   const instance=new WebAssembly.Instance(module,{});
@@ -317,7 +350,7 @@ export async function executeSandboxedWasm(request:any){
   const body={
     schema:"chatgpt-web-hwpx-mcp/p3.46/wasm-execution-receipt/v1",
     extension_id:manifest.extension_id,manifest_sha256:manifest.manifest_sha256,module_sha256:manifest.execution.module_sha256,result:value,
-    sandbox:{process_isolation:true,no_imports:true,filesystem:false,network:false,host_functions:0},
+    sandbox:{process_isolation:true,no_imports:true,linear_memory:false,tables:false,filesystem:false,network:false,host_functions:0,timeout_ms:manifest.execution.timeout_ms},
   };
   return {...body,receipt_sha256:sha256(body)};
 }
@@ -332,7 +365,7 @@ export const P346_PLATFORM_CONTRACT={
     powershell:"HANCOM_WORLD_CONTACT_ONLY",
   },
   preexecution_rejection:{reusable_non_read_effects:true,delivery_must_be_terminal:true,action_effect_mismatch:true,unknown_capability_or_adapter:true},
-  extensions:{host_abi:"p3.46-extension-v1",arbitrary_in_process_loading:false,executable_boundary:"PURE_WASM_NO_IMPORTS_IN_SEPARATE_BOUNDED_NODE_PROCESS",wasm_imports_allowed:0,non_pure_extension_code:"REJECTED"},
+  extensions:{host_abi:"p3.46-extension-v1",arbitrary_in_process_loading:false,executable_boundary:"PURE_SCALAR_WASM_NO_IMPORTS_IN_SEPARATE_BOUNDED_NODE_PROCESS",wasm_imports_allowed:0,wasm_linear_memory_allowed:false,wasm_tables_allowed:false,parent_process_timeout:true,non_pure_extension_code:"REJECTED"},
   inspector:{read_only:true,fields:["transaction_dag","event_chain","cache_invalidation","provider_binding","host_receipt_hashes","run_status"]},
   hot_swap:{scope:"OWNER_SCOPED_DOCUMENT_PRE_ADMITTED_PROCESS_LOCAL_PROFILES",compare_and_swap_generation:true,rollback:true,cross_document_leakage:false,arbitrary_code_registration:false},
   generated_contracts:true,

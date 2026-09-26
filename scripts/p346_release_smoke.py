@@ -13,6 +13,9 @@ contract = platform_contract()
 assert contract["phase"] == "P3.46"
 assert contract["product"] == "0.23.0-p3.46"
 assert contract["extensions"]["arbitrary_in_process_loading"] is False
+assert contract["extensions"]["wasm_linear_memory_allowed"] is False
+assert contract["extensions"]["wasm_tables_allowed"] is False
+assert contract["extensions"]["parent_process_timeout"] is True
 assert contract["hot_swap"]["rollback"] is True
 assert contract["hot_swap"]["cross_document_leakage"] is False
 assert "RUNTIME_CONFIGURATION" in contract["effect_types"]

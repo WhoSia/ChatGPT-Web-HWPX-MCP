@@ -101,3 +101,16 @@ Repair:
 - unit tests prove document-A swaps do not change document-B state.
 
 Required closure authority: `OWNER_SCOPED_ADAPTER_CONFIGURATION_PASS / CROSS_DOCUMENT_CONFIGURATION_NONINTERFERENCE_PASS`.
+
+
+## Sandbox resource hardening
+
+The initial no-import WASM boundary still allowed a module to declare internal linear memory or tables. V8's old-space limit does not by itself constitute a reliable bound on WebAssembly linear memory, so the scalar extension ABI is narrowed further.
+
+- reject WASM table, memory, element, data and data-count sections before module instantiation;
+- retain zero imports and the fixed `p346_run -> safe integer` result contract;
+- record `linear_memory=false` and `tables=false` in execution receipts;
+- let the Python parent process own the kill timeout, derived from the manifest timeout plus bounded process-startup grace;
+- add a valid-but-memory-declaring module as a negative control.
+
+Required closure authority: `PURE_SCALAR_WASM_RESOURCE_BOUNDARY_PASS / PARENT_PROCESS_TIMEOUT_PASS`.

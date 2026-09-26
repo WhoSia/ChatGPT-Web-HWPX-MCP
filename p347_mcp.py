@@ -3,7 +3,7 @@ from __future__ import annotations
 import copy
 import threading
 from dataclasses import dataclass
-from typing import Any, Callable, Mapping
+from typing import Any, Callable, Mapping, Sequence
 
 from mcp.types import ToolAnnotations
 
@@ -19,6 +19,7 @@ from p347_supply_chain_bridge import (
     verify_certificate,
     verify_dependency_closure,
 )
+from p347_trust import normalize_trust_policy
 
 
 @dataclass(frozen=True)
@@ -32,7 +33,7 @@ class CertifiedPackage:
 
 
 class CertifiedPackageRegistry:
-    """Immutable package catalog with owner-scoped rollout state and generation CAS."""
+    """Owner-scoped trust roots plus immutable certified package rollout state."""
 
     def __init__(self):
         self._lock = threading.RLock()
@@ -41,6 +42,7 @@ class CertifiedPackageRegistry:
         self._document_states: dict[str, dict[str, str]] = {}
         self._document_promoted: dict[str, dict[str, str]] = {}
         self._document_history: dict[str, list[dict]] = {}
+        self._document_trust_policy: dict[str, dict] = {}
 
     def _state(self, document_id: str) -> tuple[int, dict[str, str], dict[str, str], list[dict]]:
         document_id = str(document_id or "")
@@ -68,9 +70,44 @@ class CertifiedPackageRegistry:
             item.certificate.get("certificate_sha256"),
         )
 
+    def configure_trust_policy(
+        self,
+        policy: Mapping[str, Any],
+        *,
+        document_id: str,
+        expected_generation: int,
+    ) -> dict:
+        normalized = normalize_trust_policy(policy)
+        with self._lock:
+            generation, states, _promoted, history = self._state(document_id)
+            if int(expected_generation) != generation:
+                raise RuntimeError("P3.47 package registry generation CAS mismatch")
+            if states:
+                raise RuntimeError("P3.47 trust policy is immutable after package admission")
+            self._document_trust_policy[document_id] = copy.deepcopy(normalized)
+            self._document_generation[document_id] = generation + 1
+            history.append(
+                {
+                    "action": "TRUST_POLICY_SET",
+                    "trust_policy_sha256": normalized["trust_policy_sha256"],
+                    "generation_before": generation,
+                    "generation_after": generation + 1,
+                }
+            )
+            return self.snapshot(document_id)
+
+    def trust_policy(self, document_id: str) -> dict:
+        with self._lock:
+            self._state(document_id)
+            policy = self._document_trust_policy.get(document_id)
+            if policy is None:
+                raise RuntimeError("P3.47 document has no configured extension trust policy")
+            return copy.deepcopy(policy)
+
     def snapshot(self, document_id: str) -> dict:
         with self._lock:
             generation, states, promoted, history = self._state(document_id)
+            policy = self._document_trust_policy.get(document_id)
             rows = []
             for package_id, state in sorted(states.items()):
                 item = self._catalog[package_id]
@@ -91,30 +128,53 @@ class CertifiedPackageRegistry:
                 "packages": rows,
                 "promoted_by_extension": dict(sorted(promoted.items())),
                 "history": copy.deepcopy(history[-32:]),
+                "trust_policy_sha256": None if policy is None else policy["trust_policy_sha256"],
+                "trusted_builder_roots": 0 if policy is None else len(policy["builders"]),
+                "trusted_host_roots": 0 if policy is None else len(policy["hosts"]),
                 "scope": "OWNER_SCOPED_DOCUMENT_ROLLOUT",
+                "trust_scope": "OWNER_SCOPED_PRECONFIGURED_ROOTS",
                 "catalog_visibility": "ONLY_PACKAGES_ADMITTED_TO_THIS_DOCUMENT",
             }
 
     def install(
         self,
         package: Mapping[str, Any],
-        certificate: Mapping[str, Any],
         *,
+        rebuild_package: Mapping[str, Any],
+        host_observations: Sequence[Mapping[str, Any]],
+        dependency_catalog: Sequence[Mapping[str, Any]] = (),
         document_id: str,
         expected_generation: int,
     ) -> dict:
-        normalized = normalize_extension_package(package)
-        verified = verify_certificate(certificate)
+        with self._lock:
+            generation, _states, _promoted, _history = self._state(document_id)
+            if int(expected_generation) != generation:
+                raise RuntimeError("P3.47 package registry generation CAS mismatch")
+            policy = self._document_trust_policy.get(document_id)
+            if policy is None:
+                raise RuntimeError("P3.47 document has no configured extension trust policy")
+            policy = copy.deepcopy(policy)
+
+        certified = certify_extension_package(
+            package,
+            rebuild_package=rebuild_package,
+            trust_policy=policy,
+            catalog=dependency_catalog,
+            host_observations=host_observations,
+        )
+        certificate = certified["certificate"]
+        if certificate.get("status") != "PASS" or not certified["rust"].get("ok"):
+            raise RuntimeError("P3.47 install-time recertification failed")
+        normalized = certified["derived_evidence"]["normalized_package"]
         package_id = str(normalized["package_id"])
-        if str(certificate.get("package_id") or "") != package_id:
-            raise RuntimeError("P3.47 certificate/package identity mismatch")
-        if not verified["typescript"].get("ok") or not verified["rust"].get("ok"):
-            raise RuntimeError("P3.47 certificate verification did not pass both runtimes")
 
         with self._lock:
             generation, states, _promoted, history = self._state(document_id)
             if int(expected_generation) != generation:
-                raise RuntimeError("P3.47 package registry generation CAS mismatch")
+                raise RuntimeError("P3.47 package registry generation changed during recertification")
+            active_policy = self._document_trust_policy.get(document_id)
+            if active_policy is None or active_policy["trust_policy_sha256"] != policy["trust_policy_sha256"]:
+                raise RuntimeError("P3.47 trust policy changed during recertification")
             item = CertifiedPackage(
                 package_id=package_id,
                 extension_id=str(normalized["extension"]["extension_id"]),
@@ -127,7 +187,6 @@ class CertifiedPackageRegistry:
             if prior is not None and self._catalog_fingerprint(prior) != self._catalog_fingerprint(item):
                 raise RuntimeError("P3.47 content-addressed package catalog collision")
             self._catalog[package_id] = item
-
             if package_id in states:
                 raise RuntimeError("P3.47 package already admitted to document")
             states[package_id] = "INSTALLED"
@@ -139,6 +198,8 @@ class CertifiedPackageRegistry:
                     "extension_id": item.extension_id,
                     "from": None,
                     "to": "INSTALLED",
+                    "trust_policy_sha256": policy["trust_policy_sha256"],
+                    "certificate_sha256": certificate["certificate_sha256"],
                     "generation_before": generation,
                     "generation_after": generation + 1,
                 }
@@ -147,7 +208,8 @@ class CertifiedPackageRegistry:
             out.update(
                 {
                     "installed_package_id": package_id,
-                    "authority": "CERTIFIED_CONTENT_ADDRESSED_PACKAGE_INSTALL_PASS",
+                    "certificate": copy.deepcopy(certificate),
+                    "authority": "TRUST_ROOT_RECERTIFIED_CONTENT_ADDRESSED_PACKAGE_INSTALL_PASS",
                 }
             )
             return out
@@ -169,6 +231,7 @@ class CertifiedPackageRegistry:
                 raise KeyError("P3.47 package is not admitted to document")
             current = states[package_id]
             item = self._catalog[package_id]
+            verify_certificate(item.certificate)
             transition = validate_rollout_transition(current, target_state, item.certificate)
 
             dependency_states = {
@@ -181,10 +244,7 @@ class CertifiedPackageRegistry:
                     "CANARY": {"CANARY", "PROMOTED"},
                     "PROMOTED": {"PROMOTED"},
                 }[target_state]
-                bad = {
-                    dep: state for dep, state in dependency_states.items()
-                    if state not in allowed_by_target
-                }
+                bad = {dep: state for dep, state in dependency_states.items() if state not in allowed_by_target}
                 if bad:
                     raise RuntimeError(
                         f"P3.47 dependency rollout state not admissible for {target_state}: {bad}"
@@ -197,6 +257,7 @@ class CertifiedPackageRegistry:
                     if states.get(previous) != "PROMOTED":
                         raise RuntimeError("P3.47 promoted pointer/state divergence")
                     previous_item = self._catalog[previous]
+                    verify_certificate(previous_item.certificate)
                     validate_rollout_transition("PROMOTED", "RETIRED", previous_item.certificate)
                     states[previous] = "RETIRED"
                     replaced_package_id = previous
@@ -306,16 +367,8 @@ def register_p347_tools(
     owned_document: Callable[[str], tuple[dict, Any]],
     registry: CertifiedPackageRegistry,
 ):
-    read_only = ToolAnnotations(
-        readOnlyHint=True,
-        destructiveHint=False,
-        openWorldHint=False,
-    )
-    runtime_config = ToolAnnotations(
-        readOnlyHint=False,
-        destructiveHint=True,
-        openWorldHint=False,
-    )
+    read_only = ToolAnnotations(readOnlyHint=True, destructiveHint=False, openWorldHint=False)
+    runtime_config = ToolAnnotations(readOnlyHint=False, destructiveHint=True, openWorldHint=False)
 
     def _own(document_id: str) -> None:
         owned_document(document_id)
@@ -326,10 +379,7 @@ def register_p347_tools(
         return {"ok": True, **supply_chain_contract()}
 
     @core.mcp.tool(annotations=read_only)
-    def verify_extension_package(
-        package: dict,
-        dependency_catalog: list[dict] | None = None,
-    ) -> dict:
+    def verify_extension_package(package: dict, dependency_catalog: list[dict] | None = None) -> dict:
         core._caller_subject()
         normalized = normalize_extension_package(package)
         closure = verify_dependency_closure(package, dependency_catalog or [])
@@ -339,7 +389,7 @@ def register_p347_tools(
     def compare_extension_build_reproducibility(left: dict, right: dict) -> dict:
         core._caller_subject()
         result = compare_reproducible_builds(left, right)
-        return {"ok": bool(result["reproducible"]), **result}
+        return {"ok": bool(result["reproducible"]), "authority": "DESCRIPTIVE_ONLY_NOT_TRUST_AUTHORITY", **result}
 
     @core.mcp.tool(annotations=read_only)
     def solve_extension_package_compatibility(current: dict, candidate: dict) -> dict:
@@ -351,27 +401,7 @@ def register_p347_tools(
     def compare_extension_host_conformance(observations: list[dict]) -> dict:
         core._caller_subject()
         result = compare_host_conformance(observations)
-        return {"ok": result["verdict"] == "PASS", **result}
-
-    @core.mcp.tool(annotations=read_only)
-    def certify_document_extension_package(
-        package: dict,
-        rebuild_package: dict,
-        host_observations: list[dict],
-        dependency_catalog: list[dict] | None = None,
-    ) -> dict:
-        core._caller_subject()
-        result = certify_extension_package(
-            package,
-            rebuild_package=rebuild_package,
-            catalog=dependency_catalog or [],
-            host_observations=host_observations,
-        )
-        return {
-            "ok": result["certificate"]["status"] == "PASS"
-            and bool(result["rust"].get("ok")),
-            **result,
-        }
+        return {"ok": result["verdict"] == "PASS", "authority": "DESCRIPTIVE_ONLY_NOT_TRUST_AUTHORITY", **result}
 
     @core.mcp.tool(annotations=read_only)
     def get_certified_extension_registry(document_id: str) -> dict:
@@ -379,18 +409,60 @@ def register_p347_tools(
         return {"ok": True, **registry.snapshot(document_id)}
 
     @core.mcp.tool(annotations=runtime_config)
+    def configure_extension_trust_policy(
+        document_id: str,
+        trust_policy: dict,
+        expected_generation: int,
+    ) -> dict:
+        _own(document_id)
+        return {
+            "ok": True,
+            **registry.configure_trust_policy(
+                trust_policy,
+                document_id=document_id,
+                expected_generation=int(expected_generation),
+            ),
+        }
+
+    @core.mcp.tool(annotations=read_only)
+    def certify_document_extension_package(
+        document_id: str,
+        package: dict,
+        rebuild_package: dict,
+        host_observations: list[dict],
+        dependency_catalog: list[dict] | None = None,
+    ) -> dict:
+        _own(document_id)
+        policy = registry.trust_policy(document_id)
+        result = certify_extension_package(
+            package,
+            rebuild_package=rebuild_package,
+            trust_policy=policy,
+            catalog=dependency_catalog or [],
+            host_observations=host_observations,
+        )
+        return {
+            "ok": result["certificate"]["status"] == "PASS" and bool(result["rust"].get("ok")),
+            **result,
+        }
+
+    @core.mcp.tool(annotations=runtime_config)
     def install_certified_extension_package(
         document_id: str,
         package: dict,
-        certificate: dict,
+        rebuild_package: dict,
+        host_observations: list[dict],
         expected_generation: int,
+        dependency_catalog: list[dict] | None = None,
     ) -> dict:
         _own(document_id)
         return {
             "ok": True,
             **registry.install(
                 package,
-                certificate,
+                rebuild_package=rebuild_package,
+                host_observations=host_observations,
+                dependency_catalog=dependency_catalog or [],
                 document_id=document_id,
                 expected_generation=int(expected_generation),
             ),

@@ -87,3 +87,74 @@ def test_arbitrary_profile_registration_is_not_exposed():
             registry.snapshot("doc-a")["generation"],
             document_id="doc-a",
         )
+
+
+def test_run_local_binding_survives_document_swap_and_restart_hint():
+    registry = AdapterRegistry({
+        "DOCUMENT_SNAPSHOT": _readonly,
+    })
+    first = registry.resolve(
+        "DOCUMENT_SNAPSHOT",
+        document_id="doc-a",
+        run_id="run-1",
+    )
+    first_receipt = first(
+        document_id="doc-a",
+        current_revision=3,
+        inputs={},
+        lease_token="",
+    )
+    assert first_receipt["p346_adapter_profile"] == "p3.46-guarded"
+    assert first_receipt["p346_adapter_generation"] == 1
+
+    snap = registry.snapshot("doc-a")
+    registry.swap(
+        "p3.45-compat",
+        snap["generation"],
+        document_id="doc-a",
+    )
+
+    same_run = registry.resolve(
+        "DOCUMENT_SNAPSHOT",
+        document_id="doc-a",
+        run_id="run-1",
+    )
+    same_receipt = same_run(
+        document_id="doc-a",
+        current_revision=3,
+        inputs={},
+        lease_token="",
+    )
+    assert same_receipt["p346_adapter_profile"] == "p3.46-guarded"
+    assert same_receipt["p346_adapter_generation"] == 1
+
+    next_run = registry.resolve(
+        "DOCUMENT_SNAPSHOT",
+        document_id="doc-a",
+        run_id="run-2",
+    )
+    next_receipt = next_run(
+        document_id="doc-a",
+        current_revision=3,
+        inputs={},
+        lease_token="",
+    )
+    assert next_receipt["p346_adapter_profile"] == "p3.45-compat"
+    assert next_receipt["p346_adapter_generation"] == 2
+
+    restarted = AdapterRegistry({"DOCUMENT_SNAPSHOT": _readonly})
+    recovered = restarted.resolve(
+        "DOCUMENT_SNAPSHOT",
+        document_id="doc-a",
+        run_id="run-2",
+        pinned_profile="p3.45-compat",
+        pinned_generation=2,
+    )
+    recovered_receipt = recovered(
+        document_id="doc-a",
+        current_revision=3,
+        inputs={},
+        lease_token="",
+    )
+    assert recovered_receipt["p346_adapter_profile"] == "p3.45-compat"
+    assert recovered_receipt["p346_adapter_generation"] == 2

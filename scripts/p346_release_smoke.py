@@ -94,4 +94,38 @@ rolled = registry.rollback(
 )
 assert rolled["active_profile"] == "p3.46-guarded"
 
+pinned_registry = AdapterRegistry({
+    "DOCUMENT_SNAPSHOT": _readonly,
+})
+run_one = pinned_registry.resolve(
+    "DOCUMENT_SNAPSHOT",
+    document_id="release-pin",
+    run_id="run-1",
+)
+first_receipt = run_one(
+    document_id="release-pin",
+    current_revision=1,
+    inputs={},
+    lease_token="",
+)
+pin_snapshot = pinned_registry.snapshot("release-pin")
+pinned_registry.swap(
+    "p3.45-compat",
+    pin_snapshot["generation"],
+    document_id="release-pin",
+)
+same_run_receipt = pinned_registry.resolve(
+    "DOCUMENT_SNAPSHOT",
+    document_id="release-pin",
+    run_id="run-1",
+)(
+    document_id="release-pin",
+    current_revision=1,
+    inputs={},
+    lease_token="",
+)
+assert first_receipt["p346_adapter_profile"] == "p3.46-guarded"
+assert same_run_receipt["p346_adapter_profile"] == "p3.46-guarded"
+assert same_run_receipt["p346_adapter_generation"] == 1
+
 print("P3.46 release smoke PASS")

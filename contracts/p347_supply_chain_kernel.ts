@@ -1,4 +1,5 @@
 declare function require(name:string):any;
+declare const Buffer:any;
 const crypto=require("crypto");
 import {
   canonicalJson,
@@ -283,9 +284,9 @@ export function solveCompatibility(currentRaw:any,candidateRaw:any){
   const oldTools=toolMap(current.extension),newTools=toolMap(candidate.extension);
   for(const [name,oldTool] of oldTools){
     const next=newTools.get(name);
-    if(!next){if(verdict==="SAFE_DROP_IN"||verdict==="MIGRATION_REQUIRED") verdict="REPLAY_BREAKING";reasons.push("TOOL_REMOVED:"+name);continue;}
+    if(!next){if(verdict==="SAFE_DROP_IN") verdict="REPLAY_BREAKING";reasons.push("TOOL_REMOVED:"+name);continue;}
     if(!schemaBackwardCompatible(oldTool.input_schema,next.input_schema)){
-      if(verdict==="SAFE_DROP_IN"||verdict==="MIGRATION_REQUIRED") verdict="REPLAY_BREAKING";
+      if(verdict==="SAFE_DROP_IN") verdict="REPLAY_BREAKING";
       reasons.push("INPUT_SCHEMA_BREAK:"+name);
     }
   }

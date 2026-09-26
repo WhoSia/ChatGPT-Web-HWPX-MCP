@@ -126,7 +126,7 @@ def test_registry_generation_cas(monkeypatch):
 
 def test_mcp_registration_requires_ownership_for_registry(monkeypatch):
     core = _Core()
-    owned = {"doc": ({"revision": 1}, object())]
+    owned = {"doc": ({"revision": 1}, object())}
 
     monkeypatch.setattr(p347_mcp, "supply_chain_contract", lambda: {"phase": "P3.47"})
     registry = CertifiedPackageRegistry()

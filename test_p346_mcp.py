@@ -2,7 +2,25 @@ from __future__ import annotations
 
 import pytest
 
-from p346_mcp import AdapterRegistry
+import p346_mcp
+from p345_runtime_bridge import host_receipt_sha256
+from p346_mcp import AdapterRegistry, register_p346_tools
+
+
+class _MCP:
+    def __init__(self):
+        self.tools = {}
+
+    def tool(self, *, annotations=None):
+        def decorate(fn):
+            self.tools[fn.__name__] = fn
+            return fn
+        return decorate
+
+
+class _Core:
+    def __init__(self):
+        self.mcp = _MCP()
 
 
 def _readonly(**kwargs):
@@ -182,3 +200,87 @@ def test_run_local_binding_survives_document_swap_and_restart_hint():
             pinned_generation=2,
             pinned_contract_sha256="0" * 64,
         )
+
+def test_inspector_surfaces_orphan_host_receipt_sidecar(monkeypatch):
+    names = {
+        "get_developer_platform_contract",
+        "project_document_tool_surface",
+        "validate_document_effect_composition",
+        "validate_document_tool_sequence",
+        "validate_projected_document_tool_plan",
+        "validate_projected_document_tool_sequence",
+        "inspect_document_runtime",
+        "get_document_runtime_diagnostics",
+        "get_host_adapter_registry",
+        "hot_swap_document_host_adapter_profile",
+        "rollback_document_host_adapter_profile",
+        "validate_sandboxed_document_extension",
+        "execute_sandboxed_document_extension_probe",
+        "generate_document_platform_contracts",
+    }
+    monkeypatch.setattr(
+        p346_mcp,
+        "project_tools",
+        lambda extensions=None: {
+            "tools": [{"name": name} for name in sorted(names)],
+            "surface_sha256": "s" * 64,
+        },
+    )
+    monkeypatch.setattr(p346_mcp, "platform_contract", lambda: {"phase": "P3.46"})
+    monkeypatch.setattr(p346_mcp, "verify_replay", lambda state: {"ok": True})
+    monkeypatch.setattr(
+        p346_mcp,
+        "inspect_runtime",
+        lambda state: {
+            "schema": "chatgpt-web-hwpx-mcp/p3.46/runtime-inspector/v1",
+            "phase": "P3.46",
+            "run": {"run_id": state["run_id"]},
+        },
+    )
+
+    state = {
+        "run_id": "run-orphan",
+        "compiled": {"topological_order": ["snapshot"]},
+        "outputs": {
+            "snapshot": {
+                "output_sha256": "a" * 64,
+                "receipt_sha256": "b" * 64,
+            }
+        },
+    }
+    orphan = {
+        "node_id": "orphan",
+        "adapter": "DOCUMENT_SNAPSHOT",
+        "adapter_profile": "p3.46-guarded",
+        "adapter_generation": 1,
+        "adapter_contract_sha256": "c" * 64,
+        "revision_before": 1,
+        "revision_after": 1,
+        "output_sha256": "a" * 64,
+        "receipt_sha256": "b" * 64,
+    }
+    orphan["provenance_sha256"] = host_receipt_sha256(orphan)
+    metadata = {
+        "revision": 1,
+        "p345_transaction_runs": {"run-orphan": state},
+        "p346_runtime_host_receipts": {
+            "run-orphan": {"orphan": orphan}
+        },
+    }
+
+    core = _Core()
+    register_p346_tools(
+        core,
+        lambda document_id: (metadata, None),
+        AdapterRegistry({"DOCUMENT_SNAPSHOT": _readonly}),
+    )
+    inspected = core.mcp.tools["inspect_document_runtime"](
+        "doc",
+        "run-orphan",
+    )
+    assert inspected["ok"] is False
+    assert any(
+        row.get("code") == "HOST_RECEIPT_UNKNOWN_NODE"
+        for row in inspected["host_execution_receipt_diagnostics"]
+    )
+

@@ -32,6 +32,10 @@ def git_head()->str:
         return ""
 
 
+def design_mode(case:dict)->str:
+    return "INSTITUTIONAL_COMPATIBILITY" if case["archetype"] in {"INSTITUTIONAL_REPORT","FORM"} else "POLISHED_REPORT"
+
+
 def rich_plan(case:dict)->dict:
     return {
         "preset":case["preset"],
@@ -70,7 +74,7 @@ def materialize(out_dir:Path)->dict:
         repairs=[]
         revision=1
         for _ in range(2):
-            diag=diagnose_document_with_render(path,mode=case["archetype"])
+            diag=diagnose_document_with_render(path,mode=design_mode(case))
             summary=diagnostic_summary(diag)
             plan=plan_executable_editorial_repairs(path,diag,strategy=strategy)
             ps=repair_plan_summary(plan)
@@ -86,7 +90,7 @@ def materialize(out_dir:Path)->dict:
                 "preservation_passed":bool((tx.get("preservation_enforcement") or {}).get("passed")),
                 "preservation_grade":(tx.get("mutation_footprint") or {}).get("preservation",{}).get("actual_grade"),
             })
-        final=diagnose_document_with_render(path,mode=case["archetype"])
+        final=diagnose_document_with_render(path,mode=design_mode(case))
         final_summary=diagnostic_summary(final)
         final_plan=plan_executable_editorial_repairs(path,final,strategy=strategy)
         final_ps=repair_plan_summary(final_plan)
@@ -103,7 +107,7 @@ def materialize(out_dir:Path)->dict:
             "human_verdict":"PENDING",
         }
         gate=evaluate_runtime_gate(snapshot)
-        preview=evaluate_preview_readiness(path,mode=case["archetype"])
+        preview=evaluate_preview_readiness(path,mode=design_mode(case))
         row={
             "case_id":case["case_id"],
             "split":case["split"],

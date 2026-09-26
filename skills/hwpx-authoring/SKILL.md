@@ -99,3 +99,14 @@ A static preview PASS means native/layout mechanics look safe. It does **not** m
 - **apply_organization_template_migration** requires P3.42 footprint enforcement plus semantic/structure and immutable-part postconditions before commit.
 - Use **adjudicate_cross_template_generalization** only with explicit DISCOVERY/HOLDOUT labels; WITHHELD remains in the denominator.
 - Follow [organization/template policy](references/organization-template-policy.md), [mutation footprint](references/mutation-footprint.md), and [evidence authority](references/evidence-authority.md).
+
+
+## P3.44 autonomous authoring boundary
+
+- Prefer **get_autonomous_authoring_contract** → **start_autonomous_professional_authoring** when the user wants a finished professional document rather than individual editing calls.
+- Treat the returned run as a bounded resumable state machine. `WAIT_RENDER` and `WAIT_HUMAN` are evidence pauses, not failures and not permission to invent a PASS.
+- Recover state with **get_autonomous_authoring_run** and resume only with the exact run SHA using **resume_autonomous_professional_authoring**.
+- Automatic repair is allowed only for locator-bound executable plans, within the repair budget, with P3.42 preservation PASS and any applicable P3.43 organization policy still admissible.
+- A repair after render invalidates that render. Re-render the new revision before delivery when render evidence is required.
+- Rust owns the production repair/delivery gate; TypeScript independently mirrors state-machine semantics and blind AuthorBench scoring; Python is the HWPX-native adapter; PowerShell/Hancom owns native world contact.
+- Follow [autonomous authoring](references/autonomous-authoring.md), [organization/template policy](references/organization-template-policy.md), [mutation footprint](references/mutation-footprint.md), and [evidence authority](references/evidence-authority.md).

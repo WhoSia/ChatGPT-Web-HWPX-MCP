@@ -1,11 +1,19 @@
+FROM rust:1.83-slim AS p344-gate-builder
+WORKDIR /src
+COPY rust/p344_gate rust/p344_gate
+COPY benchmarks/p344_gate_golden.tsv benchmarks/p344_gate_golden.tsv
+RUN cargo build --release --manifest-path rust/p344_gate/Cargo.toml
+
 FROM python:3.12-slim
 
 WORKDIR /app
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
+COPY --from=p344-gate-builder /src/rust/p344_gate/target/release/p344-gate /usr/local/bin/p344-gate
+ENV P344_GATE_BIN=/usr/local/bin/p344-gate
 
-COPY server.py server_p2.py p2_document.py p22_formatting.py p23_richtext.py p24_inline.py p25_controls.py p26_controls.py p27_tables.py p28_tables.py p29_objects.py p210_equations.py document_store.py oauth_provider.py auth_store.py hwp5_reader.py common_ir.py p39_textbox.py p311_layout_fidelity.py p312_render_harness.py p313_capture_custody.py p314_capture_intake.py p315_cross_version.py p315_replay_builder.py p316_version_indexed.py p316_stability_builder.py p317_fidelity_envelope.py p317_page_geometry.py p318_document_setup.py p319_structured_publishing.py p320_annotation_apparatus.py p321_document_composer.py p322_review_workflow.py p323_advanced_tables.py p324_story_layer.py p325_drawing_layer.py p326_drawing_style.py p327_diagram_composition.py p328_high_level_diagrams.py p329_diagram_lifecycle.py p330_diagram_design_system.py p331_diagram_quality_assurance.py p332_brownfield_diagrams.py p333_file_delivery.py p334_rare_feature_registry.py p334r1_column_insertion.py p334r2_tracked_resolution.py p334r2_package_validation.py p334r3_existing_group.py p335_typography.py p335_paragraph.py p335_corpus.py p335_registry.py p335_visual.py p335_atlas.py p335_mcp.py p336_corpus.py p336r2_design.py p337_product_workflow.py p338_rich_builder.py p339_design_intelligence.py p340_feedback_loop.py p341_page_composition.py p342_mutation_footprint.py p342_corpus_evidence.py p342_mcp.py p343_design_system.py p343_mcp.py capture_runtime.py ./
+COPY server.py server_p2.py p2_document.py p22_formatting.py p23_richtext.py p24_inline.py p25_controls.py p26_controls.py p27_tables.py p28_tables.py p29_objects.py p210_equations.py document_store.py oauth_provider.py auth_store.py hwp5_reader.py common_ir.py p39_textbox.py p311_layout_fidelity.py p312_render_harness.py p313_capture_custody.py p314_capture_intake.py p315_cross_version.py p315_replay_builder.py p316_version_indexed.py p316_stability_builder.py p317_fidelity_envelope.py p317_page_geometry.py p318_document_setup.py p319_structured_publishing.py p320_annotation_apparatus.py p321_document_composer.py p322_review_workflow.py p323_advanced_tables.py p324_story_layer.py p325_drawing_layer.py p326_drawing_style.py p327_diagram_composition.py p328_high_level_diagrams.py p329_diagram_lifecycle.py p330_diagram_design_system.py p331_diagram_quality_assurance.py p332_brownfield_diagrams.py p333_file_delivery.py p334_rare_feature_registry.py p334r1_column_insertion.py p334r2_tracked_resolution.py p334r2_package_validation.py p334r3_existing_group.py p335_typography.py p335_paragraph.py p335_corpus.py p335_registry.py p335_visual.py p335_atlas.py p335_mcp.py p336_corpus.py p336r2_design.py p337_product_workflow.py p338_rich_builder.py p339_design_intelligence.py p340_feedback_loop.py p341_page_composition.py p342_mutation_footprint.py p342_corpus_evidence.py p342_mcp.py p343_design_system.py p343_mcp.py p344_autonomous_authoring.py p344_mcp.py capture_runtime.py ./
 COPY scripts/p321_release_smoke.py scripts/p321_release_smoke.py
 COPY scripts/p322_release_smoke.py scripts/p322_release_smoke.py
 COPY scripts/p323_release_smoke.py scripts/p323_release_smoke.py
@@ -58,6 +66,8 @@ COPY scripts/p342_release_smoke.py scripts/p342_release_smoke.py
 RUN python scripts/p342_release_smoke.py
 COPY scripts/p343_release_smoke.py scripts/p343_release_smoke.py
 RUN python scripts/p343_release_smoke.py
+COPY scripts/p344_release_smoke.py scripts/p344_release_smoke.py
+RUN P344_REQUIRE_RUST_GATE=1 python scripts/p344_release_smoke.py
 
 ENV MCP_HOST=0.0.0.0
 ENV MCP_PORT=8000

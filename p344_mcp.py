@@ -44,11 +44,19 @@ def register_p344_tools(
             return True
         return str(policy_receipt.get("policy_gate") or "").upper() == "PASS"
 
+    def _design_mode(archetype: str) -> str:
+        value = str(archetype or "POLISHED_REPORT").upper()
+        return (
+            "INSTITUTIONAL_COMPATIBILITY"
+            if value in {"INSTITUTIONAL_REPORT", "FORM"}
+            else "POLISHED_REPORT"
+        )
+
     def _static_cycle(run: dict, *, archetype: str, auto_repair: bool) -> tuple[dict, dict]:
         while True:
             diagnostic = diagnose_rendered(
                 run["document_id"],
-                mode=archetype,
+                mode=_design_mode(archetype),
                 capture=None,
                 renderer=None,
                 render_observation=None,
@@ -56,7 +64,7 @@ def register_p344_tools(
             )
             repair_plan = plan_repairs(
                 run["document_id"],
-                mode=archetype,
+                mode=_design_mode(archetype),
                 archetype=archetype,
                 capture=None,
                 renderer=None,
@@ -204,7 +212,7 @@ def register_p344_tools(
 
         diagnostic = diagnose_rendered(
             document_id,
-            mode=run["archetype"],
+            mode=_design_mode(run["archetype"]),
             capture=capture,
             renderer=renderer,
             render_observation=render_observation,
@@ -212,7 +220,7 @@ def register_p344_tools(
         )
         repair_plan = plan_repairs(
             document_id,
-            mode=run["archetype"],
+            mode=_design_mode(run["archetype"]),
             archetype=run["archetype"],
             capture=capture,
             renderer=renderer,

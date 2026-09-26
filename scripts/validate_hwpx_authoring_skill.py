@@ -8,13 +8,17 @@ SKILL_ROOT = ROOT / "skills" / "hwpx-authoring"
 SKILL = SKILL_ROOT / "SKILL.md"
 SERVER = ROOT / "server_p2.py"
 P342_MCP = ROOT / "p342_mcp.py"
-TOOL_SOURCES = (SERVER, P342_MCP)
+P343_MCP = ROOT / "p343_mcp.py"
+P344_MCP = ROOT / "p344_mcp.py"
+TOOL_SOURCES = (SERVER, P342_MCP, P343_MCP, P344_MCP)
 
 REQUIRED_REFERENCES = (
     "references/evidence-authority.md",
     "references/page-composition.md",
     "references/mutation-footprint.md",
     "references/corpus-evidence.md",
+    "references/organization-template-policy.md",
+    "references/autonomous-authoring.md",
 )
 REQUIRED_TOOL_NAMES = (
     "get_document_design_intelligence_contract",
@@ -34,6 +38,15 @@ REQUIRED_TOOL_NAMES = (
     "get_corpus_evidence_contract",
     "query_corpus_coverage_ledger",
     "query_evidence_grounded_design_generalizations",
+    "get_organization_template_adaptation_contract",
+    "validate_organization_design_policy",
+    "plan_organization_template_migration",
+    "apply_organization_template_migration",
+    "adjudicate_cross_template_generalization",
+    "get_autonomous_authoring_contract",
+    "get_autonomous_authoring_run",
+    "start_autonomous_professional_authoring",
+    "resume_autonomous_professional_authoring",
 )
 MAX_SKILL_LINES = 220
 

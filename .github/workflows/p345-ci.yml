@@ -1,0 +1,91 @@
+name: P3.45 document transaction runtime and replay
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "contracts/p345_*"
+      - "scripts/p345_*"
+      - "rust/p345_replay/**"
+      - "p345_*"
+      - "test_p345_*"
+      - "benchmarks/p345_*"
+      - "server_p2.py"
+      - "Dockerfile"
+      - "test_client.py"
+      - "skills/hwpx-authoring/**"
+      - "P345_TEST_LEDGER.md"
+      - ".github/workflows/p345-ci.yml"
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  typescript-runtime:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: "22"}
+      - run: |
+          rm -rf .tmp/p345-ts
+          mkdir -p .tmp/p345-ts
+          npx --yes -p typescript@5.9.2 tsc --strict --target ES2022 --module commonjs --rootDir . --outDir .tmp/p345-ts contracts/p345_runtime.ts scripts/p345_runtime_cli.ts
+          node .tmp/p345-ts/scripts/p345_runtime_cli.js contract | grep -q '"phase":"P3.45"'
+
+  rust-replay:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo test --manifest-path rust/p345_replay/Cargo.toml
+      - run: cargo build --release --manifest-path rust/p345_replay/Cargo.toml
+      - run: test "$(rust/p345_replay/target/release/p345-replay --contract)" = "p3.45-replay-v1"
+
+  cross-runtime:
+    needs: [typescript-runtime, rust-replay]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: "22"}
+      - uses: dtolnay/rust-toolchain@stable
+      - run: |
+          rm -rf .tmp/p345-ts
+          mkdir -p .tmp/p345-ts
+          npx --yes -p typescript@5.9.2 tsc --strict --target ES2022 --module commonjs --rootDir . --outDir .tmp/p345-ts contracts/p345_runtime.ts scripts/p345_runtime_cli.ts
+          cargo build --release --manifest-path rust/p345_replay/Cargo.toml
+          P345_REPLAY_BIN="$PWD/rust/p345_replay/target/release/p345-replay" node scripts/p345_cross_runtime_test.cjs
+
+  python-host-adapter:
+    needs: [typescript-runtime, rust-replay]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12", cache: pip}
+      - uses: actions/setup-node@v4
+        with: {node-version: "22"}
+      - uses: dtolnay/rust-toolchain@stable
+      - run: pip install -r requirements.txt -r requirements-dev.txt
+      - run: |
+          rm -rf .tmp/p345-ts
+          mkdir -p .tmp/p345-ts
+          npx --yes -p typescript@5.9.2 tsc --strict --target ES2022 --module commonjs --rootDir . --outDir .tmp/p345-ts contracts/p345_runtime.ts scripts/p345_runtime_cli.ts
+          cargo build --release --manifest-path rust/p345_replay/Cargo.toml
+      - name: Python host adapter regression
+        env:
+          P345_TS_RUNTIME: .tmp/p345-ts/scripts/p345_runtime_cli.js
+          P345_REPLAY_BIN: rust/p345_replay/target/release/p345-replay
+        run: |
+          python -m compileall -q p345_runtime_bridge.py p345_mcp.py test_p345_runtime_bridge.py scripts/p345_release_smoke.py
+          python -m pytest -q test_p345_runtime_bridge.py
+          python scripts/p345_release_smoke.py
+
+  gate:
+    needs: [typescript-runtime, rust-replay, cross-runtime, python-host-adapter]
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "P3.45 TypeScript runtime + Rust replay + Python host adapter PASS"

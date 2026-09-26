@@ -38,6 +38,8 @@ export interface ExtensionPackage {
 }
 export interface HostObservation {
   host_id:string;
+  host_contract_sha256:string;
+  receipt_sha256:string;
   semantic_sha256:string;
   mutation_footprint_sha256:string;
   revision_delta:number;
@@ -57,6 +59,7 @@ const REQUIRED_GATES=[
   "MODULE_HASH_BOUND",
   "PROVENANCE_SUBJECT_BOUND",
   "DEPENDENCY_CLOSURE_VALID",
+  "REPRODUCIBLE_BUILD_PASS",
   "DETERMINISM_REPLAY_PASS",
   "SANDBOX_PASS",
   "HOST_CONFORMANCE_PASS",
@@ -242,7 +245,8 @@ export function compareReproducibleBuilds(a:any,b:any){
   const sameMaterials=canonicalJson(left.build_attestation.materials)===canonicalJson(right.build_attestation.materials);
   const sameInvocation=canonicalJson(left.build_attestation.invocation)===canonicalJson(right.build_attestation.invocation);
   const sameArtifact=left.artifact_sha256===right.artifact_sha256;
-  const reproducible=left.build_attestation.reproducible&&right.build_attestation.reproducible&&sameSource&&sameMaterials&&sameInvocation&&sameArtifact;
+  const independentBuilder=left.build_attestation.builder.id!==right.build_attestation.builder.id;
+  const reproducible=left.build_attestation.reproducible&&right.build_attestation.reproducible&&sameSource&&sameMaterials&&sameInvocation&&sameArtifact&&independentBuilder;
   return {
     schema:"chatgpt-web-hwpx-mcp/p3.47/reproducibility-comparison/v1",
     reproducible,
@@ -250,6 +254,9 @@ export function compareReproducibleBuilds(a:any,b:any){
     same_materials:sameMaterials,
     same_invocation:sameInvocation,
     same_artifact:sameArtifact,
+    independent_builder:independentBuilder,
+    left_builder_id:left.build_attestation.builder.id,
+    right_builder_id:right.build_attestation.builder.id,
     left_artifact_sha256:left.artifact_sha256,
     right_artifact_sha256:right.artifact_sha256,
     authority:reproducible?"REPRODUCIBLE_BUILD_ATTESTATION_PASS":"REPRODUCIBLE_BUILD_ATTESTATION_FAIL",
@@ -315,11 +322,13 @@ export function compareHostConformance(observations:HostObservation[]){
   if(!Array.isArray(observations)||observations.length<2||observations.length>16) throw new Error("host conformance requires 2..16 observations");
   const rows=observations.map((x:any)=>{
     assertId(String(x.host_id||""),"host_id");
-    for(const key of ["semantic_sha256","mutation_footprint_sha256","package_part_sha256"]) assertHex(String(x[key]||""),key);
+    for(const key of ["host_contract_sha256","receipt_sha256","semantic_sha256","mutation_footprint_sha256","package_part_sha256"]) assertHex(String(x[key]||""),key);
     if(!Number.isInteger(x.revision_delta)||x.revision_delta<0||x.revision_delta>1) throw new Error("invalid revision_delta");
     if(x.render_observable_sha256!==undefined) assertHex(String(x.render_observable_sha256),"render_observable_sha256");
     return {
       host_id:String(x.host_id),
+      host_contract_sha256:String(x.host_contract_sha256),
+      receipt_sha256:String(x.receipt_sha256),
       semantic_sha256:String(x.semantic_sha256),
       mutation_footprint_sha256:String(x.mutation_footprint_sha256),
       revision_delta:Number(x.revision_delta),
@@ -328,6 +337,7 @@ export function compareHostConformance(observations:HostObservation[]){
     };
   }).sort((a,b)=>a.host_id.localeCompare(b.host_id));
   if(new Set(rows.map(x=>x.host_id)).size!==rows.length) throw new Error("duplicate host_id");
+  if(new Set(rows.map(x=>x.host_contract_sha256)).size!==rows.length) throw new Error("host conformance requires distinct host contracts");
   const ref=rows[0];
   const dimensions=["semantic_sha256","mutation_footprint_sha256","revision_delta","package_part_sha256"] as const;
   const mismatches:any[]=[];
@@ -362,6 +372,7 @@ export function certifyPackage(rawPackage:any,catalog:any[],evidence:Certificati
     return {gate:String(x.gate),status:x.status,evidence_sha256:String(x.evidence_sha256)};
   }).sort((a,b)=>a.gate.localeCompare(b.gate));
   const by=new Map(rows.map(x=>[x.gate,x]));
+  if(by.size!==rows.length) throw new Error("duplicate certification gate");
   for(const gate of REQUIRED_GATES) if(!by.has(gate)) throw new Error("missing certification gate "+gate);
   const failed=rows.filter(x=>x.status!=="PASS").map(x=>x.gate);
   if(conformance.verdict!=="PASS"&&!failed.includes("HOST_CONFORMANCE_PASS")) failed.push("HOST_CONFORMANCE_PASS");
@@ -378,7 +389,7 @@ export function certifyPackage(rawPackage:any,catalog:any[],evidence:Certificati
     gates:rows,
     status,
     failed_gates:[...new Set(failed)].sort(),
-    certificate_profile:"P347_SELF_VERIFYING_EXTENSION_V1",
+    certificate_profile:"P347_SELF_VERIFYING_EXTENSION_V2",
   };
   const certificate_sha256=sha256(body);
   return {...body,certificate_sha256};
@@ -393,6 +404,22 @@ export function verifyCertificateSeal(raw:any){
   if(raw.status!=="PASS") throw new Error("certificate is not PASS");
   if(!PKG.test(String(raw.package_id||""))) throw new Error("invalid certificate package_id");
   return {ok:true,package_id:String(raw.package_id),certificate_sha256:observed,authority:"CERTIFICATE_SEAL_PASS"};
+}
+
+export function validateCertifiedRollback(currentCertificate:any,targetCertificate:any){
+  const current=verifyCertificateSeal(currentCertificate);
+  const target=verifyCertificateSeal(targetCertificate);
+  if(current.package_id===target.package_id) throw new Error("rollback target must differ from current package");
+  return {
+    schema:"chatgpt-web-hwpx-mcp/p3.47/rollback-authorization/v1",
+    current_package_id:current.package_id,
+    target_package_id:target.package_id,
+    from_state:"PROMOTED",
+    current_to_state:"RETIRED",
+    target_from_state:"RETIRED",
+    target_to_state:"PROMOTED",
+    authority:"CERTIFIED_ROLLBACK_AUTHORIZATION_PASS",
+  };
 }
 
 export function validateRolloutTransition(fromRaw:string,toRaw:string,certificate:any){
@@ -421,6 +448,9 @@ export const P347_SUPPLY_CHAIN_CONTRACT={
   certification:{
     required_gates:REQUIRED_GATES,
     minimum_host_observations:2,
+    distinct_host_contracts_required:true,
+    reproducible_build_requires_independent_builder:true,
+    execution_evidence_authority:"P347_BRIDGE_REEXECUTES_P346_SANDBOX_AND_NEGATIVE_CONTROLS",
     certificate_seal:"SHA256_CANONICAL_JSON",
   },
   compatibility_verdicts:[

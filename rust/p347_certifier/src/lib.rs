@@ -34,6 +34,11 @@ fn sha(v:&Value)->Result<String,String>{
 }
 fn hex64(s:&str)->bool{s.len()==64&&s.bytes().all(|b|b.is_ascii_hexdigit()&&!b.is_ascii_uppercase())}
 fn pkg(s:&str)->bool{s.len()==71&&s.starts_with("sha256:")&&hex64(&s[7..])}
+const REQUIRED_GATES:[&str;9]=[
+    "MANIFEST_VALID","MODULE_HASH_BOUND","PROVENANCE_SUBJECT_BOUND",
+    "DEPENDENCY_CLOSURE_VALID","REPRODUCIBLE_BUILD_PASS","DETERMINISM_REPLAY_PASS",
+    "SANDBOX_PASS","HOST_CONFORMANCE_PASS","NEGATIVE_CONTROLS_PASS",
+];
 
 pub fn verify_certificate(v:&Value)->Result<Value,String>{
     let obj=v.as_object().ok_or("certificate must be object")?;
@@ -45,6 +50,27 @@ pub fn verify_certificate(v:&Value)->Result<Value,String>{
     if !pkg(package_id){return Err("invalid package_id".into());}
     let observed=obj.get("certificate_sha256").and_then(Value::as_str).ok_or("missing certificate_sha256")?;
     if !hex64(observed){return Err("invalid certificate_sha256".into());}
+    for key in ["artifact_sha256","dependency_closure_sha256","build_attestation_sha256","host_conformance_sha256"]{
+        let value=obj.get(key).and_then(Value::as_str).ok_or_else(||format!("missing {key}"))?;
+        if !hex64(value){return Err(format!("invalid {key}"));}
+    }
+    if obj.get("certificate_profile").and_then(Value::as_str)!=Some("P347_SELF_VERIFYING_EXTENSION_V2"){
+        return Err("unsupported certificate profile".into());
+    }
+    let gates=obj.get("gates").and_then(Value::as_array).ok_or("missing gates")?;
+    if gates.len()!=REQUIRED_GATES.len(){return Err("certificate gate cardinality mismatch".into());}
+    let mut seen=std::collections::BTreeSet::new();
+    for row in gates{
+        let gate=row.get("gate").and_then(Value::as_str).ok_or("gate missing name")?;
+        if !REQUIRED_GATES.contains(&gate){return Err("unknown certification gate".into());}
+        if !seen.insert(gate){return Err("duplicate certification gate".into());}
+        if row.get("status").and_then(Value::as_str)!=Some("PASS"){return Err("certificate gate is not PASS".into());}
+        let ev=row.get("evidence_sha256").and_then(Value::as_str).ok_or("missing evidence sha256")?;
+        if !hex64(ev){return Err("invalid evidence sha256".into());}
+    }
+    if obj.get("failed_gates").and_then(Value::as_array).map(|x|!x.is_empty()).unwrap_or(true){
+        return Err("certificate failed_gates must be empty".into());
+    }
     let mut body=Map::new();
     for (k,val) in obj.iter(){if k!="certificate_sha256"{body.insert(k.clone(),val.clone());}}
     let expected=sha(&Value::Object(body))?;
@@ -76,4 +102,21 @@ pub fn verify_compatibility(v:&Value)->Result<Value,String>{
     }
     let allowed=matches!(verdict,"SAFE_DROP_IN"|"MIGRATION_REQUIRED");
     Ok(serde_json::json!({"ok":true,"verdict":verdict,"replay_admissible":allowed,"authority":"RUST_COMPATIBILITY_CLASSIFICATION_PASS"}))
+}
+
+
+pub fn verify_rollback(v:&Value)->Result<Value,String>{
+    let current=v.get("current_certificate").ok_or("missing current certificate")?;
+    let target=v.get("target_certificate").ok_or("missing target certificate")?;
+    let a=verify_certificate(current)?;
+    let b=verify_certificate(target)?;
+    let current_id=a.get("package_id").and_then(Value::as_str).ok_or("missing current package id")?;
+    let target_id=b.get("package_id").and_then(Value::as_str).ok_or("missing target package id")?;
+    if current_id==target_id{return Err("rollback target must differ from current package".into());}
+    Ok(serde_json::json!({
+        "ok":true,
+        "current_package_id":current_id,
+        "target_package_id":target_id,
+        "authority":"RUST_CERTIFIED_ROLLBACK_AUTHORIZATION_PASS"
+    }))
 }

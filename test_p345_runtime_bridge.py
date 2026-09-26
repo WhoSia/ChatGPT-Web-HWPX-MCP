@@ -39,6 +39,9 @@ def test_runtime_bridge_roundtrip_and_incremental_reuse():
     assert time_travel(state,3)["node_states"]["snapshot"]=="COMMITTED"
     assert observability(state)["committed_nodes"]==2
     prior=prior_snapshot_from_state(state)
-    second=compile_ir({"ir":_ir(2),"prior_snapshot":prior})
-    assert second["actions"]["snapshot"]=="REUSE"
-    assert second["actions"]["format"]=="EXECUTE"
+    same_base=compile_ir({"ir":_ir(1),"prior_snapshot":prior})
+    assert same_base["actions"]["snapshot"]=="REUSE"
+    assert same_base["actions"]["format"]=="EXECUTE"
+    next_base=compile_ir({"ir":_ir(2),"prior_snapshot":prior})
+    assert next_base["actions"]["snapshot"]=="EXECUTE"
+    assert next_base["actions"]["format"]=="EXECUTE"

@@ -256,6 +256,15 @@ async def main() -> None:
                 "get_corpus_evidence_contract",
                 "query_corpus_coverage_ledger",
                 "query_evidence_grounded_design_generalizations",
+                "get_organization_template_adaptation_contract",
+                "validate_organization_design_policy",
+                "plan_organization_template_migration",
+                "apply_organization_template_migration",
+                "adjudicate_cross_template_generalization",
+                "get_autonomous_authoring_contract",
+                "get_autonomous_authoring_run",
+                "start_autonomous_professional_authoring",
+                "resume_autonomous_professional_authoring",
             }
             missing = expected - set(names)
             if missing:
@@ -265,12 +274,12 @@ async def main() -> None:
                 if "access_token" in schema_text or "passphrase" in schema_text:
                     raise RuntimeError(f"secret-bearing field leaked into tool schema: {tool.name}")
 
-            read_payload = _payload(await client.call_tool("probe_read", {"message": "P3.43 OAuth smoke test"}))
-            if not read_payload or not read_payload.get("ok") or read_payload.get("version") != "0.20.0-p3.43":
-                raise RuntimeError(f"probe_read did not expose current P3.43 product version: {read_payload}")
+            read_payload = _payload(await client.call_tool("probe_read", {"message": "P3.44 OAuth smoke test"}))
+            if not read_payload or not read_payload.get("ok") or read_payload.get("version") != "0.21.0-p3.44":
+                raise RuntimeError(f"probe_read did not expose current P3.44 product version: {read_payload}")
 
             p2_caps = _payload(await client.call_tool("p2_capabilities", {}))
-            if not p2_caps or p2_caps.get("phase") != "P3.43":
+            if not p2_caps or p2_caps.get("phase") != "P3.44":
                 raise RuntimeError(f"p2_capabilities failed: {p2_caps}")
 
             design_intelligence = _payload(await client.call_tool("get_document_design_intelligence_contract", {}))
@@ -336,6 +345,16 @@ async def main() -> None:
                 != "USER_OR_ORGANIZATION_HARD_CONSTRAINT"
             ):
                 raise RuntimeError(f"P3.43 contract failed: {p343_contract}")
+
+            p344_contract = _payload(await client.call_tool("get_autonomous_authoring_contract", {}))
+            if (
+                not p344_contract
+                or p344_contract.get("phase") != "P3.44"
+                or p344_contract.get("runtime_language_roles", {}).get("rust") != "PRODUCTION_REPAIR_DELIVERY_GATE_BINARY"
+                or p344_contract.get("boundedness", {}).get("no_unbounded_agent_loop") is not True
+                or p344_contract.get("resume_semantics", {}).get("render_evidence_invalidated_after_repair") is not True
+            ):
+                raise RuntimeError(f"P3.44 autonomous authoring contract failed: {p344_contract}")
 
             callout = _payload(await client.call_tool("compile_semantic_callout_block", {
                 "text": "핵심 판단은 장식이 아니라 의미를 인코딩해야 합니다.",

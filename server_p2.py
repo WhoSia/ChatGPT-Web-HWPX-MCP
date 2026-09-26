@@ -195,9 +195,9 @@ from common_ir import (
     slice_common_ir,
 )
 
-P2_VERSION = "0.20.0-p3.43"
+P2_VERSION = "0.21.0-p3.44"
 core.VERSION = P2_VERSION
-core.PHASE = "P3.43"
+core.PHASE = "P3.44"
 
 _original_metadata = core._metadata
 
@@ -5310,6 +5310,10 @@ def p2_capabilities() -> dict:
             "promote_diagram_candidate",
             "plan_legacy_diagram_refactor",
             "apply_legacy_diagram_refactor",
+            "get_autonomous_authoring_contract",
+            "get_autonomous_authoring_run",
+            "start_autonomous_professional_authoring",
+            "resume_autonomous_professional_authoring",
         ],
         "operations": [
             "replace_paragraph_text",
@@ -6978,6 +6982,17 @@ P342_EVIDENCE = register_p342_tools(core, _owned_document, CORPUS_REGISTRY)
 
 from p343_mcp import register_p343_tools
 P343_DESIGN_SYSTEM = register_p343_tools(core, _owned_document, CORPUS_REGISTRY, _apply_p343_migration)
+
+from p344_mcp import register_p344_tools
+P344_AUTONOMOUS_AUTHORING = register_p344_tools(
+    core,
+    compile_rich_plan=p338_compile_rich_document_plan,
+    create_document_from_plan=create_document_from_plan,
+    diagnose_rendered=diagnose_rendered_document_design,
+    plan_repairs=plan_executable_document_design_repairs,
+    apply_repairs=apply_document_design_repairs,
+    delivery_after_commit=_delivery_after_commit,
+)
 
 
 if __name__ == "__main__":

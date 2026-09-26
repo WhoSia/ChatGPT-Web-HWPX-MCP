@@ -9,6 +9,7 @@ import {
   certifyPackage,
   verifyCertificateSeal,
   validateRolloutTransition,
+  validateCertifiedRollback,
 } from "../contracts/p347_supply_chain_kernel";
 
 function readStdin():Promise<string>{
@@ -34,6 +35,7 @@ async function main(){
   else if(command==="certify") result=certifyPackage(payload.package,payload.catalog||[],payload.evidence||[],payload.host_observations||[]);
   else if(command==="verify-certificate") result=verifyCertificateSeal(payload.certificate??payload);
   else if(command==="transition") result=validateRolloutTransition(payload.from,payload.to,payload.certificate||{});
+  else if(command==="rollback") result=validateCertifiedRollback(payload.current_certificate||{},payload.target_certificate||{});
   else throw new Error("unknown P3.47 command");
   process.stdout.write(JSON.stringify(result));
 }

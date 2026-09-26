@@ -15,6 +15,7 @@ from p347_supply_chain_bridge import (
     solve_package_compatibility,
     supply_chain_contract,
     validate_rollout_transition,
+    validate_certified_rollback,
     verify_certificate,
     verify_dependency_closure,
 )
@@ -170,6 +171,25 @@ class CertifiedPackageRegistry:
             item = self._catalog[package_id]
             transition = validate_rollout_transition(current, target_state, item.certificate)
 
+            dependency_states = {
+                str(dep.get("package_id")): states.get(str(dep.get("package_id")))
+                for dep in item.normalized.get("dependencies") or []
+            }
+            if target_state in {"SHADOW", "CANARY", "PROMOTED"}:
+                allowed_by_target = {
+                    "SHADOW": {"SHADOW", "CANARY", "PROMOTED"},
+                    "CANARY": {"CANARY", "PROMOTED"},
+                    "PROMOTED": {"PROMOTED"},
+                }[target_state]
+                bad = {
+                    dep: state for dep, state in dependency_states.items()
+                    if state not in allowed_by_target
+                }
+                if bad:
+                    raise RuntimeError(
+                        f"P3.47 dependency rollout state not admissible for {target_state}: {bad}"
+                    )
+
             replaced_package_id = None
             if target_state == "PROMOTED":
                 previous = promoted.get(item.extension_id)
@@ -206,6 +226,7 @@ class CertifiedPackageRegistry:
                     "from_state": current,
                     "to_state": target_state,
                     "replaced_package_id": replaced_package_id,
+                    "dependency_states": dependency_states,
                     "typescript_transition": transition["typescript"],
                     "rust_transition": transition["rust"],
                     "authority": "CERTIFIED_PACKAGE_ROLLOUT_TRANSITION_PASS",
@@ -249,6 +270,10 @@ class CertifiedPackageRegistry:
                 raise RuntimeError("P3.47 rollback target is not retired prior promotion")
 
             validate_rollout_transition("PROMOTED", "RETIRED", current_item.certificate)
+            rollback_guard = validate_certified_rollback(
+                current_item.certificate,
+                previous_item.certificate,
+            )
             states[current_id] = "RETIRED"
             states[previous_id] = "PROMOTED"
             promoted[extension_id] = previous_id
@@ -269,6 +294,7 @@ class CertifiedPackageRegistry:
                     "extension_id": extension_id,
                     "retired_package_id": current_id,
                     "restored_package_id": previous_id,
+                    "rollback_guard": rollback_guard,
                     "authority": "ATOMIC_CERTIFIED_PACKAGE_ROLLBACK_PASS",
                 }
             )
@@ -330,15 +356,15 @@ def register_p347_tools(
     @core.mcp.tool(annotations=read_only)
     def certify_document_extension_package(
         package: dict,
-        evidence: list[dict],
+        rebuild_package: dict,
         host_observations: list[dict],
         dependency_catalog: list[dict] | None = None,
     ) -> dict:
         core._caller_subject()
         result = certify_extension_package(
             package,
+            rebuild_package=rebuild_package,
             catalog=dependency_catalog or [],
-            evidence=evidence,
             host_observations=host_observations,
         )
         return {

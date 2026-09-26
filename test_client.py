@@ -296,6 +296,22 @@ async def main() -> None:
                 if "access_token" in schema_text or "passphrase" in schema_text:
                     raise RuntimeError(f"secret-bearing field leaked into tool schema: {tool.name}")
 
+            tool_rows = {tool.name: tool for tool in tools.tools}
+            inspector_tool = tool_rows["inspect_document_runtime"].model_dump(by_alias=True)
+            swap_tool = tool_rows["hot_swap_document_host_adapter_profile"].model_dump(by_alias=True)
+            inspector_annotations = inspector_tool.get("annotations") or {}
+            swap_annotations = swap_tool.get("annotations") or {}
+            if (
+                inspector_annotations.get("readOnlyHint") is not True
+                or inspector_annotations.get("destructiveHint") is not False
+                or swap_annotations.get("readOnlyHint") is not False
+                or swap_annotations.get("destructiveHint") is not True
+            ):
+                raise RuntimeError(
+                    "P3.46 actual MCP ToolAnnotations diverged from effect projection: "
+                    f"inspector={inspector_annotations} swap={swap_annotations}"
+                )
+
             read_payload = _payload(await client.call_tool("probe_read", {"message": "P3.46 OAuth smoke test"}))
             if not read_payload or not read_payload.get("ok") or read_payload.get("version") != "0.23.0-p3.46":
                 raise RuntimeError(f"probe_read did not expose current P3.45 product version: {read_payload}")

@@ -72,7 +72,11 @@ def _manifest(module: bytes, version: str = "1.0.0", effect: str = "PURE") -> di
     }
 
 
-def _package(module: bytes | None = None, version: str = "1.0.0") -> dict:
+def _package(
+    module: bytes | None = None,
+    version: str = "1.0.0",
+    builder_id: str = "github-actions/pytest-primary",
+) -> dict:
     module = module or _wasm()
     manifest = _manifest(module, version)
     manifest_sha = validate_extension(manifest)["manifest_sha256"]
@@ -86,7 +90,7 @@ def _package(module: bytes | None = None, version: str = "1.0.0") -> dict:
         "build_attestation": {
             "schema": "chatgpt-web-hwpx-mcp/p3.47/build-attestation/v1",
             "predicate_type": "https://slsa.dev/provenance/v1",
-            "builder": {"id": "github-actions/pytest"},
+            "builder": {"id": builder_id},
             "build_type": "deterministic-wasm",
             "source": {
                 "uri": "git+https://example.invalid/extension",
@@ -104,10 +108,12 @@ def _package(module: bytes | None = None, version: str = "1.0.0") -> dict:
     }
 
 
-def _obs(host: str, seed: str = "a") -> dict:
+def _obs(host: str, seed: str = "a", contract_seed: str = "e") -> dict:
     digest = seed * 64
     return {
         "host_id": host,
+        "host_contract_sha256": contract_seed * 64,
+        "receipt_sha256": hashlib.sha256(host.encode()).hexdigest(),
         "semantic_sha256": digest,
         "mutation_footprint_sha256": "b" * 64,
         "revision_delta": 0,
@@ -115,22 +121,6 @@ def _obs(host: str, seed: str = "a") -> dict:
         "render_observable_sha256": "d" * 64,
     }
 
-
-def _evidence() -> list[dict]:
-    gates = [
-        "MANIFEST_VALID",
-        "MODULE_HASH_BOUND",
-        "PROVENANCE_SUBJECT_BOUND",
-        "DEPENDENCY_CLOSURE_VALID",
-        "DETERMINISM_REPLAY_PASS",
-        "SANDBOX_PASS",
-        "HOST_CONFORMANCE_PASS",
-        "NEGATIVE_CONTROLS_PASS",
-    ]
-    return [
-        {"gate": gate, "status": "PASS", "evidence_sha256": hashlib.sha256(gate.encode()).hexdigest()}
-        for gate in gates
-    ]
 
 
 def test_content_addressed_package_dependency_closure_and_reproducibility():
@@ -143,6 +133,7 @@ def test_content_addressed_package_dependency_closure_and_reproducibility():
     assert closure["root_package_id"] == normalized["package_id"]
 
     second = copy.deepcopy(package)
+    second["build_attestation"]["builder"]["id"] = "github-actions/pytest-rebuild"
     reproducible = compare_reproducible_builds(package, second)
     assert reproducible["reproducible"] is True
     assert reproducible["same_artifact"] is True
@@ -171,17 +162,28 @@ def test_compatibility_solver_detects_implementation_change_and_schema_break():
 
 
 def test_host_conformance_certificate_seal_and_rollout_cross_runtime():
-    conformance = compare_host_conformance([_obs("python-host"), _obs("shadow-host")])
+    conformance = compare_host_conformance([
+        _obs("python-host", contract_seed="e"),
+        _obs("shadow-host", contract_seed="f"),
+    ])
     assert conformance["verdict"] == "PASS"
     divergent = _obs("bad-host", "f")
-    mismatch = compare_host_conformance([_obs("python-host"), divergent])
+    mismatch = compare_host_conformance([
+        _obs("python-host", contract_seed="e"),
+        {**divergent, "host_contract_sha256": "9" * 64},
+    ])
     assert mismatch["verdict"] == "DIVERGENT"
 
     package = _package()
+    rebuild = copy.deepcopy(package)
+    rebuild["build_attestation"]["builder"]["id"] = "github-actions/pytest-rebuild"
     result = certify_extension_package(
         package,
-        evidence=_evidence(),
-        host_observations=[_obs("python-host"), _obs("shadow-host")],
+        rebuild_package=rebuild,
+        host_observations=[
+            _obs("python-host", contract_seed="e"),
+            _obs("shadow-host", contract_seed="f"),
+        ],
     )
     certificate = result["certificate"]
     assert certificate["status"] == "PASS"
@@ -200,14 +202,17 @@ def test_host_conformance_certificate_seal_and_rollout_cross_runtime():
         verify_certificate(tampered)
 
 
-def test_certification_fails_closed_when_required_gate_fails():
+def test_certification_fails_closed_without_independent_rebuild():
     package = _package()
-    evidence = _evidence()
-    evidence[0]["status"] = "FAIL"
+    same_builder = copy.deepcopy(package)
     result = certify_extension_package(
         package,
-        evidence=evidence,
-        host_observations=[_obs("python-host"), _obs("shadow-host")],
+        rebuild_package=same_builder,
+        host_observations=[
+            _obs("python-host", contract_seed="e"),
+            _obs("shadow-host", contract_seed="f"),
+        ],
     )
+    assert result["derived_evidence"]["reproducibility"]["independent_builder"] is False
     assert result["certificate"]["status"] == "FAIL"
     assert result["rust"]["ok"] is False

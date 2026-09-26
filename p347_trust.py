@@ -24,18 +24,32 @@ def _sha(value: Any) -> str:
     return hashlib.sha256(_stable(value).encode("utf-8")).hexdigest()
 
 
-def _public_key_record(public_key_pem: str) -> tuple[str, str]:
+def _public_key_record(row: Mapping[str, Any]) -> tuple[str, str]:
+    pem = str((row or {}).get("public_key_pem") or "")
+    der_b64 = str((row or {}).get("public_key_der_base64") or "")
     try:
-        key = serialization.load_pem_public_key(str(public_key_pem).encode("utf-8"))
+        if pem:
+            key = serialization.load_pem_public_key(pem.encode("utf-8"))
+            if not isinstance(key, Ed25519PublicKey):
+                raise ValueError("not Ed25519")
+            der = key.public_bytes(
+                encoding=serialization.Encoding.DER,
+                format=serialization.PublicFormat.SubjectPublicKeyInfo,
+            )
+        elif der_b64:
+            der = base64.b64decode(der_b64, validate=True)
+            key = serialization.load_der_public_key(der)
+            if not isinstance(key, Ed25519PublicKey):
+                raise ValueError("not Ed25519")
+        else:
+            raise ValueError("missing public key")
     except Exception as exc:
         raise ValueError("P3.47 trust root public key is invalid") from exc
-    if not isinstance(key, Ed25519PublicKey):
-        raise ValueError("P3.47 trust roots require Ed25519 public keys")
-    der = key.public_bytes(
-        encoding=serialization.Encoding.DER,
-        format=serialization.PublicFormat.SubjectPublicKeyInfo,
-    )
-    return base64.b64encode(der).decode("ascii"), hashlib.sha256(der).hexdigest()
+    fingerprint = hashlib.sha256(der).hexdigest()
+    declared = str((row or {}).get("public_key_sha256") or "")
+    if declared and declared != fingerprint:
+        raise ValueError("P3.47 trust root fingerprint mismatch")
+    return base64.b64encode(der).decode("ascii"), fingerprint
 
 
 def _load_der_public_key(der_base64: str) -> Ed25519PublicKey:
@@ -60,7 +74,7 @@ def normalize_trust_policy(raw: Mapping[str, Any]) -> dict:
         key_id = str((row or {}).get("key_id") or "")
         if not builder_id or not _KEY_ID.fullmatch(key_id):
             raise ValueError("invalid P3.47 builder trust root")
-        der_b64, fingerprint = _public_key_record(str((row or {}).get("public_key_pem") or ""))
+        der_b64, fingerprint = _public_key_record(row or {})
         builders.append(
             {
                 "builder_id": builder_id,

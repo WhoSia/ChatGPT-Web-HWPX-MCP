@@ -1,0 +1,95 @@
+name: P3.44 autonomous professional authoring and AuthorBench
+on:
+  push:
+    branches: [main]
+    paths:
+      - "p344_*"
+      - "test_p344_*"
+      - "contracts/p344_*"
+      - "rust/p344_gate/**"
+      - "benchmarks/p344_*"
+      - "benchmarks/authorbench_p344_*"
+      - "scripts/p344_*"
+      - "skills/hwpx-authoring/**"
+      - "server_p2.py"
+      - "Dockerfile"
+      - "test_client.py"
+      - "P344_*"
+      - ".github/workflows/p344-ci.yml"
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  rust-runtime-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo test --manifest-path rust/p344_gate/Cargo.toml
+      - run: cargo build --release --manifest-path rust/p344_gate/Cargo.toml
+      - run: test "$(rust/p344_gate/target/release/p344-gate --contract)" = "p3.44-gate-v1"
+
+  typescript-orchestrator:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: "22"}
+      - run: |
+          rm -rf .tmp/p344-ts
+          npx --yes -p typescript@5.9.2 tsc --strict --target ES2022 --module commonjs --rootDir . --outDir .tmp/p344-ts contracts/p344_orchestrator.ts benchmarks/authorbench_p344_evaluator.ts
+          node scripts/p344_typescript_gate_test.cjs
+
+  python-native-adapter:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12", cache: pip}
+      - uses: dtolnay/rust-toolchain@stable
+      - run: pip install -r requirements.txt -r requirements-capture.txt -r requirements-dev.txt
+      - run: cargo build --release --manifest-path rust/p344_gate/Cargo.toml
+      - run: python -m compileall -q p344_autonomous_authoring.py p344_mcp.py test_p344_autonomous_authoring.py benchmarks/authorbench_p344_materialize.py scripts/p344_release_smoke.py server_p2.py test_client.py
+      - run: python -m pytest -q test_p344_autonomous_authoring.py test_p340_feedback_loop.py test_p342_mutation_footprint.py test_p343_design_system.py
+      - run: P344_GATE_BIN="$PWD/rust/p344_gate/target/release/p344-gate" P344_REQUIRE_RUST_GATE=1 python scripts/p344_release_smoke.py
+      - run: python scripts/validate_hwpx_authoring_skill.py
+
+  authorbench-blind:
+    runs-on: ubuntu-latest
+    needs: [rust-runtime-gate, typescript-orchestrator]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12", cache: pip}
+      - uses: actions/setup-node@v4
+        with: {node-version: "22"}
+      - uses: dtolnay/rust-toolchain@stable
+      - run: pip install -r requirements.txt -r requirements-capture.txt -r requirements-dev.txt
+      - run: cargo build --release --manifest-path rust/p344_gate/Cargo.toml
+      - run: P344_GATE_BIN="$PWD/rust/p344_gate/target/release/p344-gate" python benchmarks/authorbench_p344_materialize.py artifacts/p344-authorbench
+      - run: |
+          rm -rf .tmp/p344-ts
+          npx --yes -p typescript@5.9.2 tsc --strict --target ES2022 --module commonjs --rootDir . --outDir .tmp/p344-ts contracts/p344_orchestrator.ts benchmarks/authorbench_p344_evaluator.ts
+          node scripts/p344_authorbench_eval.cjs artifacts/p344-authorbench/authorbench-p344-blind.json benchmarks/authorbench_p344_frozen.json artifacts/p344-authorbench/authorbench-p344-evaluation.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: p344-authorbench-first-pass
+          path: artifacts/p344-authorbench
+          if-no-files-found: error
+
+  inherited-hancom-boundary:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - shell: powershell
+        run: |
+          $tokens=$null;$errors=$null
+          [void][System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path ".\scripts\common\HancomExport.ps1").Path,[ref]$tokens,[ref]$errors)
+          if($errors.Count -gt 0){exit 1}
+
+  p344-gate:
+    needs: [rust-runtime-gate, typescript-orchestrator, python-native-adapter, authorbench-blind, inherited-hancom-boundary]
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "P3.44 implementation + static blind AuthorBench gate PASS; native render remains separately evidence-gated"

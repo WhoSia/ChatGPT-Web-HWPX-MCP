@@ -144,3 +144,10 @@ Repair:
 
 Required closure authority:
 `RUN_LOCAL_ADAPTER_BINDING_PASS / RESTART_BINDING_RECOVERY_PASS / REPLAY_PRESERVING_HOST_RECEIPT_SIDECAR_PASS / ADAPTER_CONFIGURATION_DRIFT_DIAGNOSTIC_PASS`.
+
+
+### Pre-execution sidecar trust rule
+
+Persisted adapter provenance is never trusted merely because it is stored in document metadata. Before it may re-pin a resumed run, P3.45 now verifies the P3.46 provenance seal, node identity and the sidecar receipt hash against the Rust-replay-verified runtime output. A mismatch stops the next host adapter **before execution**. The process-local run-binding cache is also bounded to 16 entries per document; durable authority remains the bounded document metadata sidecar.
+
+Additional authority: `PRE_EXECUTION_SIDECAR_TAMPER_REJECTION_PASS / BOUNDED_RUN_BINDING_CACHE_PASS`.

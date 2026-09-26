@@ -71,7 +71,7 @@ jobs:
           P347_TS_RUNTIME: .tmp/p347-ts/scripts/p347_supply_chain_cli.js
           P347_CERTIFIER_BIN: rust/p347_certifier/target/release/p347-certifier
         run: |
-          python -m compileall -q p347_supply_chain_bridge.py p347_mcp.py test_p347_supply_chain_bridge.py test_p347_mcp.py scripts/p347_release_smoke.py
+          python -m compileall -q p347_trust.py p347_supply_chain_bridge.py p347_mcp.py test_p347_supply_chain_bridge.py test_p347_mcp.py scripts/p347_release_smoke.py
           python -m pytest -q test_p347_supply_chain_bridge.py test_p347_mcp.py
           python scripts/p347_release_smoke.py
 

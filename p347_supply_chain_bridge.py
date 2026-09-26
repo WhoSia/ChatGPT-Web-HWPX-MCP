@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 from p346_platform_bridge import execute_wasm, validate_extension
+from p347_trust import normalize_trust_policy, verify_build_provenance_pair, verify_host_observations
 
 ROOT = Path(__file__).resolve().parent
 
@@ -137,6 +138,7 @@ def derive_certification_evidence(
     package: Mapping[str, Any],
     *,
     rebuild_package: Mapping[str, Any],
+    trust_policy: Mapping[str, Any],
     catalog: Sequence[Mapping[str, Any]] = (),
     host_observations: Sequence[Mapping[str, Any]] = (),
 ) -> dict:
@@ -144,6 +146,9 @@ def derive_certification_evidence(
     closure = verify_dependency_closure(package, catalog)
     reproducibility = compare_reproducible_builds(package, rebuild_package)
     conformance = compare_host_conformance(host_observations)
+    normalized_policy = normalize_trust_policy(trust_policy)
+    provenance_trust = verify_build_provenance_pair(package, rebuild_package, normalized_policy)
+    host_trust = verify_host_observations(host_observations, normalized_policy)
 
     manifest = copy.deepcopy(dict(package.get("extension") or {}))
     module_base64 = str(package.get("module_base64") or "")
@@ -204,12 +209,25 @@ def derive_certification_evidence(
     gates = [
         ("MANIFEST_VALID", True, checked_manifest),
         ("MODULE_HASH_BOUND", normalized.get("module_sha256") == manifest.get("execution", {}).get("module_sha256"), normalized),
-        ("PROVENANCE_SUBJECT_BOUND", True, normalized.get("build_attestation")),
+        (
+            "PROVENANCE_SUBJECT_BOUND",
+            bool(provenance_trust.get("trusted")),
+            {"build_attestation": normalized.get("build_attestation"), "trust": provenance_trust},
+        ),
         ("DEPENDENCY_CLOSURE_VALID", True, closure),
-        ("REPRODUCIBLE_BUILD_PASS", bool(reproducibility.get("reproducible")), reproducibility),
+        (
+            "REPRODUCIBLE_BUILD_PASS",
+            bool(reproducibility.get("reproducible"))
+            and bool(provenance_trust.get("independent_builder_roots")),
+            {"reproducibility": reproducibility, "trust": provenance_trust},
+        ),
         ("DETERMINISM_REPLAY_PASS", deterministic, {"first": first, "second": second}),
         ("SANDBOX_PASS", sandbox_pass, first),
-        ("HOST_CONFORMANCE_PASS", conformance.get("verdict") == "PASS", conformance),
+        (
+            "HOST_CONFORMANCE_PASS",
+            conformance.get("verdict") == "PASS" and bool(host_trust.get("trusted")),
+            {"conformance": conformance, "trust": host_trust},
+        ),
         ("NEGATIVE_CONTROLS_PASS", negative_pass, negative_results),
     ]
     evidence = [
@@ -226,6 +244,9 @@ def derive_certification_evidence(
         "dependency_closure": closure,
         "reproducibility": reproducibility,
         "host_conformance": conformance,
+        "trust_policy": normalized_policy,
+        "provenance_trust": provenance_trust,
+        "host_trust": host_trust,
         "execution": {
             "first_receipt_sha256": _evidence_sha(first),
             "second_receipt_sha256": _evidence_sha(second),
@@ -243,12 +264,14 @@ def certify_extension_package(
     package: Mapping[str, Any],
     *,
     rebuild_package: Mapping[str, Any],
+    trust_policy: Mapping[str, Any],
     catalog: Sequence[Mapping[str, Any]] = (),
     host_observations: Sequence[Mapping[str, Any]] = (),
 ) -> dict:
     derived = derive_certification_evidence(
         package,
         rebuild_package=rebuild_package,
+        trust_policy=trust_policy,
         catalog=catalog,
         host_observations=host_observations,
     )

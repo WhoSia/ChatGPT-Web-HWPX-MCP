@@ -167,15 +167,27 @@ def register_p345_tools(
             state_output = (
                 outputs.get(str(node_id)) if isinstance(outputs, dict) else None
             )
-            state_receipt = str(
-                (state_output or {}).get("receipt_sha256") or ""
-                if isinstance(state_output, dict)
-                else ""
-            )
-            if (
-                state_receipt
-                and str(row.get("receipt_sha256") or "") != state_receipt
+            if not isinstance(state_output, dict):
+                raise RuntimeError(
+                    "P3.46 persisted host receipt has no sealed runtime output"
+                )
+            state_output_sha = str(state_output.get("output_sha256") or "")
+            state_receipt_sha = str(state_output.get("receipt_sha256") or "")
+            for label, digest in (
+                ("output", state_output_sha),
+                ("receipt", state_receipt_sha),
             ):
+                if len(digest) != 64 or any(
+                    ch not in "0123456789abcdef" for ch in digest
+                ):
+                    raise RuntimeError(
+                        f"P3.46 sealed runtime {label} hash is invalid"
+                    )
+            if str(row.get("output_sha256") or "") != state_output_sha:
+                raise RuntimeError(
+                    "P3.46 persisted host output diverges from sealed runtime output"
+                )
+            if str(row.get("receipt_sha256") or "") != state_receipt_sha:
                 raise RuntimeError(
                     "P3.46 persisted host receipt diverges from sealed runtime output"
                 )

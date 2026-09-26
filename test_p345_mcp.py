@@ -290,3 +290,80 @@ def test_p346_host_receipt_sidecar_preserves_p345_replay_state():
     assert sidecar["snapshot"]["adapter_generation"] == 1
     assert sidecar["edit"]["receipt_sha256"] == "2" * 64
     assert len(sidecar["snapshot"]["provenance_sha256"]) == 64
+
+
+def test_tampered_p346_sidecar_fails_before_next_host_execution():
+    core = _Core()
+    calls = {"snapshot": 0, "text": 0}
+
+    def owned(document_id):
+        return dict(core.meta), Path("/tmp/unused.hwpx")
+
+    def snapshot(**kwargs):
+        calls["snapshot"] += 1
+        return {
+            "revision_after": kwargs["current_revision"],
+            "output_sha256": "a" * 64,
+            "receipt_sha256": "1" * 64,
+        }
+
+    def text(**kwargs):
+        calls["text"] += 1
+        core.meta["revision"] = int(kwargs["current_revision"]) + 1
+        return {
+            "revision_after": core.meta["revision"],
+            "output_sha256": "b" * 64,
+            "receipt_sha256": "2" * 64,
+        }
+
+    adapters = {
+        "DOCUMENT_SNAPSHOT": snapshot,
+        "DOCUMENT_TEXT_EDIT": text,
+    }
+
+    def resolver(
+        adapter_name,
+        *,
+        document_id="",
+        run_id="",
+        pinned_profile="",
+        pinned_generation=None,
+    ):
+        fn = adapters[adapter_name]
+        profile = pinned_profile or "p3.46-guarded"
+        generation = int(pinned_generation or 1)
+
+        def invoke(**kwargs):
+            result = dict(fn(**kwargs))
+            result.update({
+                "p346_adapter_profile": profile,
+                "p346_adapter_generation": generation,
+                "p346_adapter_name": adapter_name,
+            })
+            return result
+
+        return invoke
+
+    register_p345_tools(
+        core,
+        owned,
+        adapters,
+        adapter_resolver=resolver,
+    )
+    tools = core.mcp.tools
+    compiled = tools["compile_document_transaction"]("doc", _ir())
+
+    first = tools["advance_document_transaction"](
+        "doc",
+        compiled["run_id"],
+        max_nodes=1,
+    )
+    assert first["status"] == "RUNNING"
+    assert calls == {"snapshot": 1, "text": 0}
+
+    row = core.meta["p346_runtime_host_receipts"][compiled["run_id"]]["snapshot"]
+    row["adapter_profile"] = "p3.45-compat"
+
+    with pytest.raises(RuntimeError, match="provenance seal mismatch"):
+        tools["advance_document_transaction"]("doc", compiled["run_id"])
+    assert calls == {"snapshot": 1, "text": 0}

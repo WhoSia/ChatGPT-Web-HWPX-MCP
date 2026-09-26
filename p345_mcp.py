@@ -142,19 +142,46 @@ def register_p345_tools(
 
     def _persisted_adapter_binding(
         metadata: Mapping[str, Any],
-        run_id: str,
+        state: Mapping[str, Any],
     ) -> dict:
+        run_id = str(state.get("run_id") or "")
         all_rows = metadata.get("p346_runtime_host_receipts") or {}
         run_rows = all_rows.get(run_id) if isinstance(all_rows, dict) else {}
         if not isinstance(run_rows, dict) or not run_rows:
             return {}
+        outputs = state.get("outputs") or {}
         bindings: set[tuple[str, int]] = set()
-        for raw in run_rows.values():
+        for node_id, raw in run_rows.items():
             if not isinstance(raw, dict):
                 raise RuntimeError("P3.46 persisted host receipt sidecar is malformed")
-            profile = str(raw.get("adapter_profile") or "")
+            row = dict(raw)
+            observed_seal = str(row.pop("provenance_sha256", "") or "")
+            if observed_seal != host_receipt_sha256(row):
+                raise RuntimeError(
+                    "P3.46 persisted host receipt provenance seal mismatch"
+                )
+            if str(row.get("node_id") or "") != str(node_id):
+                raise RuntimeError(
+                    "P3.46 persisted host receipt node identity mismatch"
+                )
+            state_output = (
+                outputs.get(str(node_id)) if isinstance(outputs, dict) else None
+            )
+            state_receipt = str(
+                (state_output or {}).get("receipt_sha256") or ""
+                if isinstance(state_output, dict)
+                else ""
+            )
+            if (
+                state_receipt
+                and str(row.get("receipt_sha256") or "") != state_receipt
+            ):
+                raise RuntimeError(
+                    "P3.46 persisted host receipt diverges from sealed runtime output"
+                )
+            profile = str(row.get("adapter_profile") or "")
             try:
-                generation = int(raw.get("adapter_generation"))
+                generation = int(row.get("adapter_generation"))
             except (TypeError, ValueError) as exc:
                 raise RuntimeError(
                     "P3.46 persisted host receipt generation is malformed"
@@ -332,7 +359,7 @@ def register_p345_tools(
         if max_nodes < 1 or max_nodes > 16:
             raise ValueError("max_nodes must be between 1 and 16")
         metadata, state = _load(document_id, run_id)
-        persisted_binding = _persisted_adapter_binding(metadata, run_id)
+        persisted_binding = _persisted_adapter_binding(metadata, state)
         if int(metadata["revision"]) != int(state["current_revision"]):
             raise RuntimeError("P3.45 runtime is stale relative to the document revision")
         if state.get("status") == "COMPLETED":

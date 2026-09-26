@@ -55,6 +55,7 @@ class AdapterRegistry:
         self._document_generation: dict[str, int] = {}
         self._document_history: dict[str, list[str]] = {}
         self._run_bindings: dict[tuple[str, str], tuple[str, int]] = {}
+        self._run_binding_order: dict[str, list[str]] = {}
 
     @classmethod
     def _guard(cls, name: str, fn: Callable[..., dict]) -> Callable[..., dict]:
@@ -93,6 +94,20 @@ class AdapterRegistry:
             self._document_history[document_id],
         )
 
+    def _remember_run_binding(
+        self,
+        key: tuple[str, str],
+        selected: tuple[str, int],
+    ) -> None:
+        document_id, run_id = key
+        self._run_bindings[key] = selected
+        order = self._run_binding_order.setdefault(document_id, [])
+        if run_id not in order:
+            order.append(run_id)
+        while len(order) > 16:
+            retired = order.pop(0)
+            self._run_bindings.pop((document_id, retired), None)
+
     def resolve(
         self,
         adapter_name: str,
@@ -129,13 +144,13 @@ class AdapterRegistry:
                             "P3.46 run-local adapter binding divergence"
                         )
                 elif key is not None:
-                    self._run_bindings[key] = selected
+                    self._remember_run_binding(key, selected)
             elif key is not None and key in self._run_bindings:
                 selected = self._run_bindings[key]
             else:
                 selected = (active, generation)
                 if key is not None:
-                    self._run_bindings[key] = selected
+                    self._remember_run_binding(key, selected)
 
             selected_profile, selected_generation = selected
             fn = self._profiles[selected_profile].adapters.get(adapter_name)

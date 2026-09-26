@@ -91,7 +91,7 @@ def normalize_trust_policy(raw: Mapping[str, Any]) -> dict:
         key_id = str((row or {}).get("key_id") or "")
         if not host_id or not _KEY_ID.fullmatch(key_id) or not _HEX64.fullmatch(contract):
             raise ValueError("invalid P3.47 host trust root")
-        der_b64, fingerprint = _public_key_record(str((row or {}).get("public_key_pem") or ""))
+        der_b64, fingerprint = _public_key_record(row or {})
         hosts.append(
             {
                 "host_id": host_id,

@@ -68,3 +68,23 @@ This mirrors the verifier-root principle in current SLSA provenance verification
 
 Additional closure authority:
 \`OWNER_SCOPED_TRUST_ROOT_POLICY_PASS / SIGNED_BUILD_PROVENANCE_PASS / INDEPENDENT_TRUSTED_REBUILD_PASS / SIGNED_HOST_EVIDENCE_PASS / FORGED_BUILDER_REJECTION_PASS / FORGED_HOST_RECEIPT_REJECTION_PASS / INSTALL_TIME_RECERTIFICATION_PASS / BEARER_CERTIFICATE_FORGERY_PATH_CLOSED / TRUST_POLICY_TOCTOU_GUARD_PASS\`.
+
+
+## Final phase closure receipt
+
+P3.47 implementation authority was earned on exact implementation head `0edef86314f90157615ede8c0c33537da2a473ad`.
+
+Observed execution evidence:
+- dedicated P3.47 certified-extension ecosystem CI #11: SUCCESS across TypeScript supply-chain authority, Rust certifier, Python registry, exact production Docker image and final gate;
+- exact Docker image `hwpx-mcp-p347:0edef86314f90157615ede8c0c33537da2a473ad` completed the historical release-smoke chain through P3.47, then reverified packaged `p347-certifier --contract = p3.47-certification-guard-v1` and reran the packaged P3.47 release smoke successfully;
+- full lifecycle and fidelity CI #1148: SUCCESS;
+- Render exact-head deploy `dep-daruj817lnhs73etgu00`: LIVE for product `0.24.0-p3.47`;
+- public production boundary #1133: SUCCESS. The verifier observed healthy P3.47 production on the previous implementation head while the replacement propagated, then observed `READY` with `RENDER_GIT_COMMIT=0edef86314f90157615ede8c0c33537da2a473ad` on attempt 8;
+- production-boundary receipt artifact SHA-256: `18793cd8f5abbc7c5ed5f853268fee0597605315427aeef933df9717501c2a15`.
+
+The final adversarial trust repair is part of the earned authority, not an optional hardening layer: build provenance and host observations are authenticated against owner-scoped preconfigured Ed25519 trust roots; reproducibility requires independent trusted builder identities; install authority is server-derived through recertification rather than caller-supplied bearer certificates; trust policy becomes immutable after admission; and generation-CAS is checked across recertification to close trust-policy/package TOCTOU.
+
+Final authority:
+`P3.47_PHASE_CLOSED / CONTENT_ADDRESSED_EXTENSION_PACKAGE_PASS / PROVENANCE_SUBJECT_BINDING_PASS / EXACT_DEPENDENCY_CLOSURE_PASS / REPRODUCIBLE_BUILD_ATTESTATION_PASS / SEMANTIC_COMPATIBILITY_SOLVER_PASS / EFFECT_ESCALATION_REJECTION_PASS / DIFFERENTIAL_HOST_CONFORMANCE_PASS / SELF_VERIFYING_CERTIFICATE_PASS / RUST_CERTIFICATE_SEAL_PASS / OWNER_SCOPED_TRUST_ROOT_POLICY_PASS / SIGNED_BUILD_PROVENANCE_PASS / INDEPENDENT_TRUSTED_REBUILD_PASS / SIGNED_HOST_EVIDENCE_PASS / FORGED_BUILDER_REJECTION_PASS / FORGED_HOST_RECEIPT_REJECTION_PASS / INSTALL_TIME_RECERTIFICATION_PASS / BEARER_CERTIFICATE_FORGERY_PATH_CLOSED / TRUST_POLICY_TOCTOU_GUARD_PASS / OWNER_SCOPED_ROLLOUT_PASS / SHADOW_CANARY_PROMOTION_PASS / ATOMIC_CERTIFIED_ROLLBACK_PASS / P346_SANDBOX_AUTHORITY_PRESERVED / P345_REPLAY_AUTHORITY_PRESERVED / EXACT_PRODUCTION_DOCKER_IMAGE_BUILD_PASS / PACKAGED_P347_CERTIFIER_CONTRACT_PASS / PACKAGED_P347_RELEASE_SMOKE_PASS / FULL_LIFECYCLE_PASS / EXACT_HEAD_RENDER_DEPLOY_PASS / PRODUCTION_BOUNDARY_PASS`.
+
+P3.47 is closed. Public marketplace authority is explicitly outside this phase.

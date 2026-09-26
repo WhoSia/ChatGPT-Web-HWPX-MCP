@@ -89,3 +89,13 @@ A static preview PASS means native/layout mechanics look safe. It does **not** m
 - Preserve mutation footprint: future executable page-layout repair should report which HWPX package parts changed and which remained byte-identical.
 - Use pre-layout measurement when a reliable native/portable measurement primitive exists; do not rely only on post-render critique.
 - Polyglot roles are semantic boundaries, not badges: Python reference/research, Rust exact geometry, TypeScript runtime/product contract, PowerShell Hancom bridge. Add another language only when it owns a real boundary.
+
+
+## P3.43 organization/template policy boundary
+
+- Use **get_organization_template_adaptation_contract** before treating a house style or institutional template as a design system.
+- Normalize hard/soft rules with **validate_organization_design_policy**. Hard constraints outrank preferences and corpus frequency.
+- Use **plan_organization_template_migration** before mutation; source receipts must still match the current corpus registry.
+- **apply_organization_template_migration** requires P3.42 footprint enforcement plus semantic/structure and immutable-part postconditions before commit.
+- Use **adjudicate_cross_template_generalization** only with explicit DISCOVERY/HOLDOUT labels; WITHHELD remains in the denominator.
+- Follow [organization/template policy](references/organization-template-policy.md), [mutation footprint](references/mutation-footprint.md), and [evidence authority](references/evidence-authority.md).

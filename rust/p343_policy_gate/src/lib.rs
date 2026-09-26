@@ -1,0 +1,4 @@
+#[derive(Clone,Copy,PartialEq,Eq)] enum Grade{Valid,Targeted,Identical}
+impl Grade{fn rank(self)->u8{match self{Self::Valid=>0,Self::Targeted=>1,Self::Identical=>2}}fn parse(s:&str)->Self{match s{"PACKAGE_VALID_ONLY"=>Self::Valid,"TARGETED_PARTS_ONLY"=>Self::Targeted,"PACKAGE_IDENTICAL"=>Self::Identical,_=>panic!("bad grade")}}}
+fn adjudicate(h:u32,s:bool,t:bool,g:Grade)->&'static str{if h==0&&s&&t&&g.rank()>=1{"PASS"}else{"FAIL"}}
+#[cfg(test)]mod tests{use super::*;#[test]fn golden(){let data=include_str!("../../../benchmarks/p343_policy_gate_golden.tsv");let mut n=0;for line in data.lines().skip(1).filter(|x|!x.trim().is_empty()){let c:Vec<&str>=line.split('\t').collect();assert_eq!(adjudicate(c[1].parse().unwrap(),c[2]=="true",c[3]=="true",Grade::parse(c[4])),c[5]);n+=1;}assert!(n>0);}}

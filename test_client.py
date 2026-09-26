@@ -265,12 +265,12 @@ async def main() -> None:
                 if "access_token" in schema_text or "passphrase" in schema_text:
                     raise RuntimeError(f"secret-bearing field leaked into tool schema: {tool.name}")
 
-            read_payload = _payload(await client.call_tool("probe_read", {"message": "P3.42 OAuth smoke test"}))
-            if not read_payload or not read_payload.get("ok") or read_payload.get("version") != "0.19.0-p3.42":
-                raise RuntimeError(f"probe_read did not expose current P3.42 product version: {read_payload}")
+            read_payload = _payload(await client.call_tool("probe_read", {"message": "P3.43 OAuth smoke test"}))
+            if not read_payload or not read_payload.get("ok") or read_payload.get("version") != "0.20.0-p3.43":
+                raise RuntimeError(f"probe_read did not expose current P3.43 product version: {read_payload}")
 
             p2_caps = _payload(await client.call_tool("p2_capabilities", {}))
-            if not p2_caps or p2_caps.get("phase") != "P3.42":
+            if not p2_caps or p2_caps.get("phase") != "P3.43":
                 raise RuntimeError(f"p2_capabilities failed: {p2_caps}")
 
             design_intelligence = _payload(await client.call_tool("get_document_design_intelligence_contract", {}))
@@ -328,7 +328,7 @@ async def main() -> None:
                 or "NOT_APPLICABLE" not in p342_corpus.get("statuses", [])
             ):
                 raise RuntimeError(f"P3.42 corpus evidence contract failed: {p342_corpus}")
-            callout = _payload(await client.call_tool("compile_semantic_callout_block", {
+            p343_contract = _payload(await client.call_tool("get_organization_template_adaptation_contract", {}))\n            if not p343_contract or p343_contract.get("phase") != "P3.43" or p343_contract.get("authority_order", [None])[0] != "USER_OR_ORGANIZATION_HARD_CONSTRAINT":\n                raise RuntimeError(f"P3.43 contract failed: {p343_contract}")\n\n            callout = _payload(await client.call_tool("compile_semantic_callout_block", {
                 "text": "핵심 판단은 장식이 아니라 의미를 인코딩해야 합니다.",
                 "block_id": "oauth_callout",
                 "role": "KEY_JUDGMENT",

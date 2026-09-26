@@ -6960,11 +6960,24 @@ def compare_page_composition_diagnostics(before: dict, after: dict) -> dict:
     return {"ok": True, **p341_compare_page_composition_diagnostics(before, after)}
 
 
+def _apply_p343_migration(*, document_id: str, template: dict, targets_by_role: dict, policy: dict, expected_revision: int, lease_token: str = "") -> dict:
+    from p343_design_system import apply_constraint_preserving_template_migration_atomic
+    metadata,path=_owned_document(document_id);current=int(metadata["revision"]);ingress=metadata.get("source")=="existing-ingress"
+    migration=apply_constraint_preserving_template_migration_atomic(path,template,targets_by_role,policy,expected_revision=int(expected_revision),current_revision=current,validator=lambda candidate: core.validate_hwpx_package(candidate,ingress=ingress))
+    validation=migration["formatting_receipt"]["validation"]
+    metadata["revision"]=current+1;metadata["last_edit_at"]=core._utc_iso();metadata["p343_policy_sha256"]=migration["policy_sha256"];metadata["p343_template_sha256"]=migration["template_sha256"];metadata["p343_migration_receipt_sha256"]=migration["migration_receipt_sha256"]
+    if lease_token: metadata["_commit_lease_token"]=lease_token
+    _refresh_metadata(document_id,metadata,validation,build_document_map(path),build_formatting_map(path),build_inline_map(path),build_table_map(path),build_object_map(path),build_equation_map(path))
+    return {"ok":True,"document_id":document_id,"revision_before":current,"revision_after":int(metadata["revision"]),"sha256":validation["sha256"],"migration":migration,"validation":validation,"transaction":"COMMITTED","authority":"P3.43_ORGANIZATION_CONSTRAINED_TEMPLATE_MIGRATION"}
+
 from p335_mcp import register_corpus_tools
 CORPUS_REGISTRY = register_corpus_tools(core, _owned_document)
 
 from p342_mcp import register_p342_tools
 P342_EVIDENCE = register_p342_tools(core, _owned_document, CORPUS_REGISTRY)
+
+from p343_mcp import register_p343_tools
+P343_DESIGN_SYSTEM = register_p343_tools(core, _owned_document, CORPUS_REGISTRY, _apply_p343_migration)
 
 
 if __name__ == "__main__":

@@ -1,0 +1,53 @@
+name: P3.43 organization/template adaptation validation
+on:
+  push:
+    branches: [main]
+    paths: ["p343_*","test_p343_*","benchmarks/p343_*","contracts/p343_*","rust/p343_policy_gate/**","scripts/p343_*","scripts/validate_hwpx_authoring_skill.py","server_p2.py","Dockerfile","test_client.py","skills/hwpx-authoring/**","P343_TEST_LEDGER.md",".github/workflows/p343-ci.yml"]
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  python-policy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12", cache: pip}
+      - run: pip install -r requirements.txt -r requirements-capture.txt -r requirements-dev.txt
+      - run: python -m compileall -q p343_design_system.py p343_mcp.py test_p343_design_system.py scripts/p343_release_smoke.py server_p2.py test_client.py
+      - run: python -m pytest -q test_p343_design_system.py test_p335_registry_atlas.py test_p342_mutation_footprint.py
+      - run: python scripts/p343_release_smoke.py
+      - run: python scripts/validate_hwpx_authoring_skill.py
+  rust-policy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo test --manifest-path rust/p343_policy_gate/Cargo.toml
+  typescript-policy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: "22"}
+      - run: npx --yes -p typescript@5.9.2 tsc --noEmit --strict --target ES2022 contracts/p343_policy.ts
+      - run: |
+          rm -rf .tmp/p343-ts && mkdir -p .tmp/p343-ts
+          npx --yes -p typescript@5.9.2 tsc --strict --target ES2022 --module commonjs --outDir .tmp/p343-ts contracts/p343_policy.ts
+          node scripts/p343_typescript_parity.cjs
+  inherited-hancom:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - shell: powershell
+        run: |
+          $tokens=$null;$errors=$null
+          [void][System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path ".\scripts\common\HancomExport.ps1").Path,[ref]$tokens,[ref]$errors)
+          if($errors.Count -gt 0){exit 1}
+  gate:
+    needs: [python-policy,rust-policy,typescript-policy,inherited-hancom]
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "P3.43 constraint-preserving migration gate PASS"

@@ -437,6 +437,29 @@ async def main() -> None:
             ):
                 raise RuntimeError(f"P3.46 cross-runtime effect validation failed: {p346_effect}")
 
+            p346_registry = _payload(await client.call_tool("get_host_adapter_registry", {}))
+            p346_swapped = _payload(await client.call_tool(
+                "hot_swap_document_host_adapter_profile",
+                {
+                    "target_profile": "p3.45-compat",
+                    "expected_generation": int(p346_registry["generation"]),
+                },
+            ))
+            if (
+                p346_swapped.get("active_profile") != "p3.45-compat"
+                or p346_swapped.get("authority") != "PRE_ADMITTED_ADAPTER_PROFILE_CAS_SWAP"
+            ):
+                raise RuntimeError(f"P3.46 adapter hot swap failed: {p346_swapped}")
+            p346_rolled = _payload(await client.call_tool(
+                "rollback_document_host_adapter_profile",
+                {"expected_generation": int(p346_swapped["generation"])},
+            ))
+            if (
+                p346_rolled.get("active_profile") != "p3.46-guarded"
+                or p346_rolled.get("authority") != "PRE_ADMITTED_ADAPTER_PROFILE_SAFE_ROLLBACK"
+            ):
+                raise RuntimeError(f"P3.46 adapter rollback failed: {p346_rolled}")
+
             callout = _payload(await client.call_tool("compile_semantic_callout_block", {
                 "text": "핵심 판단은 장식이 아니라 의미를 인코딩해야 합니다.",
                 "block_id": "oauth_callout",

@@ -250,6 +250,7 @@ export function compileAuthoringIR(request:CompileRequest){
     node_spec_sha256:specs,provider_bindings:bindings,side_effects:sideEffects,actions,
     affected_nodes:order.filter(id=>dirty.has(id)),reused_nodes:order.filter(id=>actions[id]==="REUSE"),
     extension_sha256:extensions.map(e=>validateExtensionManifest(e).manifest_sha256).sort(),
+    prior_snapshot: prior,
   };
   return {...compiled,plan_sha256:sha256(compiled)};
 }
@@ -274,8 +275,7 @@ export function createRun(compiled:any){
       append(state,{name:"NODE_REUSED",run_id:runId,node_id:id,revision:state.current_revision,attributes:{output_sha256:priorOutput}});
     }
   }
-  state.run_sha256=sha256({...state,run_sha256:undefined});
-  return state;
+  return reseal(state);
 }
 function reseal(state:any){const clean={...state};delete clean.run_sha256;state.run_sha256=sha256(clean);return state;}
 function depsReady(state:any,id:string){const n=state.compiled.ir.nodes.find((x:any)=>x.id===id);return (n.deps||[]).every((d:string)=>terminal(state.node_states[d]));}

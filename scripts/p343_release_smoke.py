@@ -1,5 +1,11 @@
 from pathlib import Path
 import tempfile
+import sys
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
 from hwpx import HwpxDocument
 from p22_formatting import build_formatting_map
 from p334r2_package_validation import validate_hwpx_package_light

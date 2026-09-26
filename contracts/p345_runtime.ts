@@ -11,6 +11,8 @@ export interface CapabilityRequirement {
   min_version?: string;
   evidence?: string[];
   hard?: boolean;
+  provider_id?: string;
+  adapter?: string;
 }
 export interface Capability {
   name: string;
@@ -36,6 +38,8 @@ export interface ExtensionManifest {
     adapter: string;
     side_effect: SideEffect;
     reusable?: boolean;
+    capability_version?: string;
+    evidence?: string[];
   }>;
 }
 export interface IRNode {
@@ -68,7 +72,7 @@ export interface CompileRequest {
   changed_node_ids?: string[];
 }
 export interface RuntimeEventBody {
-  name: "RUN_CREATED" | "NODE_REUSED" | "NODE_STARTED" | "NODE_WAITING_EXTERNAL" | "NODE_COMMITTED" | "NODE_FAILED" | "RUN_COMPLETED";
+  name: "RUN_CREATED" | "NODE_REUSED" | "NODE_STARTED" | "NODE_WAITING_EXTERNAL" | "NODE_COMMITTED" | "NODE_FAILED" | "RUN_COMPLETED" | "RUN_ABORTED";
   run_id: string;
   node_id?: string;
   revision: number;
@@ -153,9 +157,38 @@ export function validateExtensionManifest(raw:ExtensionManifest):ExtensionManife
     seen.add(row.kind);
     if(!["PURE","DOCUMENT_MUTATION","EXTERNAL_WORLD_CONTACT"].includes(row.side_effect)) throw new Error("invalid extension side effect");
     if(row.reusable&&row.side_effect!=="PURE") throw new Error("only PURE extension nodes may be reusable");
+    const capabilityVersion=String(row.capability_version||raw.version||"");
+    if(!/^\d+(\.\d+){0,2}$/.test(capabilityVersion)) throw new Error("invalid extension capability version");
+    if(row.evidence!==undefined&&(!Array.isArray(row.evidence)||row.evidence.some(x=>typeof x!=="string"||!x.trim()))) throw new Error("invalid extension evidence");
   }
   const clean=JSON.parse(JSON.stringify(raw));
   return {...clean,manifest_sha256:sha256(clean)};
+}
+function extensionProviders(extensions:ExtensionManifest[]):CapabilityProvider[]{
+  const providers:CapabilityProvider[]=[];
+  for(const raw of extensions){
+    const ext=validateExtensionManifest(raw);
+    const capabilities:Capability[]=[];
+    const seen=new Set<string>();
+    for(const row of ext.node_kinds){
+      const key=row.capability+"\0"+row.adapter;
+      if(seen.has(key)) continue;
+      seen.add(key);
+      capabilities.push({
+        name:row.capability,
+        version:String(row.capability_version||ext.version),
+        evidence:[...(row.evidence||[])].sort(),
+        deterministic:Boolean(ext.deterministic),
+        adapter:row.adapter,
+      });
+    }
+    providers.push({
+      provider_id:"extension:"+ext.extension_id,
+      provider_version:ext.version,
+      capabilities:capabilities.sort((a,b)=>(a.name+"@"+a.adapter).localeCompare(b.name+"@"+b.adapter)),
+    });
+  }
+  return providers.sort((a,b)=>a.provider_id.localeCompare(b.provider_id));
 }
 function nodeKindTable(extensions:ExtensionManifest[]):Record<string,{capability:string;adapter:string;side_effect:SideEffect;reusable:boolean}>{
   const table={...NODE_KINDS};
@@ -193,6 +226,8 @@ function negotiate(requirements:CapabilityRequirement[],providers:CapabilityProv
       assertId(provider.provider_id,"provider id");
       for(const cap of provider.capabilities||[]){
         if(cap.name!==req.name) continue;
+        if(req.provider_id&&provider.provider_id!==req.provider_id) continue;
+        if(req.adapter&&cap.adapter!==req.adapter) continue;
         if(req.min_version&&!atLeast(cap.version,req.min_version)) continue;
         const evidence=new Set(cap.evidence||[]);
         if((req.evidence||[]).some(e=>!evidence.has(e))) continue;
@@ -201,7 +236,9 @@ function negotiate(requirements:CapabilityRequirement[],providers:CapabilityProv
     }
     candidates.sort((a,b)=>{
       if(Boolean(a.capability.deterministic)!==Boolean(b.capability.deterministic)) return a.capability.deterministic?-1:1;
-      return (a.provider_id+"@"+a.capability.version).localeCompare(b.provider_id+"@"+b.capability.version);
+      return (a.provider_id+"@"+a.provider_version+"@"+a.capability.version+"@"+a.capability.adapter).localeCompare(
+        b.provider_id+"@"+b.provider_version+"@"+b.capability.version+"@"+b.capability.adapter
+      );
     });
     if(!candidates.length){
       if(req.hard===false){missingSoft.push(req.name);continue;}
@@ -218,13 +255,24 @@ export function compileAuthoringIR(request:CompileRequest){
   if(!Number.isInteger(ir.base_revision)||ir.base_revision<1) throw new Error("base_revision must be >=1");
   const order=topo(ir.nodes), by=new Map(ir.nodes.map(n=>[n.id,n]));
   const extensions=request.extensions||[], kinds=nodeKindTable(extensions);
-  const providers=[BUILTIN_PROVIDER,...(request.providers||[])];
+  const providers=[BUILTIN_PROVIDER,...extensionProviders(extensions),...(request.providers||[])];
+  const providerIds=new Set<string>();
+  for(const provider of providers){
+    assertId(provider.provider_id,"provider id");
+    if(providerIds.has(provider.provider_id)) throw new Error("duplicate provider id: "+provider.provider_id);
+    providerIds.add(provider.provider_id);
+  }
   const bindings:Record<string,any>={}, bindingHashes:Record<string,string>={}, specs:Record<string,string>={}, actions:Record<string,PlanAction>={}, sideEffects:Record<string,SideEffect>={};
   const directDirty=new Set<string>(request.changed_node_ids||[]);
   const prior=request.prior_snapshot||{};
+  const nodeIds=new Set(ir.nodes.map(n=>n.id));
+  for(const id of directDirty) if(!nodeIds.has(id)) throw new Error("changed_node_ids contains unknown node: "+id);
+  for(const id of Object.keys(prior)) if(!nodeIds.has(id)) throw new Error("prior_snapshot contains unknown node: "+id);
+  for(const id of ir.outputs||[]) if(!nodeIds.has(id)) throw new Error("IR output references unknown node: "+id);
   for(const id of order){
     const n=by.get(id)!;const kind=kinds[n.kind];if(!kind) throw new Error("unsupported node kind: "+n.kind);
-    const requirements:[CapabilityRequirement,...CapabilityRequirement[]]=[{name:kind.capability,hard:true},...(n.requires||[])] as any;
+    if(Boolean(n.reusable)&&kind.side_effect!=="PURE") throw new Error("only PURE nodes may request reusable=true");
+    const requirements:[CapabilityRequirement,...CapabilityRequirement[]]=[{name:kind.capability,hard:true,adapter:kind.adapter},...(n.requires||[])] as any;
     const negotiation=negotiate(requirements,providers);
     const binding={kind:n.kind,adapter:kind.adapter,primary:negotiation.selected[kind.capability],all:negotiation.selected,missing_soft:negotiation.missing_soft};
     bindings[id]=binding;bindingHashes[id]=sha256(binding);sideEffects[id]=kind.side_effect;
@@ -250,6 +298,11 @@ export function compileAuthoringIR(request:CompileRequest){
     node_spec_sha256:specs,provider_bindings:bindings,provider_binding_sha256:bindingHashes,side_effects:sideEffects,actions,
     affected_nodes:order.filter(id=>dirty.has(id)),reused_nodes:order.filter(id=>actions[id]==="REUSE"),
     extension_sha256:extensions.map(e=>validateExtensionManifest(e).manifest_sha256).sort(),
+    provider_catalog_sha256:sha256(providers.map(p=>({
+      provider_id:p.provider_id,
+      provider_version:p.provider_version,
+      capabilities:[...(p.capabilities||[])].sort((a,b)=>(a.name+"@"+a.adapter+"@"+a.version).localeCompare(b.name+"@"+b.adapter+"@"+b.version)),
+    })).sort((a,b)=>a.provider_id.localeCompare(b.provider_id))),
     prior_snapshot: prior,
   };
   return {...compiled,plan_sha256:sha256(compiled)};
@@ -278,34 +331,52 @@ export function createRun(compiled:any){
   return reseal(state);
 }
 function reseal(state:any){const clean={...state};delete clean.run_sha256;state.run_sha256=sha256(clean);return state;}
+function verifyRunSeal(state:any){
+  const clean={...state};const observed=String(clean.run_sha256||"");delete clean.run_sha256;
+  const expected=sha256(clean);if(observed!==expected) throw new Error("runtime run seal mismatch");
+}
 function depsReady(state:any,id:string){const n=state.compiled.ir.nodes.find((x:any)=>x.id===id);return (n.deps||[]).every((d:string)=>terminal(state.node_states[d]));}
 export function transitionRuntime(input:{state:any;command:any}){
+  verifyRunSeal(input.state);
   const state=JSON.parse(JSON.stringify(input.state)), c=input.command||{}, id=String(c.node_id||"");
   if(state.schema!=="chatgpt-web-hwpx-mcp/p3.45/runtime-run/v1") throw new Error("invalid runtime state");
-  if(c.type!=="COMPLETE_RUN"){if(!state.node_states[id])throw new Error("unknown node");if(!depsReady(state,id))throw new Error("node dependencies are not terminal");}
+  if(["COMPLETED","ABORTED"].includes(String(state.status))) throw new Error("terminal runtime cannot transition");
+  if(!["COMPLETE_RUN","ABORT_RUN"].includes(String(c.type))){
+    if(!state.node_states[id])throw new Error("unknown node");
+    if(!depsReady(state,id))throw new Error("node dependencies are not terminal");
+  }
   if(c.type==="START_NODE"){
     if(state.compiled.actions[id]!=="EXECUTE"||state.node_states[id]!=="PENDING")throw new Error("node cannot start");
     state.node_states[id]="RUNNING";state.status="RUNNING";
     append(state,{name:"NODE_STARTED",run_id:state.run_id,node_id:id,revision:state.current_revision,attributes:{adapter:String(state.compiled.provider_bindings[id].adapter)}});
   }else if(c.type==="COMMIT_NODE"){
     if(state.node_states[id]!=="RUNNING")throw new Error("node is not running");
-    const rev=Number(c.revision);if(!Number.isInteger(rev)||rev<state.current_revision)throw new Error("invalid committed revision");
-    const out=String(c.output_sha256||"");if(!/^[0-9a-f]{64}$/.test(out))throw new Error("output_sha256 required");
-    state.node_states[id]="COMMITTED";state.current_revision=rev;state.outputs[id]={output_sha256:out,receipt_sha256:String(c.receipt_sha256||"")};
-    append(state,{name:"NODE_COMMITTED",run_id:state.run_id,node_id:id,revision:rev,attributes:{output_sha256:out,receipt_sha256:String(c.receipt_sha256||"")}});
+    const rev=Number(c.revision),effect=String(state.compiled.side_effects[id]||"");
+    const expectedRev=effect==="DOCUMENT_MUTATION"?state.current_revision+1:state.current_revision;
+    if(!Number.isInteger(rev)||rev!==expectedRev)throw new Error("committed revision violates side-effect contract");
+    const out=String(c.output_sha256||""),receipt=String(c.receipt_sha256||"");
+    if(!/^[0-9a-f]{64}$/.test(out)||!/^[0-9a-f]{64}$/.test(receipt))throw new Error("output/receipt sha256 required");
+    state.node_states[id]="COMMITTED";state.current_revision=rev;state.outputs[id]={output_sha256:out,receipt_sha256:receipt};
+    append(state,{name:"NODE_COMMITTED",run_id:state.run_id,node_id:id,revision:rev,attributes:{output_sha256:out,receipt_sha256:receipt}});
   }else if(c.type==="WAIT_NODE"){
     if(state.compiled.actions[id]!=="WAIT_EXTERNAL"||state.node_states[id]!=="PENDING")throw new Error("node cannot wait");
     state.node_states[id]="WAITING_EXTERNAL";state.status="WAIT_EXTERNAL";
     append(state,{name:"NODE_WAITING_EXTERNAL",run_id:state.run_id,node_id:id,revision:state.current_revision,attributes:{capability:String(state.compiled.provider_bindings[id].primary.capability.name)}});
   }else if(c.type==="RESOLVE_NODE"){
     if(state.node_states[id]!=="WAITING_EXTERNAL")throw new Error("node is not waiting");
-    const out=String(c.output_sha256||"");if(!/^[0-9a-f]{64}$/.test(out))throw new Error("output_sha256 required");
-    state.node_states[id]="COMMITTED";state.outputs[id]={output_sha256:out,receipt_sha256:String(c.receipt_sha256||"")};state.status="RUNNING";
-    append(state,{name:"NODE_COMMITTED",run_id:state.run_id,node_id:id,revision:state.current_revision,attributes:{output_sha256:out,receipt_sha256:String(c.receipt_sha256||""),external:true}});
+    const out=String(c.output_sha256||""),receipt=String(c.receipt_sha256||"");
+    if(!/^[0-9a-f]{64}$/.test(out)||!/^[0-9a-f]{64}$/.test(receipt))throw new Error("output/receipt sha256 required");
+    state.node_states[id]="COMMITTED";state.outputs[id]={output_sha256:out,receipt_sha256:receipt};state.status="RUNNING";
+    append(state,{name:"NODE_COMMITTED",run_id:state.run_id,node_id:id,revision:state.current_revision,attributes:{output_sha256:out,receipt_sha256:receipt,external:true}});
   }else if(c.type==="FAIL_NODE"){
     if(!["RUNNING","WAITING_EXTERNAL"].includes(state.node_states[id]))throw new Error("node cannot fail");
     state.node_states[id]="FAILED";state.status="HOLD";
     append(state,{name:"NODE_FAILED",run_id:state.run_id,node_id:id,revision:state.current_revision,attributes:{"error.type":String(c.error_type||"runtime.error")}});
+  }else if(c.type==="ABORT_RUN"){
+    const reason=String(c.reason_code||"operator.cancelled");
+    if(!/^[A-Za-z0-9._:-]{1,96}$/.test(reason))throw new Error("invalid abort reason");
+    state.status="ABORTED";
+    append(state,{name:"RUN_ABORTED",run_id:state.run_id,revision:state.current_revision,attributes:{"abort.reason":reason}});
   }else if(c.type==="COMPLETE_RUN"){
     if(Object.values(state.node_states).some(v=>!terminal(v as NodeState)))throw new Error("run has non-terminal nodes");
     state.status="COMPLETED";append(state,{name:"RUN_COMPLETED",run_id:state.run_id,revision:state.current_revision,attributes:{head_nodes:Object.keys(state.node_states).length}});
@@ -313,21 +384,24 @@ export function transitionRuntime(input:{state:any;command:any}){
   return reseal(state);
 }
 export function timeTravel(state:any,seq:number){
+  verifyRunSeal(state);
   if(!Number.isInteger(seq)||seq<1||seq>state.events.length)throw new Error("invalid event seq");
   const nodes:Record<string,NodeState>={};for(const id of state.compiled.topological_order)nodes[id]="PENDING";
   let revision=state.base_revision,status="READY";
   for(const ev of state.events.slice(0,seq)){
     revision=ev.revision;
     if(ev.name==="NODE_REUSED")nodes[ev.node_id]="REUSED";
-    else if(ev.name==="NODE_STARTED")nodes[ev.node_id]="RUNNING";
-    else if(ev.name==="NODE_WAITING_EXTERNAL")nodes[ev.node_id]="WAITING_EXTERNAL";
-    else if(ev.name==="NODE_COMMITTED")nodes[ev.node_id]="COMMITTED";
+    else if(ev.name==="NODE_STARTED"){nodes[ev.node_id]="RUNNING";status="RUNNING";}
+    else if(ev.name==="NODE_WAITING_EXTERNAL"){nodes[ev.node_id]="WAITING_EXTERNAL";status="WAIT_EXTERNAL";}
+    else if(ev.name==="NODE_COMMITTED"){nodes[ev.node_id]="COMMITTED";status="RUNNING";}
     else if(ev.name==="NODE_FAILED"){nodes[ev.node_id]="FAILED";status="HOLD";}
+    else if(ev.name==="RUN_ABORTED")status="ABORTED";
     else if(ev.name==="RUN_COMPLETED")status="COMPLETED";
   }
   return {schema:"chatgpt-web-hwpx-mcp/p3.45/time-travel/v1",run_id:state.run_id,event_seq:seq,revision,node_states:nodes,status,head_event_hash:state.events[seq-1].event_hash};
 }
 export function observability(state:any){
+  verifyRunSeal(state);
   const counts:Record<string,number>={};for(const ev of state.events)counts[ev.name]=(counts[ev.name]||0)+1;
   return {schema:"chatgpt-web-hwpx-mcp/p3.45/observability/v1",run_id:state.run_id,status:state.status,event_count:state.events.length,event_counts:counts,reused_nodes:Object.values(state.node_states).filter(x=>x==="REUSED").length,committed_nodes:Object.values(state.node_states).filter(x=>x==="COMMITTED").length,failed_nodes:Object.values(state.node_states).filter(x=>x==="FAILED").length,base_revision:state.base_revision,current_revision:state.current_revision,head_event_hash:state.head_event_hash,attributes:{"service.name":"chatgpt-web-hwpx-mcp","hwpx.phase":"P3.45"}};
 }
@@ -335,9 +409,10 @@ export const P345_RUNTIME_CONTRACT={
   schema:"chatgpt-web-hwpx-mcp/p3.45/runtime-contract/v1",phase:"P3.45",host_abi:"p3.45-extension-v1",
   language_authority:{typescript:"PRIMARY_IR_COMPILER_SCHEDULER_AND_RUNTIME_STATE_MACHINE",rust:"AUTHORITATIVE_EVENT_REPLAY_AND_INVARIANT_KERNEL",python:"HWPX_HOST_ADAPTER_AND_MCP_BINDING_ONLY",powershell:"HANCOM_WORLD_CONTACT_ONLY"},
   incremental_recompilation:{pure_node_reuse_only:true,document_mutations_never_cache_reused:true,external_world_contact_never_cache_reused:true,transitive_invalidation:true},
-  deterministic_payload:{canonical_json:"JCS_COMPATIBLE_SAFE_INTEGER_SUBSET",timestamps_excluded_from_hash:true,floats_forbidden:true},
+  deterministic_payload:{canonical_json:"RFC_8785_JCS_SAFE_INTEGER_SUBSET",timestamps_excluded_from_hash:true,floats_forbidden:true},
   builtin_provider:BUILTIN_PROVIDER,supported_builtin_node_kinds:Object.keys(NODE_KINDS).sort(),
-  extensions:{dynamic_code_loading:false,manifest_only:true,host_adapter_allowlist:true},
-  observability:{event_names_low_cardinality:true,deterministic_event_core_separate_from_observation_time:true},
+  extensions:{dynamic_code_loading:false,manifest_only:true,host_adapter_allowlist:true,manifest_capability_provider:true},
+  interruption:{explicit_abort_event:true,automatic_commit_inference:false,terminal_states:["COMPLETED","ABORTED"]},
+  observability:{event_names_low_cardinality:true,dynamic_identifiers_as_attributes:true,deterministic_event_core_separate_from_observation_time:true},
   non_claims:["Runtime replay does not recreate external world contact.","A cached PURE node does not authorize reuse of a document mutation.","Extension manifests do not load arbitrary code."]
 } as const;

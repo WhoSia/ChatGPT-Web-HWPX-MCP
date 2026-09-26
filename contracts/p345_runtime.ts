@@ -276,7 +276,7 @@ export function compileAuthoringIR(request:CompileRequest){
     const negotiation=negotiate(requirements,providers);
     const binding={kind:n.kind,adapter:kind.adapter,primary:negotiation.selected[kind.capability],all:negotiation.selected,missing_soft:negotiation.missing_soft};
     bindings[id]=binding;bindingHashes[id]=sha256(binding);sideEffects[id]=kind.side_effect;
-    specs[id]=sha256({id:n.id,kind:n.kind,deps:[...(n.deps||[])].sort(),inputs:n.inputs??null,requires:n.requires||[],reusable:Boolean(n.reusable??kind.reusable)});
+    specs[id]=sha256({base_revision:ir.base_revision,id:n.id,kind:n.kind,deps:[...(n.deps||[])].sort(),inputs:n.inputs??null,requires:n.requires||[],reusable:Boolean(n.reusable??kind.reusable)});
     const bindHash=bindingHashes[id], prev=prior[id];
     if(!prev||prev.node_spec_sha256!==specs[id]||prev.provider_binding_sha256!==bindHash) directDirty.add(id);
     if(kind.side_effect!=="PURE") directDirty.add(id);

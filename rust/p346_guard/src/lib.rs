@@ -1,7 +1,7 @@
 use serde_json::Value;
 use std::collections::{BTreeMap,BTreeSet,VecDeque};
 
-const EFFECTS:[&str;5]=["READ_ONLY","PURE","DOCUMENT_MUTATION","EXTERNAL_WORLD_CONTACT","DELIVERY"];
+const EFFECTS:[&str;6]=["READ_ONLY","PURE","DOCUMENT_MUTATION","RUNTIME_CONFIGURATION","EXTERNAL_WORLD_CONTACT","DELIVERY"];
 
 fn known_effect(e:&str)->bool{EFFECTS.contains(&e)}
 fn expected_actions(effect:&str,reusable:bool)->&'static [&'static str]{

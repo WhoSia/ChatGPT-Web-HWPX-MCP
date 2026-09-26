@@ -110,3 +110,15 @@ A static preview PASS means native/layout mechanics look safe. It does **not** m
 - A repair after render invalidates that render. Re-render the new revision before delivery when render evidence is required.
 - Rust owns the production repair/delivery gate; TypeScript independently mirrors state-machine semantics and blind AuthorBench scoring; Python is the HWPX-native adapter; PowerShell/Hancom owns native world contact.
 - Follow [autonomous authoring](references/autonomous-authoring.md), [organization/template policy](references/organization-template-policy.md), [mutation footprint](references/mutation-footprint.md), and [evidence authority](references/evidence-authority.md).
+
+
+## P3.45 document transaction runtime boundary
+
+- Use **get_document_transaction_runtime_contract** before orchestrating multi-step edits that need replay, incremental invalidation, capability negotiation, or external-evidence pauses.
+- Express high-level work as declarative Authoring IR and call **compile_document_transaction**; do not manually reorder nodes after compilation.
+- Advance bounded work with **advance_document_transaction**. Mutation nodes are never cache-reused, and external-world-contact nodes stop at `WAIT_EXTERNAL`.
+- Resolve external nodes only with revision-bound measured receipts through **resolve_document_transaction_external**. Replay never fabricates Hancom/render evidence.
+- Use **replay_document_transaction** for read-only time travel and **get_document_transaction_observability** for operational state; observation timestamps are outside deterministic event hashes.
+- Use **abort_document_transaction** for explicit cancellation. Never infer a commit after an interrupted RUNNING node.
+- Extension manifests are declarations only: validate with **validate_document_runtime_extension**; no arbitrary extension code is loaded. Host adapters remain allow-listed.
+- Follow [document transaction runtime](references/document-transaction-runtime.md), [mutation footprint](references/mutation-footprint.md), and [evidence authority](references/evidence-authority.md).

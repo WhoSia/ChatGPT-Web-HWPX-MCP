@@ -10,7 +10,13 @@ on:
       - "p346_*"
       - "test_p346_*"
       - "server_p2.py"
+      - "contracts/p345_runtime.ts"
+      - "contracts/p345_extension_sdk.ts"
+      - "scripts/p345_runtime_cli.ts"
+      - "rust/p345_replay/**"
+      - "p345_runtime_bridge.py"
       - "p345_mcp.py"
+      - "test_p345_mcp.py"
       - "Dockerfile"
       - "test_client.py"
       - "P346_TEST_LEDGER.md"
@@ -75,17 +81,21 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - run: pip install -r requirements.txt -r requirements-dev.txt
       - run: |
-          rm -rf .tmp/p346-ts
-          mkdir -p .tmp/p346-ts
+          rm -rf .tmp/p345-ts .tmp/p346-ts
+          mkdir -p .tmp/p345-ts .tmp/p346-ts
+          npx --yes -p typescript@5.9.2 tsc --strict --target ES2022 --module commonjs --rootDir . --outDir .tmp/p345-ts contracts/p345_runtime.ts contracts/p345_extension_sdk.ts scripts/p345_runtime_cli.ts
           npx --yes -p typescript@5.9.2 tsc --strict --target ES2022 --module commonjs --rootDir . --outDir .tmp/p346-ts contracts/p346_capability_kernel.ts contracts/p346_extension_sdk.ts scripts/p346_platform_cli.ts
+          cargo build --release --manifest-path rust/p345_replay/Cargo.toml
           cargo build --release --manifest-path rust/p346_guard/Cargo.toml
-      - name: P3.46 Python bridge, sandbox and registry regression
+      - name: P3.45/P3.46 Python bridge, sidecar, sandbox and registry regression
         env:
+          P345_TS_RUNTIME: .tmp/p345-ts/scripts/p345_runtime_cli.js
+          P345_REPLAY_BIN: rust/p345_replay/target/release/p345-replay
           P346_TS_RUNTIME: .tmp/p346-ts/scripts/p346_platform_cli.js
           P346_GUARD_BIN: rust/p346_guard/target/release/p346-guard
         run: |
-          python -m compileall -q p346_platform_bridge.py p346_mcp.py test_p346_platform_bridge.py test_p346_mcp.py scripts/p346_release_smoke.py
-          python -m pytest -q test_p346_platform_bridge.py test_p346_mcp.py
+          python -m compileall -q p345_runtime_bridge.py p345_mcp.py p346_platform_bridge.py p346_mcp.py test_p345_mcp.py test_p346_platform_bridge.py test_p346_mcp.py scripts/p346_release_smoke.py
+          python -m pytest -q test_p345_mcp.py test_p346_platform_bridge.py test_p346_mcp.py
           python scripts/p346_release_smoke.py
 
   gate:

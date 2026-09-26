@@ -98,8 +98,25 @@ jobs:
           python -m pytest -q test_p345_mcp.py test_p346_platform_bridge.py test_p346_mcp.py
           python scripts/p346_release_smoke.py
 
+  docker-image:
+    needs: [typescript-kernel, rust-effect-guard]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build exact production Docker image
+        run: docker build --progress=plain -t hwpx-mcp-p346:${{ github.sha }} .
+      - name: Verify packaged runtime contracts and release smoke
+        run: |
+          docker run --rm --entrypoint /bin/sh hwpx-mcp-p346:${{ github.sha }} -c '
+            test "$(p344-gate --contract)" = "p3.44-autonomous-authoring-gate-v1" &&
+            test "$(p345-replay --contract)" = "p3.45-runtime-replay-v1" &&
+            test "$(p346-guard --contract)" = "p3.46-effect-guard-v1" &&
+            python scripts/p346_release_smoke.py
+          '
+
   gate:
-    needs: [typescript-kernel, rust-effect-guard, cross-runtime, python-bridge]
+    needs: [typescript-kernel, rust-effect-guard, cross-runtime, python-bridge, docker-image]
     runs-on: ubuntu-latest
     steps:
       - run: echo "P3.46 typed capability kernel + Rust effect guard + Python adapter registry PASS"

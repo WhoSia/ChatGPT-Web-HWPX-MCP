@@ -214,3 +214,16 @@ Required closure authority:
 
 These labels are closure requirements until the corresponding exact-head GitHub Actions and lifecycle/production gates are observed successful; source presence alone is not treated as execution evidence.
 
+## Exact production Docker image parity gate
+
+The closure audit exposed a remaining observability gap: the dedicated P3.46 jobs compiled the TypeScript, Rust, and Python/runtime seams, while Render consumed the repository's full multi-stage Dockerfile. A source-level green CI therefore could not by itself distinguish a Render deployment-propagation delay from a Docker-image build failure.
+
+P3.46 dedicated CI now includes a `docker-image` job that builds the exact repository Dockerfile on the same head after the TypeScript and Rust kernels pass. The image build executes the Dockerfile's complete historical release-smoke chain through P3.46. A post-build container check additionally verifies the packaged P3.44/P3.45/P3.46 native contract binaries and reruns the P3.46 release smoke against the packaged TypeScript runtime.
+
+This gate is deliberately part of the final P3.46 gate dependency set; production authority can no longer be inferred from source compilation alone.
+
+Required closure authority:
+`EXACT_PRODUCTION_DOCKER_IMAGE_BUILD_PASS / PACKAGED_CROSS_RUNTIME_CONTRACT_PASS / PACKAGED_P346_RELEASE_SMOKE_PASS`.
+
+The first exact-head production-boundary attempt for `7a0f754fa0fdc06c6af2c91378b7776a37c23ddf` was classified `PRODUCTION_VERSION_STALE`: production remained healthy at product `0.23.0-p3.46` but exposed Render's runtime `RENDER_GIT_COMMIT=87404a70d8df0922407f7be2b99df2c9a44b8212`. This is deployment evidence, not a code-pass result, and remains outside closure until an exact-head public boundary succeeds.
+

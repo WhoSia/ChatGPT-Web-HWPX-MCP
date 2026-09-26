@@ -212,3 +212,81 @@ def test_manifest_only_extension_provider_uses_admitted_adapter():
         compiled["provider_bindings"]["ext"]["primary"]["provider_id"]
         == "extension:fixture-ext"
     )
+
+
+def test_p346_host_receipt_sidecar_preserves_p345_replay_state():
+    core = _Core()
+
+    def owned(document_id):
+        return dict(core.meta), Path("/tmp/unused.hwpx")
+
+    def snapshot(**kwargs):
+        return {
+            "revision_after": kwargs["current_revision"],
+            "output_sha256": "a" * 64,
+            "receipt_sha256": "1" * 64,
+        }
+
+    def text(**kwargs):
+        core.meta["revision"] = int(kwargs["current_revision"]) + 1
+        return {
+            "revision_after": core.meta["revision"],
+            "output_sha256": "b" * 64,
+            "receipt_sha256": "2" * 64,
+        }
+
+    adapters = {
+        "DOCUMENT_SNAPSHOT": snapshot,
+        "DOCUMENT_TEXT_EDIT": text,
+    }
+
+    def resolver(
+        adapter_name,
+        *,
+        document_id="",
+        run_id="",
+        pinned_profile="",
+        pinned_generation=None,
+    ):
+        assert document_id == "doc"
+        assert run_id
+        profile = pinned_profile or "p3.46-guarded"
+        generation = int(pinned_generation or 1)
+        fn = adapters[adapter_name]
+
+        def invoke(**kwargs):
+            result = dict(fn(**kwargs))
+            result.update({
+                "p346_adapter_profile": profile,
+                "p346_adapter_generation": generation,
+                "p346_adapter_name": adapter_name,
+            })
+            return result
+
+        return invoke
+
+    register_p345_tools(
+        core,
+        owned,
+        adapters,
+        adapter_resolver=resolver,
+    )
+    tools = core.mcp.tools
+    compiled = tools["compile_document_transaction"]("doc", _ir())
+    advanced = tools["advance_document_transaction"]("doc", compiled["run_id"])
+    assert advanced["status"] == "WAIT_EXTERNAL"
+
+    stored = core.meta["p345_transaction_runs"][compiled["run_id"]]
+    replayed = tools["get_document_transaction_run"](
+        "doc",
+        compiled["run_id"],
+    )
+    assert replayed["replay"]["ok"] is True
+    assert replayed["run"]["run_sha256"] == stored["run_sha256"]
+
+    sidecar = core.meta["p346_runtime_host_receipts"][compiled["run_id"]]
+    assert set(sidecar) == {"snapshot", "edit"}
+    assert sidecar["snapshot"]["adapter_profile"] == "p3.46-guarded"
+    assert sidecar["snapshot"]["adapter_generation"] == 1
+    assert sidecar["edit"]["receipt_sha256"] == "2" * 64
+    assert len(sidecar["snapshot"]["provenance_sha256"]) == 64

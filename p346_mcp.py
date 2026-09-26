@@ -6,7 +6,7 @@ from typing import Any, Callable, Mapping
 
 from mcp.types import ToolAnnotations
 
-from p345_runtime_bridge import verify_replay
+from p345_runtime_bridge import host_receipt_sha256, verify_replay
 from p346_platform_bridge import (
     codegen,
     execute_wasm,
@@ -54,6 +54,7 @@ class AdapterRegistry:
         self._document_active: dict[str, str] = {}
         self._document_generation: dict[str, int] = {}
         self._document_history: dict[str, list[str]] = {}
+        self._run_bindings: dict[tuple[str, str], tuple[str, int]] = {}
 
     @classmethod
     def _guard(cls, name: str, fn: Callable[..., dict]) -> Callable[..., dict]:
@@ -97,15 +98,63 @@ class AdapterRegistry:
         adapter_name: str,
         *,
         document_id: str = "",
+        run_id: str = "",
+        pinned_profile: str = "",
+        pinned_generation: int | None = None,
     ) -> Callable[..., dict]:
+        document_id = str(document_id or "")
+        run_id = str(run_id or "")
         with self._lock:
-            active, _generation, _history = self._state(document_id)
-            fn = self._profiles[active].adapters.get(adapter_name)
+            active, generation, _history = self._state(document_id)
+            key = (document_id, run_id) if document_id and run_id else None
+            requested_profile = str(pinned_profile or "")
+            requested_generation = (
+                int(pinned_generation)
+                if pinned_generation is not None
+                else None
+            )
+            if requested_profile:
+                if requested_profile not in self._profiles:
+                    raise ValueError(
+                        "P3.46 persisted run binding references unknown adapter profile"
+                    )
+                if requested_generation is None or requested_generation < 1:
+                    raise ValueError(
+                        "P3.46 persisted run binding requires positive generation"
+                    )
+                selected = (requested_profile, requested_generation)
+                if key is not None and key in self._run_bindings:
+                    if self._run_bindings[key] != selected:
+                        raise RuntimeError(
+                            "P3.46 run-local adapter binding divergence"
+                        )
+                elif key is not None:
+                    self._run_bindings[key] = selected
+            elif key is not None and key in self._run_bindings:
+                selected = self._run_bindings[key]
+            else:
+                selected = (active, generation)
+                if key is not None:
+                    self._run_bindings[key] = selected
+
+            selected_profile, selected_generation = selected
+            fn = self._profiles[selected_profile].adapters.get(adapter_name)
             if fn is None:
                 raise KeyError(
-                    f"P3.46 active adapter profile does not provide {adapter_name}"
+                    f"P3.46 selected adapter profile does not provide {adapter_name}"
                 )
-            return fn
+
+        def invoke(**kwargs):
+            result = fn(**kwargs)
+            if not isinstance(result, dict):
+                raise RuntimeError("P3.46 host adapter must return a dict receipt")
+            out = dict(result)
+            out["p346_adapter_profile"] = selected_profile
+            out["p346_adapter_generation"] = selected_generation
+            out["p346_adapter_name"] = adapter_name
+            return out
+
+        return invoke
 
     def snapshot(self, document_id: str = "") -> dict:
         with self._lock:
@@ -127,6 +176,11 @@ class AdapterRegistry:
                     for key, value in sorted(self._profiles.items())
                 },
                 "history": list(history[-16:]),
+                "pinned_run_count": sum(
+                    1
+                    for (doc, _run) in self._run_bindings
+                    if doc == str(document_id or "")
+                ) if document_id else 0,
                 "scope": (
                     "OWNER_SCOPED_DOCUMENT_PRE_ADMITTED_ONLY"
                     if document_id
@@ -222,6 +276,96 @@ def register_p346_tools(
         verify_replay(state)
         return metadata, state
 
+    def _host_execution_receipts(
+        metadata: Mapping[str, Any],
+        state: Mapping[str, Any],
+    ) -> tuple[list[dict], list[dict]]:
+        run_id = str(state.get("run_id") or "")
+        raw_all = metadata.get("p346_runtime_host_receipts") or {}
+        raw_run = raw_all.get(run_id) if isinstance(raw_all, dict) else {}
+        if not isinstance(raw_run, dict):
+            return [], [{
+                "severity": "ERROR",
+                "code": "HOST_RECEIPT_SIDECAR_MALFORMED",
+            }]
+
+        order = list((state.get("compiled") or {}).get("topological_order") or [])
+        outputs = state.get("outputs") or {}
+        rows: list[dict] = []
+        issues: list[dict] = []
+        bindings: set[tuple[str, int]] = set()
+
+        for node_id in order:
+            raw = raw_run.get(node_id)
+            if raw is None:
+                continue
+            if not isinstance(raw, dict):
+                issues.append({
+                    "severity": "ERROR",
+                    "code": "HOST_RECEIPT_ROW_MALFORMED",
+                    "node_id": node_id,
+                })
+                continue
+
+            row = dict(raw)
+            observed_seal = str(row.pop("provenance_sha256", "") or "")
+            expected_seal = host_receipt_sha256(row)
+            if observed_seal != expected_seal:
+                issues.append({
+                    "severity": "ERROR",
+                    "code": "HOST_RECEIPT_PROVENANCE_SEAL_MISMATCH",
+                    "node_id": node_id,
+                })
+
+            if str(row.get("node_id") or "") != node_id:
+                issues.append({
+                    "severity": "ERROR",
+                    "code": "HOST_RECEIPT_NODE_ID_MISMATCH",
+                    "node_id": node_id,
+                })
+
+            profile = str(row.get("adapter_profile") or "")
+            try:
+                generation = int(row.get("adapter_generation"))
+            except (TypeError, ValueError):
+                generation = 0
+            if not profile or generation < 1:
+                issues.append({
+                    "severity": "ERROR",
+                    "code": "HOST_RECEIPT_BINDING_INVALID",
+                    "node_id": node_id,
+                })
+            else:
+                bindings.add((profile, generation))
+
+            state_receipt = str(
+                ((outputs.get(node_id) or {}).get("receipt_sha256") or "")
+                if isinstance(outputs, dict)
+                else ""
+            )
+            if state_receipt and str(row.get("receipt_sha256") or "") != state_receipt:
+                issues.append({
+                    "severity": "ERROR",
+                    "code": "HOST_RECEIPT_RUNTIME_HASH_DIVERGENCE",
+                    "node_id": node_id,
+                })
+
+            rows.append({
+                **row,
+                "provenance_sha256": observed_seal,
+            })
+
+        if len(bindings) > 1:
+            issues.append({
+                "severity": "ERROR",
+                "code": "ADAPTER_CONFIGURATION_DRIFT_WITHIN_RUN",
+                "bindings": [
+                    {"adapter_profile": profile, "adapter_generation": generation}
+                    for profile, generation in sorted(bindings)
+                ],
+            })
+        return rows, issues
+
     @core.mcp.tool(annotations=read_only)
     def get_developer_platform_contract() -> dict:
         core._caller_subject()
@@ -271,11 +415,19 @@ def register_p346_tools(
     def inspect_document_runtime(document_id: str, run_id: str) -> dict:
         metadata, state = _load_run(document_id, run_id)
         inspected = inspect_runtime(state)
+        receipts, sidecar_issues = _host_execution_receipts(metadata, state)
         return {
-            "ok": True,
+            "ok": not any(
+                row.get("severity") == "ERROR" for row in sidecar_issues
+            ),
             "document_id": document_id,
             "durable_revision": int(metadata["revision"]),
             **inspected,
+            "host_execution_receipts": receipts,
+            "host_execution_receipts_sha256": host_receipt_sha256(receipts),
+            "host_execution_receipt_diagnostics": sidecar_issues,
+            "host_execution_receipt_authority":
+                "P3.46_OWNER_SCOPED_REPLAY_PRESERVING_SIDECAR",
             "authority": "READ_ONLY_REPLAY_VERIFIED_DEVELOPER_INSPECTOR",
         }
 
@@ -286,8 +438,19 @@ def register_p346_tools(
     ) -> dict:
         metadata, state = _load_run(document_id, run_id)
         diagnostic = runtime_diagnostics(state)
+        receipts, sidecar_issues = _host_execution_receipts(metadata, state)
+        rows = list(diagnostic.get("diagnostics") or []) + sidecar_issues
+        errors = sum(1 for row in rows if row.get("severity") == "ERROR")
+        warnings = sum(1 for row in rows if row.get("severity") == "WARNING")
+        diagnostic = {
+            **diagnostic,
+            "ok": errors == 0,
+            "diagnostics": rows,
+            "summary": {"errors": errors, "warnings": warnings},
+            "diagnostics_sha256": host_receipt_sha256(rows),
+            "host_execution_receipts": receipts,
+        }
         return {
-            "ok": diagnostic.get("ok") is True,
             "document_id": document_id,
             "durable_revision": int(metadata["revision"]),
             **diagnostic,

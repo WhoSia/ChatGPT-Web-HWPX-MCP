@@ -41,7 +41,12 @@ def register_p345_tools(
         verify_replay(state)
         return metadata, state
 
-    def _persist(document_id: str, state: dict) -> None:
+    def _persist(
+        document_id: str,
+        state: dict,
+        *,
+        execution_provenance: Mapping[str, Any] | None = None,
+    ) -> None:
         verify_replay(state)
         metadata = core._load_metadata(document_id)
         core._require_owner(metadata)
@@ -72,9 +77,27 @@ def register_p345_tools(
             )
         envelopes[run_id] = rows[-MAX_OBSERVATION_ENVELOPES:]
         envelopes = {key: envelopes[key] for key in order if key in envelopes}
+
+        host_receipts = dict(metadata.get("p346_runtime_host_receipts") or {})
+        if execution_provenance:
+            row = dict(execution_provenance)
+            node_id = str(row.get("node_id") or "")
+            if not node_id:
+                raise RuntimeError("P3.46 host receipt sidecar requires node_id")
+            row["provenance_sha256"] = host_receipt_sha256(row)
+            run_rows = dict(host_receipts.get(run_id) or {})
+            run_rows[node_id] = row
+            host_receipts[run_id] = run_rows
+        host_receipts = {
+            key: host_receipts[key]
+            for key in order
+            if key in host_receipts
+        }
+
         metadata["p345_transaction_runs"] = runs
         metadata["p345_transaction_run_order"] = order
         metadata["p345_runtime_observation_envelopes"] = envelopes
+        metadata["p346_runtime_host_receipts"] = host_receipts
         metadata["p345_last_run_id"] = run_id
         core._write_metadata(document_id, metadata)
 
@@ -115,6 +138,72 @@ def register_p345_tools(
             "revision_after": revision_after,
             "output_sha256": output_sha,
             "receipt_sha256": receipt_sha,
+        }
+
+    def _persisted_adapter_binding(
+        metadata: Mapping[str, Any],
+        run_id: str,
+    ) -> dict:
+        all_rows = metadata.get("p346_runtime_host_receipts") or {}
+        run_rows = all_rows.get(run_id) if isinstance(all_rows, dict) else {}
+        if not isinstance(run_rows, dict) or not run_rows:
+            return {}
+        bindings: set[tuple[str, int]] = set()
+        for raw in run_rows.values():
+            if not isinstance(raw, dict):
+                raise RuntimeError("P3.46 persisted host receipt sidecar is malformed")
+            profile = str(raw.get("adapter_profile") or "")
+            try:
+                generation = int(raw.get("adapter_generation"))
+            except (TypeError, ValueError) as exc:
+                raise RuntimeError(
+                    "P3.46 persisted host receipt generation is malformed"
+                ) from exc
+            if not profile or generation < 1:
+                raise RuntimeError(
+                    "P3.46 persisted host receipt binding is incomplete"
+                )
+            bindings.add((profile, generation))
+        if len(bindings) != 1:
+            raise RuntimeError(
+                "P3.46 persisted run has adapter configuration drift"
+            )
+        profile, generation = next(iter(bindings))
+        return {
+            "pinned_profile": profile,
+            "pinned_generation": generation,
+        }
+
+    def _execution_provenance(
+        result: Mapping[str, Any],
+        summary: Mapping[str, Any],
+        *,
+        node_id: str,
+        adapter_name: str,
+        revision_before: int,
+    ) -> dict | None:
+        profile = str(result.get("p346_adapter_profile") or "")
+        if not profile:
+            return None
+        try:
+            generation = int(result.get("p346_adapter_generation"))
+        except (TypeError, ValueError) as exc:
+            raise RuntimeError(
+                "P3.46 adapter receipt omitted a valid generation"
+            ) from exc
+        if generation < 1:
+            raise RuntimeError("P3.46 adapter receipt generation must be positive")
+        if str(result.get("p346_adapter_name") or "") != adapter_name:
+            raise RuntimeError("P3.46 adapter receipt name mismatch")
+        return {
+            "node_id": node_id,
+            "adapter": adapter_name,
+            "adapter_profile": profile,
+            "adapter_generation": generation,
+            "revision_before": int(revision_before),
+            "revision_after": int(summary["revision_after"]),
+            "output_sha256": str(summary["output_sha256"]),
+            "receipt_sha256": str(summary["receipt_sha256"]),
         }
 
     @core.mcp.tool()
@@ -243,6 +332,7 @@ def register_p345_tools(
         if max_nodes < 1 or max_nodes > 16:
             raise ValueError("max_nodes must be between 1 and 16")
         metadata, state = _load(document_id, run_id)
+        persisted_binding = _persisted_adapter_binding(metadata, run_id)
         if int(metadata["revision"]) != int(state["current_revision"]):
             raise RuntimeError("P3.45 runtime is stale relative to the document revision")
         if state.get("status") == "COMPLETED":
@@ -309,7 +399,12 @@ def register_p345_tools(
             adapter_name = str(binding.get("adapter") or "")
             try:
                 adapter = (
-                    adapter_resolver(adapter_name, document_id=document_id)
+                    adapter_resolver(
+                        adapter_name,
+                        document_id=document_id,
+                        run_id=run_id,
+                        **persisted_binding,
+                    )
                     if adapter_resolver is not None
                     else adapters.get(adapter_name)
                 )
@@ -344,6 +439,13 @@ def register_p345_tools(
                     lease_token=lease_token,
                 )
                 summary = _result_summary(result, revision_before=revision_before)
+                provenance = _execution_provenance(
+                    result,
+                    summary,
+                    node_id=node_id,
+                    adapter_name=adapter_name,
+                    revision_before=revision_before,
+                )
                 state = transition(
                     state,
                     {
@@ -355,10 +457,22 @@ def register_p345_tools(
                     },
                 )
                 verify_replay(state)
-                _persist(document_id, state)
-                executed.append(
-                    {"node_id": node_id, "adapter": adapter_name, **summary}
+                _persist(
+                    document_id,
+                    state,
+                    execution_provenance=provenance,
                 )
+                executed_row = {
+                    "node_id": node_id,
+                    "adapter": adapter_name,
+                    **summary,
+                }
+                if provenance:
+                    executed_row.update({
+                        "adapter_profile": provenance["adapter_profile"],
+                        "adapter_generation": provenance["adapter_generation"],
+                    })
+                executed.append(executed_row)
             except Exception as exc:
                 if lease_token:
                     try:

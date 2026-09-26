@@ -127,3 +127,20 @@ Effect-only validation remains available as the low-level invariant API, but cal
 - the derived effect plan is independently checked by the Rust guard.
 
 Required closure authority: `CONTRACT_DERIVED_TOOL_EFFECT_PASS / CALLER_EFFECT_SPOOF_REJECTION_PASS`.
+
+
+## Run-local adapter binding and replay-preserving host receipt sidecar
+
+A second adapter audit found that document-scoped configuration alone did not guarantee **one adapter binding per transaction run**. A document profile could be switched between two node executions, or a process restart could lose an in-memory run binding.
+
+Repair:
+- the first host-adapter resolution for a `(document_id, run_id)` pins `(profile, generation)`;
+- later nodes in the same run ignore subsequent document-level profile changes;
+- previously committed host nodes persist a **hash-only P3.46 receipt sidecar** outside the sealed P3.45 runtime state;
+- after process restart, the next node recovers its run binding from that sidecar before adapter execution;
+- contradictory persisted bindings fail closed before further host execution;
+- the P3.46 inspector joins the replay-verified P3.45 state with sidecar provenance and checks sidecar seal, node identity, runtime receipt hash, generation validity and within-run configuration drift;
+- legacy P3.45 runs with no sidecar remain valid and produce no synthetic provenance.
+
+Required closure authority:
+`RUN_LOCAL_ADAPTER_BINDING_PASS / RESTART_BINDING_RECOVERY_PASS / REPLAY_PRESERVING_HOST_RECEIPT_SIDECAR_PASS / ADAPTER_CONFIGURATION_DRIFT_DIAGNOSTIC_PASS`.

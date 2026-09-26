@@ -82,7 +82,7 @@ export const BUILTIN_CAPABILITIES:CapabilitySpec[]=[
   {name:"document.delivery",version:"1.0.0",effect:"DELIVERY",adapter:"DOCUMENT_DELIVERY",deterministic:false,evidence:["SIGNED_DELIVERY_RECEIPT"]},
   {name:"platform.inspect",version:"1.0.0",effect:"READ_ONLY",adapter:"P346_INSPECTOR",deterministic:true,evidence:["REPLAY_VERIFIED_STATE"]},
   {name:"platform.codegen",version:"1.0.0",effect:"PURE",adapter:"P346_CODEGEN",deterministic:true,evidence:["CONTRACT_SHA256"]},
-  {name:"platform.configure",version:"1.0.0",effect:"RUNTIME_CONFIGURATION",adapter:"P346_ADAPTER_REGISTRY",deterministic:true,evidence:["GENERATION_CAS","ROLLBACK_RECEIPT"]},
+  {name:"platform.configure",version:"1.0.0",effect:"RUNTIME_CONFIGURATION",adapter:"P346_ADAPTER_REGISTRY",deterministic:true,evidence:["GENERATION_CAS","ROLLBACK_RECEIPT","OWNER_SCOPED_DOCUMENT"]},
 ];
 
 export const BUILTIN_NODES:NodeSpec[]=[
@@ -100,9 +100,9 @@ export const BUILTIN_TOOLS:ToolSpec[]=[
   {name:"validate_document_tool_sequence",capability:"platform.codegen",effect:"PURE",description:"Reject illegal tool-effect sequences before execution.",input_schema:{type:"object",required:["effects"],properties:{effects:{type:"array",items:{type:"string"}}},additionalProperties:false}},
   {name:"inspect_document_runtime",capability:"platform.inspect",effect:"READ_ONLY",description:"Inspect a replay-verified transaction DAG and event chain.",input_schema:{type:"object",required:["document_id","run_id"],properties:{document_id:{type:"string"},run_id:{type:"string"}},additionalProperties:false}},
   {name:"get_document_runtime_diagnostics",capability:"platform.inspect",effect:"READ_ONLY",description:"Return structured diagnostics without mutating runtime state.",input_schema:{type:"object",required:["document_id","run_id"],properties:{document_id:{type:"string"},run_id:{type:"string"}},additionalProperties:false}},
-  {name:"get_host_adapter_registry",capability:"platform.inspect",effect:"READ_ONLY",description:"Inspect admitted host-adapter profiles.",input_schema:{type:"object",properties:{},additionalProperties:false}},
-  {name:"hot_swap_document_host_adapter_profile",capability:"platform.configure",effect:"RUNTIME_CONFIGURATION",description:"CAS-switch to a pre-admitted host-adapter profile.",input_schema:{type:"object",required:["target_profile","expected_generation"],properties:{target_profile:{type:"string"},expected_generation:{type:"integer"}},additionalProperties:false}},
-  {name:"rollback_document_host_adapter_profile",capability:"platform.configure",effect:"RUNTIME_CONFIGURATION",description:"Rollback the host-adapter profile under generation CAS.",input_schema:{type:"object",required:["expected_generation"],properties:{expected_generation:{type:"integer"}},additionalProperties:false}},
+  {name:"get_host_adapter_registry",capability:"platform.inspect",effect:"READ_ONLY",description:"Inspect admitted host-adapter profiles or one owned document selection.",input_schema:{type:"object",properties:{document_id:{type:"string"}},additionalProperties:false}},
+  {name:"hot_swap_document_host_adapter_profile",capability:"platform.configure",effect:"RUNTIME_CONFIGURATION",description:"CAS-switch one owned document to a pre-admitted host-adapter profile.",input_schema:{type:"object",required:["document_id","target_profile","expected_generation"],properties:{document_id:{type:"string"},target_profile:{type:"string"},expected_generation:{type:"integer"}},additionalProperties:false}},
+  {name:"rollback_document_host_adapter_profile",capability:"platform.configure",effect:"RUNTIME_CONFIGURATION",description:"Rollback one owned document host-adapter profile under generation CAS.",input_schema:{type:"object",required:["document_id","expected_generation"],properties:{document_id:{type:"string"},expected_generation:{type:"integer"}},additionalProperties:false}},
   {name:"validate_sandboxed_document_extension",capability:"platform.codegen",effect:"PURE",description:"Validate one deterministic no-import WASM extension.",input_schema:{type:"object",required:["manifest"],properties:{manifest:{type:"object"}},additionalProperties:false}},
   {name:"execute_sandboxed_document_extension_probe",capability:"platform.codegen",effect:"PURE",description:"Execute one bounded pure WASM extension probe.",input_schema:{type:"object",required:["manifest","module_base64"],properties:{manifest:{type:"object"},module_base64:{type:"string"}},additionalProperties:false}},
   {name:"generate_document_platform_contracts",capability:"platform.codegen",effect:"PURE",description:"Generate canonical effect/capability/node/tool contracts.",input_schema:{type:"object",properties:{extensions:{type:"array"}},additionalProperties:false}},
@@ -334,7 +334,7 @@ export const P346_PLATFORM_CONTRACT={
   preexecution_rejection:{reusable_non_read_effects:true,delivery_must_be_terminal:true,action_effect_mismatch:true,unknown_capability_or_adapter:true},
   extensions:{host_abi:"p3.46-extension-v1",arbitrary_in_process_loading:false,executable_boundary:"PURE_WASM_NO_IMPORTS_IN_SEPARATE_BOUNDED_NODE_PROCESS",wasm_imports_allowed:0,non_pure_extension_code:"REJECTED"},
   inspector:{read_only:true,fields:["transaction_dag","event_chain","cache_invalidation","provider_binding","host_receipt_hashes","run_status"]},
-  hot_swap:{scope:"PRE_ADMITTED_PROCESS_LOCAL_HOST_ADAPTER_PROFILES",compare_and_swap_generation:true,rollback:true,arbitrary_code_registration:false},
+  hot_swap:{scope:"OWNER_SCOPED_DOCUMENT_PRE_ADMITTED_PROCESS_LOCAL_PROFILES",compare_and_swap_generation:true,rollback:true,cross_document_leakage:false,arbitrary_code_registration:false},
   generated_contracts:true,
   builtin_provider:{provider_id:"hwpx-mcp-core",provider_version:"p3.46",capabilities:BUILTIN_CAPABILITIES},
   builtin_node_kinds:BUILTIN_NODES.map(x=>x.kind),

@@ -306,6 +306,7 @@ async def main() -> None:
                 or inspector_annotations.get("destructiveHint") is not False
                 or swap_annotations.get("readOnlyHint") is not False
                 or swap_annotations.get("destructiveHint") is not True
+                or "document_id" not in (swap_tool.get("inputSchema") or {}).get("required", [])
             ):
                 raise RuntimeError(
                     "P3.46 actual MCP ToolAnnotations diverged from effect projection: "
@@ -453,29 +454,6 @@ async def main() -> None:
             ):
                 raise RuntimeError(f"P3.46 cross-runtime effect validation failed: {p346_effect}")
 
-            p346_registry = _payload(await client.call_tool("get_host_adapter_registry", {}))
-            p346_swapped = _payload(await client.call_tool(
-                "hot_swap_document_host_adapter_profile",
-                {
-                    "target_profile": "p3.45-compat",
-                    "expected_generation": int(p346_registry["generation"]),
-                },
-            ))
-            if (
-                p346_swapped.get("active_profile") != "p3.45-compat"
-                or p346_swapped.get("authority") != "PRE_ADMITTED_ADAPTER_PROFILE_CAS_SWAP"
-            ):
-                raise RuntimeError(f"P3.46 adapter hot swap failed: {p346_swapped}")
-            p346_rolled = _payload(await client.call_tool(
-                "rollback_document_host_adapter_profile",
-                {"expected_generation": int(p346_swapped["generation"])},
-            ))
-            if (
-                p346_rolled.get("active_profile") != "p3.46-guarded"
-                or p346_rolled.get("authority") != "PRE_ADMITTED_ADAPTER_PROFILE_SAFE_ROLLBACK"
-            ):
-                raise RuntimeError(f"P3.46 adapter rollback failed: {p346_rolled}")
-
             callout = _payload(await client.call_tool("compile_semantic_callout_block", {
                 "text": "핵심 판단은 장식이 아니라 의미를 인코딩해야 합니다.",
                 "block_id": "oauth_callout",
@@ -547,6 +525,36 @@ async def main() -> None:
             assert delivery["ok"] and delivery["revision"] == 1
             assert any(block.type == "resource_link" for block in delivered.content)
             delivery_id = delivery["document_id"]
+
+            p346_registry = _payload(await client.call_tool(
+                "get_host_adapter_registry",
+                {"document_id": delivery_id},
+            ))
+            p346_swapped = _payload(await client.call_tool(
+                "hot_swap_document_host_adapter_profile",
+                {
+                    "document_id": delivery_id,
+                    "target_profile": "p3.45-compat",
+                    "expected_generation": int(p346_registry["generation"]),
+                },
+            ))
+            if (
+                p346_swapped.get("active_profile") != "p3.45-compat"
+                or p346_swapped.get("authority") != "OWNER_SCOPED_PRE_ADMITTED_ADAPTER_PROFILE_CAS_SWAP"
+            ):
+                raise RuntimeError(f"P3.46 owner-scoped adapter hot swap failed: {p346_swapped}")
+            p346_rolled = _payload(await client.call_tool(
+                "rollback_document_host_adapter_profile",
+                {
+                    "document_id": delivery_id,
+                    "expected_generation": int(p346_swapped["generation"]),
+                },
+            ))
+            if (
+                p346_rolled.get("active_profile") != "p3.46-guarded"
+                or p346_rolled.get("authority") != "OWNER_SCOPED_PRE_ADMITTED_ADAPTER_PROFILE_SAFE_ROLLBACK"
+            ):
+                raise RuntimeError(f"P3.46 owner-scoped adapter rollback failed: {p346_rolled}")
             async with httpx2.AsyncClient(timeout=60) as download_client:
                 original = await download_client.get(delivery["download_url"])
                 original.raise_for_status()

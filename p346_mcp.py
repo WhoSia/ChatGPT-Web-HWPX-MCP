@@ -28,7 +28,7 @@ class AdapterProfile:
 
 
 class AdapterRegistry:
-    """CAS registry over pre-admitted adapters; never loads arbitrary Python code."""
+    """Owner-scoped CAS registry over pre-admitted adapters; never loads arbitrary Python code."""
 
     MUTATING_ADAPTERS = {
         "DOCUMENT_TEXT_EDIT",
@@ -49,9 +49,9 @@ class AdapterRegistry:
                 True,
             ),
         }
-        self._active = "p3.46-guarded"
-        self._generation = 1
-        self._history: list[str] = ["p3.45-compat", "p3.46-guarded"]
+        self._document_active: dict[str, str] = {}
+        self._document_generation: dict[str, int] = {}
+        self._document_history: dict[str, list[str]] = {}
 
     @classmethod
     def _guard(cls, name: str, fn: Callable[..., dict]) -> Callable[..., dict]:
@@ -76,23 +76,46 @@ class AdapterRegistry:
 
         return invoke
 
-    def resolve(self, adapter_name: str) -> Callable[..., dict]:
+    def _state(self, document_id: str) -> tuple[str, int, list[str]]:
+        document_id = str(document_id or "")
+        if not document_id:
+            return "p3.46-guarded", 1, ["p3.46-guarded"]
+        if document_id not in self._document_active:
+            self._document_active[document_id] = "p3.46-guarded"
+            self._document_generation[document_id] = 1
+            self._document_history[document_id] = ["p3.46-guarded"]
+        return (
+            self._document_active[document_id],
+            self._document_generation[document_id],
+            self._document_history[document_id],
+        )
+
+    def resolve(
+        self,
+        adapter_name: str,
+        *,
+        document_id: str = "",
+    ) -> Callable[..., dict]:
         with self._lock:
-            fn = self._profiles[self._active].adapters.get(adapter_name)
+            active, _generation, _history = self._state(document_id)
+            fn = self._profiles[active].adapters.get(adapter_name)
             if fn is None:
                 raise KeyError(
                     f"P3.46 active adapter profile does not provide {adapter_name}"
                 )
             return fn
 
-    def snapshot(self) -> dict:
+    def snapshot(self, document_id: str = "") -> dict:
         with self._lock:
-            active = self._profiles[self._active]
+            active_id, generation, history = self._state(document_id)
+            active = self._profiles[active_id]
             return {
                 "phase": "P3.46",
-                "generation": self._generation,
-                "active_profile": self._active,
+                "document_id": str(document_id or "") or None,
+                "generation": generation,
+                "active_profile": active_id,
                 "active_guarded": active.guarded,
+                "default_profile": "p3.46-guarded",
                 "adapters": sorted(active.adapters),
                 "profiles": {
                     key: {
@@ -101,51 +124,68 @@ class AdapterRegistry:
                     }
                     for key, value in sorted(self._profiles.items())
                 },
-                "history": list(self._history[-16:]),
-                "scope": "PROCESS_LOCAL_PRE_ADMITTED_ONLY",
+                "history": list(history[-16:]),
+                "scope": (
+                    "OWNER_SCOPED_DOCUMENT_PRE_ADMITTED_ONLY"
+                    if document_id
+                    else "CATALOG_DEFAULT_ONLY"
+                ),
             }
 
-    def swap(self, target_profile: str, expected_generation: int) -> dict:
+    def swap(
+        self,
+        target_profile: str,
+        expected_generation: int,
+        *,
+        document_id: str,
+    ) -> dict:
+        document_id = str(document_id or "")
+        if not document_id:
+            raise ValueError("P3.46 adapter swap requires document_id")
         with self._lock:
-            if int(expected_generation) != self._generation:
+            active, generation, history = self._state(document_id)
+            if int(expected_generation) != generation:
                 raise RuntimeError("P3.46 adapter generation CAS mismatch")
             if target_profile not in self._profiles:
                 raise ValueError("P3.46 target adapter profile is not pre-admitted")
-            previous = self._active
+            previous = active
             changed = target_profile != previous
             if changed:
-                self._active = target_profile
-                self._generation += 1
-                self._history.append(target_profile)
-            receipt = self.snapshot()
+                self._document_active[document_id] = target_profile
+                self._document_generation[document_id] = generation + 1
+                history.append(target_profile)
+            receipt = self.snapshot(document_id)
             receipt.update(
                 {
                     "previous_profile": previous,
                     "swapped": changed,
-                    "authority": "PRE_ADMITTED_ADAPTER_PROFILE_CAS_SWAP",
+                    "authority": "OWNER_SCOPED_PRE_ADMITTED_ADAPTER_PROFILE_CAS_SWAP",
                 }
             )
             return receipt
 
-    def rollback(self, expected_generation: int) -> dict:
+    def rollback(self, expected_generation: int, *, document_id: str) -> dict:
+        document_id = str(document_id or "")
+        if not document_id:
+            raise ValueError("P3.46 adapter rollback requires document_id")
         with self._lock:
-            if int(expected_generation) != self._generation:
+            current, generation, history = self._state(document_id)
+            if int(expected_generation) != generation:
                 raise RuntimeError("P3.46 adapter generation CAS mismatch")
-            if len(self._history) < 2:
+            if len(history) < 2:
                 raise RuntimeError("P3.46 adapter rollback history is empty")
-            current = self._active
-            previous = self._history[-2]
+            previous = history[-2]
             if previous == current:
                 raise RuntimeError("P3.46 rollback would be a no-op")
-            self._active = previous
-            self._generation += 1
-            self._history.append(previous)
-            receipt = self.snapshot()
+            self._document_active[document_id] = previous
+            self._document_generation[document_id] = generation + 1
+            history.append(previous)
+            receipt = self.snapshot(document_id)
             receipt.update(
                 {
                     "previous_profile": current,
                     "rolled_back_to": previous,
-                    "authority": "PRE_ADMITTED_ADAPTER_PROFILE_SAFE_ROLLBACK",
+                    "authority": "OWNER_SCOPED_PRE_ADMITTED_ADAPTER_PROFILE_SAFE_ROLLBACK",
                 }
             )
             return receipt
@@ -234,29 +274,41 @@ def register_p346_tools(
         }
 
     @core.mcp.tool(annotations=read_only)
-    def get_host_adapter_registry() -> dict:
-        core._caller_subject()
-        return {"ok": True, **adapter_registry.snapshot()}
+    def get_host_adapter_registry(document_id: str = "") -> dict:
+        if document_id:
+            owned_document(document_id)
+        else:
+            core._caller_subject()
+        return {"ok": True, **adapter_registry.snapshot(document_id)}
 
     @core.mcp.tool(annotations=runtime_config)
     def hot_swap_document_host_adapter_profile(
+        document_id: str,
         target_profile: str,
         expected_generation: int,
     ) -> dict:
-        core._caller_subject()
+        owned_document(document_id)
         return {
             "ok": True,
-            **adapter_registry.swap(target_profile, int(expected_generation)),
+            **adapter_registry.swap(
+                target_profile,
+                int(expected_generation),
+                document_id=document_id,
+            ),
         }
 
     @core.mcp.tool(annotations=runtime_config)
     def rollback_document_host_adapter_profile(
+        document_id: str,
         expected_generation: int,
     ) -> dict:
-        core._caller_subject()
+        owned_document(document_id)
         return {
             "ok": True,
-            **adapter_registry.rollback(int(expected_generation)),
+            **adapter_registry.rollback(
+                int(expected_generation),
+                document_id=document_id,
+            ),
         }
 
     @core.mcp.tool(annotations=read_only)

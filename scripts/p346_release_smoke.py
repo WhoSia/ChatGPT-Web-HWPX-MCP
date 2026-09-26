@@ -14,6 +14,7 @@ assert contract["phase"] == "P3.46"
 assert contract["product"] == "0.23.0-p3.46"
 assert contract["extensions"]["arbitrary_in_process_loading"] is False
 assert contract["hot_swap"]["rollback"] is True
+assert contract["hot_swap"]["cross_document_leakage"] is False
 assert "RUNTIME_CONFIGURATION" in contract["effect_types"]
 
 plan = {

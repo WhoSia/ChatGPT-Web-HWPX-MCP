@@ -24,7 +24,7 @@ def register_p345_tools(
     core,
     owned_document: Callable[[str], tuple[dict, Any]],
     host_adapters: Mapping[str, Callable[..., dict]],
-    adapter_resolver: Callable[[str], Callable[..., dict]] | None = None,
+    adapter_resolver: Callable[..., Callable[..., dict]] | None = None,
 ):
     adapters = dict(host_adapters)
     admitted_adapters = set(adapters) | {"EXTERNAL_RENDER"}
@@ -309,7 +309,7 @@ def register_p345_tools(
             adapter_name = str(binding.get("adapter") or "")
             try:
                 adapter = (
-                    adapter_resolver(adapter_name)
+                    adapter_resolver(adapter_name, document_id=document_id)
                     if adapter_resolver is not None
                     else adapters.get(adapter_name)
                 )

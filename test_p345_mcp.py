@@ -247,11 +247,13 @@ def test_p346_host_receipt_sidecar_preserves_p345_replay_state():
         run_id="",
         pinned_profile="",
         pinned_generation=None,
+        pinned_contract_sha256="",
     ):
         assert document_id == "doc"
         assert run_id
         profile = pinned_profile or "p3.46-guarded"
         generation = int(pinned_generation or 1)
+        contract_sha256 = pinned_contract_sha256 or ("c" * 64)
         fn = adapters[adapter_name]
 
         def invoke(**kwargs):
@@ -259,6 +261,7 @@ def test_p346_host_receipt_sidecar_preserves_p345_replay_state():
             result.update({
                 "p346_adapter_profile": profile,
                 "p346_adapter_generation": generation,
+                "p346_adapter_contract_sha256": contract_sha256,
                 "p346_adapter_name": adapter_name,
             })
             return result
@@ -288,6 +291,7 @@ def test_p346_host_receipt_sidecar_preserves_p345_replay_state():
     assert set(sidecar) == {"snapshot", "edit"}
     assert sidecar["snapshot"]["adapter_profile"] == "p3.46-guarded"
     assert sidecar["snapshot"]["adapter_generation"] == 1
+    assert sidecar["snapshot"]["adapter_contract_sha256"] == "c" * 64
     assert sidecar["edit"]["receipt_sha256"] == "2" * 64
     assert len(sidecar["snapshot"]["provenance_sha256"]) == 64
 
@@ -328,6 +332,7 @@ def test_tampered_p346_sidecar_fails_before_next_host_execution():
         run_id="",
         pinned_profile="",
         pinned_generation=None,
+        pinned_contract_sha256="",
     ):
         fn = adapters[adapter_name]
         profile = pinned_profile or "p3.46-guarded"
@@ -338,6 +343,7 @@ def test_tampered_p346_sidecar_fails_before_next_host_execution():
             result.update({
                 "p346_adapter_profile": profile,
                 "p346_adapter_generation": generation,
+                "p346_adapter_contract_sha256": contract_sha256,
                 "p346_adapter_name": adapter_name,
             })
             return result

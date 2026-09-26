@@ -26,6 +26,8 @@ def test_hot_swap_registry_cas_guard_and_rollback():
     })
     snap = registry.snapshot("doc-a")
     assert snap["active_profile"] == "p3.46-guarded"
+    assert len(snap["active_contract_sha256"]) == 64
+    assert len(snap["profiles"]["p3.46-guarded"]["contract_sha256"]) == 64
     assert registry.resolve("DOCUMENT_SNAPSHOT", document_id="doc-a")(
         document_id="doc-a",
         current_revision=3,
@@ -106,6 +108,7 @@ def test_run_local_binding_survives_document_swap_and_restart_hint():
     )
     assert first_receipt["p346_adapter_profile"] == "p3.46-guarded"
     assert first_receipt["p346_adapter_generation"] == 1
+    assert len(first_receipt["p346_adapter_contract_sha256"]) == 64
 
     snap = registry.snapshot("doc-a")
     registry.swap(
@@ -127,6 +130,10 @@ def test_run_local_binding_survives_document_swap_and_restart_hint():
     )
     assert same_receipt["p346_adapter_profile"] == "p3.46-guarded"
     assert same_receipt["p346_adapter_generation"] == 1
+    assert (
+        same_receipt["p346_adapter_contract_sha256"]
+        == first_receipt["p346_adapter_contract_sha256"]
+    )
 
     next_run = registry.resolve(
         "DOCUMENT_SNAPSHOT",
@@ -149,6 +156,9 @@ def test_run_local_binding_survives_document_swap_and_restart_hint():
         run_id="run-2",
         pinned_profile="p3.45-compat",
         pinned_generation=2,
+        pinned_contract_sha256=next_receipt[
+            "p346_adapter_contract_sha256"
+        ],
     )
     recovered_receipt = recovered(
         document_id="doc-a",
@@ -158,3 +168,17 @@ def test_run_local_binding_survives_document_swap_and_restart_hint():
     )
     assert recovered_receipt["p346_adapter_profile"] == "p3.45-compat"
     assert recovered_receipt["p346_adapter_generation"] == 2
+    assert (
+        recovered_receipt["p346_adapter_contract_sha256"]
+        == next_receipt["p346_adapter_contract_sha256"]
+    )
+
+    with pytest.raises(RuntimeError, match="profile contract drift"):
+        restarted.resolve(
+            "DOCUMENT_SNAPSHOT",
+            document_id="doc-a",
+            run_id="run-contract-drift",
+            pinned_profile="p3.45-compat",
+            pinned_generation=2,
+            pinned_contract_sha256="0" * 64,
+        )

@@ -10,6 +10,7 @@ if str(ROOT) not in sys.path:
 from p346_mcp import AdapterRegistry
 from p346_platform_bridge import (
     platform_contract,
+    project_tools,
     validate_composition,
     validate_projected_tool_plan,
     validate_projected_tool_sequence,
@@ -24,6 +25,18 @@ assert contract["extensions"]["wasm_tables_allowed"] is False
 assert contract["extensions"]["parent_process_timeout"] is True
 assert contract["hot_swap"]["rollback"] is True
 assert contract["hot_swap"]["cross_document_leakage"] is False
+assert contract["extensions"]["unique_extension_identity"] is True
+assert contract["extensions"]["capability_version_bound_tool_contracts"] is True
+assert contract["hot_swap"]["profile_contract_sha256"] is True
+assert contract["hot_swap"]["cross_deploy_contract_drift_rejection"] is True
+surface = project_tools()
+projected_swap = next(
+    row
+    for row in surface["tools"]
+    if row["name"] == "hot_swap_document_host_adapter_profile"
+)
+assert len(projected_swap["capability_contract_sha256"]) == 64
+assert len(projected_swap["contract_sha256"]) == 64
 assert contract["schema_projection"]["actual_mcp_semantic_parity_required"] is True
 assert set(contract["schema_projection"]["parity_dimensions"]) == {
     "PROPERTY_SET",
@@ -87,6 +100,7 @@ registry = AdapterRegistry({
     "DOCUMENT_TEXT_EDIT": _mutation,
 })
 doc_a = registry.snapshot("release-a")
+assert len(doc_a["active_contract_sha256"]) == 64
 swapped = registry.swap(
     "p3.45-compat",
     doc_a["generation"],
@@ -134,5 +148,23 @@ same_run_receipt = pinned_registry.resolve(
 assert first_receipt["p346_adapter_profile"] == "p3.46-guarded"
 assert same_run_receipt["p346_adapter_profile"] == "p3.46-guarded"
 assert same_run_receipt["p346_adapter_generation"] == 1
+assert (
+    same_run_receipt["p346_adapter_contract_sha256"]
+    == first_receipt["p346_adapter_contract_sha256"]
+)
+
+try:
+    pinned_registry.resolve(
+        "DOCUMENT_SNAPSHOT",
+        document_id="release-pin",
+        run_id="cross-deploy-drift-negative",
+        pinned_profile="p3.46-guarded",
+        pinned_generation=1,
+        pinned_contract_sha256="0" * 64,
+    )
+except RuntimeError as exc:
+    assert "profile contract drift" in str(exc)
+else:
+    raise AssertionError("P3.46 profile contract drift negative control did not reject")
 
 print("P3.46 release smoke PASS")

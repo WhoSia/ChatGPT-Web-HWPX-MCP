@@ -167,3 +167,20 @@ Semantic parity gates:
 This turns Python function signatures into a checked host projection of the TypeScript contract instead of an independent, silently drifting schema source.
 
 Required closure authority: `ACTUAL_MCP_SCHEMA_PROJECTION_PARITY_PASS / TOOL_ANNOTATION_PARITY_PASS`.
+
+
+## Extension identity, capability-version seal and cross-deploy adapter contract pinning
+
+The final pre-closure audit removed three remaining name-based trust assumptions.
+
+- Extension manifests participating in one projection must have unique `extension_id`; duplicate identities fail before inventory merge.
+- Every projected tool contract binds the owning capability version and a capability-contract SHA-256 over capability name, version, effect, adapter, determinism and evidence contract.
+- The projected tool `contract_sha256` therefore changes when capability semantics/version changes even if the tool name, effect and JSON input schema are unchanged.
+- Every pre-admitted host-adapter profile exposes a versioned SHA-256 contract over host ABI, profile identity, guard mode, adapter inventory and revision semantics.
+- Run-local binding pins `(profile, generation, profile_contract_sha256)`, and the replay-preserving sidecar seals the same triple.
+- Restart recovery validates that fingerprint against the currently admitted profile before any host execution; same-name cross-deploy contract drift fails closed.
+- Inspector diagnostics include the fingerprint in within-run configuration-drift detection.
+- Docker release smoke carries an explicit profile-contract drift negative control.
+
+Required closure authority:
+`UNIQUE_EXTENSION_IDENTITY_PASS / CAPABILITY_VERSION_BOUND_TOOL_CONTRACT_PASS / HOST_ADAPTER_PROFILE_CONTRACT_SEAL_PASS / CROSS_DEPLOY_ADAPTER_CONTRACT_DRIFT_REJECTION_PASS`.

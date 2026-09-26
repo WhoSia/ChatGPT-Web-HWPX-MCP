@@ -1,0 +1,12 @@
+{
+  "schema":"chatgpt-web-hwpx-mcp/p3.45/authoring-ir/v1",
+  "ir_id":"fixture-runtime",
+  "document_id":"doc_fixture",
+  "base_revision":1,
+  "nodes":[
+    {"id":"snapshot","kind":"document.snapshot","inputs":{"view":"document"},"reusable":true},
+    {"id":"format","kind":"document.format.edit","deps":["snapshot"],"inputs":{"operations":[]}},
+    {"id":"render","kind":"document.render.evidence","deps":["format"],"inputs":{"renderer":"HANCOM"}}
+  ],
+  "outputs":["render"]
+}

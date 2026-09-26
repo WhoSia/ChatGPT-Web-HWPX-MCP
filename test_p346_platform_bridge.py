@@ -193,6 +193,20 @@ def test_executable_extension_cannot_claim_mutation_effect():
         validate_extension(manifest)
 
 
+def test_extension_manifest_rejects_duplicate_capability_names():
+    valid = bytes.fromhex(
+        "0061736d01000000"
+        "0105016000017f"
+        "03020100"
+        "070c0108703334365f72756e0000"
+        "0a0601040041010b"
+    )
+    manifest = _manifest(valid)
+    manifest["capabilities"].append(copy.deepcopy(manifest["capabilities"][0]))
+    with pytest.raises(RuntimeError, match="capability name collision"):
+        validate_extension(manifest)
+
+
 def test_extension_identity_and_capability_version_are_contract_sealed():
     valid = bytes.fromhex(
         "0061736d01000000"

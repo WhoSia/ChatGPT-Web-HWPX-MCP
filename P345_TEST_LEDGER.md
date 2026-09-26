@@ -46,3 +46,48 @@ Deterministic runtime events and operational observation time are separate. Even
 `DECLARATIVE_AUTHORING_IR_PASS / CAPABILITY_NEGOTIATION_PASS / PURE_NODE_INCREMENTAL_RECOMPILE_PASS / RUST_DETERMINISTIC_REPLAY_PASS / TIME_TRAVEL_INSPECTION_PASS / MANIFEST_EXTENSION_ABI_PASS / PRODUCTION_OBSERVABILITY_PASS`.
 
 External world-contact replay and arbitrary extension code execution are explicit non-claims.
+
+
+## Strengthened runtime invariants
+
+P3.45 binds PURE-node reuse to the **base document revision**. A prior snapshot from revision N cannot be silently reused against revision N+1 merely because the node body is unchanged.
+
+The TypeScript runtime rejects stale/tampered run seals before transition, time-travel, or observability. DOCUMENT_MUTATION commits must advance exactly one revision; PURE commits and external evidence preserve revision. External evidence is revision-bound and must explicitly carry measured world-contact validity.
+
+The Rust replay kernel independently reconstructs and verifies:
+- unique complete topological node inventory;
+- action ↔ side-effect legality;
+- dependency readiness at every node event;
+- event sequence/hash/run-id custody;
+- output and receipt hashes;
+- mutation-vs-pure-vs-external revision deltas;
+- materialized node states, outputs, current revision, and status;
+- terminal `COMPLETED / ABORTED` semantics and absence of post-terminal events.
+
+## Interruption and idempotency
+
+Deterministic compilation is idempotent for an already stored identical run. A run-id/plan collision fails closed.
+
+An interrupted RUNNING mutation is never assumed committed. The runtime exposes explicit **abort_document_transaction** only while durable revision custody still matches; revision divergence requires explicit reconciliation instead of silent rollback/commit inference.
+
+## Developer SDK
+
+`contracts/p345_extension_sdk.ts` exposes manifest builders for PURE, DOCUMENT_MUTATION, and EXTERNAL_WORLD_CONTACT nodes. Extension manifests materialize deterministic capability providers during compilation, while the Python host still rejects adapters outside its allow-list.
+
+**Manifest-only extension does not mean dynamic code loading.**
+
+## Standards anchors
+
+- RFC 8785 JSON Canonicalization Scheme is the canonical cryptographic-serialization anchor. P3.45 deliberately uses a stricter safe-integer subset.
+- OpenTelemetry-style event modeling informs the separation of low-cardinality lifecycle event names from dynamic IDs/hashes in attributes. Operational observation time remains outside replay authority.
+
+## Product integration gate
+
+P3.45 closure requires the same TypeScript runtime and Rust verifier to be present in:
+1. dedicated cross-runtime CI;
+2. MCP persistence/adapter regression;
+3. full OAuth lifecycle;
+4. Docker release smoke;
+5. exact-head production deployment.
+
+Production packaging must include compiled TypeScript runtime JS and the Rust `p345-replay` binary; Python-only fallback is not an accepted P3.45 production state.

@@ -275,6 +275,18 @@ async def main() -> None:
                 "abort_document_transaction",
                 "replay_document_transaction",
                 "get_document_transaction_observability",
+                "get_developer_platform_contract",
+                "project_document_tool_surface",
+                "validate_document_effect_composition",
+                "validate_document_tool_sequence",
+                "inspect_document_runtime",
+                "get_document_runtime_diagnostics",
+                "get_host_adapter_registry",
+                "hot_swap_document_host_adapter_profile",
+                "rollback_document_host_adapter_profile",
+                "validate_sandboxed_document_extension",
+                "execute_sandboxed_document_extension_probe",
+                "generate_document_platform_contracts",
             }
             missing = expected - set(names)
             if missing:
@@ -284,12 +296,12 @@ async def main() -> None:
                 if "access_token" in schema_text or "passphrase" in schema_text:
                     raise RuntimeError(f"secret-bearing field leaked into tool schema: {tool.name}")
 
-            read_payload = _payload(await client.call_tool("probe_read", {"message": "P3.45 OAuth smoke test"}))
-            if not read_payload or not read_payload.get("ok") or read_payload.get("version") != "0.22.0-p3.45":
+            read_payload = _payload(await client.call_tool("probe_read", {"message": "P3.46 OAuth smoke test"}))
+            if not read_payload or not read_payload.get("ok") or read_payload.get("version") != "0.23.0-p3.46":
                 raise RuntimeError(f"probe_read did not expose current P3.45 product version: {read_payload}")
 
             p2_caps = _payload(await client.call_tool("p2_capabilities", {}))
-            if not p2_caps or p2_caps.get("phase") != "P3.45":
+            if not p2_caps or p2_caps.get("phase") != "P3.46":
                 raise RuntimeError(f"p2_capabilities failed: {p2_caps}")
 
             design_intelligence = _payload(await client.call_tool("get_document_design_intelligence_contract", {}))
@@ -387,6 +399,43 @@ async def main() -> None:
                 or "DOCUMENT_SNAPSHOT" not in p345_caps.get("host_adapter_allowlist", [])
             ):
                 raise RuntimeError(f"P3.45 runtime capability catalog failed: {p345_caps}")
+
+            p346_contract = _payload(await client.call_tool("get_developer_platform_contract", {}))
+            if (
+                not p346_contract
+                or p346_contract.get("phase") != "P3.46"
+                or p346_contract.get("product") != "0.23.0-p3.46"
+                or "RUNTIME_CONFIGURATION" not in p346_contract.get("effect_types", [])
+                or p346_contract.get("extensions", {}).get("arbitrary_in_process_loading") is not False
+                or p346_contract.get("inspector", {}).get("read_only") is not True
+                or p346_contract.get("adapter_registry", {}).get("active_profile") != "p3.46-guarded"
+            ):
+                raise RuntimeError(f"P3.46 developer platform contract failed: {p346_contract}")
+
+            p346_surface = _payload(await client.call_tool("project_document_tool_surface", {}))
+            projected = {row.get("name"): row for row in (p346_surface.get("tools") or [])}
+            if (
+                p346_surface.get("phase") != "P3.46"
+                or projected.get("inspect_document_runtime", {}).get("effect") != "READ_ONLY"
+                or projected.get("hot_swap_document_host_adapter_profile", {}).get("effect") != "RUNTIME_CONFIGURATION"
+            ):
+                raise RuntimeError(f"P3.46 projected tool surface failed: {p346_surface}")
+
+            p346_effect = _payload(await client.call_tool("validate_document_effect_composition", {
+                "plan": {
+                    "schema": "chatgpt-web-hwpx-mcp/p3.46/effect-plan/v1",
+                    "nodes": [
+                        {"id": "inspect", "effect": "READ_ONLY", "action": "EXECUTE"},
+                        {"id": "configure", "deps": ["inspect"], "effect": "RUNTIME_CONFIGURATION", "action": "EXECUTE"},
+                        {"id": "deliver", "deps": ["configure"], "effect": "DELIVERY", "action": "EXECUTE"},
+                    ],
+                }
+            }))
+            if (
+                p346_effect.get("authority") != "CROSS_RUNTIME_EFFECT_PLAN_PASS"
+                or p346_effect.get("rust", {}).get("authority") != "RUST_EFFECT_PLAN_INVARIANT_PASS"
+            ):
+                raise RuntimeError(f"P3.46 cross-runtime effect validation failed: {p346_effect}")
 
             callout = _payload(await client.call_tool("compile_semantic_callout_block", {
                 "text": "핵심 판단은 장식이 아니라 의미를 인코딩해야 합니다.",

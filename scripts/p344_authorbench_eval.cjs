@@ -1,0 +1,11 @@
+const fs=require("fs");
+const path=require("path");
+const mod=require("../.tmp/p344-ts/benchmarks/authorbench_p344_evaluator.js");
+const blind=JSON.parse(fs.readFileSync(process.argv[2],"utf8"));
+const manifest=JSON.parse(fs.readFileSync(process.argv[3],"utf8"));
+const scored=mod.scoreBlindPacket(blind);
+const promotion=mod.adjudicatePromotion(manifest,scored);
+const out={scored,promotion};
+fs.writeFileSync(process.argv[4],JSON.stringify(out,null,2)+"\n");
+console.log(JSON.stringify({static_promotion:promotion.static_promotion,render_promotion:promotion.render_promotion,cases:scored.scores.length}));
+if(promotion.static_promotion!=="PASS") process.exit(2);

@@ -114,3 +114,16 @@ The initial no-import WASM boundary still allowed a module to declare internal l
 - add a valid-but-memory-declaring module as a negative control.
 
 Required closure authority: `PURE_SCALAR_WASM_RESOURCE_BOUNDARY_PASS / PARENT_PROCESS_TIMEOUT_PASS`.
+
+
+## Contract-derived tool composition
+
+Effect-only validation remains available as the low-level invariant API, but callers no longer need to self-report effects when validating the projected MCP surface.
+
+- projected tool-name sequences resolve capability/effect from the authoritative TypeScript inventory;
+- projected tool-call DAGs derive an effect plan from tool contracts before Rust verification;
+- caller-supplied effect or capability overrides are rejected on divergence;
+- unknown projected tools fail closed;
+- the derived effect plan is independently checked by the Rust guard.
+
+Required closure authority: `CONTRACT_DERIVED_TOOL_EFFECT_PASS / CALLER_EFFECT_SPOOF_REJECTION_PASS`.

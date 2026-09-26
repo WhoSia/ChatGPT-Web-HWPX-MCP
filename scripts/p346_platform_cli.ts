@@ -16,11 +16,13 @@ async function main(){
   else if(cmd==="validate-extension")out=kernel.validateExtensionManifest(input);
   else if(cmd==="validate-composition")out=kernel.validateEffectComposition(input);
   else if(cmd==="validate-sequence")out=kernel.validateToolSequence(input.effects||[]);
+  else if(cmd==="validate-tool-plan")out=kernel.validateProjectedToolPlan(input.plan,input.extensions||[]);
+  else if(cmd==="validate-tool-calls")out=kernel.validateProjectedToolSequence(input.tool_names||[],input.extensions||[]);
   else if(cmd==="inspect")out=kernel.inspectLegacyRuntime(input.state);
   else if(cmd==="diagnostics")out=kernel.runtimeDiagnostics(input.state);
   else if(cmd==="codegen")out=kernel.codegen(input.extensions||[]);
   else if(cmd==="run-wasm")out=await kernel.executeSandboxedWasm(input);
-  else throw new Error("usage: p346-platform-cli contract|project-tools|validate-extension|validate-composition|validate-sequence|inspect|diagnostics|codegen|run-wasm");
+  else throw new Error("usage: p346-platform-cli contract|project-tools|validate-extension|validate-composition|validate-sequence|validate-tool-plan|validate-tool-calls|inspect|diagnostics|codegen|run-wasm");
   process.stdout.write(JSON.stringify(out)+"\n");
 }
 main().catch((err:any)=>{

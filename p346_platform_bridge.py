@@ -145,6 +145,43 @@ def validate_sequence(effects: Sequence[str]) -> dict:
     }
 
 
+def validate_projected_tool_sequence(
+    tool_names: Sequence[str],
+    extensions: Sequence[Mapping[str, Any]] | None = None,
+) -> dict:
+    ts = _runtime(
+        "validate-tool-calls",
+        {"tool_names": list(tool_names), "extensions": list(extensions or [])},
+    )
+    rust = _guard("check-sequence", {"effects": list(ts.get("effects") or [])})
+    return {
+        "typescript": ts,
+        "rust": rust,
+        "authority": "CONTRACT_DERIVED_CROSS_RUNTIME_TOOL_SEQUENCE_PASS",
+    }
+
+
+def validate_projected_tool_plan(
+    plan: Mapping[str, Any],
+    extensions: Sequence[Mapping[str, Any]] | None = None,
+) -> dict:
+    ts = _runtime(
+        "validate-tool-plan",
+        {"plan": dict(plan), "extensions": list(extensions or [])},
+    )
+    effect_plan = ts.get("effect_plan")
+    if not isinstance(effect_plan, dict):
+        raise RuntimeError("P3.46 projected tool plan omitted derived effect plan")
+    rust = _guard("check-plan", effect_plan)
+    if ts.get("topological_order") != rust.get("topological_order"):
+        raise RuntimeError("P3.46 projected tool-plan TypeScript/Rust order divergence")
+    return {
+        "typescript": ts,
+        "rust": rust,
+        "authority": "CONTRACT_DERIVED_CROSS_RUNTIME_TOOL_PLAN_PASS",
+    }
+
+
 def inspect_runtime(state: Mapping[str, Any]) -> dict:
     return _runtime("inspect", {"state": state})
 

@@ -130,6 +130,8 @@ export const BUILTIN_TOOLS:ToolSpec[]=[
   {name:"project_document_tool_surface",capability:"platform.codegen",effect:"PURE",description:"Project effect-annotated tools from capability contracts.",input_schema:{type:"object",properties:{extensions:{type:"array"}},additionalProperties:false}},
   {name:"validate_document_effect_composition",capability:"platform.codegen",effect:"PURE",description:"Reject illegal effect DAGs before execution.",input_schema:{type:"object",required:["plan"],properties:{plan:{type:"object"}},additionalProperties:false}},
   {name:"validate_document_tool_sequence",capability:"platform.codegen",effect:"PURE",description:"Reject illegal tool-effect sequences before execution.",input_schema:{type:"object",required:["effects"],properties:{effects:{type:"array",items:{type:"string"}}},additionalProperties:false}},
+  {name:"validate_projected_document_tool_plan",capability:"platform.codegen",effect:"PURE",description:"Derive effects from projected tool contracts and reject illegal DAG composition or caller effect overrides.",input_schema:{type:"object",required:["plan"],properties:{plan:{type:"object"},extensions:{type:"array"}},additionalProperties:false}},
+  {name:"validate_projected_document_tool_sequence",capability:"platform.codegen",effect:"PURE",description:"Derive effects from projected tool contracts and validate a tool-name sequence.",input_schema:{type:"object",required:["tool_names"],properties:{tool_names:{type:"array",items:{type:"string"}},extensions:{type:"array"}},additionalProperties:false}},
   {name:"inspect_document_runtime",capability:"platform.inspect",effect:"READ_ONLY",description:"Inspect a replay-verified transaction DAG and event chain.",input_schema:{type:"object",required:["document_id","run_id"],properties:{document_id:{type:"string"},run_id:{type:"string"}},additionalProperties:false}},
   {name:"get_document_runtime_diagnostics",capability:"platform.inspect",effect:"READ_ONLY",description:"Return structured diagnostics without mutating runtime state.",input_schema:{type:"object",required:["document_id","run_id"],properties:{document_id:{type:"string"},run_id:{type:"string"}},additionalProperties:false}},
   {name:"get_host_adapter_registry",capability:"platform.inspect",effect:"READ_ONLY",description:"Inspect admitted host-adapter profiles or one owned document selection.",input_schema:{type:"object",properties:{document_id:{type:"string"}},additionalProperties:false}},
@@ -278,6 +280,52 @@ export function validateToolSequence(effects:any[]){
   const body={schema:"chatgpt-web-hwpx-mcp/p3.46/tool-sequence-validation/v1",ok:true,effects:rows};
   return {...body,sequence_sha256:sha256(body)};
 }
+function projectedToolMap(extensions:any[]=[]){
+  const inv=inventory(extensions);
+  return new Map(inv.tools.map(t=>[t.name,t] as const));
+}
+export function validateProjectedToolSequence(toolNames:any[],extensions:any[]=[]){
+  if(!Array.isArray(toolNames)||toolNames.length<1||toolNames.length>128) throw new Error("projected tool sequence requires 1..128 tool names");
+  const by=projectedToolMap(extensions),tools=toolNames.map(String);
+  const rows=tools.map(name=>{
+    const spec=by.get(name);
+    if(!spec) throw new Error("unknown projected tool: "+name);
+    return {name,capability:spec.capability,effect:spec.effect};
+  });
+  const validation=validateToolSequence(rows.map(row=>row.effect));
+  const body={
+    schema:"chatgpt-web-hwpx-mcp/p3.46/projected-tool-sequence/v1",
+    phase:"P3.46",tools:rows,effects:rows.map(row=>row.effect),
+    effect_validation_sha256:validation.sequence_sha256,
+    derived_from_contracts:true,
+  };
+  return {...body,sequence_sha256:sha256(body)};
+}
+export function validateProjectedToolPlan(plan:any,extensions:any[]=[]){
+  if(!plan||plan.schema!=="chatgpt-web-hwpx-mcp/p3.46/tool-call-plan/v1") throw new Error("invalid projected tool-call plan");
+  const g=graph(plan),byTool=projectedToolMap(extensions),derivedNodes:any[]=[],bindings:any[]=[];
+  for(const id of g.order){
+    const raw=g.by.get(id),name=String(raw.tool||"");
+    const spec=byTool.get(name);
+    if(!spec) throw new Error("unknown projected tool: "+name);
+    if(raw.effect!==undefined&&String(raw.effect)!==spec.effect) throw new Error("caller effect override diverges from projected tool contract at "+id);
+    if(raw.capability!==undefined&&String(raw.capability)!==spec.capability) throw new Error("caller capability override diverges from projected tool contract at "+id);
+    const action:EffectAction=spec.effect==="EXTERNAL_WORLD_CONTACT"?"WAIT_EXTERNAL":"EXECUTE";
+    const deps=[...(raw.deps||[])].map(String).sort();
+    derivedNodes.push({id,deps,effect:spec.effect,action,reusable:false});
+    bindings.push({id,tool:name,capability:spec.capability,effect:spec.effect,contract_sha256:sha256({name:spec.name,capability:spec.capability,effect:spec.effect,input_schema:spec.input_schema})});
+  }
+  const effectPlan={schema:"chatgpt-web-hwpx-mcp/p3.46/effect-plan/v1",nodes:derivedNodes};
+  const validation=validateEffectComposition(effectPlan);
+  const body={
+    schema:"chatgpt-web-hwpx-mcp/p3.46/projected-tool-plan-validation/v1",
+    phase:"P3.46",tool_bindings:bindings,effect_plan:effectPlan,
+    topological_order:validation.topological_order,
+    effect_validation_sha256:validation.validation_sha256,
+    derived_from_contracts:true,
+  };
+  return {...body,validation_sha256:sha256(body)};
+}
 
 function legacyEffect(effect:string):Effect{
   if(effect==="PURE"||effect==="DOCUMENT_MUTATION"||effect==="EXTERNAL_WORLD_CONTACT") return effect;
@@ -364,7 +412,7 @@ export const P346_PLATFORM_CONTRACT={
     python:"HWPX_HOST_ADAPTER_REGISTRY_AND_MCP_BINDING_ONLY",
     powershell:"HANCOM_WORLD_CONTACT_ONLY",
   },
-  preexecution_rejection:{reusable_non_read_effects:true,delivery_must_be_terminal:true,action_effect_mismatch:true,unknown_capability_or_adapter:true},
+  preexecution_rejection:{reusable_non_read_effects:true,delivery_must_be_terminal:true,action_effect_mismatch:true,unknown_capability_or_adapter:true,unknown_projected_tool:true,caller_effect_or_capability_override:true},
   extensions:{host_abi:"p3.46-extension-v1",arbitrary_in_process_loading:false,executable_boundary:"PURE_SCALAR_WASM_NO_IMPORTS_IN_SEPARATE_BOUNDED_NODE_PROCESS",wasm_imports_allowed:0,wasm_linear_memory_allowed:false,wasm_tables_allowed:false,parent_process_timeout:true,non_pure_extension_code:"REJECTED"},
   inspector:{read_only:true,fields:["transaction_dag","event_chain","cache_invalidation","provider_binding","host_receipt_hashes","run_status"]},
   hot_swap:{scope:"OWNER_SCOPED_DOCUMENT_PRE_ADMITTED_PROCESS_LOCAL_PROFILES",compare_and_swap_generation:true,rollback:true,cross_document_leakage:false,arbitrary_code_registration:false},

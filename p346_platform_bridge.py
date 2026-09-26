@@ -158,8 +158,19 @@ def codegen(extensions: Sequence[Mapping[str, Any]] | None = None) -> dict:
 
 
 def execute_wasm(manifest: Mapping[str, Any], module_base64: str) -> dict:
+    execution = manifest.get("execution") if isinstance(manifest, Mapping) else None
+    requested_ms = 1500
+    if isinstance(execution, Mapping):
+        try:
+            requested_ms = int(execution.get("timeout_ms") or 1500)
+        except (TypeError, ValueError):
+            requested_ms = 1500
+    requested_ms = max(25, min(1500, requested_ms))
+    # The TypeScript kernel validates the manifest. The parent process owns the
+    # kill boundary so a synchronous/infinite WASM body cannot defeat JS timers.
+    parent_timeout = min(2.0, requested_ms / 1000.0 + 0.5)
     return _runtime(
         "run-wasm",
         {"manifest": manifest, "module_base64": str(module_base64)},
-        timeout=2.0,
+        timeout=parent_timeout,
     )

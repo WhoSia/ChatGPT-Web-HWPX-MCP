@@ -417,6 +417,12 @@ export const P346_PLATFORM_CONTRACT={
   inspector:{read_only:true,fields:["transaction_dag","event_chain","cache_invalidation","provider_binding","host_receipt_hashes","run_status"]},
   hot_swap:{scope:"OWNER_SCOPED_DOCUMENT_PRE_ADMITTED_PROCESS_LOCAL_PROFILES",compare_and_swap_generation:true,rollback:true,cross_document_leakage:false,arbitrary_code_registration:false},
   generated_contracts:true,
+  schema_projection:{
+    authoritative_source:"TYPESCRIPT_PROJECTED_INPUT_SCHEMA",
+    actual_mcp_semantic_parity_required:true,
+    parity_dimensions:["PROPERTY_SET","REQUIRED_SET","DECLARED_PRIMITIVE_TYPES","TOOL_ANNOTATIONS"],
+    lifecycle_authority:"OAUTH_LIST_TOOLS",
+  },
   builtin_provider:{provider_id:"hwpx-mcp-core",provider_version:"p3.46",capabilities:BUILTIN_CAPABILITIES},
   builtin_node_kinds:BUILTIN_NODES.map(x=>x.kind),
   builtin_tool_surface_sha256:projectToolSurface().surface_sha256,

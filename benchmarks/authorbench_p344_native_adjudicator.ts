@@ -1,5 +1,3 @@
-import * as fs from "fs";
-
 export interface NativeBlindCase {
   case_id: string;
   source_sha256: string;
@@ -102,17 +100,3 @@ export function adjudicateNativePromotion(manifest: any, scored: any, staticEval
   };
 }
 
-if (require.main === module) {
-  const [, , blindPath, manifestPath, staticPath, outputPath] = process.argv;
-  if (!blindPath || !manifestPath || !staticPath || !outputPath) {
-    throw new Error("usage: native_adjudicator BLIND_JSON FROZEN_MANIFEST STATIC_EVALUATION OUTPUT_JSON");
-  }
-  const blind = JSON.parse(fs.readFileSync(blindPath, "utf8"));
-  const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
-  const staticEvaluation = JSON.parse(fs.readFileSync(staticPath, "utf8"));
-  const scored = scoreNativeBlindPacket(blind);
-  const promotion = adjudicateNativePromotion(manifest, scored, staticEvaluation);
-  fs.writeFileSync(outputPath, JSON.stringify({scored, promotion}, null, 2) + "\n", "utf8");
-  process.stdout.write(JSON.stringify(promotion) + "\n");
-  if (!promotion.closure_candidate) process.exitCode = 2;
-}

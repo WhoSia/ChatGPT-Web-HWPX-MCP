@@ -1,0 +1,97 @@
+name: P3.47 certified extension ecosystem
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "contracts/p347_*"
+      - "scripts/p347_*"
+      - "rust/p347_certifier/**"
+      - "p347_*"
+      - "test_p347_*"
+      - "server_p2.py"
+      - "Dockerfile"
+      - "test_client.py"
+      - "P347_TEST_LEDGER.md"
+      - ".github/workflows/p347-ci.yml"
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  typescript-supply-chain:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: |
+          rm -rf .tmp/p347-ts
+          mkdir -p .tmp/p347-ts
+          npx --yes -p typescript@5.9.2 tsc --strict --target ES2022 --module commonjs --rootDir . --outDir .tmp/p347-ts contracts/p346_capability_kernel.ts contracts/p347_supply_chain_kernel.ts scripts/p347_supply_chain_cli.ts
+          node .tmp/p347-ts/scripts/p347_supply_chain_cli.js contract | grep -q '"phase":"P3.47"'
+
+  rust-certifier:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo test --manifest-path rust/p347_certifier/Cargo.toml
+      - run: cargo build --release --manifest-path rust/p347_certifier/Cargo.toml
+      - run: test "$(rust/p347_certifier/target/release/p347-certifier --contract)" = "p3.47-certification-guard-v1"
+
+  python-registry:
+    needs: [typescript-supply-chain, rust-certifier]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - uses: dtolnay/rust-toolchain@stable
+      - run: pip install -r requirements.txt -r requirements-dev.txt
+      - run: |
+          rm -rf .tmp/p346-ts .tmp/p347-ts
+          mkdir -p .tmp/p346-ts .tmp/p347-ts
+          npx --yes -p typescript@5.9.2 tsc --strict --target ES2022 --module commonjs --rootDir . --outDir .tmp/p346-ts contracts/p346_capability_kernel.ts contracts/p346_extension_sdk.ts scripts/p346_platform_cli.ts
+          npx --yes -p typescript@5.9.2 tsc --strict --target ES2022 --module commonjs --rootDir . --outDir .tmp/p347-ts contracts/p346_capability_kernel.ts contracts/p347_supply_chain_kernel.ts scripts/p347_supply_chain_cli.ts
+          cargo build --release --manifest-path rust/p346_guard/Cargo.toml
+          cargo build --release --manifest-path rust/p347_certifier/Cargo.toml
+      - name: P3.47 package, compatibility, certification and rollout regression
+        env:
+          P346_TS_RUNTIME: .tmp/p346-ts/scripts/p346_platform_cli.js
+          P346_GUARD_BIN: rust/p346_guard/target/release/p346-guard
+          P347_TS_RUNTIME: .tmp/p347-ts/scripts/p347_supply_chain_cli.js
+          P347_CERTIFIER_BIN: rust/p347_certifier/target/release/p347-certifier
+        run: |
+          python -m compileall -q p347_supply_chain_bridge.py p347_mcp.py test_p347_supply_chain_bridge.py test_p347_mcp.py scripts/p347_release_smoke.py
+          python -m pytest -q test_p347_supply_chain_bridge.py test_p347_mcp.py
+          python scripts/p347_release_smoke.py
+
+  docker-image:
+    needs: [typescript-supply-chain, rust-certifier]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build exact production Docker image
+        run: docker build --progress=plain -t hwpx-mcp-p347:${{ github.sha }} .
+      - name: Verify packaged P3.47 authority
+        run: |
+          docker run --rm --entrypoint /bin/sh hwpx-mcp-p347:${{ github.sha }} -c '
+            test "$(p347-certifier --contract)" = "p3.47-certification-guard-v1" &&
+            python scripts/p347_release_smoke.py
+          '
+
+  gate:
+    needs: [typescript-supply-chain, rust-certifier, python-registry, docker-image]
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "P3.47 certified package + provenance + compatibility + rollout governance PASS"

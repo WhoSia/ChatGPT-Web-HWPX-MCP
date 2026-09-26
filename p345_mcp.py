@@ -336,7 +336,13 @@ def register_p345_tools(
                 summary = _result_summary(result, revision_before=revision_before)
                 state = transition(
                     state,
-                    {"type": "COMMIT_NODE", "node_id": node_id, **summary},
+                    {
+                        "type": "COMMIT_NODE",
+                        "node_id": node_id,
+                        "revision": int(summary["revision_after"]),
+                        "output_sha256": summary["output_sha256"],
+                        "receipt_sha256": summary["receipt_sha256"],
+                    },
                 )
                 verify_replay(state)
                 _persist(document_id, state)

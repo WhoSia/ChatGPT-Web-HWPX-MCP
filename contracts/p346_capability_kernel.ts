@@ -208,6 +208,8 @@ export function validateExtensionManifest(raw:any):ExtensionManifest&{manifest_s
 
 function inventory(extensions:any[]=[]){
   const checked=extensions.map(validateExtensionManifest);
+  const extensionIds=checked.map(x=>x.extension_id);
+  if(new Set(extensionIds).size!==extensionIds.length) throw new Error("extension_id collision");
   const capabilities:CapabilitySpec[]=[...BUILTIN_CAPABILITIES,...checked.flatMap(x=>x.capabilities)];
   const nodes:NodeSpec[]=[...BUILTIN_NODES,...checked.flatMap(x=>x.node_kinds)];
   const tools:ToolSpec[]=[...BUILTIN_TOOLS,...checked.flatMap(x=>x.tools||[])];
@@ -226,12 +228,29 @@ function inventory(extensions:any[]=[]){
   return {capabilities,nodes,tools};
 }
 
-export function projectToolSurface(extensions:any[]=[]){
-  const rows=inventory(extensions).tools.map(t=>({
-    name:t.name,description:t.description,capability:t.capability,effect:t.effect,
+function capabilityContractSha256(cap:CapabilitySpec):string{
+  return sha256({
+    name:cap.name,version:cap.version,effect:cap.effect,adapter:cap.adapter,
+    deterministic:cap.deterministic,evidence:[...cap.evidence].sort(),
+  });
+}
+function projectedToolContract(t:ToolSpec,cap:CapabilitySpec){
+  const capability_contract_sha256=capabilityContractSha256(cap);
+  const contract={
+    name:t.name,capability:t.capability,capability_version:cap.version,
+    capability_contract_sha256,effect:t.effect,input_schema:t.input_schema,
+  };
+  return {
+    name:t.name,description:t.description,capability:t.capability,
+    capability_version:cap.version,capability_contract_sha256,effect:t.effect,
     annotations:annotations(t.effect),input_schema:t.input_schema,
-    contract_sha256:sha256({name:t.name,capability:t.capability,effect:t.effect,input_schema:t.input_schema}),
-  })).sort((a,b)=>a.name.localeCompare(b.name));
+    contract_sha256:sha256(contract),
+  };
+}
+export function projectToolSurface(extensions:any[]=[]){
+  const inv=inventory(extensions),capBy=new Map(inv.capabilities.map(x=>[x.name,x] as const));
+  const rows=inv.tools.map(t=>projectedToolContract(t,capBy.get(t.capability)!))
+    .sort((a,b)=>a.name.localeCompare(b.name));
   return {schema:"chatgpt-web-hwpx-mcp/p3.46/tool-surface/v1",phase:"P3.46",tools:rows,surface_sha256:sha256(rows)};
 }
 
@@ -286,11 +305,19 @@ function projectedToolMap(extensions:any[]=[]){
 }
 export function validateProjectedToolSequence(toolNames:any[],extensions:any[]=[]){
   if(!Array.isArray(toolNames)||toolNames.length<1||toolNames.length>128) throw new Error("projected tool sequence requires 1..128 tool names");
-  const by=projectedToolMap(extensions),tools=toolNames.map(String);
+  const inv=inventory(extensions),by=new Map(inv.tools.map(t=>[t.name,t] as const));
+  const capBy=new Map(inv.capabilities.map(c=>[c.name,c] as const)),tools=toolNames.map(String);
   const rows=tools.map(name=>{
     const spec=by.get(name);
     if(!spec) throw new Error("unknown projected tool: "+name);
-    return {name,capability:spec.capability,effect:spec.effect};
+    const cap=capBy.get(spec.capability)!;
+    const projected=projectedToolContract(spec,cap);
+    return {
+      name,capability:spec.capability,effect:spec.effect,
+      capability_version:projected.capability_version,
+      capability_contract_sha256:projected.capability_contract_sha256,
+      contract_sha256:projected.contract_sha256,
+    };
   });
   const validation=validateToolSequence(rows.map(row=>row.effect));
   const body={
@@ -303,7 +330,10 @@ export function validateProjectedToolSequence(toolNames:any[],extensions:any[]=[
 }
 export function validateProjectedToolPlan(plan:any,extensions:any[]=[]){
   if(!plan||plan.schema!=="chatgpt-web-hwpx-mcp/p3.46/tool-call-plan/v1") throw new Error("invalid projected tool-call plan");
-  const g=graph(plan),byTool=projectedToolMap(extensions),derivedNodes:any[]=[],bindings:any[]=[];
+  const g=graph(plan),inv=inventory(extensions);
+  const byTool=new Map(inv.tools.map(t=>[t.name,t] as const));
+  const capBy=new Map(inv.capabilities.map(c=>[c.name,c] as const));
+  const derivedNodes:any[]=[],bindings:any[]=[];
   for(const id of g.order){
     const raw=g.by.get(id),name=String(raw.tool||"");
     const spec=byTool.get(name);
@@ -313,7 +343,14 @@ export function validateProjectedToolPlan(plan:any,extensions:any[]=[]){
     const action:EffectAction=spec.effect==="EXTERNAL_WORLD_CONTACT"?"WAIT_EXTERNAL":"EXECUTE";
     const deps=[...(raw.deps||[])].map(String).sort();
     derivedNodes.push({id,deps,effect:spec.effect,action,reusable:false});
-    bindings.push({id,tool:name,capability:spec.capability,effect:spec.effect,contract_sha256:sha256({name:spec.name,capability:spec.capability,effect:spec.effect,input_schema:spec.input_schema})});
+    const cap=capBy.get(spec.capability)!;
+    const projected=projectedToolContract(spec,cap);
+    bindings.push({
+      id,tool:name,capability:spec.capability,effect:spec.effect,
+      capability_version:projected.capability_version,
+      capability_contract_sha256:projected.capability_contract_sha256,
+      contract_sha256:projected.contract_sha256,
+    });
   }
   const effectPlan={schema:"chatgpt-web-hwpx-mcp/p3.46/effect-plan/v1",nodes:derivedNodes};
   const validation=validateEffectComposition(effectPlan);
@@ -413,9 +450,9 @@ export const P346_PLATFORM_CONTRACT={
     powershell:"HANCOM_WORLD_CONTACT_ONLY",
   },
   preexecution_rejection:{reusable_non_read_effects:true,delivery_must_be_terminal:true,action_effect_mismatch:true,unknown_capability_or_adapter:true,unknown_projected_tool:true,caller_effect_or_capability_override:true},
-  extensions:{host_abi:"p3.46-extension-v1",arbitrary_in_process_loading:false,executable_boundary:"PURE_SCALAR_WASM_NO_IMPORTS_IN_SEPARATE_BOUNDED_NODE_PROCESS",wasm_imports_allowed:0,wasm_linear_memory_allowed:false,wasm_tables_allowed:false,parent_process_timeout:true,non_pure_extension_code:"REJECTED"},
+  extensions:{host_abi:"p3.46-extension-v1",arbitrary_in_process_loading:false,executable_boundary:"PURE_SCALAR_WASM_NO_IMPORTS_IN_SEPARATE_BOUNDED_NODE_PROCESS",wasm_imports_allowed:0,wasm_linear_memory_allowed:false,wasm_tables_allowed:false,parent_process_timeout:true,non_pure_extension_code:"REJECTED",unique_extension_identity:true,capability_version_bound_tool_contracts:true},
   inspector:{read_only:true,fields:["transaction_dag","event_chain","cache_invalidation","provider_binding","host_receipt_hashes","run_status"]},
-  hot_swap:{scope:"OWNER_SCOPED_DOCUMENT_PRE_ADMITTED_PROCESS_LOCAL_PROFILES",compare_and_swap_generation:true,rollback:true,cross_document_leakage:false,arbitrary_code_registration:false},
+  hot_swap:{scope:"OWNER_SCOPED_DOCUMENT_PRE_ADMITTED_PROCESS_LOCAL_PROFILES",compare_and_swap_generation:true,rollback:true,cross_document_leakage:false,arbitrary_code_registration:false,run_local_binding:true,profile_contract_sha256:true,cross_deploy_contract_drift_rejection:true},
   generated_contracts:true,
   schema_projection:{
     authoritative_source:"TYPESCRIPT_PROJECTED_INPUT_SCHEMA",

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+import json
 import threading
 from dataclasses import dataclass
 from typing import Any, Callable, Mapping
@@ -27,6 +29,7 @@ class AdapterProfile:
     profile_id: str
     adapters: Mapping[str, Callable[..., dict]]
     guarded: bool
+    contract_sha256: str
 
 
 class AdapterRegistry:
@@ -37,24 +40,63 @@ class AdapterRegistry:
         "DOCUMENT_FORMAT_EDIT",
         "DOCUMENT_DESIGN_REPAIR",
     }
+    PROFILE_CONTRACT_SCHEMA = "chatgpt-web-hwpx-mcp/p3.46/host-adapter-profile-contract/v1"
+    HOST_ADAPTER_ABI = "p3.46-host-adapter-v1"
+
+    @classmethod
+    def _profile_contract_sha256(
+        cls,
+        profile_id: str,
+        adapters: Mapping[str, Callable[..., dict]],
+        guarded: bool,
+    ) -> str:
+        body = {
+            "schema": cls.PROFILE_CONTRACT_SCHEMA,
+            "host_abi": cls.HOST_ADAPTER_ABI,
+            "profile_id": str(profile_id),
+            "guarded": bool(guarded),
+            "adapters": [
+                {
+                    "name": name,
+                    "revision_semantics": (
+                        "REVISION_PLUS_ONE"
+                        if name in cls.MUTATING_ADAPTERS
+                        else "REVISION_STABLE"
+                    ),
+                }
+                for name in sorted(adapters)
+            ],
+        }
+        encoded = json.dumps(
+            body, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+        ).encode("utf-8")
+        return hashlib.sha256(encoded).hexdigest()
 
     def __init__(self, host_adapters: Mapping[str, Callable[..., dict]]):
         base = dict(host_adapters)
         if not base:
             raise ValueError("P3.46 adapter registry requires at least one host adapter")
         self._lock = threading.RLock()
+        guarded_adapters = {
+            name: self._guard(name, fn)
+            for name, fn in base.items()
+        }
         self._profiles: dict[str, AdapterProfile] = {
-            "p3.45-compat": AdapterProfile("p3.45-compat", base, False),
+            "p3.45-compat": AdapterProfile(
+                "p3.45-compat", base, False,
+                self._profile_contract_sha256("p3.45-compat", base, False),
+            ),
             "p3.46-guarded": AdapterProfile(
-                "p3.46-guarded",
-                {name: self._guard(name, fn) for name, fn in base.items()},
-                True,
+                "p3.46-guarded", guarded_adapters, True,
+                self._profile_contract_sha256(
+                    "p3.46-guarded", guarded_adapters, True
+                ),
             ),
         }
         self._document_active: dict[str, str] = {}
         self._document_generation: dict[str, int] = {}
         self._document_history: dict[str, list[str]] = {}
-        self._run_bindings: dict[tuple[str, str], tuple[str, int]] = {}
+        self._run_bindings: dict[tuple[str, str], tuple[str, int, str]] = {}
         self._run_binding_order: dict[str, list[str]] = {}
 
     @classmethod
@@ -97,7 +139,7 @@ class AdapterRegistry:
     def _remember_run_binding(
         self,
         key: tuple[str, str],
-        selected: tuple[str, int],
+        selected: tuple[str, int, str],
     ) -> None:
         document_id, run_id = key
         self._run_bindings[key] = selected
@@ -116,6 +158,7 @@ class AdapterRegistry:
         run_id: str = "",
         pinned_profile: str = "",
         pinned_generation: int | None = None,
+        pinned_contract_sha256: str = "",
     ) -> Callable[..., dict]:
         document_id = str(document_id or "")
         run_id = str(run_id or "")
@@ -137,7 +180,21 @@ class AdapterRegistry:
                     raise ValueError(
                         "P3.46 persisted run binding requires positive generation"
                     )
-                selected = (requested_profile, requested_generation)
+                requested_contract = str(pinned_contract_sha256 or "")
+                if len(requested_contract) != 64 or any(
+                    ch not in "0123456789abcdef" for ch in requested_contract
+                ):
+                    raise ValueError(
+                        "P3.46 persisted run binding requires profile contract sha256"
+                    )
+                current_contract = self._profiles[requested_profile].contract_sha256
+                if requested_contract != current_contract:
+                    raise RuntimeError(
+                        "P3.46 persisted adapter profile contract drift"
+                    )
+                selected = (
+                    requested_profile, requested_generation, requested_contract
+                )
                 if key is not None and key in self._run_bindings:
                     if self._run_bindings[key] != selected:
                         raise RuntimeError(
@@ -148,11 +205,24 @@ class AdapterRegistry:
             elif key is not None and key in self._run_bindings:
                 selected = self._run_bindings[key]
             else:
-                selected = (active, generation)
+                selected = (
+                    active, generation, self._profiles[active].contract_sha256
+                )
                 if key is not None:
                     self._remember_run_binding(key, selected)
 
-            selected_profile, selected_generation = selected
+            (
+                selected_profile,
+                selected_generation,
+                selected_contract_sha256,
+            ) = selected
+            if (
+                self._profiles[selected_profile].contract_sha256
+                != selected_contract_sha256
+            ):
+                raise RuntimeError(
+                    "P3.46 run-local adapter profile contract drift"
+                )
             fn = self._profiles[selected_profile].adapters.get(adapter_name)
             if fn is None:
                 raise KeyError(
@@ -166,6 +236,7 @@ class AdapterRegistry:
             out = dict(result)
             out["p346_adapter_profile"] = selected_profile
             out["p346_adapter_generation"] = selected_generation
+            out["p346_adapter_contract_sha256"] = selected_contract_sha256
             out["p346_adapter_name"] = adapter_name
             return out
 
@@ -181,11 +252,14 @@ class AdapterRegistry:
                 "generation": generation,
                 "active_profile": active_id,
                 "active_guarded": active.guarded,
+                "active_contract_sha256": active.contract_sha256,
+                "host_adapter_abi": self.HOST_ADAPTER_ABI,
                 "default_profile": "p3.46-guarded",
                 "adapters": sorted(active.adapters),
                 "profiles": {
                     key: {
                         "guarded": value.guarded,
+                        "contract_sha256": value.contract_sha256,
                         "adapters": sorted(value.adapters),
                     }
                     for key, value in sorted(self._profiles.items())
@@ -308,7 +382,7 @@ def register_p346_tools(
         outputs = state.get("outputs") or {}
         rows: list[dict] = []
         issues: list[dict] = []
-        bindings: set[tuple[str, int]] = set()
+        bindings: set[tuple[str, int, str]] = set()
 
         for node_id in order:
             raw = raw_run.get(node_id)
@@ -344,14 +418,19 @@ def register_p346_tools(
                 generation = int(row.get("adapter_generation"))
             except (TypeError, ValueError):
                 generation = 0
-            if not profile or generation < 1:
+            contract_sha256 = str(row.get("adapter_contract_sha256") or "")
+            contract_valid = (
+                len(contract_sha256) == 64
+                and all(ch in "0123456789abcdef" for ch in contract_sha256)
+            )
+            if not profile or generation < 1 or not contract_valid:
                 issues.append({
                     "severity": "ERROR",
                     "code": "HOST_RECEIPT_BINDING_INVALID",
                     "node_id": node_id,
                 })
             else:
-                bindings.add((profile, generation))
+                bindings.add((profile, generation, contract_sha256))
 
             state_receipt = str(
                 ((outputs.get(node_id) or {}).get("receipt_sha256") or "")
@@ -375,8 +454,12 @@ def register_p346_tools(
                 "severity": "ERROR",
                 "code": "ADAPTER_CONFIGURATION_DRIFT_WITHIN_RUN",
                 "bindings": [
-                    {"adapter_profile": profile, "adapter_generation": generation}
-                    for profile, generation in sorted(bindings)
+                    {
+                        "adapter_profile": profile,
+                        "adapter_generation": generation,
+                        "adapter_contract_sha256": contract_sha256,
+                    }
+                    for profile, generation, contract_sha256 in sorted(bindings)
                 ],
             })
         return rows, issues

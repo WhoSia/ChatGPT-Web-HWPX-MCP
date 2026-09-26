@@ -150,7 +150,7 @@ def register_p345_tools(
         if not isinstance(run_rows, dict) or not run_rows:
             return {}
         outputs = state.get("outputs") or {}
-        bindings: set[tuple[str, int]] = set()
+        bindings: set[tuple[str, int, str]] = set()
         for node_id, raw in run_rows.items():
             if not isinstance(raw, dict):
                 raise RuntimeError("P3.46 persisted host receipt sidecar is malformed")
@@ -186,19 +186,30 @@ def register_p345_tools(
                 raise RuntimeError(
                     "P3.46 persisted host receipt generation is malformed"
                 ) from exc
+            contract_sha256 = str(
+                row.get("adapter_contract_sha256") or ""
+            )
+            if (
+                len(contract_sha256) != 64
+                or any(ch not in "0123456789abcdef" for ch in contract_sha256)
+            ):
+                raise RuntimeError(
+                    "P3.46 persisted host receipt profile contract is invalid"
+                )
             if not profile or generation < 1:
                 raise RuntimeError(
                     "P3.46 persisted host receipt binding is incomplete"
                 )
-            bindings.add((profile, generation))
+            bindings.add((profile, generation, contract_sha256))
         if len(bindings) != 1:
             raise RuntimeError(
                 "P3.46 persisted run has adapter configuration drift"
             )
-        profile, generation = next(iter(bindings))
+        profile, generation, contract_sha256 = next(iter(bindings))
         return {
             "pinned_profile": profile,
             "pinned_generation": generation,
+            "pinned_contract_sha256": contract_sha256,
         }
 
     def _execution_provenance(
@@ -222,11 +233,22 @@ def register_p345_tools(
             raise RuntimeError("P3.46 adapter receipt generation must be positive")
         if str(result.get("p346_adapter_name") or "") != adapter_name:
             raise RuntimeError("P3.46 adapter receipt name mismatch")
+        contract_sha256 = str(
+            result.get("p346_adapter_contract_sha256") or ""
+        )
+        if (
+            len(contract_sha256) != 64
+            or any(ch not in "0123456789abcdef" for ch in contract_sha256)
+        ):
+            raise RuntimeError(
+                "P3.46 adapter receipt omitted a valid profile contract"
+            )
         return {
             "node_id": node_id,
             "adapter": adapter_name,
             "adapter_profile": profile,
             "adapter_generation": generation,
+            "adapter_contract_sha256": contract_sha256,
             "revision_before": int(revision_before),
             "revision_after": int(summary["revision_after"]),
             "output_sha256": str(summary["output_sha256"]),

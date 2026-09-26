@@ -193,6 +193,56 @@ def test_executable_extension_cannot_claim_mutation_effect():
         validate_extension(manifest)
 
 
+def test_extension_identity_and_capability_version_are_contract_sealed():
+    valid = bytes.fromhex(
+        "0061736d01000000"
+        "0105016000017f"
+        "03020100"
+        "070c0108703334365f72756e0000"
+        "0a0601040041010b"
+    )
+    v1 = _manifest(valid)
+    v1["tools"] = [{
+        "name": "pytest.pure.tool",
+        "capability": "pytest.pure",
+        "effect": "PURE",
+        "description": "deterministic pure probe",
+        "input_schema": {
+            "type": "object",
+            "properties": {},
+            "additionalProperties": False,
+        },
+    }]
+    row_v1 = next(
+        row
+        for row in project_tools([v1])["tools"]
+        if row["name"] == "pytest.pure.tool"
+    )
+    assert row_v1["capability_version"] == "1.0.0"
+    assert len(row_v1["capability_contract_sha256"]) == 64
+
+    v2 = copy.deepcopy(v1)
+    v2["capabilities"][0]["version"] = "1.1.0"
+    row_v2 = next(
+        row
+        for row in project_tools([v2])["tools"]
+        if row["name"] == "pytest.pure.tool"
+    )
+    assert row_v2["capability_version"] == "1.1.0"
+    assert (
+        row_v2["capability_contract_sha256"]
+        != row_v1["capability_contract_sha256"]
+    )
+    assert row_v2["contract_sha256"] != row_v1["contract_sha256"]
+
+    collision = copy.deepcopy(v1)
+    collision["capabilities"][0]["name"] = "pytest.other"
+    collision["capabilities"][0]["adapter"] = "PYTEST_WASM_2"
+    collision["tools"] = []
+    with pytest.raises(RuntimeError, match="extension_id collision"):
+        project_tools([v1, collision])
+
+
 def test_extension_node_must_match_declared_capability_adapter():
     valid = bytes.fromhex(
         "0061736d01000000"

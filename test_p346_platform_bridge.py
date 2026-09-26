@@ -147,6 +147,26 @@ def test_executable_extension_cannot_claim_mutation_effect():
         validate_extension(manifest)
 
 
+def test_extension_node_must_match_declared_capability_adapter():
+    valid = bytes.fromhex(
+        "0061736d01000000"
+        "0105016000017f"
+        "03020100"
+        "070c0108703334365f72756e0000"
+        "0a0601040041010b"
+    )
+    manifest = _manifest(valid)
+    manifest["node_kinds"] = [{
+        "kind": "pytest.node",
+        "capability": "pytest.pure",
+        "effect": "PURE",
+        "adapter": "DIFFERENT_ADAPTER",
+        "reusable": True,
+    }]
+    with pytest.raises(RuntimeError, match="capability contract mismatch"):
+        validate_extension(manifest)
+
+
 def test_inspector_and_diagnostics_are_read_only():
     state = {
         "schema": "chatgpt-web-hwpx-mcp/p3.45/runtime-run/v1",

@@ -438,6 +438,88 @@ async def main() -> None:
             ):
                 raise RuntimeError(f"P3.46 projected tool surface failed: {p346_surface}")
 
+            def _json_type_set(schema):
+                if not isinstance(schema, dict):
+                    return set()
+                direct = schema.get("type")
+                types = set()
+                if isinstance(direct, str):
+                    types.add(direct)
+                elif isinstance(direct, list):
+                    types.update(str(row) for row in direct)
+                for row in schema.get("anyOf") or []:
+                    if isinstance(row, dict):
+                        types.update(_json_type_set(row))
+                return types
+
+            for tool_name, expected_tool in sorted(projected.items()):
+                actual_model = tool_rows.get(tool_name)
+                if actual_model is None:
+                    raise RuntimeError(
+                        f"P3.46 projected tool missing from actual MCP surface: {tool_name}"
+                    )
+                actual = actual_model.model_dump(by_alias=True)
+                actual_schema = actual.get("inputSchema") or {}
+                expected_schema = expected_tool.get("input_schema") or {}
+                actual_props = actual_schema.get("properties") or {}
+                expected_props = expected_schema.get("properties") or {}
+                if set(actual_props) != set(expected_props):
+                    raise RuntimeError(
+                        "P3.46 actual MCP property set diverged from TypeScript projection: "
+                        f"{tool_name} actual={sorted(actual_props)} expected={sorted(expected_props)}"
+                    )
+                if set(actual_schema.get("required") or []) != set(expected_schema.get("required") or []):
+                    raise RuntimeError(
+                        "P3.46 actual MCP required set diverged from TypeScript projection: "
+                        f"{tool_name}"
+                    )
+                for prop_name, expected_prop in expected_props.items():
+                    expected_types = _json_type_set(expected_prop)
+                    actual_types = _json_type_set(actual_props.get(prop_name) or {})
+                    expected_non_null = expected_types - {"null"}
+                    if expected_non_null and not expected_non_null.issubset(actual_types):
+                        raise RuntimeError(
+                            "P3.46 actual MCP property type diverged from TypeScript projection: "
+                            f"{tool_name}.{prop_name} actual={sorted(actual_types)} "
+                            f"expected={sorted(expected_non_null)}"
+                        )
+                    expected_items = (
+                        expected_prop.get("items")
+                        if isinstance(expected_prop, dict)
+                        else None
+                    )
+                    actual_items = (
+                        (actual_props.get(prop_name) or {}).get("items")
+                        if isinstance(actual_props.get(prop_name), dict)
+                        else None
+                    )
+                    if isinstance(expected_items, dict):
+                        expected_item_types = _json_type_set(expected_items) - {"null"}
+                        actual_item_types = _json_type_set(actual_items or {})
+                        if (
+                            expected_item_types
+                            and not expected_item_types.issubset(actual_item_types)
+                        ):
+                            raise RuntimeError(
+                                "P3.46 actual MCP array item type diverged from TypeScript projection: "
+                                f"{tool_name}.{prop_name}"
+                            )
+
+                projected_annotations = expected_tool.get("annotations") or {}
+                actual_annotations = actual.get("annotations") or {}
+                for annotation_name in (
+                    "readOnlyHint",
+                    "destructiveHint",
+                    "openWorldHint",
+                ):
+                    if actual_annotations.get(annotation_name) != projected_annotations.get(annotation_name):
+                        raise RuntimeError(
+                            "P3.46 actual MCP ToolAnnotations diverged from TypeScript projection: "
+                            f"{tool_name}.{annotation_name} "
+                            f"actual={actual_annotations.get(annotation_name)!r} "
+                            f"expected={projected_annotations.get(annotation_name)!r}"
+                        )
+
             p346_effect = _payload(await client.call_tool("validate_document_effect_composition", {
                 "plan": {
                     "schema": "chatgpt-web-hwpx-mcp/p3.46/effect-plan/v1",

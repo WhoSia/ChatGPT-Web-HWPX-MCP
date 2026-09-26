@@ -24,6 +24,13 @@ assert contract["extensions"]["wasm_tables_allowed"] is False
 assert contract["extensions"]["parent_process_timeout"] is True
 assert contract["hot_swap"]["rollback"] is True
 assert contract["hot_swap"]["cross_document_leakage"] is False
+assert contract["schema_projection"]["actual_mcp_semantic_parity_required"] is True
+assert set(contract["schema_projection"]["parity_dimensions"]) == {
+    "PROPERTY_SET",
+    "REQUIRED_SET",
+    "DECLARED_PRIMITIVE_TYPES",
+    "TOOL_ANNOTATIONS",
+}
 assert "RUNTIME_CONFIGURATION" in contract["effect_types"]
 
 plan = {

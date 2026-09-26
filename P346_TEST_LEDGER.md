@@ -151,3 +151,19 @@ Required closure authority:
 Persisted adapter provenance is never trusted merely because it is stored in document metadata. Before it may re-pin a resumed run, P3.45 now verifies the P3.46 provenance seal, node identity and the sidecar receipt hash against the Rust-replay-verified runtime output. A mismatch stops the next host adapter **before execution**. The process-local run-binding cache is also bounded to 16 entries per document; durable authority remains the bounded document metadata sidecar.
 
 Additional authority: `PRE_EXECUTION_SIDECAR_TAMPER_REJECTION_PASS / BOUNDED_RUN_BINDING_CACHE_PASS`.
+
+
+## Actual MCP schema projection parity
+
+The TypeScript tool projection is not treated as authoritative merely because codegen emits it. The OAuth lifecycle now compares every P3.46 projected tool against the **actual MCP `tools/list` surface** exposed by FastMCP.
+
+Semantic parity gates:
+- exact argument/property set;
+- exact required-argument set;
+- projected primitive JSON types must be admitted by the actual schema, including nullable Python optionals;
+- projected array item primitive types where specified;
+- `readOnlyHint`, `destructiveHint`, and `openWorldHint` parity for every projected P3.46 tool.
+
+This turns Python function signatures into a checked host projection of the TypeScript contract instead of an independent, silently drifting schema source.
+
+Required closure authority: `ACTUAL_MCP_SCHEMA_PROJECTION_PARITY_PASS / TOOL_ANNOTATION_PARITY_PASS`.

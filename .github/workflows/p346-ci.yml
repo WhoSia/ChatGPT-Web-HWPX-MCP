@@ -1,0 +1,95 @@
+name: P3.46 typed capability developer platform
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "contracts/p346_*"
+      - "scripts/p346_*"
+      - "rust/p346_guard/**"
+      - "p346_*"
+      - "test_p346_*"
+      - "server_p2.py"
+      - "p345_mcp.py"
+      - "Dockerfile"
+      - "test_client.py"
+      - "P346_TEST_LEDGER.md"
+      - ".github/workflows/p346-ci.yml"
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  typescript-kernel:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: |
+          rm -rf .tmp/p346-ts
+          mkdir -p .tmp/p346-ts
+          npx --yes -p typescript@5.9.2 tsc --strict --target ES2022 --module commonjs --rootDir . --outDir .tmp/p346-ts contracts/p346_capability_kernel.ts contracts/p346_extension_sdk.ts scripts/p346_platform_cli.ts
+          node .tmp/p346-ts/scripts/p346_platform_cli.js contract | grep -q '"phase":"P3.46"'
+
+  rust-effect-guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo test --manifest-path rust/p346_guard/Cargo.toml
+      - run: cargo build --release --manifest-path rust/p346_guard/Cargo.toml
+      - run: test "$(rust/p346_guard/target/release/p346-guard --contract)" = "p3.46-effect-guard-v1"
+
+  cross-runtime:
+    needs: [typescript-kernel, rust-effect-guard]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - uses: dtolnay/rust-toolchain@stable
+      - run: |
+          rm -rf .tmp/p346-ts
+          mkdir -p .tmp/p346-ts
+          npx --yes -p typescript@5.9.2 tsc --strict --target ES2022 --module commonjs --rootDir . --outDir .tmp/p346-ts contracts/p346_capability_kernel.ts contracts/p346_extension_sdk.ts scripts/p346_platform_cli.ts
+          cargo build --release --manifest-path rust/p346_guard/Cargo.toml
+          P346_GUARD_BIN="$PWD/rust/p346_guard/target/release/p346-guard" node scripts/p346_cross_runtime_test.cjs
+
+  python-bridge:
+    needs: [typescript-kernel, rust-effect-guard]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - uses: dtolnay/rust-toolchain@stable
+      - run: pip install -r requirements.txt -r requirements-dev.txt
+      - run: |
+          rm -rf .tmp/p346-ts
+          mkdir -p .tmp/p346-ts
+          npx --yes -p typescript@5.9.2 tsc --strict --target ES2022 --module commonjs --rootDir . --outDir .tmp/p346-ts contracts/p346_capability_kernel.ts contracts/p346_extension_sdk.ts scripts/p346_platform_cli.ts
+          cargo build --release --manifest-path rust/p346_guard/Cargo.toml
+      - name: P3.46 Python bridge, sandbox and registry regression
+        env:
+          P346_TS_RUNTIME: .tmp/p346-ts/scripts/p346_platform_cli.js
+          P346_GUARD_BIN: rust/p346_guard/target/release/p346-guard
+        run: |
+          python -m compileall -q p346_platform_bridge.py p346_mcp.py test_p346_platform_bridge.py test_p346_mcp.py scripts/p346_release_smoke.py
+          python -m pytest -q test_p346_platform_bridge.py test_p346_mcp.py
+          python scripts/p346_release_smoke.py
+
+  gate:
+    needs: [typescript-kernel, rust-effect-guard, cross-runtime, python-bridge]
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "P3.46 typed capability kernel + Rust effect guard + Python adapter registry PASS"

@@ -15,6 +15,8 @@ from p346_platform_bridge import (
     runtime_diagnostics,
     validate_composition,
     validate_extension,
+    validate_projected_tool_plan,
+    validate_projected_tool_sequence,
     validate_sequence,
 )
 
@@ -79,6 +81,25 @@ def test_contract_codegen_and_cross_runtime_effect_guard():
     assert validated["typescript"]["topological_order"] == ["inspect", "edit", "render", "deliver"]
     assert validated["rust"]["authority"] == "RUST_EFFECT_PLAN_INVARIANT_PASS"
     assert validate_sequence(["READ_ONLY", "DOCUMENT_MUTATION", "DELIVERY"])["rust"]["ok"] is True
+    derived = validate_projected_tool_sequence([
+        "get_developer_platform_contract",
+        "hot_swap_document_host_adapter_profile",
+    ])
+    assert derived["typescript"]["effects"] == ["READ_ONLY", "RUNTIME_CONFIGURATION"]
+    assert derived["rust"]["ok"] is True
+    projected_plan = validate_projected_tool_plan({
+        "schema": "chatgpt-web-hwpx-mcp/p3.46/tool-call-plan/v1",
+        "nodes": [
+            {"id": "inspect", "tool": "get_developer_platform_contract"},
+            {
+                "id": "configure",
+                "deps": ["inspect"],
+                "tool": "hot_swap_document_host_adapter_profile",
+            },
+        ],
+    })
+    assert projected_plan["typescript"]["tool_bindings"][1]["effect"] == "RUNTIME_CONFIGURATION"
+    assert projected_plan["rust"]["authority"] == "RUST_EFFECT_PLAN_INVARIANT_PASS"
     generated = codegen()
     assert generated["generated_sha256"]
     assert generated["tool_surface"]["surface_sha256"] == surface["surface_sha256"]
@@ -105,6 +126,17 @@ def test_effect_negative_controls_fail_closed():
         validate_composition(reusable_mutation)
     with pytest.raises(RuntimeError):
         validate_sequence(["DELIVERY", "READ_ONLY"])
+    with pytest.raises(RuntimeError, match="caller effect override"):
+        validate_projected_tool_plan({
+            "schema": "chatgpt-web-hwpx-mcp/p3.46/tool-call-plan/v1",
+            "nodes": [{
+                "id": "lie",
+                "tool": "hot_swap_document_host_adapter_profile",
+                "effect": "PURE",
+            }],
+        })
+    with pytest.raises(RuntimeError, match="unknown projected tool"):
+        validate_projected_tool_sequence(["definitely_not_a_real_tool"])
 
 
 def test_pure_wasm_executes_and_imported_wasm_is_denied():

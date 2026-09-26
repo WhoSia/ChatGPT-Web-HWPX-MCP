@@ -16,6 +16,8 @@ from p346_platform_bridge import (
     runtime_diagnostics,
     validate_composition,
     validate_extension,
+    validate_projected_tool_plan,
+    validate_projected_tool_sequence,
     validate_sequence,
 )
 
@@ -247,6 +249,25 @@ def register_p346_tools(
         return {"ok": True, **validate_sequence(effects)}
 
     @core.mcp.tool(annotations=read_only)
+    def validate_projected_document_tool_plan(
+        plan: dict,
+        extensions: list[dict] | None = None,
+    ) -> dict:
+        core._caller_subject()
+        return {"ok": True, **validate_projected_tool_plan(plan, extensions or [])}
+
+    @core.mcp.tool(annotations=read_only)
+    def validate_projected_document_tool_sequence(
+        tool_names: list[str],
+        extensions: list[dict] | None = None,
+    ) -> dict:
+        core._caller_subject()
+        return {
+            "ok": True,
+            **validate_projected_tool_sequence(tool_names, extensions or []),
+        }
+
+    @core.mcp.tool(annotations=read_only)
     def inspect_document_runtime(document_id: str, run_id: str) -> dict:
         metadata, state = _load_run(document_id, run_id)
         inspected = inspect_runtime(state)
@@ -343,6 +364,8 @@ def register_p346_tools(
         "project_document_tool_surface",
         "validate_document_effect_composition",
         "validate_document_tool_sequence",
+        "validate_projected_document_tool_plan",
+        "validate_projected_document_tool_sequence",
         "inspect_document_runtime",
         "get_document_runtime_diagnostics",
         "get_host_adapter_registry",

@@ -184,3 +184,15 @@ The final pre-closure audit removed three remaining name-based trust assumptions
 
 Required closure authority:
 `UNIQUE_EXTENSION_IDENTITY_PASS / CAPABILITY_VERSION_BOUND_TOOL_CONTRACT_PASS / HOST_ADAPTER_PROFILE_CONTRACT_SEAL_PASS / CROSS_DEPLOY_ADAPTER_CONTRACT_DRIFT_REJECTION_PASS`.
+
+
+## Combined TypeScript builder module-isolation repair
+
+The production Docker builder compiles the P3.45 runtime CLI and P3.46 platform CLI in one TypeScript program. Dedicated phase CI had compiled them in separate invocations, so their script-global declarations could coexist there while colliding in the combined production image build.
+
+Repair:
+- both CLI entrypoints are explicit TypeScript modules via `export {}`;
+- no runtime contract or CLI command semantics are changed;
+- the production builder can compile both generations in one program without global `process`, `fs` or helper-function collisions.
+
+Required closure authority: `COMBINED_TYPESCRIPT_BUILDER_MODULE_ISOLATION_PASS / PRODUCTION_IMAGE_COMPILE_PARITY_PASS`.

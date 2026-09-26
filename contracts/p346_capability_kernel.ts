@@ -147,9 +147,17 @@ export function validateExtensionManifest(raw:any):ExtensionManifest&{manifest_s
   const tools=(raw.tools||[]).map(normTool) as ToolSpec[];
   if(caps.length<1||caps.length>32||nodes.length>32||tools.length>32) throw new Error("extension inventory bound violated");
   const capNames=new Set(caps.map(x=>x.name));
-  for(const c of caps) if(c.effect!=="PURE") throw new Error("WASM extension capabilities are PURE-only");
-  for(const n of nodes){if(n.effect!=="PURE"||!capNames.has(n.capability)) throw new Error("invalid extension node capability/effect");}
-  for(const t of tools){if(t.effect!=="PURE"||!capNames.has(t.capability)) throw new Error("invalid extension tool capability/effect");}
+  const capBy=new Map(caps.map(x=>[x.name,x] as const));
+  for(const cap of caps) if(cap.effect!=="PURE") throw new Error("WASM extension capabilities are PURE-only");
+  for(const n of nodes){
+    const cap=capBy.get(n.capability);
+    if(n.effect!=="PURE"||!cap) throw new Error("invalid extension node capability/effect");
+    if(cap.effect!==n.effect||cap.adapter!==n.adapter) throw new Error("extension node capability contract mismatch");
+  }
+  for(const t of tools){
+    const cap=capBy.get(t.capability);
+    if(t.effect!=="PURE"||!cap||cap.effect!==t.effect) throw new Error("invalid extension tool capability/effect");
+  }
   const allKinds=[...BUILTIN_NODES.map(x=>x.kind),...nodes.map(x=>x.kind)];
   const allTools=[...BUILTIN_TOOLS.map(x=>x.name),...tools.map(x=>x.name)];
   if(new Set(allKinds).size!==allKinds.length) throw new Error("extension node kind collision");

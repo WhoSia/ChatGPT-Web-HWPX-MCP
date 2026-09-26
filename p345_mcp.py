@@ -24,6 +24,7 @@ def register_p345_tools(
     core,
     owned_document: Callable[[str], tuple[dict, Any]],
     host_adapters: Mapping[str, Callable[..., dict]],
+    adapter_resolver: Callable[[str], Callable[..., dict]] | None = None,
 ):
     adapters = dict(host_adapters)
     admitted_adapters = set(adapters) | {"EXTERNAL_RENDER"}
@@ -306,7 +307,16 @@ def register_p345_tools(
 
             binding = state["compiled"]["provider_bindings"][node_id]
             adapter_name = str(binding.get("adapter") or "")
-            adapter = adapters.get(adapter_name)
+            try:
+                adapter = (
+                    adapter_resolver(adapter_name)
+                    if adapter_resolver is not None
+                    else adapters.get(adapter_name)
+                )
+            except (KeyError, ValueError) as exc:
+                raise RuntimeError(
+                    f"P3.45 host adapter unavailable: {adapter_name}"
+                ) from exc
             if adapter is None:
                 raise RuntimeError(f"P3.45 host adapter unavailable: {adapter_name}")
             node = _node(state, node_id)

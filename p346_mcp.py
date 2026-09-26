@@ -383,6 +383,14 @@ def register_p346_tools(
         rows: list[dict] = []
         issues: list[dict] = []
         bindings: set[tuple[str, int, str]] = set()
+        known_node_ids = {str(node_id) for node_id in order}
+        for raw_node_id in sorted(str(key) for key in raw_run):
+            if raw_node_id not in known_node_ids:
+                issues.append({
+                    "severity": "ERROR",
+                    "code": "HOST_RECEIPT_UNKNOWN_NODE",
+                    "node_id": raw_node_id,
+                })
 
         for node_id in order:
             raw = raw_run.get(node_id)
@@ -432,17 +440,38 @@ def register_p346_tools(
             else:
                 bindings.add((profile, generation, contract_sha256))
 
-            state_receipt = str(
-                ((outputs.get(node_id) or {}).get("receipt_sha256") or "")
-                if isinstance(outputs, dict)
-                else ""
+            state_output = (
+                outputs.get(node_id) if isinstance(outputs, dict) else None
             )
-            if state_receipt and str(row.get("receipt_sha256") or "") != state_receipt:
+            if not isinstance(state_output, dict):
                 issues.append({
                     "severity": "ERROR",
-                    "code": "HOST_RECEIPT_RUNTIME_HASH_DIVERGENCE",
+                    "code": "HOST_RECEIPT_RUNTIME_OUTPUT_MISSING",
                     "node_id": node_id,
                 })
+            else:
+                state_output_sha = str(state_output.get("output_sha256") or "")
+                state_receipt_sha = str(state_output.get("receipt_sha256") or "")
+                invalid_state_hash = any(
+                    len(digest) != 64
+                    or any(ch not in "0123456789abcdef" for ch in digest)
+                    for digest in (state_output_sha, state_receipt_sha)
+                )
+                if invalid_state_hash:
+                    issues.append({
+                        "severity": "ERROR",
+                        "code": "HOST_RECEIPT_SEALED_RUNTIME_HASH_INVALID",
+                        "node_id": node_id,
+                    })
+                if (
+                    str(row.get("output_sha256") or "") != state_output_sha
+                    or str(row.get("receipt_sha256") or "") != state_receipt_sha
+                ):
+                    issues.append({
+                        "severity": "ERROR",
+                        "code": "HOST_RECEIPT_RUNTIME_HASH_DIVERGENCE",
+                        "node_id": node_id,
+                    })
 
             rows.append({
                 **row,

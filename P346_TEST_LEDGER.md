@@ -196,3 +196,21 @@ Repair:
 - the production builder can compile both generations in one program without global `process`, `fs` or helper-function collisions.
 
 Required closure authority: `COMBINED_TYPESCRIPT_BUILDER_MODULE_ISOLATION_PASS / PRODUCTION_IMAGE_COMPILE_PARITY_PASS`.
+
+## Replay-sealed sidecar bijection and manifest-local identity hardening
+
+The pre-closure adversarial audit found two residual fail-open seams that were not covered by the earlier provenance-seal rule.
+
+First, a correctly re-hashed P3.46 host-receipt sidecar row could name a node that had no corresponding sealed P3.45 runtime output. A provenance SHA-256 proves internal row integrity, but it does not prove that the row corresponds to an execution admitted by the authoritative replay state. Resume recovery therefore now requires every persisted sidecar row used for adapter re-pinning to have an actual replay-sealed runtime output and binds both `output_sha256` and `receipt_sha256` to that output. Rehashed orphan rows and rehashed output substitutions fail before the next host adapter executes.
+
+Second, the replay-aware inspector previously traversed only the compiled topological order, which meant an extra sidecar key outside the authoritative node set could be invisible to diagnostics. The inspector now reports `HOST_RECEIPT_UNKNOWN_NODE`, missing runtime outputs, invalid sealed runtime hashes, and output/receipt divergence as explicit ERROR diagnostics. An orphan sidecar therefore makes the inspector result fail closed rather than disappearing from the developer view.
+
+The same audit found one manifest-local identity gap in the TypeScript extension validator: duplicate capability names were guaranteed to fail later during merged inventory construction, but a standalone `validateExtensionManifest` call could accept them. Manifest validation now rejects duplicate capability names immediately, so validation and projection share the same uniqueness boundary.
+
+Dedicated P3.46 CI now owns the P3.45↔P3.46 replay-sidecar seam directly. Its Python bridge job builds the P3.45 TypeScript runtime and Rust replay verifier alongside the P3.46 kernel/guard and executes `test_p345_mcp.py`, `test_p346_platform_bridge.py`, and `test_p346_mcp.py` under the same gate.
+
+Required closure authority:
+`REPLAY_SEALED_SIDECAR_BIJECTION_PASS / ORPHAN_HOST_RECEIPT_REJECTION_PASS / OUTPUT_AND_RECEIPT_HASH_BINDING_PASS / INSPECTOR_ORPHAN_SIDECAR_DIAGNOSTIC_PASS / UNIQUE_EXTENSION_CAPABILITY_NAME_PASS / DEDICATED_REPLAY_SIDECAR_CI_OWNERSHIP_PASS`.
+
+These labels are closure requirements until the corresponding exact-head GitHub Actions and lifecycle/production gates are observed successful; source presence alone is not treated as execution evidence.
+

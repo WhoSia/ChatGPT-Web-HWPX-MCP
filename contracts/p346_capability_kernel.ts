@@ -82,6 +82,7 @@ export const BUILTIN_CAPABILITIES:CapabilitySpec[]=[
   {name:"document.delivery",version:"1.0.0",effect:"DELIVERY",adapter:"DOCUMENT_DELIVERY",deterministic:false,evidence:["SIGNED_DELIVERY_RECEIPT"]},
   {name:"platform.inspect",version:"1.0.0",effect:"READ_ONLY",adapter:"P346_INSPECTOR",deterministic:true,evidence:["REPLAY_VERIFIED_STATE"]},
   {name:"platform.codegen",version:"1.0.0",effect:"PURE",adapter:"P346_CODEGEN",deterministic:true,evidence:["CONTRACT_SHA256"]},
+  {name:"platform.configure",version:"1.0.0",effect:"RUNTIME_CONFIGURATION",adapter:"P346_ADAPTER_REGISTRY",deterministic:true,evidence:["GENERATION_CAS","ROLLBACK_RECEIPT"]},
 ];
 
 export const BUILTIN_NODES:NodeSpec[]=[
@@ -100,8 +101,8 @@ export const BUILTIN_TOOLS:ToolSpec[]=[
   {name:"inspect_document_runtime",capability:"platform.inspect",effect:"READ_ONLY",description:"Inspect a replay-verified transaction DAG and event chain.",input_schema:{type:"object",required:["document_id","run_id"],properties:{document_id:{type:"string"},run_id:{type:"string"}},additionalProperties:false}},
   {name:"get_document_runtime_diagnostics",capability:"platform.inspect",effect:"READ_ONLY",description:"Return structured diagnostics without mutating runtime state.",input_schema:{type:"object",required:["document_id","run_id"],properties:{document_id:{type:"string"},run_id:{type:"string"}},additionalProperties:false}},
   {name:"get_host_adapter_registry",capability:"platform.inspect",effect:"READ_ONLY",description:"Inspect admitted host-adapter profiles.",input_schema:{type:"object",properties:{},additionalProperties:false}},
-  {name:"hot_swap_document_host_adapter_profile",capability:"platform.codegen",effect:"RUNTIME_CONFIGURATION",description:"CAS-switch to a pre-admitted host-adapter profile.",input_schema:{type:"object",required:["target_profile","expected_generation"],properties:{target_profile:{type:"string"},expected_generation:{type:"integer"}},additionalProperties:false}},
-  {name:"rollback_document_host_adapter_profile",capability:"platform.codegen",effect:"RUNTIME_CONFIGURATION",description:"Rollback the host-adapter profile under generation CAS.",input_schema:{type:"object",required:["expected_generation"],properties:{expected_generation:{type:"integer"}},additionalProperties:false}},
+  {name:"hot_swap_document_host_adapter_profile",capability:"platform.configure",effect:"RUNTIME_CONFIGURATION",description:"CAS-switch to a pre-admitted host-adapter profile.",input_schema:{type:"object",required:["target_profile","expected_generation"],properties:{target_profile:{type:"string"},expected_generation:{type:"integer"}},additionalProperties:false}},
+  {name:"rollback_document_host_adapter_profile",capability:"platform.configure",effect:"RUNTIME_CONFIGURATION",description:"Rollback the host-adapter profile under generation CAS.",input_schema:{type:"object",required:["expected_generation"],properties:{expected_generation:{type:"integer"}},additionalProperties:false}},
   {name:"validate_sandboxed_document_extension",capability:"platform.codegen",effect:"PURE",description:"Validate one deterministic no-import WASM extension.",input_schema:{type:"object",required:["manifest"],properties:{manifest:{type:"object"}},additionalProperties:false}},
   {name:"execute_sandboxed_document_extension_probe",capability:"platform.codegen",effect:"PURE",description:"Execute one bounded pure WASM extension probe.",input_schema:{type:"object",required:["manifest","module_base64"],properties:{manifest:{type:"object"},module_base64:{type:"string"}},additionalProperties:false}},
   {name:"generate_document_platform_contracts",capability:"platform.codegen",effect:"PURE",description:"Generate canonical effect/capability/node/tool contracts.",input_schema:{type:"object",properties:{extensions:{type:"array"}},additionalProperties:false}},
@@ -170,7 +171,16 @@ function inventory(extensions:any[]=[]){
   const tools:ToolSpec[]=[...BUILTIN_TOOLS,...checked.flatMap(x=>x.tools||[])];
   const capNames=new Set(capabilities.map(x=>x.name));
   if(capNames.size!==capabilities.length) throw new Error("capability name collision");
-  for(const row of [...nodes,...tools]) if(!capNames.has(row.capability)) throw new Error("undeclared capability: "+row.capability);
+  const capBy=new Map(capabilities.map(x=>[x.name,x] as const));
+  for(const row of [...nodes,...tools]){
+    const cap=capBy.get(row.capability);
+    if(!cap) throw new Error("undeclared capability: "+row.capability);
+    if(cap.effect!==row.effect) throw new Error("capability/effect mismatch: "+row.capability);
+  }
+  for(const node of nodes){
+    const cap=capBy.get(node.capability)!;
+    if(cap.adapter!==node.adapter) throw new Error("capability/adapter mismatch: "+node.capability);
+  }
   return {capabilities,nodes,tools};
 }
 

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import copy
 import hashlib
 
 import pytest
@@ -8,8 +9,10 @@ import pytest
 from p346_platform_bridge import (
     codegen,
     execute_wasm,
+    inspect_runtime,
     platform_contract,
     project_tools,
+    runtime_diagnostics,
     validate_composition,
     validate_extension,
     validate_sequence,
@@ -142,3 +145,56 @@ def test_executable_extension_cannot_claim_mutation_effect():
     manifest["capabilities"][0]["effect"] = "DOCUMENT_MUTATION"
     with pytest.raises(RuntimeError, match="PURE-only"):
         validate_extension(manifest)
+
+
+def test_inspector_and_diagnostics_are_read_only():
+    state = {
+        "schema": "chatgpt-web-hwpx-mcp/p3.45/runtime-run/v1",
+        "run_id": "inspect-fixture",
+        "status": "RUNNING",
+        "base_revision": 4,
+        "current_revision": 4,
+        "run_sha256": "a" * 64,
+        "head_event_hash": "",
+        "compiled": {
+            "ir": {
+                "nodes": [{
+                    "id": "snapshot",
+                    "kind": "document.snapshot",
+                    "deps": [],
+                }]
+            },
+            "topological_order": ["snapshot"],
+            "side_effects": {"snapshot": "PURE"},
+            "actions": {"snapshot": "REUSE"},
+            "affected_nodes": [],
+            "reused_nodes": ["snapshot"],
+            "node_spec_sha256": {"snapshot": "b" * 64},
+            "provider_binding_sha256": {"snapshot": "c" * 64},
+            "provider_bindings": {
+                "snapshot": {
+                    "adapter": "DOCUMENT_SNAPSHOT",
+                    "primary": {
+                        "provider_id": "hwpx-mcp-core",
+                        "provider_version": "p3.45",
+                    },
+                }
+            },
+        },
+        "node_states": {"snapshot": "REUSED"},
+        "outputs": {
+            "snapshot": {
+                "output_sha256": "d" * 64,
+                "receipt_sha256": "e" * 64,
+            }
+        },
+        "events": [],
+    }
+    before = copy.deepcopy(state)
+    view = inspect_runtime(state)
+    diagnostics = runtime_diagnostics(state)
+    assert state == before
+    assert view["dag"]["nodes"][0]["provider_id"] == "hwpx-mcp-core"
+    assert view["cache"]["reused_nodes"] == ["snapshot"]
+    assert diagnostics["ok"] is True
+    assert diagnostics["summary"]["errors"] == 0

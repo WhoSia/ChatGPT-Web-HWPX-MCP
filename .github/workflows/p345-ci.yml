@@ -32,7 +32,7 @@ jobs:
       - run: |
           rm -rf .tmp/p345-ts
           mkdir -p .tmp/p345-ts
-          npx --yes -p typescript@5.9.2 tsc --strict --target ES2022 --module commonjs --rootDir . --outDir .tmp/p345-ts contracts/p345_runtime.ts scripts/p345_runtime_cli.ts
+          npx --yes -p typescript@5.9.2 tsc --strict --target ES2022 --module commonjs --rootDir . --outDir .tmp/p345-ts contracts/p345_runtime.ts contracts/p345_extension_sdk.ts scripts/p345_runtime_cli.ts
           node .tmp/p345-ts/scripts/p345_runtime_cli.js contract | grep -q '"phase":"P3.45"'
 
   rust-replay:
@@ -55,7 +55,7 @@ jobs:
       - run: |
           rm -rf .tmp/p345-ts
           mkdir -p .tmp/p345-ts
-          npx --yes -p typescript@5.9.2 tsc --strict --target ES2022 --module commonjs --rootDir . --outDir .tmp/p345-ts contracts/p345_runtime.ts scripts/p345_runtime_cli.ts
+          npx --yes -p typescript@5.9.2 tsc --strict --target ES2022 --module commonjs --rootDir . --outDir .tmp/p345-ts contracts/p345_runtime.ts contracts/p345_extension_sdk.ts scripts/p345_runtime_cli.ts
           cargo build --release --manifest-path rust/p345_replay/Cargo.toml
           P345_REPLAY_BIN="$PWD/rust/p345_replay/target/release/p345-replay" node scripts/p345_cross_runtime_test.cjs
 
@@ -73,19 +73,19 @@ jobs:
       - run: |
           rm -rf .tmp/p345-ts
           mkdir -p .tmp/p345-ts
-          npx --yes -p typescript@5.9.2 tsc --strict --target ES2022 --module commonjs --rootDir . --outDir .tmp/p345-ts contracts/p345_runtime.ts scripts/p345_runtime_cli.ts
+          npx --yes -p typescript@5.9.2 tsc --strict --target ES2022 --module commonjs --rootDir . --outDir .tmp/p345-ts contracts/p345_runtime.ts contracts/p345_extension_sdk.ts scripts/p345_runtime_cli.ts
           cargo build --release --manifest-path rust/p345_replay/Cargo.toml
       - name: Python host adapter regression
         env:
           P345_TS_RUNTIME: .tmp/p345-ts/scripts/p345_runtime_cli.js
           P345_REPLAY_BIN: rust/p345_replay/target/release/p345-replay
         run: |
-          python -m compileall -q p345_runtime_bridge.py p345_mcp.py test_p345_runtime_bridge.py scripts/p345_release_smoke.py
-          python -m pytest -q test_p345_runtime_bridge.py
+          python -m compileall -q p345_runtime_bridge.py p345_mcp.py test_p345_runtime_bridge.py test_p345_mcp.py scripts/p345_release_smoke.py
+          python -m pytest -q test_p345_runtime_bridge.py test_p345_mcp.py
           python scripts/p345_release_smoke.py
 
   gate:
     needs: [typescript-runtime, rust-replay, cross-runtime, python-host-adapter]
     runs-on: ubuntu-latest
     steps:
-      - run: echo "P3.45 TypeScript runtime + Rust replay + Python host adapter PASS"
+      - run: echo "P3.45 TypeScript IR/runtime + extension SDK + Rust replay + Python HWPX host adapter PASS"

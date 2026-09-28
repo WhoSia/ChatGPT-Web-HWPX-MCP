@@ -24,7 +24,9 @@ COPY contracts/p347_supply_chain_kernel.ts contracts/p347_supply_chain_kernel.ts
 COPY scripts/p347_supply_chain_cli.ts scripts/p347_supply_chain_cli.ts
 COPY contracts/p348_marketplace_kernel.ts contracts/p348_marketplace_kernel.ts
 COPY scripts/p348_marketplace_cli.ts scripts/p348_marketplace_cli.ts
-RUN mkdir -p /out && npx --yes -p typescript@5.9.2 tsc --strict --target ES2022 --module commonjs --rootDir . --outDir /out contracts/p345_runtime.ts contracts/p345_extension_sdk.ts scripts/p345_runtime_cli.ts contracts/p346_capability_kernel.ts contracts/p346_extension_sdk.ts scripts/p346_platform_cli.ts contracts/p347_supply_chain_kernel.ts scripts/p347_supply_chain_cli.ts contracts/p348_marketplace_kernel.ts scripts/p348_marketplace_cli.ts
+COPY contracts/p349_composition_kernel.ts contracts/p349_composition_kernel.ts
+COPY scripts/p349_composition_cli.ts scripts/p349_composition_cli.ts
+RUN mkdir -p /out && npx --yes -p typescript@5.9.2 tsc --strict --target ES2022 --module commonjs --rootDir . --outDir /out contracts/p345_runtime.ts contracts/p345_extension_sdk.ts scripts/p345_runtime_cli.ts contracts/p346_capability_kernel.ts contracts/p346_extension_sdk.ts scripts/p346_platform_cli.ts contracts/p347_supply_chain_kernel.ts scripts/p347_supply_chain_cli.ts contracts/p348_marketplace_kernel.ts scripts/p348_marketplace_cli.ts contracts/p349_composition_kernel.ts scripts/p349_composition_cli.ts
 
 FROM python:3.12-slim
 
@@ -114,6 +116,8 @@ COPY scripts/p347_release_smoke.py scripts/p347_release_smoke.py
 RUN python scripts/p347_release_smoke.py
 COPY scripts/p348_release_smoke.py scripts/p348_release_smoke.py
 RUN python scripts/p348_release_smoke.py
+COPY scripts/p349_release_smoke.py scripts/p349_release_smoke.py
+RUN python scripts/p349_release_smoke.py
 
 ENV MCP_HOST=0.0.0.0
 ENV MCP_PORT=8000

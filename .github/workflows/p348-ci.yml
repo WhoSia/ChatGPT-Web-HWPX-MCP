@@ -11,6 +11,7 @@ on:
       - "test_p348_*"
       - "server_p2.py"
       - "Dockerfile"
+      - "requirements.txt"
       - "test_client.py"
       - "P348_TEST_LEDGER.md"
       - ".github/workflows/p348-ci.yml"

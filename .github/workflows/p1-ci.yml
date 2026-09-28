@@ -121,7 +121,8 @@ jobs:
           python scripts/p345_release_smoke.py > /dev/null
           python scripts/p346_release_smoke.py > /dev/null
           python scripts/p347_release_smoke.py > /dev/null
-          python scripts/p348_release_smoke.py > /dev/null\n          python scripts/p349_release_smoke.py > /dev/null
+          python scripts/p348_release_smoke.py > /dev/null
+          python scripts/p349_release_smoke.py > /dev/null
 
       - name: HWPX lifecycle and fidelity unit tests
         run: python -m pytest -q

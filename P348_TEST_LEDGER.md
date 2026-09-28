@@ -27,3 +27,8 @@ Registry checkpoints are signed by the registry and require an independently con
 \`VERIFIABLE_NAMESPACE_CONTINUITY_PASS / TRANSPARENCY_HASH_CHAIN_PASS / MERKLE_CHECKPOINT_PASS / REGISTRY_WITNESS_QUORUM_PASS / FEDERATED_PREFIX_CONSISTENCY_PASS / SPLIT_VIEW_EQUIVOCATION_DETECTION_PASS / CAPABILITY_AWARE_DISCOVERY_PASS / YANK_REVOKE_SEMANTIC_SEPARATION_PASS / REVOKED_PACKAGE_ADMISSION_BLOCK_PASS / REVOKED_PACKAGE_ROLLBACK_OR_RETIRE_PASS / OFFLINE_VERIFIABLE_BUNDLE_PASS / P347_INSTALL_TIME_RECERTIFICATION_PRESERVED / P346_SANDBOX_AUTHORITY_PRESERVED\`.
 
 These remain targets until exact-head dedicated CI, full lifecycle, Docker and production-boundary evidence are observed.
+
+
+## Dependency-drift adjudication
+
+The first full-lifecycle P3.48 run exposed three legacy failures after PyPI resolution advanced from `python-hwpx 6.5.0` (the exact dependency observed on successful P3.47 lifecycle #1149) to `6.6.0`. The failures were outside the P3.48 surface: P3.18 orientation round-trip, P3.19 numbering-format interpretation, and P3.38 rich-builder orientation. P3.48 therefore freezes `python-hwpx==6.5.0` for the current production lineage rather than silently adapting historical semantics during marketplace work. Upstream 6.6+ migration is a separate explicit compatibility task, not an incidental dependency update.

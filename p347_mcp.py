@@ -104,6 +104,24 @@ class CertifiedPackageRegistry:
                 raise RuntimeError("P3.47 document has no configured extension trust policy")
             return copy.deepcopy(policy)
 
+    def package_record(self, document_id: str, package_id: str) -> dict:
+        """Return one already-admitted certified package record for trusted higher-layer composition."""
+        package_id = str(package_id or "")
+        with self._lock:
+            _generation, states, _promoted, _history = self._state(document_id)
+            if package_id not in states or package_id not in self._catalog:
+                raise KeyError("P3.47 package is not admitted to document")
+            item = self._catalog[package_id]
+            return {
+                "package_id": item.package_id,
+                "extension_id": item.extension_id,
+                "version": item.version,
+                "state": states[package_id],
+                "normalized": copy.deepcopy(item.normalized),
+                "certificate": copy.deepcopy(item.certificate),
+                "authority": "P347_CERTIFIED_PACKAGE_RECORD",
+            }
+
     def snapshot(self, document_id: str) -> dict:
         with self._lock:
             generation, states, promoted, history = self._state(document_id)

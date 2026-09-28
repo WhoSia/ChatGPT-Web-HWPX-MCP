@@ -62,7 +62,8 @@ jobs:
           npx --yes -p typescript@5.9.2 tsc --strict --target ES2022 --module commonjs --rootDir . --outDir .tmp/p345-ts contracts/p345_runtime.ts contracts/p345_extension_sdk.ts scripts/p345_runtime_cli.ts
           npx --yes -p typescript@5.9.2 tsc --strict --target ES2022 --module commonjs --rootDir . --outDir .tmp/p346-ts contracts/p346_capability_kernel.ts contracts/p346_extension_sdk.ts scripts/p346_platform_cli.ts
           npx --yes -p typescript@5.9.2 tsc --strict --target ES2022 --module commonjs --rootDir . --outDir .tmp/p347-ts contracts/p346_capability_kernel.ts contracts/p347_supply_chain_kernel.ts scripts/p347_supply_chain_cli.ts
-          npx --yes -p typescript@5.9.2 tsc --strict --target ES2022 --module commonjs --rootDir . --outDir .tmp/p348-ts contracts/p346_capability_kernel.ts contracts/p348_marketplace_kernel.ts scripts/p348_marketplace_cli.ts\n          npx --yes -p typescript@5.9.2 tsc --strict --target ES2022 --module commonjs --rootDir . --outDir .tmp/p349-ts contracts/p349_composition_kernel.ts scripts/p349_composition_cli.ts
+          npx --yes -p typescript@5.9.2 tsc --strict --target ES2022 --module commonjs --rootDir . --outDir .tmp/p348-ts contracts/p346_capability_kernel.ts contracts/p348_marketplace_kernel.ts scripts/p348_marketplace_cli.ts
+          npx --yes -p typescript@5.9.2 tsc --strict --target ES2022 --module commonjs --rootDir . --outDir .tmp/p349-ts contracts/p349_composition_kernel.ts scripts/p349_composition_cli.ts
           cargo build --release --manifest-path rust/p345_replay/Cargo.toml
           cargo build --release --manifest-path rust/p346_guard/Cargo.toml
           cargo build --release --manifest-path rust/p347_certifier/Cargo.toml

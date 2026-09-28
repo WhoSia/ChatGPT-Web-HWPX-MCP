@@ -1,0 +1,19 @@
+[package]
+name = "p348-marketplace-verifier"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+base64 = "0.22"
+ed25519-dalek = "2"
+hex = "0.4"
+serde_json = "1"
+sha2 = "0.10"
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "p348-marketplace-verifier"
+path = "src/main.rs"

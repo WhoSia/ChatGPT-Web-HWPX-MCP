@@ -106,8 +106,7 @@ def test_key_rotation_preserves_namespace_continuity_and_old_key_loses_authority
     assert m.verify_event_log([claim,rotate,published])["state"]["packages"][0]["state"]=="PUBLISHED"
 
     old_publish=copy.deepcopy(published)
-    old_publish.pop("verification",None);old_publish["publisher"]=current
-    old_publish["event_sha256"]=m.normalize_event(old_publish)["event_sha256"]
+    old_publish.pop("verification",None);old_publish.pop("event_sha256",None);old_publish["publisher"]=current
     old_publish=m.sign_marketplace_event(old_publish,keys["publisher"])
     with pytest.raises(RuntimeError,match="not current namespace owner"):
         m.verify_event_log([claim,rotate,old_publish])

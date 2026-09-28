@@ -328,7 +328,7 @@ async def main() -> None:
                 raise RuntimeError(f"probe_read did not expose current P3.48 product version: {read_payload}")
 
             p2_caps = _payload(await client.call_tool("p2_capabilities", {}))
-            if not p2_caps or p2_caps.get("phase") != "P3.47":
+            if not p2_caps or p2_caps.get("phase") != "P3.48":
                 raise RuntimeError(f"p2_capabilities failed: {p2_caps}")
 
             design_intelligence = _payload(await client.call_tool("get_document_design_intelligence_contract", {}))

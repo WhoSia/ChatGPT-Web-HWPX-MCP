@@ -115,6 +115,7 @@ A static preview PASS means native/layout mechanics look safe. It does **not** m
 ## P3.45 document transaction runtime boundary
 
 - Use **get_document_transaction_runtime_contract** before orchestrating multi-step edits that need replay, incremental invalidation, capability negotiation, or external-evidence pauses.
+- Call **get_document_runtime_capabilities** before relying on a built-in provider or negotiated capability; treat the returned catalog as runtime evidence, not a declaration inferred from the plan.
 - Express high-level work as declarative Authoring IR and call **compile_document_transaction**; do not manually reorder nodes after compilation.
 - Advance bounded work with **advance_document_transaction**. Mutation nodes are never cache-reused, and external-world-contact nodes stop at `WAIT_EXTERNAL`.
 - Resolve external nodes only with revision-bound measured receipts through **resolve_document_transaction_external**. Replay never fabricates Hancom/render evidence.

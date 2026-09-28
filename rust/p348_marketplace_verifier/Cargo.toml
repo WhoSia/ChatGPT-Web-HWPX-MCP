@@ -7,7 +7,9 @@ publish = false
 [dependencies]
 base64 = "0.22"
 ed25519-dalek = { version = "=2.1.1", default-features = false, features = ["std"] }
-hex = "0.4"\nzeroize = "=1.8.1"\nbase64ct = "=1.7.3"
+hex = "0.4"
+zeroize = "=1.8.1"
+base64ct = "=1.7.3"
 serde_json = "1"
 sha2 = "0.10"
 

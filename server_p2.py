@@ -195,9 +195,9 @@ from common_ir import (
     slice_common_ir,
 )
 
-P2_VERSION = "0.24.0-p3.47"
+P2_VERSION = "0.25.0-p3.48"
 core.VERSION = P2_VERSION
-core.PHASE = "P3.47"
+core.PHASE = "P3.48"
 
 _original_metadata = core._metadata
 
@@ -7079,6 +7079,13 @@ P346_DEVELOPER_PLATFORM = register_p346_tools(
 from p347_mcp import CertifiedPackageRegistry, register_p347_tools
 P347_CERTIFIED_PACKAGE_REGISTRY = CertifiedPackageRegistry()
 P347_EXTENSION_ECOSYSTEM = register_p347_tools(
+    core,
+    _owned_document,
+    P347_CERTIFIED_PACKAGE_REGISTRY,
+)
+
+from p348_mcp import register_p348_tools
+P348_PUBLIC_EXTENSION_MARKETPLACE = register_p348_tools(
     core,
     _owned_document,
     P347_CERTIFIED_PACKAGE_REGISTRY,

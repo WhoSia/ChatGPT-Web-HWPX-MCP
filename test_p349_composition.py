@@ -1,0 +1,11 @@
+from __future__ import annotations
+import p349_composition as c
+def rec(n,ext,effect="READ_ONLY",deps=None,tool=None):return {"package_id":"sha256:"+n*64,"extension_id":ext,"version":"1.0.0","certificate_sha256":n*64,"dependencies":deps or [],"capabilities":[{"name":ext+".cap","version":"1.0.0","effect":effect,"adapter":ext.upper(),"deterministic":True}],"tools":[] if tool is None else [{"name":tool,"effect":effect}]}
+def env():return {"p347_registry_generation":4,"trust_policy_sha256":"a"*64,"p346_adapter_generation":2,"p346_adapter_contract_sha256":"b"*64,"joint_host_conformance_sha256":"c"*64}
+def req(packages,order,max_effect="DELIVERY"):return {"schema":"chatgpt-web-hwpx-mcp/p3.49/composition-request/v1","packages":packages,"serial_order":order,"max_effect":max_effect,"environment":env()}
+def test_dependency_order_and_noncommutative_order_are_bound_into_identity():
+    a=rec("1","acme.a","DOCUMENT_MUTATION");b=rec("2","acme.b","DOCUMENT_MUTATION",[{"package_id":a["package_id"],"extension_id":"acme.a","version":"1.0.0"}]);x=c.analyze_composition(req([a,b],[a["package_id"],b["package_id"]]));assert x["status"]=="PASS" and x["noncommutative_serialization"];y=c.analyze_composition(req([a,b],[b["package_id"],a["package_id"]]));assert y["status"]=="FAIL";assert "DEPENDENCY_ORDER_VIOLATION" in {z["type"] for z in y["conflicts"]}
+def test_capability_collision_and_effect_budget_fail_closed():
+    a=rec("1","acme.a");b=rec("2","acme.b");b["capabilities"][0]["name"]=a["capabilities"][0]["name"];out=c.analyze_composition(req([a,b],[a["package_id"],b["package_id"]]));assert out["status"]=="FAIL";assert "CAPABILITY_PROVIDER_COLLISION" in {z["type"] for z in out["conflicts"]};m=rec("3","acme.m","DOCUMENT_MUTATION");out=c.analyze_composition(req([m],[m["package_id"]],"READ_ONLY"));assert out["status"]=="FAIL";assert out["minimal_culpable_packages"]==[m["package_id"]]
+def test_missing_dependency_localizes_culprit():
+    a=rec("1","acme.a",deps=[{"package_id":"sha256:"+"9"*64,"extension_id":"acme.z","version":"1.0.0"}]);out=c.analyze_composition(req([a],[a["package_id"]]));assert out["status"]=="FAIL";assert "MISSING_DEPENDENCY" in {z["type"] for z in out["conflicts"]}

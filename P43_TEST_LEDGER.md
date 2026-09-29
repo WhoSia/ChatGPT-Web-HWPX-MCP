@@ -72,3 +72,18 @@ PASS requires:
 
 ## Closure target
 `P43_REPRESENTATIVE_MATRIX_PASS / P43_MULTI_ORACLE_CONSENSUS_PASS / P43_CROSS_RELEASE_HISTORY_PASS / P43_PROVISIONAL_BUDGET_PASS / P43_FAILURE_BUNDLE_PASS / P43_REGRESSION_LOCALIZATION_PASS / P43_HEALTH_GATE_PASS / P42_AUTHORITY_PRESERVED / FULL_LIFECYCLE_PASS / EXACT_DOCKER_PASS / EXACT_HEAD_RENDER_DEPLOY_PASS / PRODUCTION_BOUNDARY_PASS`
+
+## First P4.3 release-health observation
+- measured head: `c4a48b2ee45758a0f87d01bd5496bc7950c97321`
+- generated matrix: **24/24 PASS**, 4 internal feature families
+- immutable external matrix: **8/8 product-authority PASS**, **8/8 hwpxkit agreement**, 8 external feature families, 2 upstream repositories
+- combined blocking denominator: **32 documents/fixtures / 12 feature families / 100% independent-oracle coverage**
+- performance: create+validate p95 **125.54 ms**; existing validate p95 **1.13 ms**; `PROVISIONAL_HARD_BUDGET` PASS
+- release-health: **PASS / failed_gates=[] / failure_bundles=0**
+- live Ministry freshness lane: **UNAVAILABLE in this run**, preserved as nonblocking acquisition evidence (artifact `11014381855`)
+- release-health artifact: `11014372061`
+- immutable external artifact: `11014206214`
+- performance artifact: `11014087185`
+- generated matrix artifact: `11013687876`
+
+P4.3 is the third exact-head benchmark observation. Calibrated SLO remains intentionally disabled until at least five release observations exist.

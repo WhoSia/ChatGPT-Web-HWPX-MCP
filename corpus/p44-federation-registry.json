@@ -1,0 +1,13 @@
+{
+  "schema":"chatgpt-web-hwpx-mcp/p4.4/federated-corpus-registry/v1",
+  "sources":[
+    {"namespace":"internal-generated","institution":"ChatGPT Web HWPX MCP","archetype":"generated regression corpus","source_kind":"GENERATED_INTERNAL","blocking":true},
+    {"namespace":"airmang/python-hwpx","institution":"airmang/python-hwpx","archetype":"upstream HWPX fixtures","source_kind":"IMMUTABLE_UPSTREAM","license":"Apache-2.0","blocking":true},
+    {"namespace":"Han-taz/hwpx-rust","institution":"Han-taz/hwpx-rust","archetype":"upstream HWPX fixtures","source_kind":"IMMUTABLE_UPSTREAM","license":"MIT","blocking":true},
+    {"namespace":"kr-moe-live","institution":"교육부","archetype":"official public HWPX","source_kind":"LIVE_OFFICIAL_FRESHNESS","license":"KOGL_TYPE_1_ATTRIBUTION","blocking":false}
+  ],
+  "source_records":[
+    {"record_kind":"SOURCE_REGISTRY","source_id":"internal-generated-p43-closure","federation_namespace":"internal-generated","institution":"ChatGPT Web HWPX MCP","archetype":"24 generated fixtures / 4 families","source_kind":"GENERATED_INTERNAL","blocking":true,"acquisition_status":"MATERIALIZED_IN_CI","observed_at":"2026-09-29T05:08:04+00:00"},
+    {"record_kind":"SOURCE_REGISTRY","source_id":"moe-p43-live-freshness-lane","federation_namespace":"kr-moe-live","institution":"교육부","archetype":"official public HWPX","source_kind":"LIVE_OFFICIAL_FRESHNESS","license":"KOGL_TYPE_1_ATTRIBUTION","blocking":false,"acquisition_status":"ACQUISITION_UNAVAILABLE_NONBLOCKING","observed_at":"2026-09-29T05:08:04+00:00"}
+  ]
+}

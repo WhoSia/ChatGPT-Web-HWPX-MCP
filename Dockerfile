@@ -131,6 +131,8 @@ COPY corpus/p43-immutable-external-fixtures.json corpus/p43-immutable-external-f
 COPY corpus/p44-federation-registry.json corpus/p44-federation-registry.json
 COPY scripts/p44_release_smoke.py scripts/p44_release_smoke.py
 RUN python scripts/p44_release_smoke.py
+COPY scripts/p45_release_smoke.py scripts/p45_release_smoke.py
+RUN python scripts/p45_release_smoke.py
 
 ENV MCP_HOST=0.0.0.0
 ENV MCP_PORT=8000

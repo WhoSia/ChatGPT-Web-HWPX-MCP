@@ -24,6 +24,18 @@
         "existing_validate_p95_ms": 1.359
       },
       "authority": "FROZEN_EXACT_HEAD_CI_OBSERVATION"
+    },
+    {
+      "phase": "P4.3",
+      "product": "0.29.0-p4.3",
+      "exact_head": "c4a48b2ee45758a0f87d01bd5496bc7950c97321",
+      "python_hwpx": "6.6.0",
+      "sample_count": 7,
+      "metrics": {
+        "create_validate_p95_ms": 125.54,
+        "existing_validate_p95_ms": 1.13
+      },
+      "authority": "FROZEN_EXACT_HEAD_P43_HEALTH_GATE_OBSERVATION"
     }
   ],
   "policy": {

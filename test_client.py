@@ -305,6 +305,11 @@ async def main() -> None:
                 "get_dependency_migration_contract",
                 "get_dependency_runtime_state",
                 "adjudicate_dependency_upgrade",
+                "get_continuous_product_health_contract",
+                "get_cross_release_benchmark_history",
+                "localize_product_regression",
+                "build_reproducible_failure_bundle",
+                "adjudicate_continuous_product_health",
             }
             missing = expected - set(names)
             if missing:
@@ -331,12 +336,12 @@ async def main() -> None:
                     f"inspector={inspector_annotations} swap={swap_annotations}"
                 )
 
-            read_payload = _payload(await client.call_tool("probe_read", {"message": "P4.2 OAuth smoke test"}))
-            if not read_payload or not read_payload.get("ok") or read_payload.get("version") != "0.28.0-p4.2":
-                raise RuntimeError(f"probe_read did not expose current P4.2 product version: {read_payload}")
+            read_payload = _payload(await client.call_tool("probe_read", {"message": "P4.3 OAuth smoke test"}))
+            if not read_payload or not read_payload.get("ok") or read_payload.get("version") != "0.29.0-p4.3":
+                raise RuntimeError(f"probe_read did not expose current P4.3 product version: {read_payload}")
 
             p2_caps = _payload(await client.call_tool("p2_capabilities", {}))
-            if not p2_caps or p2_caps.get("phase") != "P4.2":
+            if not p2_caps or p2_caps.get("phase") != "P4.3":
                 raise RuntimeError(f"p2_capabilities failed: {p2_caps}")
 
             p41_contract = _payload(await client.call_tool("get_product_operational_readiness_contract", {}))
@@ -366,6 +371,19 @@ async def main() -> None:
             p42_runtime = _payload(await client.call_tool("get_dependency_runtime_state", {}))
             if not p42_runtime or p42_runtime.get("candidate") != "6.6.0":
                 raise RuntimeError(f"P4.2 runtime state failed: {p42_runtime}")
+
+            p43_contract = _payload(await client.call_tool("get_continuous_product_health_contract", {}))
+            if (
+                not p43_contract
+                or p43_contract.get("phase") != "P4.3"
+                or p43_contract.get("product") != "0.29.0-p4.3"
+                or len(p43_contract.get("independent_oracles", [])) < 3
+            ):
+                raise RuntimeError(f"P4.3 product health contract failed: {p43_contract}")
+
+            p43_history = _payload(await client.call_tool("get_cross_release_benchmark_history", {}))
+            if not p43_history or int(p43_history.get("entry_count", 0)) < 2:
+                raise RuntimeError(f"P4.3 benchmark history failed: {p43_history}")
 
             design_intelligence = _payload(await client.call_tool("get_document_design_intelligence_contract", {}))
             if (

@@ -1,0 +1,34 @@
+{
+  "schema": "chatgpt-web-hwpx-mcp/p4.3/cross-release-history/v1",
+  "entries": [
+    {
+      "phase": "P4.1",
+      "product": "0.27.0-p4.1",
+      "exact_head": "0308498822fbaaf1d03cbbe0c480f51487d8f542",
+      "python_hwpx": "6.5.0",
+      "sample_count": 2,
+      "metrics": {
+        "create_validate_p95_ms": 298.197,
+        "existing_validate_p95_ms": 1.274
+      },
+      "authority": "FROZEN_EXACT_HEAD_CI_OBSERVATION"
+    },
+    {
+      "phase": "P4.2",
+      "product": "0.28.0-p4.2",
+      "exact_head": "41b7b0f6961ca2d51251b1adbe03cdcf5ad702fd",
+      "python_hwpx": "6.6.0",
+      "sample_count": 3,
+      "metrics": {
+        "create_validate_p95_ms": 113.801,
+        "existing_validate_p95_ms": 1.359
+      },
+      "authority": "FROZEN_EXACT_HEAD_CI_OBSERVATION"
+    }
+  ],
+  "policy": {
+    "minimum_releases_for_calibrated_slo": 5,
+    "precalibration_mode": "PROVISIONAL_HARD_BUDGET",
+    "history_mutation": "REVIEWED_APPEND_ONLY_RELEASE_COMMIT"
+  }
+}

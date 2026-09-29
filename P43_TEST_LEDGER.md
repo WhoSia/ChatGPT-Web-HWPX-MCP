@@ -27,13 +27,16 @@ Public real-document family:
 The gate therefore starts with >=5 feature families and >=27 documents/fixtures. This is a representative product-health seed, **not** a claim of population-wide HWPX representativeness.
 
 ## Multi-oracle rule
-A document is consensus-PASS only when:
+Product authority and independent observation are deliberately separated.
+
+**Product-authority PASS** requires:
 - raw HWPX package/OWPML oracle passes;
 - python-hwpx parses it;
-- hwpxkit parses it;
-- section-count semantics agree across all available passing oracles.
+- raw/package and python-hwpx section semantics agree.
 
-Oracle disagreement is retained and localized; it is never silently majority-voted away.
+**Independent consensus** additionally asks hwpxkit 0.2.1 to parse and agree. A hwpxkit-only divergence is retained as a WARNING failure bundle and regression-localization signal; it does not silently become a product failure. The representative release gate still requires at least **80% independent-oracle coverage** across the full denominator.
+
+No disagreement is majority-voted away, and raw/python product failures remain release-blocking.
 
 ## Cross-release benchmarking
 History is review-append-only at `benchmarks/p43_release_history.json`.

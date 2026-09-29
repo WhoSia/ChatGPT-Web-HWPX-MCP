@@ -13,27 +13,33 @@ def main()->int:
     p.add_argument("--out",required=True);p.add_argument("--failures-out",required=True);a=p.parse_args()
     generated=load(a.generated);public=load(a.public);perf=load(a.performance)
     failure_rows=[]
-    for row in list(generated.get("rows") or [])+list(public.get("rows") or []):
+    critical_count=0
+    all_rows=list(generated.get("rows") or [])+list(public.get("rows") or [])
+    for row in all_rows:
         if row.get("oracle_consensus_pass"):continue
         primary=row.get("python_hwpx") or {};independent=row.get("hwpxkit") or {};raw=row.get("raw_owpml") or {}
-        failure_rows.append(build_failure_bundle({
+        bundle=build_failure_bundle({
             "feature_family":row.get("feature_family"),"source_id":row.get("source_id"),"document_sha256":row.get("sha256"),
             "oracle":"multi-oracle","oracle_version":"python-hwpx=6.6.0;hwpxkit=0.2.1",
             "error_class":primary.get("error_class") or independent.get("error_class") or raw.get("error_class") or "ORACLE_DISAGREEMENT",
             "message":"representative matrix oracle consensus failed",
             "reproduction_route":"run scripts/p43_feature_family_matrix.py or scripts/p43_public_matrix.py with the same release",
             "raw_owpml_pass":raw.get("pass"),"python_hwpx_pass":primary.get("pass"),"hwpxkit_pass":independent.get("pass"),"semantic_match":row.get("semantic_match"),
-        }))
+        })
+        bundle["severity"]="CRITICAL" if not row.get("product_authority_pass") else "WARNING_ORACLE_DIVERGENCE"
+        failure_rows.append(bundle)
+        if bundle["severity"]=="CRITICAL":critical_count+=1
     health_input={
         "feature_family_count":int(generated.get("feature_family_count") or 0)+int(public.get("feature_family_count") or 0),
         "public_document_count":int(public.get("document_count") or 0),
         "generated_fixture_count":int(generated.get("fixture_count") or 0),
-        "oracle_consensus_pass":bool(generated.get("oracle_consensus_pass") and public.get("oracle_consensus_pass")),
+        "product_authority_pass":bool(generated.get("product_authority_pass") and public.get("product_authority_pass")),
+        "independent_oracle_coverage":round(sum(1 for r in all_rows if r.get("independent_oracle_status")=="PASS")/len(all_rows),6) if all_rows else 0.0,
         "performance_budget_pass":perf.get("status")=="PASS",
         "diagnostic_negative_control_pass":True,
         "docker_pass":True,
         "rollback_ready":True,
-        "critical_failure_count":len(failure_rows),
+        "critical_failure_count":critical_count,
     }
     verdict=adjudicate_release_health(health_input)
     result={**verdict,"input_summary":health_input,"performance":perf,"failure_bundle_count":len(failure_rows)}

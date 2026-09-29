@@ -1,0 +1,76 @@
+name: P4.1 production operational readiness gate
+on:
+  push:
+    branches: [main]
+    paths:
+      - "p41_*"
+      - "test_p41_*"
+      - "scripts/p41_*"
+      - "server_p2.py"
+      - "Dockerfile"
+      - "test_client.py"
+      - "scripts/verify_production_boundary.py"
+      - ".github/workflows/p41-ci.yml"
+      - ".github/workflows/p1-ci.yml"
+  pull_request:
+    branches: [main]
+permissions: {contents: read}
+jobs:
+  operational-unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12", cache: pip}
+      - run: pip install -r requirements.txt -r requirements-dev.txt
+      - run: |
+          python -m compileall -q p41_operational.py p41_mcp.py test_p41_operational.py test_p41_mcp.py scripts/p41_baseline.py scripts/p41_compatibility_probe.py scripts/p41_release_smoke.py
+          python -m pytest -q test_p41_operational.py test_p41_mcp.py
+          python scripts/p41_release_smoke.py
+          python scripts/p41_baseline.py --out p41-baseline.json --samples 2
+      - uses: actions/upload-artifact@v4
+        with:
+          name: p41-operational-baseline
+          path: p41-baseline.json
+
+  pinned-compatibility:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12", cache: pip}
+      - run: pip install -r requirements.txt -r requirements-dev.txt
+      - run: python scripts/p41_compatibility_probe.py --expected-version 6.5.0 --mode pinned --out p41-compat-6.5.0.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: p41-compat-python-hwpx-6.5.0
+          path: p41-compat-6.5.0.json
+
+  migration-candidate-compatibility:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12", cache: pip}
+      - run: |
+          pip install -r requirements.txt -r requirements-dev.txt
+          pip install --upgrade --force-reinstall python-hwpx==6.6.0
+      - run: python scripts/p41_compatibility_probe.py --expected-version 6.6.0 --mode candidate --out p41-compat-6.6.0.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: p41-compat-python-hwpx-6.6.0
+          path: p41-compat-6.6.0.json
+
+  docker-image:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build --progress=plain -t hwpx-mcp-p41:${{ github.sha }} .
+      - run: docker run --rm --entrypoint /bin/sh hwpx-mcp-p41:${{ github.sha }} -c 'python scripts/p41_release_smoke.py'
+
+  gate:
+    needs: [operational-unit, pinned-compatibility, migration-candidate-compatibility, docker-image]
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "P4.1 production operational readiness gate PASS"

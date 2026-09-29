@@ -297,6 +297,11 @@ async def main() -> None:
                 "validate_sandboxed_document_extension",
                 "execute_sandboxed_document_extension_probe",
                 "generate_document_platform_contracts",
+                "get_product_operational_readiness_contract",
+                "get_product_runtime_compatibility",
+                "profile_product_operational_baseline",
+                "diagnose_product_failure",
+                "evaluate_python_hwpx_upgrade",
             }
             missing = expected - set(names)
             if missing:
@@ -323,13 +328,28 @@ async def main() -> None:
                     f"inspector={inspector_annotations} swap={swap_annotations}"
                 )
 
-            read_payload = _payload(await client.call_tool("probe_read", {"message": "P3.49 OAuth smoke test"}))
-            if not read_payload or not read_payload.get("ok") or read_payload.get("version") != "0.26.0-p3.49":
-                raise RuntimeError(f"probe_read did not expose current P3.49 product version: {read_payload}")
+            read_payload = _payload(await client.call_tool("probe_read", {"message": "P4.1 OAuth smoke test"}))
+            if not read_payload or not read_payload.get("ok") or read_payload.get("version") != "0.27.0-p4.1":
+                raise RuntimeError(f"probe_read did not expose current P4.1 product version: {read_payload}")
 
             p2_caps = _payload(await client.call_tool("p2_capabilities", {}))
-            if not p2_caps or p2_caps.get("phase") != "P3.49":
+            if not p2_caps or p2_caps.get("phase") != "P4.1":
                 raise RuntimeError(f"p2_capabilities failed: {p2_caps}")
+
+            p41_contract = _payload(await client.call_tool("get_product_operational_readiness_contract", {}))
+            if (
+                not p41_contract
+                or p41_contract.get("phase") != "P4.1"
+                or p41_contract.get("product") != "0.27.0-p4.1"
+                or p41_contract.get("new_architecture_by_default") is not False
+            ):
+                raise RuntimeError(f"P4.1 operational contract failed: {p41_contract}")
+
+            p41_compat = _payload(await client.call_tool("get_product_runtime_compatibility", {
+                "candidate_python_hwpx_version": "6.6.0"
+            }))
+            if not p41_compat or p41_compat.get("production_pin_unchanged") is not True:
+                raise RuntimeError(f"P4.1 compatibility surface failed: {p41_compat}")
 
             design_intelligence = _payload(await client.call_tool("get_document_design_intelligence_contract", {}))
             if (

@@ -195,9 +195,9 @@ from common_ir import (
     slice_common_ir,
 )
 
-P2_VERSION = "0.26.0-p3.49"
+P2_VERSION = "0.27.0-p4.1"
 core.VERSION = P2_VERSION
-core.PHASE = "P3.49"
+core.PHASE = "P4.1"
 
 _original_metadata = core._metadata
 
@@ -7098,6 +7098,9 @@ P349_EXTENSION_COMPOSITION = register_p349_tools(
     P347_CERTIFIED_PACKAGE_REGISTRY,
     P346_ADAPTER_REGISTRY,
 )
+
+from p41_mcp import register_p41_tools
+P41_OPERATIONAL_READINESS = register_p41_tools(core)
 
 
 if __name__ == "__main__":

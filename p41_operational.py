@@ -16,7 +16,8 @@ from typing import Any, Callable, Mapping
 
 PRODUCT = "0.27.0-p4.1"
 PHASE = "P4.1"
-PINNED_PYTHON_HWPX = "6.5.0"
+P41_BASELINE_PYTHON_HWPX = "6.5.0"
+PINNED_PYTHON_HWPX = "6.6.0"
 DEFAULT_MIGRATION_CANDIDATE = "6.6.0"
 
 _FAILURES = {
@@ -112,7 +113,9 @@ def operational_readiness_contract() -> dict:
             "UPGRADE_MIGRATION",
             "RELEASE_OPERATIONAL_READINESS",
         ],
+        "p41_baseline_python_hwpx_pin": P41_BASELINE_PYTHON_HWPX,
         "production_python_hwpx_pin": PINNED_PYTHON_HWPX,
+        "production_pin_authority": "P4.2",
         "default_migration_candidate": DEFAULT_MIGRATION_CANDIDATE,
         "new_architecture_by_default": False,
         "measurement_is_not_world_contact": True,
@@ -138,7 +141,7 @@ def runtime_compatibility_matrix(candidate_version: str = DEFAULT_MIGRATION_CAND
         {"component": "mcp", "observed": mcp_version, "expected": "2.2.0", "status": "SUPPORTED" if mcp_supported else "UNVALIDATED"},
         {"component": "lxml", "observed": lxml_version, "expected": ">=5,<7", "status": "SUPPORTED" if lxml_supported else "UNVALIDATED"},
         {"component": "node", "observed": node_version, "expected": "runtime available", "status": "SUPPORTED" if node_version else "MISSING"},
-        {"component": "python-hwpx migration candidate", "observed": candidate_version, "expected": "CI evidence before promotion", "status": "REQUIRES_MIGRATION_GATE"},
+        {"component": "python-hwpx migration target", "observed": candidate_version, "expected": PINNED_PYTHON_HWPX, "status": "PROMOTED_BY_P4.2" if str(candidate_version) == PINNED_PYTHON_HWPX else "REQUIRES_MIGRATION_GATE"},
     ]
     ready = python_supported and hwpx_supported and mcp_supported and lxml_supported and bool(node_version)
     payload = {

@@ -31,6 +31,7 @@ RUN mkdir -p /out && npx --yes -p typescript@5.9.2 tsc --strict --target ES2022 
 FROM python:3.12-slim
 
 WORKDIR /app
+ENV HWPX_PRODUCT_RELEASE=0.30.0-p4.4
 
 COPY requirements.txt .
 RUN apt-get update && apt-get install -y --no-install-recommends nodejs && rm -rf /var/lib/apt/lists/*

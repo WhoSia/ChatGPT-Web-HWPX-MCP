@@ -412,8 +412,10 @@ async def main() -> None:
                 raise RuntimeError(f"P4.4 operator dashboard failed: {p44_dashboard}")
 
             p44_route = _payload(await client.call_tool("route_native_render_world_contact", {
-                "locus": "INDEPENDENT_ORACLE_DIVERGENCE",
-                "severity": "HIGH"
+                "observation": {
+                    "locus": "INDEPENDENT_ORACLE_DIVERGENCE",
+                    "severity": "HIGH"
+                }
             }))
             if not p44_route or p44_route.get("route") != "NATIVE_RENDER_REQUIRED":
                 raise RuntimeError(f"P4.4 native-render routing failed: {p44_route}")

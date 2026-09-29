@@ -1,0 +1,24 @@
+name: P4.5 calibrated quality-control plane
+on:
+  push:
+    branches: [main]
+    paths: ["p45_*", "test_p45_*", "scripts/p45_*", "server_p2.py", "Dockerfile", ".github/workflows/p45-ci.yml", ".github/workflows/p1-ci.yml"]
+permissions: {contents: read}
+jobs:
+  quality-control:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12", cache: pip}
+      - run: pip install -r requirements.txt -r requirements-dev.txt
+      - run: python -m compileall -q p45_quality_control.py p45_mcp.py test_p45_quality_control.py test_p45_mcp.py scripts/p45_release_smoke.py
+      - run: python -m pytest -q test_p45_quality_control.py test_p45_mcp.py
+      - run: python scripts/p45_release_smoke.py
+  docker-exact-head:
+    runs-on: ubuntu-latest
+    needs: quality-control
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build --progress=plain -t hwpx-mcp-p45:${{ github.sha }} .
+      - run: docker run --rm --entrypoint /bin/sh hwpx-mcp-p45:${{ github.sha }} -c 'python scripts/p45_release_smoke.py'

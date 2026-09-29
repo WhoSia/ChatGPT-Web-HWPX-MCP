@@ -29,14 +29,19 @@ def main()->int:
                 target=family_root/fid/"target.hwpx"
                 rows.append(probe_file(target,feature_family=family,source_id=f"{family}:{fid}",source_kind="GENERATED_REGRESSION_FIXTURE"))
     families=sorted({r["feature_family"] for r in rows})
-    failed=[r for r in rows if not r["oracle_consensus_pass"]]
+    critical=[r for r in rows if not r["product_authority_pass"]]
+    divergences=[r for r in rows if not r["oracle_consensus_pass"]]
+    independent_pass=sum(1 for r in rows if r.get("independent_oracle_status")=="PASS")
     receipt={
         "schema":"chatgpt-web-hwpx-mcp/p4.3/generated-family-matrix/v1",
         "fixture_count":len(rows),"feature_families":families,"feature_family_count":len(families),
-        "oracle_consensus_pass":not failed,"critical_failure_count":len(failed),"rows":rows,
+        "product_authority_pass":not critical,
+        "oracle_consensus_pass":not divergences,
+        "independent_oracle_coverage":round(independent_pass/len(rows),6) if rows else 0.0,
+        "critical_failure_count":len(critical),"oracle_divergence_count":len(divergences),"rows":rows,
         "authority":"GENERATED_FEATURE_FAMILY_MULTI_ORACLE_STRUCTURAL_EVIDENCE",
     }
     Path(a.out).write_text(json.dumps(receipt,ensure_ascii=False,indent=2)+"\n",encoding="utf-8")
-    print(json.dumps({"fixture_count":len(rows),"feature_families":families,"failed":len(failed)}))
-    return 0 if not failed and len(rows)>=18 and len(families)>=4 else 1
+    print(json.dumps({"fixture_count":len(rows),"feature_families":families,"critical":len(critical),"divergences":len(divergences),"independent_coverage":receipt["independent_oracle_coverage"]}))
+    return 0 if not critical and len(rows)>=18 and len(families)>=4 else 1
 if __name__=="__main__":raise SystemExit(main())

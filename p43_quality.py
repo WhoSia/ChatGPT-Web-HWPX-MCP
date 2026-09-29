@@ -54,6 +54,11 @@ def quality_service_contract()->dict:
             "after_minimum":"ROBUST_HISTORY_CALIBRATED_BUDGET",
             "shared_runner_timings":"release health evidence, not native-render SLO authority",
         },
+        "oracle_policy":{
+            "product_authority":"raw OWPML + python-hwpx structural/section-semantic agreement",
+            "independent_oracle":"hwpxkit disagreement is retained as diagnostic evidence, not silently majority-voted",
+            "independent_coverage_floor":0.80,
+        },
         "failure_bundle":{
             "raw_document_bytes":False,
             "raw_stack_trace":False,

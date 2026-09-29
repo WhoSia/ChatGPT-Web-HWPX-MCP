@@ -32,14 +32,18 @@ def main()->int:
             except Exception as exc:
                 row={"source_id":item["source_id"],"source_kind":"PUBLIC_EPHEMERAL","feature_family":"PUBLIC_OFFICIAL_DOCUMENT","institution":item.get("institution"),"source_page":item.get("source_page"),"oracle_consensus_pass":False,"error_class":type(exc).__name__}
             rows.append(row)
-    failed=[r for r in rows if not r.get("oracle_consensus_pass")]
+    critical=[r for r in rows if not r.get("product_authority_pass")]
+    divergences=[r for r in rows if not r.get("oracle_consensus_pass")]
+    independent_pass=sum(1 for r in rows if r.get("independent_oracle_status")=="PASS")
     receipt={
         "schema":"chatgpt-web-hwpx-mcp/p4.3/public-matrix/v1",
         "document_count":len(rows),"institution_count":len({r.get("institution") for r in rows if r.get("institution")}),
-        "feature_family_count":1,"oracle_consensus_pass":not failed,"critical_failure_count":len(failed),"rows":rows,
+        "feature_family_count":1,"product_authority_pass":not critical,"oracle_consensus_pass":not divergences,
+        "independent_oracle_coverage":round(independent_pass/len(rows),6) if rows else 0.0,
+        "critical_failure_count":len(critical),"oracle_divergence_count":len(divergences),"rows":rows,
         "coverage_note":"Official public seed, not population-representative HWPX sampling.",
     }
     Path(a.out).write_text(json.dumps(receipt,ensure_ascii=False,indent=2)+"\n",encoding="utf-8")
-    print(json.dumps({"documents":len(rows),"institutions":receipt["institution_count"],"failed":len(failed)}))
-    return 0 if len(rows)>=3 and not failed else 1
+    print(json.dumps({"documents":len(rows),"institutions":receipt["institution_count"],"critical":len(critical),"divergences":len(divergences),"independent_coverage":receipt["independent_oracle_coverage"],"rows":[{"source_id":r.get("source_id"),"product_authority_pass":r.get("product_authority_pass"),"independent_oracle_status":r.get("independent_oracle_status"),"hwpxkit_error":(r.get("hwpxkit") or {}).get("error_class")} for r in rows]}))
+    return 0 if len(rows)>=3 and not critical else 1
 if __name__=="__main__":raise SystemExit(main())

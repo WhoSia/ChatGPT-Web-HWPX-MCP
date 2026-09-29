@@ -310,6 +310,15 @@ async def main() -> None:
                 "localize_product_regression",
                 "build_reproducible_failure_bundle",
                 "adjudicate_continuous_product_health",
+                "get_release_health_intelligence_contract",
+                "append_release_health_observation",
+                "query_release_health_history",
+                "query_federated_corpus_provenance",
+                "attribute_document_feature_families",
+                "detect_release_compatibility_drift",
+                "route_native_render_world_contact",
+                "get_operator_quality_dashboard",
+                "export_operator_support_bundle",
             }
             missing = expected - set(names)
             if missing:
@@ -336,12 +345,12 @@ async def main() -> None:
                     f"inspector={inspector_annotations} swap={swap_annotations}"
                 )
 
-            read_payload = _payload(await client.call_tool("probe_read", {"message": "P4.3 OAuth smoke test"}))
-            if not read_payload or not read_payload.get("ok") or read_payload.get("version") != "0.29.0-p4.3":
-                raise RuntimeError(f"probe_read did not expose current P4.3 product version: {read_payload}")
+            read_payload = _payload(await client.call_tool("probe_read", {"message": "P4.4 OAuth smoke test"}))
+            if not read_payload or not read_payload.get("ok") or read_payload.get("version") != "0.30.0-p4.4":
+                raise RuntimeError(f"probe_read did not expose current P4.4 product version: {read_payload}")
 
             p2_caps = _payload(await client.call_tool("p2_capabilities", {}))
-            if not p2_caps or p2_caps.get("phase") != "P4.3":
+            if not p2_caps or p2_caps.get("phase") != "P4.4":
                 raise RuntimeError(f"p2_capabilities failed: {p2_caps}")
 
             p41_contract = _payload(await client.call_tool("get_product_operational_readiness_contract", {}))
@@ -384,6 +393,30 @@ async def main() -> None:
             p43_history = _payload(await client.call_tool("get_cross_release_benchmark_history", {}))
             if not p43_history or int(p43_history.get("entry_count", 0)) < 2:
                 raise RuntimeError(f"P4.3 benchmark history failed: {p43_history}")
+
+            p44_contract = _payload(await client.call_tool("get_release_health_intelligence_contract", {}))
+            if (
+                not p44_contract
+                or p44_contract.get("phase") != "P4.4"
+                or p44_contract.get("product") != "0.30.0-p4.4"
+                or p44_contract.get("store_mode") != "postgres-append-only-quality-intelligence"
+            ):
+                raise RuntimeError(f"P4.4 health intelligence contract failed: {p44_contract}")
+
+            p44_history = _payload(await client.call_tool("query_release_health_history", {"limit": 10}))
+            if not p44_history or int(p44_history.get("count", 0)) < 3:
+                raise RuntimeError(f"P4.4 durable release history failed: {p44_history}")
+
+            p44_dashboard = _payload(await client.call_tool("get_operator_quality_dashboard", {}))
+            if not p44_dashboard or int(p44_dashboard.get("release_observation_count", 0)) < 3:
+                raise RuntimeError(f"P4.4 operator dashboard failed: {p44_dashboard}")
+
+            p44_route = _payload(await client.call_tool("route_native_render_world_contact", {
+                "locus": "INDEPENDENT_ORACLE_DIVERGENCE",
+                "severity": "HIGH"
+            }))
+            if not p44_route or p44_route.get("route") != "NATIVE_RENDER_REQUIRED":
+                raise RuntimeError(f"P4.4 native-render routing failed: {p44_route}")
 
             design_intelligence = _payload(await client.call_tool("get_document_design_intelligence_contract", {}))
             if (

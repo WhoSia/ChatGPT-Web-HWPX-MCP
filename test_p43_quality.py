@@ -10,7 +10,7 @@ def test_contract_and_history_are_bounded():
     assert c["product"]=="0.29.0-p4.3"
     assert c["independent_oracles"][2]["name"]=="hwpxkit"
     h=load_release_history()
-    assert h["entry_count"]==2
+    assert h["entry_count"]==3
     b=calibrate_budget(h,"create_validate_p95_ms")
     assert b["mode"]=="PROVISIONAL_HARD_BUDGET"
     assert b["calibrated_slo"] is False

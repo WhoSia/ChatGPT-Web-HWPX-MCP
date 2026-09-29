@@ -21,10 +21,19 @@ Generated feature families:
 3. ADVANCED_TABLES — P3.23 regression corpus
 4. DRAWING_LAYER — P3.25 regression corpus
 
-Public real-document family:
-5. PUBLIC_OFFICIAL_DOCUMENT — three official Ministry of Education HWPX artifacts, ephemeral CI acquisition.
+Immutable external fixture families, pinned to exact upstream commits and Git blob identities:
+5. FORMATTING
+6. NOTES
+7. FORM_FIELDS
+8. NUMBERING
+9. MERGED_TABLES
+10. TEXTBOX_FIELDS
+11. HYPERLINKS
+12. LINE_SPACING
 
-The gate therefore starts with >=5 feature families and >=27 documents/fixtures. This is a representative product-health seed, **not** a claim of population-wide HWPX representativeness.
+Sources are split across Apache-2.0 `airmang/python-hwpx` and MIT `Han-taz/hwpx-rust`. The blocking denominator therefore begins with **12 feature families / 32 generated-or-immutable fixtures**.
+
+The three official Ministry of Education HWPX URLs remain a **live freshness lane**. Their availability/parser observations are recorded but do not block a release when the source site is transiently unavailable. This is a representative product-health seed, **not** a claim of population-wide HWPX representativeness.
 
 ## Multi-oracle rule
 Product authority and independent observation are deliberately separated.
@@ -51,8 +60,8 @@ Failure bundles include source identity, SHA-256, feature family, oracle/version
 
 ## Release-health gate
 PASS requires:
-- >=5 feature families;
-- >=3 public real documents;
+- >=12 combined generated/external feature families;
+- >=6 immutable external HWPX documents from >=2 upstream repositories;
 - >=18 generated regression fixtures;
 - multi-oracle consensus;
 - performance budget PASS;

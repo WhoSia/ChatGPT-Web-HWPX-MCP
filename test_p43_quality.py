@@ -30,7 +30,7 @@ def test_failure_bundle_is_reproducible_and_privacy_bounded():
     assert "traceback" not in a
 
 def test_health_gate_requires_representative_and_operational_evidence():
-    r=adjudicate_release_health({"feature_family_count":5,"public_document_count":3,"generated_fixture_count":24,"product_authority_pass":True,"independent_oracle_coverage":0.9,"performance_budget_pass":True,"diagnostic_negative_control_pass":True,"docker_pass":True,"rollback_ready":True,"critical_failure_count":0})
+    r=adjudicate_release_health({"feature_family_count":12,"external_document_count":8,"external_repository_count":2,"generated_fixture_count":24,"product_authority_pass":True,"independent_oracle_coverage":0.9,"performance_budget_pass":True,"diagnostic_negative_control_pass":True,"docker_pass":True,"rollback_ready":True,"critical_failure_count":0})
     assert r["verdict"]=="PASS"
     r2=adjudicate_release_health({"feature_family_count":4})
     assert r2["verdict"]=="HOLD"

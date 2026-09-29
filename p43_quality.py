@@ -176,7 +176,7 @@ def adjudicate_release_health(receipt:Mapping[str,Any])->dict:
     rollback=bool(receipt.get("rollback_ready"))
     critical=int(receipt.get("critical_failure_count") or 0)
     gates={
-        "representative_family_floor":family_count>=5,
+        "representative_family_floor":family_count>=12,
         "public_real_document_floor":public_count>=3,
         "generated_fixture_floor":generated_count>=18,
         "product_authority_all_pass":product_authority,

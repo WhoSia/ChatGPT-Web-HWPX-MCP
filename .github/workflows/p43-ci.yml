@@ -30,7 +30,7 @@ jobs:
         with: {python-version: "3.12", cache: pip}
       - run: pip install -r requirements.txt -r requirements-dev.txt
       - run: |
-          python -m compileall -q p43_quality.py p43_mcp.py test_p43_quality.py test_p43_mcp.py scripts/p43_oracles.py scripts/p43_feature_family_matrix.py scripts/p43_public_matrix.py scripts/p43_performance_probe.py scripts/p43_health_gate.py scripts/p43_release_smoke.py
+          python -m compileall -q p43_quality.py p43_mcp.py test_p43_quality.py test_p43_mcp.py scripts/p43_oracles.py scripts/p43_feature_family_matrix.py scripts/p43_external_fixture_matrix.py scripts/p43_public_matrix.py scripts/p43_performance_probe.py scripts/p43_health_gate.py scripts/p43_release_smoke.py
           python -m pytest -q test_p43_quality.py test_p43_mcp.py
           python scripts/p43_release_smoke.py
 
@@ -51,7 +51,7 @@ jobs:
           name: p43-generated-matrix
           path: p43-generated-matrix.json
 
-  public-real-document-matrix:
+  immutable-external-matrix:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -62,11 +62,28 @@ jobs:
           pip install -r requirements.txt -r requirements-dev.txt
           pip install hwpxkit==0.2.1
           python -c 'import importlib.metadata as m; assert m.version("hwpxkit")=="0.2.1"'
-      - run: python scripts/p43_public_matrix.py --manifest corpus/p42-real-document-canary.json --out p43-public-matrix.json
+      - run: python scripts/p43_external_fixture_matrix.py --manifest corpus/p43-immutable-external-fixtures.json --out p43-external-matrix.json
       - uses: actions/upload-artifact@v4
         with:
-          name: p43-public-matrix
-          path: p43-public-matrix.json
+          name: p43-external-matrix
+          path: p43-external-matrix.json
+
+  live-official-freshness:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12", cache: pip}
+      - run: |
+          pip install -r requirements.txt -r requirements-dev.txt
+          pip install hwpxkit==0.2.1
+          python -c 'import importlib.metadata as m; assert m.version("hwpxkit")=="0.2.1"'
+      - run: python scripts/p43_public_matrix.py --manifest corpus/p42-real-document-canary.json --out p43-live-official.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: p43-live-official-freshness
+          path: p43-live-official.json
 
   performance:
     runs-on: ubuntu-latest
@@ -90,7 +107,7 @@ jobs:
       - run: docker run --rm --entrypoint /bin/sh hwpx-mcp-p43:${{ github.sha }} -c 'python scripts/p43_release_smoke.py'
 
   health-gate:
-    needs: [unit, generated-family-matrix, public-real-document-matrix, performance, docker-image]
+    needs: [unit, generated-family-matrix, immutable-external-matrix, performance, docker-image]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -103,8 +120,8 @@ jobs:
           path: artifacts/generated
       - uses: actions/download-artifact@v4
         with:
-          name: p43-public-matrix
-          path: artifacts/public
+          name: p43-external-matrix
+          path: artifacts/external
       - uses: actions/download-artifact@v4
         with:
           name: p43-performance
@@ -112,7 +129,7 @@ jobs:
       - run: |
           python scripts/p43_health_gate.py \
             --generated artifacts/generated/p43-generated-matrix.json \
-            --public artifacts/public/p43-public-matrix.json \
+            --external artifacts/external/p43-external-matrix.json \
             --performance artifacts/performance/p43-performance.json \
             --out p43-release-health.json \
             --failures-out p43-failure-bundles.json

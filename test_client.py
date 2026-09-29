@@ -345,12 +345,12 @@ async def main() -> None:
                     f"inspector={inspector_annotations} swap={swap_annotations}"
                 )
 
-            read_payload = _payload(await client.call_tool("probe_read", {"message": "P4.4 OAuth smoke test"}))
-            if not read_payload or not read_payload.get("ok") or read_payload.get("version") != "0.30.0-p4.4":
-                raise RuntimeError(f"probe_read did not expose current P4.4 product version: {read_payload}")
+            read_payload = _payload(await client.call_tool("probe_read", {"message": "P4.5 OAuth smoke test"}))
+            if not read_payload or not read_payload.get("ok") or read_payload.get("version") != "0.31.0-p4.5":
+                raise RuntimeError(f"probe_read did not expose current P4.5 product version: {read_payload}")
 
             p2_caps = _payload(await client.call_tool("p2_capabilities", {}))
-            if not p2_caps or p2_caps.get("phase") != "P4.4":
+            if not p2_caps or p2_caps.get("phase") != "P4.5":
                 raise RuntimeError(f"p2_capabilities failed: {p2_caps}")
 
             p41_contract = _payload(await client.call_tool("get_product_operational_readiness_contract", {}))
@@ -419,6 +419,18 @@ async def main() -> None:
             }))
             if not p44_route or p44_route.get("route") != "NATIVE_RENDER_REQUIRED":
                 raise RuntimeError(f"P4.4 native-render routing failed: {p44_route}")
+
+            p45_contract = _payload(await client.call_tool("get_calibrated_quality_control_contract", {}))
+            if not p45_contract or p45_contract.get("phase") != "P4.5" or p45_contract.get("product") != "0.31.0-p4.5":
+                raise RuntimeError(f"P4.5 quality-control contract failed: {p45_contract}")
+
+            p45_slo = _payload(await client.call_tool("get_slo_readiness", {}))
+            if not p45_slo or p45_slo.get("state") != "PROVISIONAL_HARD_BUDGET":
+                raise RuntimeError(f"P4.5 conservative SLO readiness failed: {p45_slo}")
+
+            p45_queue = _payload(await client.call_tool("get_native_render_adjudication_queue", {}))
+            if not p45_queue or p45_queue.get("authority") != "QUEUE_ONLY_NO_RENDERER_INVOCATION":
+                raise RuntimeError(f"P4.5 native adjudication queue failed: {p45_queue}")
 
             design_intelligence = _payload(await client.call_tool("get_document_design_intelligence_contract", {}))
             if (

@@ -141,7 +141,7 @@ def runtime_compatibility_matrix(candidate_version: str = DEFAULT_MIGRATION_CAND
         {"component": "mcp", "observed": mcp_version, "expected": "2.2.0", "status": "SUPPORTED" if mcp_supported else "UNVALIDATED"},
         {"component": "lxml", "observed": lxml_version, "expected": ">=5,<7", "status": "SUPPORTED" if lxml_supported else "UNVALIDATED"},
         {"component": "node", "observed": node_version, "expected": "runtime available", "status": "SUPPORTED" if node_version else "MISSING"},
-        {"component": "python-hwpx migration target", "observed": candidate_version, "expected": PINNED_PYTHON_HWPX, "status": "PROMOTED_BY_P4.2" if str(candidate_version) == PINNED_PYTHON_HWPX else "REQUIRES_MIGRATION_GATE"},
+        {"component": "python-hwpx migration candidate", "observed": candidate_version, "expected": PINNED_PYTHON_HWPX, "status": "PROMOTED_BY_P4.2" if str(candidate_version) == PINNED_PYTHON_HWPX else "REQUIRES_MIGRATION_GATE"},
     ]
     ready = python_supported and hwpx_supported and mcp_supported and lxml_supported and bool(node_version)
     payload = {

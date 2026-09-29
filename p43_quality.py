@@ -166,7 +166,8 @@ def build_failure_bundle(context:Mapping[str,Any])->dict:
 
 def adjudicate_release_health(receipt:Mapping[str,Any])->dict:
     family_count=int(receipt.get("feature_family_count") or 0)
-    public_count=int(receipt.get("public_document_count") or 0)
+    external_count=int(receipt.get("external_document_count") or 0)
+    external_repositories=int(receipt.get("external_repository_count") or 0)
     generated_count=int(receipt.get("generated_fixture_count") or 0)
     product_authority=bool(receipt.get("product_authority_pass"))
     independent_coverage=float(receipt.get("independent_oracle_coverage") or 0.0)
@@ -177,7 +178,8 @@ def adjudicate_release_health(receipt:Mapping[str,Any])->dict:
     critical=int(receipt.get("critical_failure_count") or 0)
     gates={
         "representative_family_floor":family_count>=12,
-        "public_real_document_floor":public_count>=3,
+        "immutable_external_document_floor":external_count>=6,
+        "immutable_external_repository_floor":external_repositories>=2,
         "generated_fixture_floor":generated_count>=18,
         "product_authority_all_pass":product_authority,
         "independent_oracle_coverage_floor":independent_coverage>=0.80,
@@ -191,6 +193,6 @@ def adjudicate_release_health(receipt:Mapping[str,Any])->dict:
     verdict="PASS" if not failed else "HOLD"
     payload={
         "phase":PHASE,"product":PRODUCT,"gates":gates,"failed_gates":failed,"verdict":verdict,
-        "coverage_note":"Representative product-health seed; not a claim of population-wide HWPX representativeness.",
+        "coverage_note":"Representative generated + immutable external product-health seed; live official-source freshness is observed separately and this is not a claim of population-wide HWPX representativeness.",
     }
     return {**payload,"health_sha256":_sha(payload)}

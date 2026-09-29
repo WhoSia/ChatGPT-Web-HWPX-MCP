@@ -302,6 +302,9 @@ async def main() -> None:
                 "profile_product_operational_baseline",
                 "diagnose_product_failure",
                 "evaluate_python_hwpx_upgrade",
+                "get_dependency_migration_contract",
+                "get_dependency_runtime_state",
+                "adjudicate_dependency_upgrade",
             }
             missing = expected - set(names)
             if missing:
@@ -328,12 +331,12 @@ async def main() -> None:
                     f"inspector={inspector_annotations} swap={swap_annotations}"
                 )
 
-            read_payload = _payload(await client.call_tool("probe_read", {"message": "P4.1 OAuth smoke test"}))
-            if not read_payload or not read_payload.get("ok") or read_payload.get("version") != "0.27.0-p4.1":
-                raise RuntimeError(f"probe_read did not expose current P4.1 product version: {read_payload}")
+            read_payload = _payload(await client.call_tool("probe_read", {"message": "P4.2 OAuth smoke test"}))
+            if not read_payload or not read_payload.get("ok") or read_payload.get("version") != "0.28.0-p4.2":
+                raise RuntimeError(f"probe_read did not expose current P4.2 product version: {read_payload}")
 
             p2_caps = _payload(await client.call_tool("p2_capabilities", {}))
-            if not p2_caps or p2_caps.get("phase") != "P4.1":
+            if not p2_caps or p2_caps.get("phase") != "P4.2":
                 raise RuntimeError(f"p2_capabilities failed: {p2_caps}")
 
             p41_contract = _payload(await client.call_tool("get_product_operational_readiness_contract", {}))
@@ -350,6 +353,19 @@ async def main() -> None:
             }))
             if not p41_compat or p41_compat.get("production_pin_unchanged") is not True:
                 raise RuntimeError(f"P4.1 compatibility surface failed: {p41_compat}")
+
+            p42_contract = _payload(await client.call_tool("get_dependency_migration_contract", {}))
+            if (
+                not p42_contract
+                or p42_contract.get("phase") != "P4.2"
+                or p42_contract.get("product") != "0.28.0-p4.2"
+                or p42_contract.get("promotion_policy") != "EVIDENCE_GATED_NO_AUTOMATIC_DEPENDENCY_PROMOTION"
+            ):
+                raise RuntimeError(f"P4.2 migration contract failed: {p42_contract}")
+
+            p42_runtime = _payload(await client.call_tool("get_dependency_runtime_state", {}))
+            if not p42_runtime or p42_runtime.get("candidate") != "6.6.0":
+                raise RuntimeError(f"P4.2 runtime state failed: {p42_runtime}")
 
             design_intelligence = _payload(await client.call_tool("get_document_design_intelligence_contract", {}))
             if (

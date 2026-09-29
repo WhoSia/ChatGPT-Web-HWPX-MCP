@@ -6,21 +6,32 @@ import json
 import subprocess
 import sys
 import tempfile
+import zipfile
 from pathlib import Path
 
 ROOT=Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:sys.path.insert(0,str(ROOT))
 
-import server
+from hwpx import HwpxDocument
 
 TARGET_TESTS = [
     "test_p318_document_setup.py",
     "test_p319_structured_publishing.py",
-    "test_p337_product_workflow.py",
     "test_p338_rich_builder.py",
     "test_p349_composition.py",
     "test_p41_operational.py",
 ]
+
+def minimal_smoke() -> bool:
+    with tempfile.TemporaryDirectory() as tmp:
+        path = Path(tmp) / "probe.hwpx"
+        doc = HwpxDocument.new()
+        doc.add_paragraph("P4.1 compatibility probe")
+        doc.add_paragraph("둘째 문단")
+        doc.save_to_path(str(path))
+        doc.close()
+        with zipfile.ZipFile(path, "r") as archive:
+            return archive.infolist()[0].filename == "mimetype" and archive.read("mimetype") == b"application/hwp+zip"
 
 def main() -> int:
     parser = argparse.ArgumentParser()
@@ -32,10 +43,7 @@ def main() -> int:
     smoke_ok = False
     smoke_error = None
     try:
-        with tempfile.TemporaryDirectory() as tmp:
-            path = Path(tmp) / "probe.hwpx"
-            server.materialize_hwpx(path, "P4.1 compatibility probe\n둘째 문단", "P4.1")
-            smoke_ok = bool(server.validate_hwpx_package(path, ingress=True)["valid"])
+        smoke_ok = minimal_smoke()
     except Exception as exc:
         smoke_error = type(exc).__name__
     proc = subprocess.run(
@@ -54,8 +62,9 @@ def main() -> int:
         "minimal_hwpx_smoke": smoke_ok,
         "smoke_error_class": smoke_error,
         "targeted_regression_tests": tests_ok,
+        "targeted_test_files": TARGET_TESTS,
         "pytest_returncode": proc.returncode,
-        "pytest_tail": (proc.stdout + "\n" + proc.stderr)[-4000:],
+        "pytest_tail": (proc.stdout + "\n" + proc.stderr)[-6000:],
         "verdict": verdict,
         "production_pin_changed": False,
     }

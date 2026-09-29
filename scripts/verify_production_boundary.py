@@ -41,9 +41,12 @@ def verify(base, version, commit, fetch=request, sleep=time.sleep):
     observations=[]
     # At most 8 health calls over ~6 minutes, followed by three boundary calls.
     for attempt in range(8):
+        started=time.perf_counter()
         status, body, retry=fetch(base+'/health')
+        elapsed_ms=round((time.perf_counter()-started)*1000,3)
         state=classify(status,body,version,commit)
         observations.append({'attempt':attempt+1,'http_status':status,'state':state,
+                             'latency_ms':elapsed_ms,
                              'observed_version':body.get('version') if isinstance(body,dict) else None,
                              'observed_commit':body.get('release_commit') if isinstance(body,dict) else None})
         print(json.dumps(observations[-1]),flush=True)
@@ -54,16 +57,20 @@ def verify(base, version, commit, fetch=request, sleep=time.sleep):
             sleep(delay)
     if state!='READY': return {'ok':False,'classification':state,'observations':observations}
     checks=[('/.well-known/oauth-protected-resource/mcp',False),('/.well-known/oauth-authorization-server',False),('/mcp',True)]
+    boundary_checks=[]
     for path,post in checks:
+        started=time.perf_counter()
         status,body,_=fetch(base+path,post=post)
+        elapsed_ms=round((time.perf_counter()-started)*1000,3)
         valid=(status==401) if post else status==200 and isinstance(body,dict)
         if valid and 'protected-resource' in path:
             valid=body.get('resource')==base+'/mcp' and 'hwpx' in body.get('scopes_supported',[])
         elif valid and 'authorization-server' in path:
             valid=all(body.get(k) for k in ('authorization_endpoint','token_endpoint','registration_endpoint')) and 'offline_access' in body.get('scopes_supported',[])
+        boundary_checks.append({'path':path,'http_status':status,'latency_ms':elapsed_ms,'valid':valid})
         if not valid:
-            return {'ok':False,'classification':'EXTERNAL_RATE_LIMIT' if status==429 else 'PROTECTED_BOUNDARY_FAILURE','path':path,'status':status,'observations':observations}
-    return {'ok':True,'classification':'PRODUCTION_BOUNDARY_PASS','observations':observations}
+            return {'ok':False,'classification':'EXTERNAL_RATE_LIMIT' if status==429 else 'PROTECTED_BOUNDARY_FAILURE','path':path,'status':status,'observations':observations,'boundary_checks':boundary_checks}
+    return {'ok':True,'classification':'PRODUCTION_BOUNDARY_PASS','observations':observations,'boundary_checks':boundary_checks}
 
 
 if __name__=='__main__':

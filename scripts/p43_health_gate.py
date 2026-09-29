@@ -9,12 +9,12 @@ def load(path:str)->dict:return json.loads(Path(path).read_text(encoding="utf-8"
 
 def main()->int:
     p=argparse.ArgumentParser()
-    p.add_argument("--generated",required=True);p.add_argument("--public",required=True);p.add_argument("--performance",required=True)
+    p.add_argument("--generated",required=True);p.add_argument("--external",required=True);p.add_argument("--performance",required=True)
     p.add_argument("--out",required=True);p.add_argument("--failures-out",required=True);a=p.parse_args()
-    generated=load(a.generated);public=load(a.public);perf=load(a.performance)
+    generated=load(a.generated);external=load(a.external);perf=load(a.performance)
     failure_rows=[]
     critical_count=0
-    all_rows=list(generated.get("rows") or [])+list(public.get("rows") or [])
+    all_rows=list(generated.get("rows") or [])+list(external.get("rows") or [])
     for row in all_rows:
         if row.get("oracle_consensus_pass"):continue
         primary=row.get("python_hwpx") or {};independent=row.get("hwpxkit") or {};raw=row.get("raw_owpml") or {}
@@ -30,10 +30,11 @@ def main()->int:
         failure_rows.append(bundle)
         if bundle["severity"]=="CRITICAL":critical_count+=1
     health_input={
-        "feature_family_count":int(generated.get("feature_family_count") or 0)+int(public.get("feature_family_count") or 0),
-        "public_document_count":int(public.get("document_count") or 0),
+        "feature_family_count":int(generated.get("feature_family_count") or 0)+int(external.get("feature_family_count") or 0),
+        "external_document_count":int(external.get("document_count") or 0),
+        "external_repository_count":int(external.get("repository_count") or 0),
         "generated_fixture_count":int(generated.get("fixture_count") or 0),
-        "product_authority_pass":bool(generated.get("product_authority_pass") and public.get("product_authority_pass")),
+        "product_authority_pass":bool(generated.get("product_authority_pass") and external.get("product_authority_pass")),
         "independent_oracle_coverage":round(sum(1 for r in all_rows if r.get("independent_oracle_status")=="PASS")/len(all_rows),6) if all_rows else 0.0,
         "performance_budget_pass":perf.get("status")=="PASS",
         "diagnostic_negative_control_pass":True,

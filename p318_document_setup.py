@@ -13,6 +13,7 @@ from hwpx import HwpxDocument
 
 from p2_document import build_document_map
 from p27_tables import _save_document
+from p42_migration import semantic_page_geometry
 
 
 SETUP_SCHEMA = "chatgpt-web-hwpx-mcp/document-setup/p3.18/v1"
@@ -130,9 +131,11 @@ def _section_payload(root: etree._Element, section_index: int, name: str) -> dic
         "section_index": section_index,
         "section": name,
         "page": {
-            "width": int(page_pr.get("width", "0") or 0),
-            "height": int(page_pr.get("height", "0") or 0),
-            "orientation": page_pr.get("landscape"),
+            **semantic_page_geometry(
+                int(page_pr.get("width", "0") or 0),
+                int(page_pr.get("height", "0") or 0),
+                page_pr.get("landscape"),
+            ),
             "gutter_type": page_pr.get("gutterType"),
         },
         "margins": {

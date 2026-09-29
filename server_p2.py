@@ -195,9 +195,9 @@ from common_ir import (
     slice_common_ir,
 )
 
-P2_VERSION = "0.30.0-p4.4"
+P2_VERSION = "0.31.0-p4.5"
 core.VERSION = P2_VERSION
-core.PHASE = "P4.4"
+core.PHASE = "P4.5"
 
 _original_metadata = core._metadata
 
@@ -7110,6 +7110,8 @@ P43_PRODUCT_HEALTH = register_p43_tools(core)
 
 from p44_mcp import register_p44_tools
 P44_HEALTH_INTELLIGENCE = register_p44_tools(core)
+from p45_mcp import register_p45_tools
+P45_QUALITY_CONTROL = register_p45_tools(core)
 
 
 if __name__ == "__main__":

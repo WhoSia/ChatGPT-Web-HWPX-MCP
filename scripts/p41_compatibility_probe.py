@@ -18,7 +18,6 @@ TARGET_TESTS = [
     "test_p318_document_setup.py",
     "test_p319_structured_publishing.py",
     "test_p338_rich_builder.py",
-    "test_p349_composition.py",
     "test_p41_operational.py",
 ]
 

@@ -168,7 +168,8 @@ def adjudicate_release_health(receipt:Mapping[str,Any])->dict:
     family_count=int(receipt.get("feature_family_count") or 0)
     public_count=int(receipt.get("public_document_count") or 0)
     generated_count=int(receipt.get("generated_fixture_count") or 0)
-    oracle_consensus=bool(receipt.get("oracle_consensus_pass"))
+    product_authority=bool(receipt.get("product_authority_pass"))
+    independent_coverage=float(receipt.get("independent_oracle_coverage") or 0.0)
     performance=bool(receipt.get("performance_budget_pass"))
     diagnostics=bool(receipt.get("diagnostic_negative_control_pass"))
     docker=bool(receipt.get("docker_pass"))
@@ -178,7 +179,8 @@ def adjudicate_release_health(receipt:Mapping[str,Any])->dict:
         "representative_family_floor":family_count>=5,
         "public_real_document_floor":public_count>=3,
         "generated_fixture_floor":generated_count>=18,
-        "oracle_consensus":oracle_consensus,
+        "product_authority_all_pass":product_authority,
+        "independent_oracle_coverage_floor":independent_coverage>=0.80,
         "performance_budget":performance,
         "diagnostic_negative_control":diagnostics,
         "docker":docker,

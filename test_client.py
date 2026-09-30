@@ -345,12 +345,12 @@ async def main() -> None:
                     f"inspector={inspector_annotations} swap={swap_annotations}"
                 )
 
-            read_payload = _payload(await client.call_tool("probe_read", {"message": "P4.7 OAuth smoke test"}))
-            if not read_payload or not read_payload.get("ok") or read_payload.get("version") != "0.33.0-p4.7":
-                raise RuntimeError(f"probe_read did not expose current P4.7 product version: {read_payload}")
+            read_payload = _payload(await client.call_tool("probe_read", {"message": "P4.8 OAuth smoke test"}))
+            if not read_payload or not read_payload.get("ok") or read_payload.get("version") != "0.34.0-p4.8":
+                raise RuntimeError(f"probe_read did not expose current P4.8 product version: {read_payload}")
 
             p2_caps = _payload(await client.call_tool("p2_capabilities", {}))
-            if not p2_caps or p2_caps.get("phase") != "P4.7":
+            if not p2_caps or p2_caps.get("phase") != "P4.8":
                 raise RuntimeError(f"p2_capabilities failed: {p2_caps}")
 
             p41_contract = _payload(await client.call_tool("get_product_operational_readiness_contract", {}))
@@ -464,6 +464,34 @@ async def main() -> None:
                 or int(p47_frontier.get("candidate_count", 0)) < 8
             ):
                 raise RuntimeError(f"P4.7 equation render frontier failed: {p47_frontier}")
+
+            p48_contract = _payload(await client.call_tool("get_component_authoring_contract", {}))
+            if (
+                not p48_contract
+                or p48_contract.get("phase") != "P4.8"
+                or p48_contract.get("product") != "0.34.0-p4.8"
+                or "bar_chart" not in (p48_contract.get("components") or [])
+            ):
+                raise RuntimeError(f"P4.8 component authoring contract failed: {p48_contract}")
+
+            p48_compiled = _payload(await client.call_tool("compile_document_components", {
+                "spec": {
+                    "title": "P4.8 lifecycle",
+                    "archetype": "TECHNICAL_NOTE",
+                    "sections": [{
+                        "components": [
+                            {"id": "eq", "type": "equation", "label": "one", "latex": "x=1"},
+                            {"id": "ref", "type": "equation_reference", "target": "one"}
+                        ]
+                    }]
+                }
+            }))
+            if (
+                not p48_compiled
+                or p48_compiled.get("ready") is not True
+                or (p48_compiled.get("equation_labels") or {}).get("one") != "1"
+            ):
+                raise RuntimeError(f"P4.8 component compile failed: {p48_compiled}")
 
             design_intelligence = _payload(await client.call_tool("get_document_design_intelligence_contract", {}))
             if (

@@ -9,6 +9,18 @@ description: "Use for professional Korean HWPX document creation, redesign, temp
 
 Produce an editable native HWPX that is not merely valid, but readable, professionally structured, and aligned with the user's intended document archetype.
 
+## P4.8 semantic component fast path
+
+For a new document whose request is naturally expressed as reusable semantic parts—definitions, theorems, proofs, equations/references, analytical tables, KPI panels, admitted bar charts, images or callouts—prefer **get_component_authoring_contract** → **create_component_document_and_deliver**.
+
+Use **compile_document_components** when you need a mutation-free preflight. If it returns typed blockers, call **plan_component_repairs** and choose a safe semantic alternative; do not silently replace an unsupported chart or unsupported equation with a different meaning.
+
+P4.8 bar charts and KPI strips are deterministic compositions of admitted native drawing primitives, not Hancom native chart objects. Structural/editor-open success is not native-render or human visual authority.
+
+P4.8 inherits every P4.7 equation hold. In particular, do not use pending \\mathbf/\\boldsymbol/align mappings just because the component layer can represent theorem/equation semantics.
+
+The normal first-document path is: connect OAuth → get_component_authoring_contract → create_component_document_and_deliver → use the revision-bound HWPX. Delivery recovery still uses deliver_document without replaying the committed mutation.
+
 ## P4.7 unified authoring fast path
 
 For a new professional document that mixes narrative structure with equations, tables, or drawings, prefer **get_authoring_v2_contract** → **compile_unified_authoring_plan** → **create_unified_document_and_deliver**. This keeps rich composition and native-object authoring inside one private candidate and creates a single durable revision 1 only after final validation.

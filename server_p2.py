@@ -195,9 +195,9 @@ from common_ir import (
     slice_common_ir,
 )
 
-P2_VERSION = "0.32.0-p4.6"
+P2_VERSION = "0.33.0-p4.7"
 core.VERSION = P2_VERSION
-core.PHASE = "P4.6"
+core.PHASE = "P4.7"
 
 _original_metadata = core._metadata
 
@@ -7115,6 +7115,9 @@ P45_QUALITY_CONTROL = register_p45_tools(core)
 
 from p46_mcp import register_p46_tools
 P46_NATIVE_AUTHORING = register_p46_tools(core, _owned_document, _refresh_metadata)
+
+from p47_mcp import register_p47_tools
+P47_RENDER_GROUNDED_AUTHORING = register_p47_tools(core, _refresh_metadata, _delivery_after_commit)
 
 
 if __name__ == "__main__":

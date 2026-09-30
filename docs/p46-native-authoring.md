@@ -47,10 +47,12 @@ Verified examples include:
 - selected accents such as `\\bar`, `\\vec`, `\\hat`
 - plain text literals supported by the upstream verified converter
 
+Hancom's official equation documentation also exposes native script commands `rm`, `it`, `bold`, and `rmbold`, plus vertical pile commands `PILE/LPILE/RPILE` and a `COLOR {r,g,b}` form. P4.6 records these as **documented native candidates**, but they do not bypass the render-certification gate. In particular, `\\mathbf`/bold-symbol intent may have a future `bold` mapping, while `align` may overlap with the PILE family; neither is auto-authored yet.
+
 Known typed refusals include:
 
-- `\\mathbb` — blackboard bold
-- `\\mathcal` — calligraphic style
+- `\\mathbb` — blackboard bold; no corresponding official EqEdit font-style command found in the reviewed command/font documentation
+- `\\mathcal` — calligraphic style; no corresponding official EqEdit font-style command found in the reviewed command/font documentation
 - `align`
 - `Bmatrix` / `Vmatrix`
 - `\\widehat` / `\\widetilde`

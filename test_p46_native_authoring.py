@@ -7,7 +7,7 @@ from p46_native_authoring import (
 
 
 def test_equation_supported_and_style_abstention():
-    supported = audit_equation_latex(r"\begin{pmatrix} a & b \\ c & d \\end{pmatrix}")
+    supported = audit_equation_latex(r"\begin{pmatrix} a & b \\ c & d \end{pmatrix}")
     assert supported["supported"] is True
     assert supported["status"] == "NATIVE_EQEDIT_VERIFIED_TOKEN_SET"
 
@@ -24,7 +24,7 @@ def test_matrix_reports_abstention_without_silent_approximation():
     matrix = equation_capability_matrix([
         r"\frac{1}{2}",
         r"\begin{cases} x & x>0 \\ 0 & x\\leq0 \\end{cases}",
-        r"\begin{align} x&=1 \\end{align}",
+        r"\begin{align} x&=1 \end{align}",
         r"\widehat{xy}",
     ])
     assert matrix["probe_count"] == 4

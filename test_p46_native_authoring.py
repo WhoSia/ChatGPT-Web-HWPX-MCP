@@ -17,6 +17,10 @@ def test_equation_supported_and_style_abstention():
     assert blackboard["status"] == "UNSUPPORTED_MATH_STYLE"
     assert blackboard["unsupported"]["feature"] == "BLACKBOARD_BOLD"
     assert calligraphic["unsupported"]["feature"] == "CALLIGRAPHIC"
+    assert blackboard["unsupported"]["documented_equivalent_found"] is False
+    bold = audit_equation_latex(r"\\mathbf{x}")
+    assert bold["supported"] is False
+    assert bold["unsupported"]["documented_native_candidate"]["eqedit"] == "bold"
     assert "NO_AUTOMATIC_IMAGE" in blackboard["fallback"]
 
 

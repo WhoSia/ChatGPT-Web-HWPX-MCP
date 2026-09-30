@@ -31,6 +31,13 @@ _KNOWN_UNSUPPORTED = {
 _ENV_RE = re.compile(r"\\begin\{([^}]+)\}")
 _COMMAND_RE = re.compile(r"\\[A-Za-z]+")
 _SUPPORTED_ENVIRONMENTS = {"matrix", "pmatrix", "bmatrix", "vmatrix", "cases"}
+_DOCUMENTED_NATIVE_STYLE_CANDIDATES = {
+    r"\\mathbf": {"eqedit": "bold", "status": "DOCUMENTED_NATIVE_NOT_RENDER_CERTIFIED"},
+    r"\\boldsymbol": {"eqedit": "bold", "status": "DOCUMENTED_NATIVE_NOT_RENDER_CERTIFIED"},
+}
+_DOCUMENTED_ENVIRONMENT_CANDIDATES = {
+    "align": {"eqedit_family": ["PILE", "LPILE", "RPILE"], "status": "SEMANTIC_MAPPING_UNRESOLVED"},
+}
 _DEFERRED_DRAWING_OPS = {"group_objects", "ungroup_objects", "insert_generic_shape"}
 _CLOSED_TABLE_OPS = {"insert_column_by_clone"}
 
@@ -72,11 +79,14 @@ def _features(latex: str) -> list[str]:
 def _unsupported_semantics(latex: str, error: str) -> dict:
     for command, label in _STYLE_COMMANDS.items():
         if command in latex:
+            candidate = _DOCUMENTED_NATIVE_STYLE_CANDIDATES.get(command)
             return {
                 "class": "UNSUPPORTED_MATH_STYLE",
                 "feature": label,
                 "command": command,
                 "policy": "ABSTAIN_NO_SILENT_STYLE_SUBSTITUTION",
+                "documented_native_candidate": candidate,
+                "documented_equivalent_found": candidate is not None,
             }
     for command, label in _KNOWN_UNSUPPORTED.items():
         if command in latex:
@@ -89,11 +99,14 @@ def _unsupported_semantics(latex: str, error: str) -> dict:
     envs = _ENV_RE.findall(latex)
     unknown_env = next((env for env in envs if env not in _SUPPORTED_ENVIRONMENTS), None)
     if unknown_env:
+        candidate = _DOCUMENTED_ENVIRONMENT_CANDIDATES.get(unknown_env)
         return {
             "class": "UNSUPPORTED_ENVIRONMENT",
             "feature": unknown_env,
             "command": f"\\begin{{{unknown_env}}}",
             "policy": "ABSTAIN_NO_ENVIRONMENT_FLATTENING",
+            "documented_native_candidate": candidate,
+            "documented_equivalent_found": candidate is not None,
         }
     commands = _COMMAND_RE.findall(latex)
     return {
@@ -170,6 +183,27 @@ def equation_capability_matrix(samples: list[str] | None = None) -> dict:
         "abstained_count": sum(1 for row in rows if not row["supported"]),
         "policy": "MEASURE_NATIVE_CAPABILITY_THEN_FAIL_CLOSED",
         "matrix_sha256": _sha(rows),
+    }
+
+
+def documented_equation_native_candidates() -> dict:
+    return {
+        "font_commands": {
+            "roman": "rm",
+            "italic": "it",
+            "bold": "bold",
+            "roman_bold": "rmbold",
+        },
+        "vertical_alignment_commands": ["PILE", "LPILE", "RPILE"],
+        "script_color_command": "COLOR {r,g,b}",
+        "latex_candidates_not_auto_authored": {
+            r"\\mathbf": "bold",
+            r"\\boldsymbol": "bold",
+            "align": "PILE/LPILE/RPILE family; semantic correspondence unresolved",
+        },
+        "no_documented_style_equivalent_found": [r"\\mathbb", r"\\mathcal", r"\\mathfrak"],
+        "authority": "HANCOM_OFFICIAL_DOCUMENTATION_ONLY_NOT_P46_RENDER_CERTIFIED",
+        "policy": "DOCUMENTED_COMMAND_DOES_NOT_BYPASS_RENDER_CERTIFICATION_GATE",
     }
 
 
@@ -365,6 +399,7 @@ def native_authoring_contract() -> dict:
             "native_target": "HANCOM_EQEDIT",
             "current_gap_examples": ["mathbb", "mathcal", "align", "widehat", "xrightarrow"],
             "fallback": "EXPLICIT_ABSTENTION_NO_SILENT_APPROXIMATION",
+            "documented_native_candidates": documented_equation_native_candidates(),
         },
         "tables": table_capability_map(),
         "drawings": drawing_capability_map(),

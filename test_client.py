@@ -345,12 +345,12 @@ async def main() -> None:
                     f"inspector={inspector_annotations} swap={swap_annotations}"
                 )
 
-            read_payload = _payload(await client.call_tool("probe_read", {"message": "P4.6 OAuth smoke test"}))
-            if not read_payload or not read_payload.get("ok") or read_payload.get("version") != "0.32.0-p4.6":
-                raise RuntimeError(f"probe_read did not expose current P4.6 product version: {read_payload}")
+            read_payload = _payload(await client.call_tool("probe_read", {"message": "P4.7 OAuth smoke test"}))
+            if not read_payload or not read_payload.get("ok") or read_payload.get("version") != "0.33.0-p4.7":
+                raise RuntimeError(f"probe_read did not expose current P4.7 product version: {read_payload}")
 
             p2_caps = _payload(await client.call_tool("p2_capabilities", {}))
-            if not p2_caps or p2_caps.get("phase") != "P4.6":
+            if not p2_caps or p2_caps.get("phase") != "P4.7":
                 raise RuntimeError(f"p2_capabilities failed: {p2_caps}")
 
             p41_contract = _payload(await client.call_tool("get_product_operational_readiness_contract", {}))
@@ -447,6 +447,23 @@ async def main() -> None:
             eq_caps = (p46_caps or {}).get("equations", {})
             if int(eq_caps.get("supported_count", 0)) != 1 or int(eq_caps.get("abstained_count", 0)) != 2:
                 raise RuntimeError(f"P4.6 equation capability audit failed: {p46_caps}")
+
+            p47_contract = _payload(await client.call_tool("get_authoring_v2_contract", {}))
+            if (
+                not p47_contract
+                or p47_contract.get("phase") != "P4.7"
+                or p47_contract.get("product") != "0.33.0-p4.7"
+                or len(p47_contract.get("high_level_tools", [])) != 5
+            ):
+                raise RuntimeError(f"P4.7 authoring v2 contract failed: {p47_contract}")
+
+            p47_frontier = _payload(await client.call_tool("inspect_equation_render_frontier", {}))
+            if (
+                not p47_frontier
+                or p47_frontier.get("production_raw_eqedit") != "CLOSED"
+                or int(p47_frontier.get("candidate_count", 0)) < 8
+            ):
+                raise RuntimeError(f"P4.7 equation render frontier failed: {p47_frontier}")
 
             design_intelligence = _payload(await client.call_tool("get_document_design_intelligence_contract", {}))
             if (

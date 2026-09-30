@@ -1,0 +1,117 @@
+from __future__ import annotations
+
+import tempfile
+from pathlib import Path
+
+from hwpx.tools.package_validator import validate_editor_open_safety
+
+from p321_document_composer import compose_document_plan
+from p325_drawing_layer import build_drawing_layer_map
+from p326_drawing_style import build_drawing_style_map
+from p47_native_authoring import compile_unified_authoring_plan
+from p48_components import compile_document_components
+from p48_mcp import _execute_visual_plans, register_p48_tools
+
+
+def _visual_spec():
+    return {
+        "title": "실험 지표",
+        "archetype": "LAB_REPORT",
+        "sections": [{
+            "heading": "결과",
+            "components": [
+                {
+                    "id": "bars",
+                    "type": "bar_chart",
+                    "title": "조건별 반응",
+                    "data": [
+                        {"label": "대조군", "value": 2},
+                        {"label": "처리군", "value": 5},
+                    ],
+                },
+                {
+                    "id": "kpi",
+                    "type": "kpi_strip",
+                    "items": [
+                        {"label": "표본", "value": "64"},
+                        {"label": "평균", "value": "3.5"},
+                    ],
+                },
+            ],
+        }],
+    }
+
+
+def test_visual_plans_materialize_native_shapes_on_private_candidate():
+    components = compile_document_components(_visual_spec())
+    assert components["ready"] is True
+    unified = compile_unified_authoring_plan(components["unified_spec"])
+
+    with tempfile.TemporaryDirectory() as tmp:
+        path = Path(tmp) / "visuals.hwpx"
+        composition = compose_document_plan(path, unified["rich"]["plan"])
+        receipts = _execute_visual_plans(path, components["visual_plans"], composition["bindings"])
+
+        assert [x["type"] for x in receipts] == ["bar_chart", "kpi_strip"]
+        mapped = build_drawing_layer_map(path)
+        styles = build_drawing_style_map(path)
+        assert mapped["family_counts"].get("polygon", 0) >= 2
+        assert mapped["family_counts"].get("rect", 0) >= 6
+        assert styles["drawing_style_sha256"]
+        safety = validate_editor_open_safety(path.read_bytes())
+        assert safety.ok, safety.issues
+
+
+def test_bar_chart_receipts_preserve_semantic_rows():
+    components = compile_document_components(_visual_spec())
+    unified = compile_unified_authoring_plan(components["unified_spec"])
+    with tempfile.TemporaryDirectory() as tmp:
+        path = Path(tmp) / "chart.hwpx"
+        composition = compose_document_plan(path, unified["rich"]["plan"])
+        receipt = _execute_visual_plans(path, [components["visual_plans"][0]], composition["bindings"])[0]
+        assert receipt["row_count"] == 2
+        assert [r["label"] for r in receipt["receipts"]] == ["대조군", "처리군"]
+        assert receipt["authority"].startswith("P3.26")
+
+
+class _MCP:
+    def __init__(self):
+        self.tools = {}
+
+    def tool(self, **kwargs):
+        def deco(fn):
+            self.tools[fn.__name__] = fn
+            return fn
+        return deco
+
+
+class _Core:
+    def __init__(self):
+        self.mcp = _MCP()
+
+    def _caller_subject(self):
+        return "subject"
+
+
+def test_p48_registers_five_tool_surface():
+    core = _Core()
+    register_p48_tools(core, lambda *a, **k: None, lambda *a, **k: None)
+    expected = {
+        "get_component_authoring_contract",
+        "compile_document_components",
+        "plan_component_repairs",
+        "get_p48_distribution_quickstart",
+        "create_component_document_and_deliver",
+    }
+    assert expected == set(core.mcp.tools)
+
+
+def test_compile_tool_exposes_typed_blockers_before_mutation():
+    core = _Core()
+    register_p48_tools(core, lambda *a, **k: None, lambda *a, **k: None)
+    result = core.mcp.tools["compile_document_components"]({
+        "archetype": "TECHNICAL_NOTE",
+        "sections": [{"components": [{"id": "bad", "type": "line_chart", "data": []}]}],
+    })
+    assert result["ready"] is False
+    assert result["blockers"][0]["reason"] == "UNSUPPORTED_CHART_PRIMITIVE"

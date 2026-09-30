@@ -24,7 +24,7 @@ def _scenario(archetype: str) -> dict:
     components = [
         {"id": "intro", "type": "paragraph", "text": f"{archetype} component benchmark."},
         {"id": "def", "type": "definition", "title": "기준량", "text": "비교의 기준이 되는 양이다."},
-        {"id": "eq", "type": "equation", "label": "ratio", "latex": r"r=\\frac{a}{b}"},
+        {"id": "eq", "type": "equation", "label": "ratio", "latex": r"r=\frac{a}{b}"},
         {"id": "ref", "type": "equation_reference", "target": "ratio", "suffix": "을 사용한다."},
         {
             "id": "table",

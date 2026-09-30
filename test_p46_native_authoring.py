@@ -23,7 +23,7 @@ def test_equation_supported_and_style_abstention():
 def test_matrix_reports_abstention_without_silent_approximation():
     matrix = equation_capability_matrix([
         r"\frac{1}{2}",
-        r"\begin{cases} x & x>0 \\ 0 & x\\leq0 \\end{cases}",
+        r"\begin{cases} x & x>0 \\ 0 & x\leq0 \end{cases}",
         r"\begin{align} x&=1 \end{align}",
         r"\widehat{xy}",
     ])

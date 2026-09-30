@@ -442,7 +442,7 @@ async def main() -> None:
                 raise RuntimeError(f"P4.6 native authoring contract failed: {p46_contract}")
 
             p46_caps = _payload(await client.call_tool("inspect_native_authoring_capabilities", {
-                "latex_samples": [r"\\frac{a}{b}", r"\\mathbb{R}", r"\\mathcal{F}"]
+                "latex_samples": [r"\frac{a}{b}", r"\mathbb{R}", r"\mathcal{F}"]
             }))
             eq_caps = (p46_caps or {}).get("equations", {})
             if int(eq_caps.get("supported_count", 0)) != 1 or int(eq_caps.get("abstained_count", 0)) != 2:

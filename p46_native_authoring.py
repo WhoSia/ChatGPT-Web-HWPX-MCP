@@ -12,23 +12,23 @@ PRODUCT = "0.32.0-p4.6"
 MAX_BUNDLE_OPS = 80
 
 _STYLE_COMMANDS = {
-    r"\\mathbb": "BLACKBOARD_BOLD",
-    r"\\mathcal": "CALLIGRAPHIC",
-    r"\\mathfrak": "FRAKTUR",
-    r"\\boldsymbol": "BOLD_SYMBOL",
-    r"\\mathbf": "BOLD_ROMAN",
+    r"\mathbb": "BLACKBOARD_BOLD",
+    r"\mathcal": "CALLIGRAPHIC",
+    r"\mathfrak": "FRAKTUR",
+    r"\boldsymbol": "BOLD_SYMBOL",
+    r"\mathbf": "BOLD_ROMAN",
 }
 _KNOWN_UNSUPPORTED = {
-    r"\\overbrace": "OVERBRACE",
-    r"\\underbrace": "UNDERBRACE",
-    r"\\xrightarrow": "LABELED_ARROW",
-    r"\\xleftarrow": "LABELED_ARROW",
-    r"\\widehat": "WIDE_ACCENT",
-    r"\\widetilde": "WIDE_ACCENT",
-    r"\\limsup": "LIMIT_OPERATOR",
-    r"\\liminf": "LIMIT_OPERATOR",
+    r"\overbrace": "OVERBRACE",
+    r"\underbrace": "UNDERBRACE",
+    r"\xrightarrow": "LABELED_ARROW",
+    r"\xleftarrow": "LABELED_ARROW",
+    r"\widehat": "WIDE_ACCENT",
+    r"\widetilde": "WIDE_ACCENT",
+    r"\limsup": "LIMIT_OPERATOR",
+    r"\liminf": "LIMIT_OPERATOR",
 }
-_ENV_RE = re.compile(r"\\begin\{([^}]+)\}")
+_ENV_RE = re.compile(r"\begin\{([^}]+)\}")
 _COMMAND_RE = re.compile(r"\\[A-Za-z]+")
 _SUPPORTED_ENVIRONMENTS = {"matrix", "pmatrix", "bmatrix", "vmatrix", "cases"}
 _DEFERRED_DRAWING_OPS = {"group_objects", "ungroup_objects", "insert_generic_shape"}
@@ -146,17 +146,17 @@ def audit_equation_latex(latex: str, *, base_unit: int = 1100) -> dict:
 
 def equation_capability_matrix(samples: list[str] | None = None) -> dict:
     probes = samples or [
-        r"\\frac{a}{b}",
+        r"\frac{a}{b}",
         r"x_{i}^{2}",
-        r"\\sqrt[3]{x}",
-        r"\\int_{0}^{1} x^2 dx",
-        r"\\sum_{k=1}^{n} k",
-        r"\\begin{pmatrix} a & b \\ c & d \\end{pmatrix}",
-        r"\\begin{cases} x & x>0 \\ 0 & x\\leq0 \\end{cases}",
-        r"\\bar{x}+\\vec{v}+\\hat{y}",
+        r"\sqrt[3]{x}",
+        r"\int_{0}^{1} x^2 dx",
+        r"\sum_{k=1}^{n} k",
+        r"\begin{pmatrix} a & b \\ c & d \\end{pmatrix}",
+        r"\begin{cases} x & x>0 \\ 0 & x\\leq0 \\end{cases}",
+        r"\bar{x}+\\vec{v}+\\hat{y}",
         r"\\mathbb{R}",
         r"\\mathcal{F}",
-        r"\\begin{align} x&=1 \\end{align}",
+        r"\begin{align} x&=1 \\end{align}",
         r"\\widehat{xy}",
         r"\\xrightarrow{f}",
     ]

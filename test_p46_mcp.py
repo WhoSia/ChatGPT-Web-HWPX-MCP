@@ -34,7 +34,7 @@ def test_p46_tools_register_and_atomic_equation_bundle():
         path = Path(tmp) / "p46.hwpx"
         doc = HwpxDocument.new()
         doc.add_paragraph("Anchor")
-        doc.save(path)
+        buffer = io.BytesIO()\n        doc.save_to_stream(buffer)\n        path.write_bytes(buffer.getvalue())
         meta = {"revision": 1, "source": "created"}
         refreshed = []
 
@@ -60,14 +60,14 @@ def test_p46_tools_register_and_atomic_equation_bundle():
 
         compiled = core.mcp.tools["compile_native_authoring_bundle"](
             "doc_test",
-            {"equations": [{"op": "insert_equation", "paragraph": "first_body", "latex": r"\\frac{a}{b}"}]},
+            {"equations": [{"op": "insert_equation", "paragraph": "first_body", "latex": r"\frac{a}{b}"}]},
         )
         assert compiled["ready"] is True
 
         result = core.mcp.tools["apply_native_authoring_bundle"](
             "doc_test",
             1,
-            {"equations": [{"op": "insert_equation", "paragraph": "first_body", "latex": r"\\frac{a}{b}"}]},
+            {"equations": [{"op": "insert_equation", "paragraph": "first_body", "latex": r"\frac{a}{b}"}]},
         )
         assert result["revision_before"] == 1
         assert result["revision_after"] == 2

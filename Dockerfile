@@ -152,4 +152,5 @@ ENV P1_MAX_TEXT_CHARS=100000
 
 EXPOSE 8000
 
-# P4.8 exact-head backward-gate closure\nCMD ["python", "server_p2.py"]
+# P4.8 exact-head backward-gate closure
+CMD ["python", "server_p2.py"]

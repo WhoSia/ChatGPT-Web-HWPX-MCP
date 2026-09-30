@@ -12,6 +12,8 @@ on:
       - ".github/workflows/p46-ci.yml"
       - ".github/workflows/p1-ci.yml"
       - "scripts/verify_production_boundary.py"
+      - "skills/hwpx-authoring/SKILL.md"
+      - "docs/p46-native-authoring.md"
 permissions: {contents: read}
 jobs:
   native-authoring:

@@ -1,4 +1,5 @@
 import hashlib
+import io
 import tempfile
 from pathlib import Path
 
@@ -34,7 +35,9 @@ def test_p46_tools_register_and_atomic_equation_bundle():
         path = Path(tmp) / "p46.hwpx"
         doc = HwpxDocument.new()
         doc.add_paragraph("Anchor")
-        buffer = io.BytesIO()\n        doc.save_to_stream(buffer)\n        path.write_bytes(buffer.getvalue())
+        buffer = io.BytesIO()
+        doc.save_to_stream(buffer)
+        path.write_bytes(buffer.getvalue())
         meta = {"revision": 1, "source": "created"}
         refreshed = []
 

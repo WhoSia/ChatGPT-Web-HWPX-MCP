@@ -135,7 +135,9 @@ COPY scripts/p45_release_smoke.py scripts/p45_release_smoke.py
 RUN python scripts/p45_release_smoke.py
 COPY scripts/p46_release_smoke.py scripts/p46_release_smoke.py
 COPY scripts/p46_real_document_benchmark.py scripts/p46_real_document_benchmark.py
-RUN python scripts/p46_release_smoke.py\nCOPY scripts/p47_release_smoke.py scripts/p47_release_smoke.py\nRUN python scripts/p47_release_smoke.py
+RUN python scripts/p46_release_smoke.py
+COPY scripts/p47_release_smoke.py scripts/p47_release_smoke.py
+RUN python scripts/p47_release_smoke.py
 
 ENV MCP_HOST=0.0.0.0
 ENV MCP_PORT=8000

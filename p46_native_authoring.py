@@ -32,8 +32,8 @@ _ENV_RE = re.compile(r"\\begin\{([^}]+)\}")
 _COMMAND_RE = re.compile(r"\\[A-Za-z]+")
 _SUPPORTED_ENVIRONMENTS = {"matrix", "pmatrix", "bmatrix", "vmatrix", "cases"}
 _DOCUMENTED_NATIVE_STYLE_CANDIDATES = {
-    r"\\mathbf": {"eqedit": "bold", "status": "DOCUMENTED_NATIVE_NOT_RENDER_CERTIFIED"},
-    r"\\boldsymbol": {"eqedit": "bold", "status": "DOCUMENTED_NATIVE_NOT_RENDER_CERTIFIED"},
+    r"\mathbf": {"eqedit": "bold", "status": "DOCUMENTED_NATIVE_NOT_RENDER_CERTIFIED"},
+    r"\boldsymbol": {"eqedit": "bold", "status": "DOCUMENTED_NATIVE_NOT_RENDER_CERTIFIED"},
 }
 _DOCUMENTED_ENVIRONMENT_CANDIDATES = {
     "align": {"eqedit_family": ["PILE", "LPILE", "RPILE"], "status": "SEMANTIC_MAPPING_UNRESOLVED"},
@@ -197,11 +197,11 @@ def documented_equation_native_candidates() -> dict:
         "vertical_alignment_commands": ["PILE", "LPILE", "RPILE"],
         "script_color_command": "COLOR {r,g,b}",
         "latex_candidates_not_auto_authored": {
-            r"\\mathbf": "bold",
-            r"\\boldsymbol": "bold",
+            r"\mathbf": "bold",
+            r"\boldsymbol": "bold",
             "align": "PILE/LPILE/RPILE family; semantic correspondence unresolved",
         },
-        "no_documented_style_equivalent_found": [r"\\mathbb", r"\\mathcal", r"\\mathfrak"],
+        "no_documented_style_equivalent_found": [r"\mathbb", r"\mathcal", r"\mathfrak"],
         "authority": "HANCOM_OFFICIAL_DOCUMENTATION_ONLY_NOT_P46_RENDER_CERTIFIED",
         "policy": "DOCUMENTED_COMMAND_DOES_NOT_BYPASS_RENDER_CERTIFICATION_GATE",
     }

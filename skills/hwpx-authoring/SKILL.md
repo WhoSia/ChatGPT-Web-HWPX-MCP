@@ -9,6 +9,14 @@ description: "Use for professional Korean HWPX document creation, redesign, temp
 
 Produce an editable native HWPX that is not merely valid, but readable, professionally structured, and aligned with the user's intended document archetype.
 
+## P4.7 unified authoring fast path
+
+For a new professional document that mixes narrative structure with equations, tables, or drawings, prefer **get_authoring_v2_contract** → **compile_unified_authoring_plan** → **create_unified_document_and_deliver**. This keeps rich composition and native-object authoring inside one private candidate and creates a single durable revision 1 only after final validation.
+
+Use **inspect_equation_render_frontier** when a request depends on a math style or alignment beyond the P4.6 verified LaTeX→EqEdit vocabulary. A documented Hancom command is only a render candidate until sealed Windows/Hancom evidence and bounded human visual adjudication exist. Do not auto-author \\mathbf, \\boldsymbol, align, or another candidate merely because an EqEdit command appears in documentation.
+
+The normal first-use path is intentionally short: connect OAuth → get_authoring_v2_contract → create_unified_document_and_deliver. Delivery failure after commit is recovered with deliver_document, never by repeating the mutation.
+
 ## P4.6 high-level native authoring fast path
 
 Use this path first when the user's request is primarily about **equations, tables, drawings, or a mixed native authoring change** rather than a full-document redesign.

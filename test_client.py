@@ -345,12 +345,12 @@ async def main() -> None:
                     f"inspector={inspector_annotations} swap={swap_annotations}"
                 )
 
-            read_payload = _payload(await client.call_tool("probe_read", {"message": "P4.5 OAuth smoke test"}))
-            if not read_payload or not read_payload.get("ok") or read_payload.get("version") != "0.31.0-p4.5":
-                raise RuntimeError(f"probe_read did not expose current P4.5 product version: {read_payload}")
+            read_payload = _payload(await client.call_tool("probe_read", {"message": "P4.6 OAuth smoke test"}))
+            if not read_payload or not read_payload.get("ok") or read_payload.get("version") != "0.32.0-p4.6":
+                raise RuntimeError(f"probe_read did not expose current P4.6 product version: {read_payload}")
 
             p2_caps = _payload(await client.call_tool("p2_capabilities", {}))
-            if not p2_caps or p2_caps.get("phase") != "P4.5":
+            if not p2_caps or p2_caps.get("phase") != "P4.6":
                 raise RuntimeError(f"p2_capabilities failed: {p2_caps}")
 
             p41_contract = _payload(await client.call_tool("get_product_operational_readiness_contract", {}))
@@ -431,6 +431,22 @@ async def main() -> None:
             p45_queue = _payload(await client.call_tool("get_native_render_adjudication_queue", {}))
             if not p45_queue or p45_queue.get("authority") != "QUEUE_ONLY_NO_RENDERER_INVOCATION":
                 raise RuntimeError(f"P4.5 native adjudication queue failed: {p45_queue}")
+
+            p46_contract = _payload(await client.call_tool("get_native_authoring_contract", {}))
+            if (
+                not p46_contract
+                or p46_contract.get("phase") != "P4.6"
+                or p46_contract.get("product") != "0.32.0-p4.6"
+                or len(p46_contract.get("high_level_tools", [])) != 5
+            ):
+                raise RuntimeError(f"P4.6 native authoring contract failed: {p46_contract}")
+
+            p46_caps = _payload(await client.call_tool("inspect_native_authoring_capabilities", {
+                "latex_samples": [r"\\frac{a}{b}", r"\\mathbb{R}", r"\\mathcal{F}"]
+            }))
+            eq_caps = (p46_caps or {}).get("equations", {})
+            if int(eq_caps.get("supported_count", 0)) != 1 or int(eq_caps.get("abstained_count", 0)) != 2:
+                raise RuntimeError(f"P4.6 equation capability audit failed: {p46_caps}")
 
             design_intelligence = _payload(await client.call_tool("get_document_design_intelligence_contract", {}))
             if (

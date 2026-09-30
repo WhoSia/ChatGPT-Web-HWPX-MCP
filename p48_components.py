@@ -120,11 +120,12 @@ def _compile_bar_chart(cid: str, raw: dict, caption_block_id: str) -> dict:
     bar_area = max(4000, width - label_width - value_width - 1200)
     row_height = max(1800, height // len(rows))
     bar_height = max(900, int(row_height * 0.5))
+    top_offset = 1800
     chart_rows = []
     for row in rows:
         ratio = 0.0 if maximum <= 0 else row["value"] / maximum
         bar_width = max(240, int(bar_area * ratio)) if row["value"] > 0 else 240
-        y = row["index"] * row_height
+        y = top_offset + row["index"] * row_height
         chart_rows.append({
             **row,
             "bar_width": bar_width,
@@ -142,6 +143,8 @@ def _compile_bar_chart(cid: str, raw: dict, caption_block_id: str) -> dict:
         "color": color,
         "width": width,
         "height": height,
+        "top_offset": top_offset,
+        "reserved_spacing_pt": max(72, int((height + top_offset) / 100) + 8),
         "rows": chart_rows,
         "authority": "P3.26_POLYGON_PLUS_P3.25_LAYOUT_AND_TEXTBOX",
     }
@@ -167,6 +170,8 @@ def _compile_kpi_strip(cid: str, raw: dict, anchor_block_id: str) -> dict:
         "items": out,
         "width": int(raw.get("width", 36000)),
         "height": int(raw.get("height", 7200)),
+        "top_offset": 1600,
+        "reserved_spacing_pt": max(72, int((int(raw.get("height", 7200)) + 1600) / 100) + 8),
         "authority": "P3.25_TEXTBOX_PLUS_P3.26_SOLID_FILL",
     }
 
@@ -326,23 +331,32 @@ def compile_document_components(spec: dict) -> dict:
 
             elif kind == "bar_chart":
                 caption_id = f"{cid}_anchor"
+                chart_plan = _compile_bar_chart(cid, raw, caption_id)
                 emitted.append({
                     "id": caption_id,
                     "type": "paragraph",
                     "text": str(raw.get("caption") or raw.get("title") or "데이터 시각화"),
                     "run_format": {"bold": bool(raw.get("bold_caption", False))},
-                    "paragraph_format": {"keep_with_next": True, "spacing_before_pt": 4, "spacing_after_pt": 2},
+                    "paragraph_format": {
+                        "keep_with_next": True,
+                        "spacing_before_pt": 4,
+                        "spacing_after_pt": chart_plan["reserved_spacing_pt"],
+                    },
                 })
-                chart_plans.append(_compile_bar_chart(cid, raw, caption_id))
+                chart_plans.append(chart_plan)
 
             elif kind == "kpi_strip":
                 anchor_id = f"{cid}_anchor"
+                kpi_plan = _compile_kpi_strip(cid, raw, anchor_id)
                 emitted.append({
                     "id": anchor_id, "type": "paragraph",
                     "text": str(raw.get("caption") or raw.get("title") or "핵심 지표"),
-                    "paragraph_format": {"keep_with_next": True},
+                    "paragraph_format": {
+                        "keep_with_next": True,
+                        "spacing_after_pt": kpi_plan["reserved_spacing_pt"],
+                    },
                 })
-                chart_plans.append(_compile_kpi_strip(cid, raw, anchor_id))
+                chart_plans.append(kpi_plan)
 
             elif kind == "image":
                 payload = str(raw.get("content_base64") or "")

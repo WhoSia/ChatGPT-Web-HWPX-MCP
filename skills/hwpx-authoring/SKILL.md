@@ -9,6 +9,23 @@ description: "Use for professional Korean HWPX document creation, redesign, temp
 
 Produce an editable native HWPX that is not merely valid, but readable, professionally structured, and aligned with the user's intended document archetype.
 
+## P4.6 high-level native authoring fast path
+
+Use this path first when the user's request is primarily about **equations, tables, drawings, or a mixed native authoring change** rather than a full-document redesign.
+
+1. Call **get_native_authoring_contract** once when capability boundaries matter.
+2. For LaTeX or equation-heavy work, call **inspect_native_authoring_capabilities** before mutation. Treat supported expressions as Hancom EqEdit-authorable only within the verified token set.
+3. Build one mixed request with **compile_native_authoring_bundle**. Prefer semantic anchors such as `first_body` or an exact paragraph-text selector over raw package XML.
+4. If the bundle is ready, call **apply_native_authoring_bundle** once. One high-level call must map to one durable revision; do not split equation/table/drawing mutations merely because different low-level engines implement them.
+5. If an equation is rejected as `UNSUPPORTED_MATH_STYLE`, `UNSUPPORTED_ENVIRONMENT`, or another typed refusal, **do not silently flatten it to plain text, rasterize it, or fake a LaTeX-equivalent style**. Preserve the source and report the unsupported native capability.
+6. Use low-level `apply_equation_edits`, `apply_table_edits`, `apply_drawing_layer`, and related tools only when the high-level bundle cannot express a required evidence-gated operation.
+7. For full professional documents, combine this native fast path with the richer document-design workflow below rather than replacing narrative/design planning.
+
+Current important equation boundary:
+- Verified native authoring includes fractions, radicals, scripts, common operators/Greek, matrices, cases, scalable delimiters, and selected accents.
+- `\\mathbb`, `\\mathcal`, `align`, `\\widehat`, and labeled arrows such as `\\xrightarrow` are **not silently approximated**.
+- Structural/editor-open safety is not the same as Hancom-native render or human aesthetic authority.
+
 ## Required workflow
 
 1. **Classify the document archetype** before choosing fonts, colors, or table styling.

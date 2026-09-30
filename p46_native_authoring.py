@@ -154,11 +154,11 @@ def equation_capability_matrix(samples: list[str] | None = None) -> dict:
         r"\begin{pmatrix} a & b \\ c & d \\end{pmatrix}",
         r"\begin{cases} x & x>0 \\ 0 & x\\leq0 \\end{cases}",
         r"\bar{x}+\\vec{v}+\\hat{y}",
-        r"\\mathbb{R}",
-        r"\\mathcal{F}",
+        r"\mathbb{R}",
+        r"\mathcal{F}",
         r"\begin{align} x&=1 \\end{align}",
-        r"\\widehat{xy}",
-        r"\\xrightarrow{f}",
+        r"\widehat{xy}",
+        r"\xrightarrow{f}",
     ]
     rows = [audit_equation_latex(value) for value in probes]
     return {

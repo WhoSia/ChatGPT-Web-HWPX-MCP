@@ -14,7 +14,7 @@ from p29_objects import build_object_map
 from p210_equations import apply_equation_edits_atomic, build_equation_map
 from p325_drawing_layer import apply_drawing_layer_atomic, build_drawing_layer_map
 from p46_native_authoring import (
-    compile_native_authoring_bundle,
+    compile_native_authoring_bundle as compile_native_authoring_bundle_kernel,
     equation_capability_matrix,
     native_authoring_contract,
     real_document_benchmark_contract,
@@ -43,7 +43,7 @@ def register_p46_tools(core, owned_document, refresh_metadata):
             "ok": True,
             "document_id": document_id,
             "revision": int(metadata["revision"]),
-            **compile_native_authoring_bundle(bundle, document_map=mapped),
+            **compile_native_authoring_bundle_kernel(bundle, document_map=mapped),
         }
 
     @core.mcp.tool(annotations=mutate)
@@ -59,7 +59,7 @@ def register_p46_tools(core, owned_document, refresh_metadata):
             raise ValueError(f"Stale revision: expected {expected_revision}, current {current}")
 
         mapped = build_document_map(path)
-        compiled = compile_native_authoring_bundle(bundle, document_map=mapped)
+        compiled = compile_native_authoring_bundle_kernel(bundle, document_map=mapped)
         if not compiled["ready"]:
             raise ValueError(f"P4.6 native authoring bundle blocked: {compiled['blockers']}")
 

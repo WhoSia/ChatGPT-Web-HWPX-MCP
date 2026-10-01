@@ -45,9 +45,9 @@ def component_authoring_contract() -> dict:
             "native_structural": ["bar_chart", "kpi_strip"],
             "typed_hold": sorted(UNSUPPORTED_CHART_TYPES),
             "bar_backend": [
-                "P3.26 insert_polygon solid fill",
-                "P3.25 set_drawing_layout",
-                "P3.25 insert_textbox",
+                "P4.9 bounded insert_rectangle",
+                "P3.25 insert_textbox label/value overlays",
+                "P4.9 preflight + post-materialization visual certificates",
             ],
             "authority": "STRUCTURAL_NATIVE_CHART_COMPOSITION_NOT_NATIVE_HANCOM_CHART_OBJECT",
         },
@@ -146,7 +146,7 @@ def _compile_bar_chart(cid: str, raw: dict, caption_block_id: str) -> dict:
         "top_offset": top_offset,
         "reserved_spacing_pt": max(72, int((height + top_offset) / 100) + 8),
         "rows": chart_rows,
-        "authority": "P3.26_POLYGON_PLUS_P3.25_LAYOUT_AND_TEXTBOX",
+        "authority": "P4.9_BOUNDED_RECTANGLE_PLUS_TEXTBOX_WITH_VISUAL_CERTIFICATION",
     }
 
 
@@ -172,7 +172,7 @@ def _compile_kpi_strip(cid: str, raw: dict, anchor_block_id: str) -> dict:
         "height": int(raw.get("height", 7200)),
         "top_offset": 1600,
         "reserved_spacing_pt": max(72, int((int(raw.get("height", 7200)) + 1600) / 100) + 8),
-        "authority": "P3.25_TEXTBOX_PLUS_P3.26_SOLID_FILL",
+        "authority": "P4.9_BOUNDED_KPI_CONTAINER_PLUS_INDEPENDENT_TEXTBOXES",
     }
 
 

@@ -45,7 +45,9 @@ with tempfile.TemporaryDirectory() as tmp:
     composition = compose_document_plan(path, unified["rich"]["plan"])
     visual = _execute_visual_plans(path, compiled["visual_plans"], composition["bindings"])
     assert visual and visual[0]["type"] == "bar_chart"
-    assert build_drawing_layer_map(path)["family_counts"].get("polygon", 0) >= 2
+    mapped = build_drawing_layer_map(path)
+    assert mapped["family_counts"].get("polygon", 0) == 0
+    assert mapped["family_counts"].get("rect", 0) >= 10
     safety = validate_editor_open_safety(path.read_bytes())
     assert safety.ok, safety.issues
 

@@ -55,45 +55,58 @@ def _style_textbox(path, locator: str, *, fill: str = "#FFFFFF", stroke: str = "
     return list(receipt["receipts"])
 
 
+def _insert_filled_rectangle(
+    path,
+    anchor: str,
+    *,
+    x: int,
+    y: int,
+    width: int,
+    height: int,
+    fill: str,
+    stroke: str,
+    z_order: int = 1,
+) -> dict:
+    created = apply_drawing_layer_atomic(
+        path,
+        [{
+            "op": "insert_rectangle",
+            "anchor": anchor,
+            "width": int(width),
+            "height": int(height),
+            "horizontal_offset": int(x),
+            "vertical_offset": int(y),
+            "horz_rel_to": "PARA",
+            "vert_rel_to": "PARA",
+            "z_order": int(z_order),
+        }],
+        expected_revision=1,
+        current_revision=1,
+        validator=None,
+    )
+    locator = _created_rect_locator(path, created["receipts"][0]["shape_id"])
+    style = _style_textbox(path, locator, fill=fill, stroke=stroke)
+    return {
+        "box": created["receipts"][0],
+        "locator": locator,
+        "style": style,
+        "bounds": [int(x), int(y), int(width), int(height)],
+    }
+
+
 def _execute_bar_chart(path, plan: dict, anchor: str) -> dict:
     receipts = []
     for row in plan["rows"]:
-        bar = apply_drawing_style_atomic(
+        bar = _insert_filled_rectangle(
             path,
-            [{
-                "op": "insert_polygon",
-                "anchor": anchor,
-                "points": [
-                    [0, 0],
-                    [int(row["bar_width"]), 0],
-                    [int(row["bar_width"]), int(row["bar_height"])],
-                    [0, int(row["bar_height"])],
-                ],
-                "fill_color": plan["color"],
-                "line_color": plan["color"],
-                "line_width": 33,
-                "treat_as_char": False,
-            }],
-            expected_revision=1,
-            current_revision=1,
-            validator=None,
-        )
-        bar_locator = str(bar["receipts"][0]["created_drawing"])
-        bar_layout = apply_drawing_layer_atomic(
-            path,
-            [{
-                "op": "set_drawing_layout",
-                "drawing": bar_locator,
-                "horizontal_offset": int(row["x"]),
-                "vertical_offset": int(row["y"]),
-                "horz_rel_to": "PARA",
-                "vert_rel_to": "PARA",
-                "allow_overlap": True,
-                "flow_with_text": True,
-            }],
-            expected_revision=1,
-            current_revision=1,
-            validator=None,
+            anchor,
+            x=int(row["x"]),
+            y=int(row["y"]),
+            width=int(row["bar_width"]),
+            height=int(row["bar_height"]),
+            fill=plan["color"],
+            stroke=plan["color"],
+            z_order=1,
         )
 
         label = apply_drawing_layer_atomic(
@@ -140,21 +153,22 @@ def _execute_bar_chart(path, plan: dict, anchor: str) -> dict:
         value_style = _style_textbox(path, value_loc)
 
         receipts.append({
+            "semantic_group_id": f"{plan['component_id']}:bar:{row['index']}",
             "label": row["label"],
             "value": row["value"],
-            "bar": bar["receipts"][0],
-            "bar_layout": bar_layout["receipts"][0],
+            "bar": bar,
             "label_box": label["receipts"][0],
             "label_style": label_style,
             "value_box": value["receipts"][0],
             "value_style": value_style,
+            "children": ["shape", "label", "value"],
         })
     return {
         "component_id": plan["component_id"],
         "type": "bar_chart",
         "row_count": len(plan["rows"]),
         "receipts": receipts,
-        "authority": plan["authority"],
+        "authority": "P4.9_GEOMETRY_SAFE_RECTANGLE_PLUS_TEXTBOX",
     }
 
 
@@ -167,38 +181,83 @@ def _execute_kpi_strip(path, plan: dict, anchor: str) -> dict:
     receipts = []
     for item in items:
         x = int(item["index"]) * (box_width + gap)
-        box = apply_drawing_layer_atomic(
+        y = int(plan["top_offset"])
+        background = _insert_filled_rectangle(
+            path,
+            anchor,
+            x=x,
+            y=y,
+            width=box_width,
+            height=height,
+            fill="#F3F6FA",
+            stroke="#AEB7C2",
+            z_order=1,
+        )
+
+        inner_x = x + 500
+        inner_width = max(1200, box_width - 1000)
+        value_height = max(1800, min(2800, height // 2 - 300))
+        label_height = max(1500, min(2400, height // 2 - 400))
+
+        value = apply_drawing_layer_atomic(
             path,
             [{
                 "op": "insert_textbox",
                 "anchor": anchor,
-                "paragraphs": [str(item["value"]), str(item["label"])],
-                "width": box_width,
-                "height": height,
-                "horizontal_offset": x,
-                "vertical_offset": int(plan["top_offset"]),
+                "paragraphs": [str(item["value"])],
+                "width": inner_width,
+                "height": value_height,
+                "horizontal_offset": inner_x,
+                "vertical_offset": y + 500,
                 "horz_rel_to": "PARA",
                 "vert_rel_to": "PARA",
-                "z_order": 1,
+                "z_order": 2,
             }],
             expected_revision=1,
             current_revision=1,
             validator=None,
         )
-        locator = _created_rect_locator(path, box["receipts"][0]["shape_id"])
-        style = _style_textbox(path, locator, fill="#F3F6FA", stroke="#AEB7C2")
+        value_loc = _created_rect_locator(path, value["receipts"][0]["shape_id"])
+        value_style = _style_textbox(path, value_loc)
+
+        label = apply_drawing_layer_atomic(
+            path,
+            [{
+                "op": "insert_textbox",
+                "anchor": anchor,
+                "paragraphs": [str(item["label"])],
+                "width": inner_width,
+                "height": label_height,
+                "horizontal_offset": inner_x,
+                "vertical_offset": y + max(2600, height // 2),
+                "horz_rel_to": "PARA",
+                "vert_rel_to": "PARA",
+                "z_order": 2,
+            }],
+            expected_revision=1,
+            current_revision=1,
+            validator=None,
+        )
+        label_loc = _created_rect_locator(path, label["receipts"][0]["shape_id"])
+        label_style = _style_textbox(path, label_loc)
+
         receipts.append({
+            "semantic_group_id": f"{plan['component_id']}:kpi:{item['index']}",
             "label": item["label"],
             "value": item["value"],
-            "box": box["receipts"][0],
-            "style": style,
+            "container": background,
+            "value_box": value["receipts"][0],
+            "value_style": value_style,
+            "label_box": label["receipts"][0],
+            "label_style": label_style,
+            "children": ["container", "label", "value"],
         })
     return {
         "component_id": plan["component_id"],
         "type": "kpi_strip",
         "item_count": len(items),
         "receipts": receipts,
-        "authority": plan["authority"],
+        "authority": "P4.9_BOUNDED_KPI_CARD_RECTANGLE_PLUS_SEPARATE_TEXTBOXES",
     }
 
 

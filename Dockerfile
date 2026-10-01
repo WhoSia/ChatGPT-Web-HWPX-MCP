@@ -138,6 +138,7 @@ COPY scripts/p46_real_document_benchmark.py scripts/p46_real_document_benchmark.
 RUN python scripts/p46_release_smoke.py
 COPY scripts/p47_release_smoke.py scripts/p47_release_smoke.py
 RUN python scripts/p47_release_smoke.py
+COPY p49_visual_conformance.py p49_visual_conformance.py
 COPY scripts/p48_release_smoke.py scripts/p48_release_smoke.py
 COPY scripts/p48_component_benchmark.py scripts/p48_component_benchmark.py
 RUN python scripts/p48_release_smoke.py

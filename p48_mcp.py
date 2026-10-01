@@ -17,7 +17,7 @@ from p326_drawing_style import apply_drawing_style_atomic, build_drawing_style_m
 from p338_rich_builder import evaluate_preview_readiness
 from p46_native_authoring import compile_native_authoring_bundle
 from p47_native_authoring import compile_unified_authoring_plan as compile_unified_authoring_plan_kernel
-from p49_visual_conformance import certify_visual_plans
+from p49_visual_conformance import audit_materialized_visuals, certify_visual_plans
 from p48_components import (
     component_authoring_contract,
     compile_document_components as compile_document_components_kernel,
@@ -426,6 +426,12 @@ def register_p48_tools(core, refresh_metadata, delivery_after_commit):
                 list(components["visual_plans"]),
                 dict(composition["bindings"]),
             )
+            materialized_visual_audit = audit_materialized_visuals(path, visual_receipts)
+            if materialized_visual_audit["status"] != "PASS":
+                raise ValueError(
+                    "P4.9 post-materialization visual audit refused delivery: "
+                    + json.dumps(materialized_visual_audit["issues"], ensure_ascii=False, sort_keys=True)
+                )
 
             validation = core.validate_hwpx_package(path, ingress=False)
             readiness = evaluate_preview_readiness(
@@ -456,6 +462,8 @@ def register_p48_tools(core, refresh_metadata, delivery_after_commit):
             metadata["p48_visual_receipts"] = visual_receipts
             metadata["p49_visual_certificate_status"] = visual_certificate["status"]
             metadata["p49_visual_certificate_sha256"] = visual_certificate["visual_certificate_sha256"]
+            metadata["p49_materialized_visual_audit_status"] = materialized_visual_audit["status"]
+            metadata["p49_materialized_visual_audit_sha256"] = materialized_visual_audit["materialized_visual_audit_sha256"]
             metadata["p48_native_bundle_sha256"] = None if compiled_native is None else compiled_native["bundle_sha256"]
             metadata["p48_preview_readiness_sha256"] = readiness["preview_readiness_sha256"]
             if normalized_request_id:
@@ -505,6 +513,10 @@ def register_p48_tools(core, refresh_metadata, delivery_after_commit):
                         "p49_visual_certificate": {
                             "status": visual_certificate["status"],
                             "sha256": visual_certificate["visual_certificate_sha256"],
+                        },
+                        "p49_materialized_visual_audit": {
+                            "status": materialized_visual_audit["status"],
+                            "sha256": materialized_visual_audit["materialized_visual_audit_sha256"],
                         },
                         "native_receipts": native_receipts,
                         "preview_readiness": readiness,

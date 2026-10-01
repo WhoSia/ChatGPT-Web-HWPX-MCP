@@ -113,10 +113,10 @@ foreach ($src in $sources) {
             }
         )
 
-        foreach ($pid in $aliveOwned) {
+        foreach ($ownedPid in $aliveOwned) {
             try {
-                Stop-Process -Id $pid -Force -ErrorAction Stop
-                $forcedCleanup += $pid
+                Stop-Process -Id $ownedPid -Force -ErrorAction Stop
+                $forcedCleanup += $ownedPid
             }
             catch {}
         }

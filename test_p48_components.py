@@ -113,7 +113,7 @@ def test_bar_chart_and_kpi_compile_to_visual_plans():
     assert [x["type"] for x in compiled["visual_plans"]] == ["bar_chart", "kpi_strip"]
     chart = compiled["visual_plans"][0]
     assert chart["rows"][1]["bar_width"] > chart["rows"][0]["bar_width"]
-    assert chart["authority"].startswith("P3.26")
+    assert chart["authority"] == "P4.9_BOUNDED_RECTANGLE_PLUS_TEXTBOX_WITH_VISUAL_CERTIFICATION"
 
 
 def test_data_table_image_and_callout_lower_to_existing_rich_blocks():

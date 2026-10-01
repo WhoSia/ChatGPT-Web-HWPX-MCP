@@ -53,12 +53,40 @@ def run(out: Path) -> dict:
             "fixture": fixture,
         })
 
+    adjudication_template = {
+        "phase": "P4.9",
+        "schema": "chatgpt-web-hwpx-mcp/p49/equation-alignment-adjudication/v1",
+        "witness_sha256": contract["witness_sha256"],
+        "variants": [
+            {
+                "variant_id": row["variant_id"],
+                "expected_alignment": row["expected_alignment"],
+                "source_hwpx": row["fixture"]["filename"],
+                "source_hwpx_sha256": row["fixture"]["sha256"],
+                "pdf_sha256": None,
+                "export_succeeded": False,
+                "observed_alignment": "PENDING",
+                "no_clipping_or_corruption": False,
+                "human_visual_status": "PENDING",
+                "notes": "",
+            }
+            for row in rows
+        ],
+        "authority": "TEMPLATE_ONLY_NO_NATIVE_OR_HUMAN_VERDICT",
+    }
+    adjudication_path = out / "p49-equation-alignment-adjudication-template.json"
+    adjudication_path.write_text(
+        json.dumps(adjudication_template, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+
     result = {
         "phase": "P4.9",
         "schema": contract["schema"],
         "witness_sha256": contract["witness_sha256"],
         "witness_count": len(rows),
         "rows": rows,
+        "adjudication_template": adjudication_path.name,
         "authority": "STRUCTURAL_WITNESS_PACKET_ONLY_NATIVE_HANCOM_VISUAL_ADJUDICATION_PENDING",
     }
     (out / "p49-equation-alignment-witness.json").write_text(

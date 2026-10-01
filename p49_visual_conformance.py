@@ -23,6 +23,7 @@ ISSUE_MATERIALIZED_WRONG_KIND = "MATERIALIZED_WRONG_KIND"
 ISSUE_MATERIALIZED_DEGENERATE = "MATERIALIZED_DEGENERATE_GEOMETRY"
 ISSUE_MATERIALIZED_TEXT_MISMATCH = "MATERIALIZED_TEXT_MISMATCH"
 ISSUE_UNEXPECTED_ROTATION = "UNEXPECTED_ROTATION"
+ISSUE_VISUAL_CHILD_OUTSIDE_CONTAINER = "VISUAL_CHILD_OUTSIDE_CONTAINER"
 
 
 def _sha(value: Any) -> str:
@@ -106,6 +107,29 @@ def certify_bar_chart(plan: dict) -> dict:
             "label": bool(label),
             "value": value is not None,
         }
+
+        label_width = max(2400, int(x or 0) - 400)
+        text_height = int(bar_height or 0) + 900
+        shape_right = int(x or 0) + int(bar_width or 0)
+        label_right = int(label_x or 0) + label_width
+        value_right = int(value_x or 0) + 5200
+        shape_bottom = int(y or 0) + int(bar_height or 0)
+        text_top = int(y or 0) - 250
+        text_bottom = text_top + text_height
+        container_bottom = int(plan.get("top_offset") or 0) + height
+        if max(shape_right, label_right, value_right) > width or max(shape_bottom, text_bottom) > container_bottom:
+            issues.append(
+                _issue(
+                    ISSUE_VISUAL_CHILD_OUTSIDE_CONTAINER,
+                    cid,
+                    "bar row child geometry exceeds declared visual container",
+                    row_index=index,
+                    chart_width=width,
+                    chart_bottom=container_bottom,
+                    child_right=max(shape_right, label_right, value_right),
+                    child_bottom=max(shape_bottom, text_bottom),
+                )
+            )
         if not all(expected_children.values()):
             issues.append(
                 _issue(
@@ -197,6 +221,21 @@ def certify_kpi_strip(plan: dict) -> dict:
                 )
             )
         x = index * (box_width + gap)
+        value_height = max(1800, min(2800, height // 2 - 300))
+        label_height = max(1500, min(2400, height // 2 - 400))
+        value_bottom = 500 + value_height
+        label_bottom = max(2600, height // 2) + label_height
+        if max(value_bottom, label_bottom) > height:
+            issues.append(
+                _issue(
+                    ISSUE_VISUAL_CHILD_OUTSIDE_CONTAINER,
+                    cid,
+                    "KPI label/value geometry exceeds card height",
+                    item_index=index,
+                    card_height=height,
+                    child_bottom=max(value_bottom, label_bottom),
+                )
+            )
         groups.append(
             {
                 "group_id": f"{cid}:kpi:{index}",

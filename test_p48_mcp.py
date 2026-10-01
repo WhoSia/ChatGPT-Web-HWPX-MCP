@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import tempfile
+
+import pytest
 from pathlib import Path
 
 from hwpx.tools.package_validator import validate_editor_open_safety
@@ -115,3 +117,12 @@ def test_compile_tool_exposes_typed_blockers_before_mutation():
     })
     assert result["ready"] is False
     assert result["blockers"][0]["reason"] == "UNSUPPORTED_CHART_PRIMITIVE"
+
+
+def test_p49_runtime_certificate_refuses_incomplete_visual_group_before_mutation():
+    components = compile_document_components(_visual_spec())
+    bad = components["visual_plans"][0]
+    bad["rows"][1]["label"] = ""
+
+    with pytest.raises(ValueError, match="P4.9 visual geometry certificate refused lowering"):
+        _execute_visual_plans(Path("unused.hwpx"), [bad], {})

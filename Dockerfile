@@ -139,10 +139,13 @@ RUN python scripts/p46_release_smoke.py
 COPY scripts/p47_release_smoke.py scripts/p47_release_smoke.py
 RUN python scripts/p47_release_smoke.py
 COPY p49_visual_conformance.py p49_visual_conformance.py
+COPY p49_equation_witnesses.py p49_equation_witnesses.py
 COPY scripts/p48_release_smoke.py scripts/p48_release_smoke.py
 COPY scripts/p48_component_benchmark.py scripts/p48_component_benchmark.py
+COPY scripts/p49_release_smoke.py scripts/p49_release_smoke.py
 RUN python scripts/p48_release_smoke.py
 RUN python scripts/p48_component_benchmark.py --out /tmp/p48-component-benchmark >/dev/null
+RUN python scripts/p49_release_smoke.py
 
 ENV MCP_HOST=0.0.0.0
 ENV MCP_PORT=8000

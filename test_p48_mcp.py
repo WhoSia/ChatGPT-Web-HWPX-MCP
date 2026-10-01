@@ -57,8 +57,8 @@ def test_visual_plans_materialize_native_shapes_on_private_candidate():
         assert [x["type"] for x in receipts] == ["bar_chart", "kpi_strip"]
         mapped = build_drawing_layer_map(path)
         styles = build_drawing_style_map(path)
-        assert mapped["family_counts"].get("polygon", 0) >= 2
-        assert mapped["family_counts"].get("rect", 0) >= 6
+        assert mapped["family_counts"].get("polygon", 0) == 0
+        assert mapped["family_counts"].get("rect", 0) >= 10
         assert styles["drawing_style_sha256"]
         safety = validate_editor_open_safety(path.read_bytes())
         assert safety.ok, safety.issues
@@ -73,7 +73,8 @@ def test_bar_chart_receipts_preserve_semantic_rows():
         receipt = _execute_visual_plans(path, [components["visual_plans"][0]], composition["bindings"])[0]
         assert receipt["row_count"] == 2
         assert [r["label"] for r in receipt["receipts"]] == ["대조군", "처리군"]
-        assert receipt["authority"].startswith("P3.26")
+        assert receipt["authority"] == "P4.9_GEOMETRY_SAFE_RECTANGLE_PLUS_TEXTBOX"
+        assert [r["children"] for r in receipt["receipts"]] == [["shape", "label", "value"], ["shape", "label", "value"]]
 
 
 class _MCP:

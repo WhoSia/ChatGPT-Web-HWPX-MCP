@@ -17,6 +17,7 @@ from p326_drawing_style import apply_drawing_style_atomic, build_drawing_style_m
 from p338_rich_builder import evaluate_preview_readiness
 from p46_native_authoring import compile_native_authoring_bundle
 from p47_native_authoring import compile_unified_authoring_plan as compile_unified_authoring_plan_kernel
+from p49_visual_conformance import certify_visual_plans
 from p48_components import (
     component_authoring_contract,
     compile_document_components as compile_document_components_kernel,
@@ -202,6 +203,12 @@ def _execute_kpi_strip(path, plan: dict, anchor: str) -> dict:
 
 
 def _execute_visual_plans(path, visual_plans: list[dict], bindings: dict[str, dict]) -> list[dict]:
+    certificate = certify_visual_plans(visual_plans)
+    if certificate["status"] != "PASS":
+        raise ValueError(
+            "P4.9 visual geometry certificate refused lowering: "
+            + json.dumps(certificate["issues"], ensure_ascii=False, sort_keys=True)
+        )
     receipts = []
     for plan in visual_plans:
         binding = bindings.get(str(plan["anchor_block_id"]))
@@ -349,6 +356,12 @@ def register_p48_tools(core, refresh_metadata, delivery_after_commit):
                         path, execution["drawings"], expected_revision=1, current_revision=1, validator=None
                     )
 
+            visual_certificate = certify_visual_plans(list(components["visual_plans"]))
+            if visual_certificate["status"] != "PASS":
+                raise ValueError(
+                    "P4.9 visual geometry certificate refused component mutation: "
+                    + json.dumps(visual_certificate["issues"], ensure_ascii=False, sort_keys=True)
+                )
             visual_receipts = _execute_visual_plans(
                 path,
                 list(components["visual_plans"]),
@@ -382,6 +395,8 @@ def register_p48_tools(core, refresh_metadata, delivery_after_commit):
             metadata["p48_archetype"] = components["archetype"]
             metadata["p48_visual_component_count"] = len(visual_receipts)
             metadata["p48_visual_receipts"] = visual_receipts
+            metadata["p49_visual_certificate_status"] = visual_certificate["status"]
+            metadata["p49_visual_certificate_sha256"] = visual_certificate["visual_certificate_sha256"]
             metadata["p48_native_bundle_sha256"] = None if compiled_native is None else compiled_native["bundle_sha256"]
             metadata["p48_preview_readiness_sha256"] = readiness["preview_readiness_sha256"]
             if normalized_request_id:
@@ -428,6 +443,10 @@ def register_p48_tools(core, refresh_metadata, delivery_after_commit):
                         "archetype": components["archetype"],
                         "visual_component_count": len(visual_receipts),
                         "visual_receipts": visual_receipts,
+                        "p49_visual_certificate": {
+                            "status": visual_certificate["status"],
+                            "sha256": visual_certificate["visual_certificate_sha256"],
+                        },
                         "native_receipts": native_receipts,
                         "preview_readiness": readiness,
                         "idempotent_replay": False,

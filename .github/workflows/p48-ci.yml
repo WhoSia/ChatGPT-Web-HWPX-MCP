@@ -4,6 +4,8 @@ on:
     branches: [main]
     paths:
       - "p48_*"
+      - "p49_*"
+      - "test_p49_*"
       - "test_p48_*"
       - "scripts/p48_*"
       - "docs/p48-*"
@@ -24,8 +26,8 @@ jobs:
       - uses: actions/setup-python@v5
         with: {python-version: "3.12", cache: pip}
       - run: pip install -r requirements.txt -r requirements-dev.txt
-      - run: python -m compileall -q p48_components.py p48_mcp.py test_p48_components.py test_p48_mcp.py scripts/p48_release_smoke.py scripts/p48_component_benchmark.py
-      - run: python -m pytest -q test_p48_components.py test_p48_mcp.py
+      - run: python -m compileall -q p48_components.py p48_mcp.py p49_visual_conformance.py test_p48_components.py test_p48_mcp.py test_p49_visual_conformance.py scripts/p48_release_smoke.py scripts/p48_component_benchmark.py
+      - run: python -m pytest -q test_p48_components.py test_p48_mcp.py test_p49_visual_conformance.py
       - run: python scripts/p48_release_smoke.py
       - run: python scripts/p48_component_benchmark.py --out /tmp/p48-component-benchmark
       - uses: actions/upload-artifact@v4

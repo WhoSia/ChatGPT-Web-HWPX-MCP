@@ -18,6 +18,7 @@ from p210_equations import build_equation_map
 from p47_native_authoring import compile_unified_authoring_plan
 from p48_components import ARCHETYPES, compile_document_components
 from p48_mcp import _execute_visual_plans
+from p49_visual_conformance import certify_visual_plans
 
 
 def _scenario(archetype: str) -> dict:
@@ -66,6 +67,9 @@ def run(out: Path) -> dict:
         unified = compile_unified_authoring_plan(compiled["unified_spec"])
         path = out / f"p48-{archetype.lower()}.hwpx"
         composition = compose_document_plan(path, unified["rich"]["plan"])
+        visual_certificate = certify_visual_plans(compiled["visual_plans"])
+        if visual_certificate["status"] != "PASS":
+            raise RuntimeError(f"{archetype} P4.9 visual certificate failed: {visual_certificate['issues']}")
         visual = _execute_visual_plans(path, compiled["visual_plans"], composition["bindings"])
         raw = path.read_bytes()
         safety = validate_editor_open_safety(raw)
@@ -81,6 +85,8 @@ def run(out: Path) -> dict:
             "bytes": len(raw),
             "component_count": compiled["component_count"],
             "visual_component_count": len(visual),
+            "visual_certificate_sha256": visual_certificate["visual_certificate_sha256"],
+            "visual_certificate_status": visual_certificate["status"],
             "drawing_count": drawings["drawing_count"],
             "table_count": tables["table_count"],
             "equation_count": equations["equation_count"],

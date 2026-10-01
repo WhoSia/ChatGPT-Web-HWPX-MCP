@@ -3,6 +3,7 @@ from __future__ import annotations
 from p48_components import compile_document_components
 from p49_visual_conformance import (
     ISSUE_KPI_CHILD_OUTSIDE_CONTAINER,
+    ISSUE_VISUAL_CHILD_OUTSIDE_CONTAINER,
     ISSUE_VISUAL_GROUP_INCOMPLETE,
     certify_bar_chart,
     certify_kpi_strip,
@@ -67,3 +68,33 @@ def test_kpi_certificate_detects_child_extent_escape():
 
     assert cert["status"] == "FAIL"
     assert any(issue["code"] == ISSUE_KPI_CHILD_OUTSIDE_CONTAINER for issue in cert["issues"])
+
+
+def test_bar_certificate_detects_horizontal_child_escape():
+    plan = compile_document_components(_spec())["visual_plans"][0]
+    plan["rows"][1]["value_x"] = plan["width"] - 100
+    cert = certify_bar_chart(plan)
+
+    assert cert["status"] == "FAIL"
+    assert any(issue["code"] == ISSUE_VISUAL_CHILD_OUTSIDE_CONTAINER for issue in cert["issues"])
+
+
+def test_bar_certificate_detects_vertical_escape_for_overcompressed_height():
+    spec = _spec()
+    spec["sections"][0]["components"][0]["height"] = 6000
+    for i in range(2, 12):
+        spec["sections"][0]["components"][0]["data"].append({"label": f"R{i}", "value": i + 1})
+    plan = compile_document_components(spec)["visual_plans"][0]
+    cert = certify_bar_chart(plan)
+
+    assert cert["status"] == "FAIL"
+    assert any(issue["code"] == ISSUE_VISUAL_CHILD_OUTSIDE_CONTAINER for issue in cert["issues"])
+
+
+def test_kpi_certificate_detects_vertical_child_escape():
+    plan = compile_document_components(_spec())["visual_plans"][1]
+    plan["height"] = 1000
+    cert = certify_kpi_strip(plan)
+
+    assert cert["status"] == "FAIL"
+    assert any(issue["code"] == ISSUE_VISUAL_CHILD_OUTSIDE_CONTAINER for issue in cert["issues"])

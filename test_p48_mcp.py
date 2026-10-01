@@ -131,3 +131,47 @@ def test_p49_runtime_certificate_refuses_incomplete_visual_group_before_mutation
 
     with pytest.raises(ValueError, match="P4.9 visual geometry certificate refused lowering"):
         _execute_visual_plans(Path("unused.hwpx"), [bad], {})
+
+
+def test_compile_tool_surfaces_p49_visual_extent_blocker_before_mutation():
+    core = _Core()
+    register_p48_tools(core, lambda *a, **k: None, lambda *a, **k: None)
+    data = [{"label": f"R{i}", "value": i + 1} for i in range(12)]
+    result = core.mcp.tools["compile_document_components"]({
+        "archetype": "LAB_REPORT",
+        "sections": [{"components": [{
+            "id": "crowded",
+            "type": "bar_chart",
+            "height": 6000,
+            "data": data,
+        }]}],
+    })
+
+    assert result["ready"] is False
+    assert result["p49_visual_certificate"]["status"] == "FAIL"
+    assert any(
+        blocker["reason"] == "P49_VISUAL_CHILD_OUTSIDE_CONTAINER"
+        for blocker in result["blockers"]
+    )
+
+
+def test_repair_tool_surfaces_non_mutating_p49_geometry_options():
+    core = _Core()
+    register_p48_tools(core, lambda *a, **k: None, lambda *a, **k: None)
+    result = core.mcp.tools["plan_component_repairs"]({
+        "archetype": "POLICY_BRIEF",
+        "sections": [{"components": [{
+            "id": "narrow-kpi",
+            "type": "kpi_strip",
+            "width": 5000,
+            "items": [
+                {"label": "A", "value": "1"},
+                {"label": "B", "value": "2"},
+            ],
+        }]}],
+    })
+
+    assert result["ready"] is False
+    p49 = [r for r in result["repairs"] if r["problem"].startswith("P49_")]
+    assert p49
+    assert all(r["automatic_mutation"] is False for r in p49)

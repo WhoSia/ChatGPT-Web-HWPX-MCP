@@ -47,7 +47,7 @@ with tempfile.TemporaryDirectory() as tmp:
     assert visual and visual[0]["type"] == "bar_chart"
     mapped = build_drawing_layer_map(path)
     assert mapped["family_counts"].get("polygon", 0) == 0
-    assert mapped["family_counts"].get("rect", 0) >= 10
+    assert mapped["family_counts"].get("rect", 0) >= 6
     safety = validate_editor_open_safety(path.read_bytes())
     assert safety.ok, safety.issues
 

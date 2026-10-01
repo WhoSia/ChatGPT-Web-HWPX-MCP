@@ -331,6 +331,14 @@ def _plan_component_repairs_with_p49(spec: dict) -> dict:
     base["ready"] = compiled["ready"]
     base["repair_count"] = len(repairs)
     base["repairs"] = repairs
+    base["repair_plan_sha256"] = hashlib.sha256(
+        json.dumps(
+            repairs,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    ).hexdigest()
     base["p49_visual_certificate"] = compiled["p49_visual_certificate"]
     return base
 

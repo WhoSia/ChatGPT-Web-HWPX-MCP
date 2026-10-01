@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+import json
 import tempfile
 
 import pytest
@@ -175,3 +177,12 @@ def test_repair_tool_surfaces_non_mutating_p49_geometry_options():
     p49 = [r for r in result["repairs"] if r["problem"].startswith("P49_")]
     assert p49
     assert all(r["automatic_mutation"] is False for r in p49)
+    expected_hash = hashlib.sha256(
+        json.dumps(
+            result["repairs"],
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    ).hexdigest()
+    assert result["repair_plan_sha256"] == expected_hash

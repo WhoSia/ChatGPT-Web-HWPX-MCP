@@ -13,6 +13,7 @@ from p326_drawing_style import build_drawing_style_map
 from p47_native_authoring import compile_unified_authoring_plan
 from p48_components import compile_document_components
 from p48_mcp import _execute_visual_plans, register_p48_tools
+from p49_visual_conformance import audit_materialized_visuals
 
 
 def _visual_spec():
@@ -60,6 +61,9 @@ def test_visual_plans_materialize_native_shapes_on_private_candidate():
         assert mapped["family_counts"].get("polygon", 0) == 0
         assert mapped["family_counts"].get("rect", 0) >= 10
         assert styles["drawing_style_sha256"]
+        materialized = audit_materialized_visuals(path, receipts)
+        assert materialized["status"] == "PASS", materialized["issues"]
+        assert materialized["drawing_count"] == mapped["drawing_count"]
         safety = validate_editor_open_safety(path.read_bytes())
         assert safety.ok, safety.issues
 

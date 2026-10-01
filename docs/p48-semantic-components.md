@@ -23,8 +23,8 @@ The P4.7 unified-authoring and P4.6 native-authoring surfaces remain expert/comp
 | equation | equation | P4.6 verified LaTeX → native EqEdit only |
 | equation reference | equation_reference | stable compiler label + equation bookmark |
 | structured data | data_table | native table with semantic header |
-| visualization | bar_chart | P3.26 filled polygons + P3.25 anchored layout/textboxes |
-| visualization | kpi_strip | P3.25 textboxes + P3.26 solid fill/stroke |
+| visualization | bar_chart | P4.9 bounded rectangles + independent label/value textboxes |
+| visualization | kpi_strip | P4.9 bounded container rectangles + independent value/label textboxes |
 | media | image | existing native picture/media lane |
 | pagination | page_break | native page-break paragraph |
 
@@ -53,7 +53,7 @@ semantic series
   -> reserved paragraph spacing budget
 ```
 
-A KPI strip is lowered to bounded native textboxes with admitted solid fill/stroke styling.
+A KPI strip is lowered to a bounded background rectangle plus independent value and label textboxes. P4.9 verifies the materialized rectangle/text geometry before delivery.
 
 The compiler reserves vertical paragraph budget to reduce overlap risk. Structural generation does not itself establish native-render or human visual authority.
 

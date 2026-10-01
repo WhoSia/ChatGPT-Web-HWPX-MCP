@@ -283,6 +283,57 @@ def _execute_visual_plans(path, visual_plans: list[dict], bindings: dict[str, di
     return receipts
 
 
+
+def _compile_components_with_p49(spec: dict) -> dict:
+    compiled = compile_document_components_kernel(spec)
+    visual_certificate = certify_visual_plans(list(compiled.get("visual_plans") or []))
+    compiled["p49_visual_certificate"] = visual_certificate
+    if visual_certificate["status"] != "PASS":
+        blockers = list(compiled.get("blockers") or [])
+        for issue in visual_certificate["issues"]:
+            blockers.append({
+                "component_id": str(issue.get("component_id") or ""),
+                "type": "visual_geometry",
+                "reason": f"P49_{issue.get('code')}",
+                "detail": issue.get("detail"),
+                "evidence": issue,
+                "repair_options": [
+                    "increase_visual_dimensions",
+                    "reduce_visual_item_count",
+                    "use_data_table",
+                ],
+            })
+        compiled["blockers"] = blockers
+        compiled["ready"] = False
+    return compiled
+
+
+def _plan_component_repairs_with_p49(spec: dict) -> dict:
+    base = plan_component_repairs_kernel(spec)
+    compiled = _compile_components_with_p49(spec)
+    repairs = list(base.get("repairs") or [])
+    seen = {(str(item.get("component_id")), str(item.get("problem"))) for item in repairs}
+    for blocker in compiled.get("blockers") or []:
+        reason = str(blocker.get("reason") or "")
+        if not reason.startswith("P49_"):
+            continue
+        key = (str(blocker.get("component_id") or ""), reason)
+        if key in seen:
+            continue
+        seen.add(key)
+        repairs.append({
+            "component_id": key[0],
+            "problem": reason,
+            "detail": blocker.get("detail"),
+            "safe_options": blocker.get("repair_options") or [],
+            "automatic_mutation": False,
+        })
+    base["ready"] = compiled["ready"]
+    base["repair_count"] = len(repairs)
+    base["repairs"] = repairs
+    base["p49_visual_certificate"] = compiled["p49_visual_certificate"]
+    return base
+
 def register_p48_tools(core, refresh_metadata, delivery_after_commit):
     read = ToolAnnotations(readOnlyHint=True, destructiveHint=False, openWorldHint=False)
     mutate = ToolAnnotations(readOnlyHint=False, destructiveHint=False, openWorldHint=False)
@@ -295,12 +346,12 @@ def register_p48_tools(core, refresh_metadata, delivery_after_commit):
     @core.mcp.tool(annotations=read)
     def compile_document_components(spec: dict) -> dict:
         core._caller_subject()
-        return {"ok": True, **compile_document_components_kernel(spec)}
+        return {"ok": True, **_compile_components_with_p49(spec)}
 
     @core.mcp.tool(annotations=read)
     def plan_component_repairs(spec: dict) -> dict:
         core._caller_subject()
-        return {"ok": True, **plan_component_repairs_kernel(spec)}
+        return {"ok": True, **_plan_component_repairs_with_p49(spec)}
 
     @core.mcp.tool(annotations=read)
     def get_p48_distribution_quickstart() -> dict:
@@ -317,7 +368,7 @@ def register_p48_tools(core, refresh_metadata, delivery_after_commit):
         owner_subject = core._caller_subject()
         core._download_secret()
         core._cleanup_expired()
-        components = compile_document_components_kernel(spec)
+        components = _compile_components_with_p49(spec)
         if not components["ready"]:
             raise ValueError(
                 "P4.8 component plan blocked before mutation: "

@@ -3,7 +3,10 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+from pathlib import Path
 from typing import Any
+
+from p325_drawing_layer import build_drawing_layer_map
 
 PHASE = "P4.9"
 SCHEMA = "chatgpt-web-hwpx-mcp/visual-conformance/p4.9/v1"
@@ -15,6 +18,11 @@ ISSUE_LABEL_TARGET_MISSING = "LABEL_TARGET_MISSING"
 ISSUE_VALUE_TARGET_MISSING = "VALUE_TARGET_MISSING"
 ISSUE_DEGENERATE_KPI_CONTAINER = "DEGENERATE_KPI_CONTAINER"
 ISSUE_KPI_CHILD_OUTSIDE_CONTAINER = "KPI_CHILD_OUTSIDE_CONTAINER"
+ISSUE_MATERIALIZED_OBJECT_MISSING = "MATERIALIZED_OBJECT_MISSING"
+ISSUE_MATERIALIZED_WRONG_KIND = "MATERIALIZED_WRONG_KIND"
+ISSUE_MATERIALIZED_DEGENERATE = "MATERIALIZED_DEGENERATE_GEOMETRY"
+ISSUE_MATERIALIZED_TEXT_MISMATCH = "MATERIALIZED_TEXT_MISMATCH"
+ISSUE_UNEXPECTED_ROTATION = "UNEXPECTED_ROTATION"
 
 
 def _sha(value: Any) -> str:
@@ -242,4 +250,176 @@ def certify_visual_plans(plans: list[dict]) -> dict:
         "authority": "STATIC_GEOMETRY_AND_SEMANTIC_GROUP_CERTIFICATE_NOT_NATIVE_RENDER_AUTHORITY",
     }
     result["visual_certificate_sha256"] = _sha(result)
+    return result
+
+
+def _find_materialized_object(mapped: dict, *, locator: str | None = None, shape_id: str | None = None) -> dict | None:
+    objects = list(mapped.get("objects") or [])
+    if locator:
+        found = next((item for item in objects if str(item.get("locator") or "") == str(locator)), None)
+        if found is not None:
+            return found
+    if shape_id:
+        found = next(
+            (
+                item for item in objects
+                if str(item.get("id") or item.get("instid") or "") == str(shape_id)
+            ),
+            None,
+        )
+        if found is not None:
+            return found
+    return None
+
+
+def _audit_rect_object(
+    component_id: str,
+    role: str,
+    obj: dict | None,
+    issues: list[dict],
+    *,
+    expected_text: str | None = None,
+) -> dict:
+    if obj is None:
+        issues.append(
+            _issue(
+                ISSUE_MATERIALIZED_OBJECT_MISSING,
+                component_id,
+                f"materialized object missing for {role}",
+                role=role,
+            )
+        )
+        return {"role": role, "status": "MISSING"}
+
+    evidence = {
+        "role": role,
+        "status": "PASS",
+        "locator": obj.get("locator"),
+        "kind": obj.get("kind"),
+        "width": obj.get("width"),
+        "height": obj.get("height"),
+        "position": obj.get("position"),
+        "rotation": obj.get("rotation"),
+        "text": obj.get("text"),
+    }
+    if obj.get("kind") != "rect":
+        issues.append(
+            _issue(
+                ISSUE_MATERIALIZED_WRONG_KIND,
+                component_id,
+                f"{role} materialized as {obj.get('kind')}, expected rect",
+                role=role,
+                locator=obj.get("locator"),
+            )
+        )
+        evidence["status"] = "FAIL"
+    if not _positive(obj.get("width")) or not _positive(obj.get("height")):
+        issues.append(
+            _issue(
+                ISSUE_MATERIALIZED_DEGENERATE,
+                component_id,
+                f"{role} width/height must remain positive after materialization",
+                role=role,
+                locator=obj.get("locator"),
+                width=obj.get("width"),
+                height=obj.get("height"),
+            )
+        )
+        evidence["status"] = "FAIL"
+
+    rotation = obj.get("rotation") or {}
+    angle = int(rotation.get("angle", "0") or 0) if isinstance(rotation, dict) else 0
+    if angle != 0:
+        issues.append(
+            _issue(
+                ISSUE_UNEXPECTED_ROTATION,
+                component_id,
+                f"{role} unexpectedly rotated",
+                role=role,
+                locator=obj.get("locator"),
+                angle=angle,
+            )
+        )
+        evidence["status"] = "FAIL"
+
+    if expected_text is not None:
+        actual = str(obj.get("text") or "")
+        if expected_text not in actual:
+            issues.append(
+                _issue(
+                    ISSUE_MATERIALIZED_TEXT_MISMATCH,
+                    component_id,
+                    f"{role} text does not preserve semantic payload",
+                    role=role,
+                    locator=obj.get("locator"),
+                    expected_text=expected_text,
+                    actual_text=actual,
+                )
+            )
+            evidence["status"] = "FAIL"
+    return evidence
+
+
+def audit_materialized_visuals(path: Path, receipts: list[dict]) -> dict:
+    mapped = build_drawing_layer_map(path)
+    issues: list[dict] = []
+    components = []
+
+    for component in receipts:
+        cid = str(component.get("component_id") or "")
+        kind = str(component.get("type") or "")
+        group_evidence = []
+        if kind == "bar_chart":
+            for row in component.get("receipts") or []:
+                bar_info = row.get("bar") or {}
+                bar = _find_materialized_object(mapped, locator=str(bar_info.get("locator") or ""))
+                label_info = row.get("label_box") or {}
+                value_info = row.get("value_box") or {}
+                label = _find_materialized_object(mapped, shape_id=str(label_info.get("shape_id") or ""))
+                value = _find_materialized_object(mapped, shape_id=str(value_info.get("shape_id") or ""))
+                group_evidence.append({
+                    "semantic_group_id": row.get("semantic_group_id"),
+                    "objects": [
+                        _audit_rect_object(cid, "shape", bar, issues),
+                        _audit_rect_object(cid, "label", label, issues, expected_text=str(row.get("label") or "")),
+                        _audit_rect_object(cid, "value", value, issues, expected_text=f"{row.get('value'):g}"),
+                    ],
+                })
+        elif kind == "kpi_strip":
+            for item in component.get("receipts") or []:
+                container_info = item.get("container") or {}
+                container = _find_materialized_object(mapped, locator=str(container_info.get("locator") or ""))
+                label_info = item.get("label_box") or {}
+                value_info = item.get("value_box") or {}
+                label = _find_materialized_object(mapped, shape_id=str(label_info.get("shape_id") or ""))
+                value = _find_materialized_object(mapped, shape_id=str(value_info.get("shape_id") or ""))
+                group_evidence.append({
+                    "semantic_group_id": item.get("semantic_group_id"),
+                    "objects": [
+                        _audit_rect_object(cid, "container", container, issues),
+                        _audit_rect_object(cid, "label", label, issues, expected_text=str(item.get("label") or "")),
+                        _audit_rect_object(cid, "value", value, issues, expected_text=str(item.get("value") or "")),
+                    ],
+                })
+        else:
+            issues.append(_issue(ISSUE_VISUAL_GROUP_INCOMPLETE, cid, f"unsupported materialized visual type: {kind}"))
+
+        components.append({
+            "component_id": cid,
+            "type": kind,
+            "semantic_groups": group_evidence,
+        })
+
+    result = {
+        "phase": PHASE,
+        "schema": SCHEMA,
+        "status": "PASS" if not issues else "FAIL",
+        "issues": issues,
+        "components": components,
+        "drawing_count": mapped.get("drawing_count"),
+        "drawing_structure_sha256": mapped.get("drawing_structure_sha256"),
+        "drawing_geometry_sha256": mapped.get("drawing_geometry_sha256"),
+        "authority": "POST_MATERIALIZATION_STRUCTURAL_AUDIT_NOT_NATIVE_RENDER_AUTHORITY",
+    }
+    result["materialized_visual_audit_sha256"] = _sha(result)
     return result

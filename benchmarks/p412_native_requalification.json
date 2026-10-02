@@ -1,0 +1,92 @@
+{
+  "phase": "P4.12",
+  "product": "0.37.0-p4.12",
+  "exact_head": "da77daa9c3d21fffb37a0e3b600f46205e8de6f1",
+  "capture": {
+    "generated_at": "2026-10-02T12:13:40.3027131+09:00",
+    "source_count": 5,
+    "pass_count": 5,
+    "fail_count": 0,
+    "authority": "HANCOM_NATIVE_CAPTURE_WITH_OWNED_PROCESS_LIFECYCLE"
+  },
+  "hancom": {
+    "expected_version": "13.0.0.3622",
+    "register_module_return": false
+  },
+  "archive_sha256": "eaaec3381c6a84e171ed894762cd61b9782c3ce24c063f3f99e310ee26ebe732",
+  "cases": [
+    {
+      "case_id": "p48-lab_report",
+      "source_sha256": "21BA8E11FA61C00923E693C2BEA4CF4DA63AB9FA74EBC12CC2894D046FAA5010",
+      "pdf_sha256": "A1C078CB58E706F2225D80D8C239F49F8A6FA050AA29D78F709E7B67ECDF8654",
+      "pdf_bytes": 37280,
+      "pages": 2,
+      "native_capture_pass": true,
+      "bar_visible": true,
+      "kpi_visible": true,
+      "vector_escape": false,
+      "clipping": false,
+      "novel_defects": []
+    },
+    {
+      "case_id": "p48-policy_brief",
+      "source_sha256": "870A8BC095F155301764E71F517F56616F25E9C6126BF0C1C788197982B8B4B8",
+      "pdf_sha256": "41F4E1AC2777924FA860CB587C61BFD604C0514627B672592B70688532EA5942",
+      "pdf_bytes": 37461,
+      "pages": 2,
+      "native_capture_pass": true,
+      "bar_visible": true,
+      "kpi_visible": true,
+      "vector_escape": false,
+      "clipping": false,
+      "novel_defects": []
+    },
+    {
+      "case_id": "p48-research_report",
+      "source_sha256": "2960F7E6E4C61CEFFA0BE1C0F5E1F794CD0094AE5F8242B1A4C947890A9085F5",
+      "pdf_sha256": "0CCCF17CB3628945843BBD2E11E0A3C1AE7B6540B99E85F02C5A560BE4A90976",
+      "pdf_bytes": 36620,
+      "pages": 2,
+      "native_capture_pass": true,
+      "bar_visible": true,
+      "kpi_visible": true,
+      "vector_escape": false,
+      "clipping": false,
+      "novel_defects": []
+    },
+    {
+      "case_id": "p48-study_guide",
+      "source_sha256": "926BEE7872D5D6700DFA4AE38D17A8AB1447CE29D6BB15079B0640C2012A1F7D",
+      "pdf_sha256": "780C7D6E033E5D88F7EF64926C4A609D54AAF6BABCFAEE9EC84980BA7C72AE70",
+      "pdf_bytes": 25988,
+      "pages": 1,
+      "native_capture_pass": true,
+      "bar_visible": true,
+      "kpi_visible": true,
+      "vector_escape": false,
+      "clipping": false,
+      "novel_defects": []
+    },
+    {
+      "case_id": "p48-technical_note",
+      "source_sha256": "D1E5B19B34783DBDC171BC3CFB0AC042A8B3F1086322A7E8BEF50CE84B90B898",
+      "pdf_sha256": "891D051C8CADBDD3334504C7427F2754B29D159FB2EAA4937F118E7EFD7AC314",
+      "pdf_bytes": 36275,
+      "pages": 2,
+      "native_capture_pass": true,
+      "bar_visible": true,
+      "kpi_visible": true,
+      "vector_escape": false,
+      "clipping": false,
+      "novel_defects": []
+    }
+  ],
+  "adjudication": {
+    "visual_slo_status": "PASS",
+    "golden_requalification_status": "PASS",
+    "blocking_visual_promotion_authority": "PASS",
+    "human_render_review": "PASS",
+    "review_basis": "All nine rendered pages inspected from fresh Hancom PDFs; no vector escape, clipping, corruption, or novel defect observed; bar/KPI visible in all five archetypes."
+  },
+  "authority": "P4.12_FRESH_HANCOM_NATIVE_REQUALIFICATION_CLOSED"
+}

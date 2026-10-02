@@ -408,9 +408,9 @@ async def main() -> None:
                     f"inspector={inspector_annotations} swap={swap_annotations}"
                 )
 
-            read_payload = _payload(await client.call_tool("probe_read", {"message": "P4.14 OAuth smoke test"}))
-            if not read_payload or not read_payload.get("ok") or read_payload.get("version") != P414_PRODUCT:
-                raise RuntimeError(f"probe_read did not expose current P4.14 product version: {read_payload}")
+            read_payload = _payload(await client.call_tool("probe_read", {"message": "P4.15 OAuth smoke test"}))
+            if not read_payload or not read_payload.get("ok") or read_payload.get("version") != P415_PRODUCT:
+                raise RuntimeError(f"probe_read did not expose current P4.15 product version: {read_payload}")
 
             p2_caps = _payload(await client.call_tool("p2_capabilities", {}))
             if (
@@ -420,6 +420,8 @@ async def main() -> None:
                 or "get_p413_document_visual_authority_receipt" not in (p2_caps.get("tools_added") or [])
                 or "ingest_p414_signed_evidence_receipt" not in (p2_caps.get("tools_added") or [])
                 or "get_p414_document_native_trust_receipt" not in (p2_caps.get("tools_added") or [])
+                or "get_p415_release_authority_contract" not in (p2_caps.get("tools_added") or [])
+                or "evaluate_p415_release_admission" not in (p2_caps.get("tools_added") or [])
             ):
                 raise RuntimeError(f"p2_capabilities failed: {p2_caps}")
 

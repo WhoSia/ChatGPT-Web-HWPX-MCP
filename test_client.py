@@ -345,12 +345,12 @@ async def main() -> None:
                     f"inspector={inspector_annotations} swap={swap_annotations}"
                 )
 
-            read_payload = _payload(await client.call_tool("probe_read", {"message": "P4.12 OAuth smoke test"}))
-            if not read_payload or not read_payload.get("ok") or read_payload.get("version") != "0.37.0-p4.12":
-                raise RuntimeError(f"probe_read did not expose current P4.12 product version: {read_payload}")
+            read_payload = _payload(await client.call_tool("probe_read", {"message": "P4.13 OAuth smoke test"}))
+            if not read_payload or not read_payload.get("ok") or read_payload.get("version") != "0.38.0-p4.13":
+                raise RuntimeError(f"probe_read did not expose current P4.13 product version: {read_payload}")
 
             p2_caps = _payload(await client.call_tool("p2_capabilities", {}))
-            if not p2_caps or p2_caps.get("phase") != "P4.12":
+            if not p2_caps or p2_caps.get("phase") != "P4.13":
                 raise RuntimeError(f"p2_capabilities failed: {p2_caps}")
 
             p41_contract = _payload(await client.call_tool("get_product_operational_readiness_contract", {}))
@@ -573,6 +573,33 @@ async def main() -> None:
                 or "B" not in p412_payload.get("paragraph_text", "")
             ):
                 raise RuntimeError(f"P4.12 certified substitution failed: {p412_payload}")
+
+            p413_manifest = _payload(await client.call_tool("get_p413_release_manifest", {}))
+            if (
+                not p413_manifest
+                or p413_manifest.get("phase") != "P4.13"
+                or p413_manifest.get("product") != "0.38.0-p4.13"
+                or p413_manifest.get("baseline_case_count") != 5
+                or p413_manifest.get("native_visual_authority") != "BLOCKING_PROMOTION_ENABLED_FROM_P4.12_BASELINE"
+            ):
+                raise RuntimeError(f"P4.13 release manifest failed: {p413_manifest}")
+
+            p413_health = _payload(await client.call_tool("get_p413_evidence_health", {}))
+            if (
+                not p413_health
+                or p413_health.get("status") != "PASS"
+                or p413_health.get("clean_case_count") != 5
+                or p413_health.get("blocking_visual_promotion_authority") != "PASS"
+            ):
+                raise RuntimeError(f"P4.13 evidence health failed: {p413_health}")
+
+            p413_trust = _payload(await client.call_tool("get_p413_public_authoring_trust_status", {}))
+            if (
+                not p413_trust
+                or p413_trust.get("status") != "TRUST_BASELINE_ACTIVE"
+                or p413_trust.get("native_visual_authority") != "PROMOTED_BLOCKING_BASELINE"
+            ):
+                raise RuntimeError(f"P4.13 public authoring trust failed: {p413_trust}")
 
             p411_shadow = _payload(await client.call_tool("evaluate_p411_shadow_release_gate", {
                 "evidence": {

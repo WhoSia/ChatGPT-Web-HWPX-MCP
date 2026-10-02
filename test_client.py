@@ -350,7 +350,12 @@ async def main() -> None:
                 raise RuntimeError(f"probe_read did not expose current P4.13 product version: {read_payload}")
 
             p2_caps = _payload(await client.call_tool("p2_capabilities", {}))
-            if not p2_caps or p2_caps.get("phase") != "P4.13":
+            if (
+                not p2_caps
+                or p2_caps.get("phase") != "P4.13"
+                or "get_p413_release_manifest" not in (p2_caps.get("tools_added") or [])
+                or "get_p413_document_visual_authority_receipt" not in (p2_caps.get("tools_added") or [])
+            ):
                 raise RuntimeError(f"p2_capabilities failed: {p2_caps}")
 
             p41_contract = _payload(await client.call_tool("get_product_operational_readiness_contract", {}))

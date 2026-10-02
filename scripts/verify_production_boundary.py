@@ -17,7 +17,8 @@ def classify(status, body, version, commit=None):
     if body['version'] != version or (commit and body.get('release_commit') != commit):
         return 'PRODUCTION_VERSION_STALE'
     if (body.get('oauth', {}).get('durable_store_reachable') is not True
-            or body.get('documents', {}).get('durable_store_reachable') is not True):
+            or body.get('documents', {}).get('durable_store_reachable') is not True
+            or body.get('p414_evidence', {}).get('durable_store_reachable') is not True):
         return 'DURABLE_STORE_UNAVAILABLE'
     return 'READY'
 
@@ -74,7 +75,7 @@ def verify(base, version, commit, fetch=request, sleep=time.sleep):
 
 
 if __name__=='__main__':
-    p=argparse.ArgumentParser();p.add_argument('--base-url',required=True);p.add_argument('--version',default='0.38.0-p4.13');p.add_argument('--commit');p.add_argument('--receipt',default='production-boundary.json');a=p.parse_args()
+    p=argparse.ArgumentParser();p.add_argument('--base-url',required=True);p.add_argument('--version',default='0.39.0-p4.14');p.add_argument('--commit');p.add_argument('--receipt',default='production-boundary.json');a=p.parse_args()
     result=verify(a.base_url.rstrip('/'),a.version,a.commit)
     Path(a.receipt).write_text(json.dumps(result,indent=2)+'\n',encoding='utf-8')
     print(json.dumps(result));raise SystemExit(0 if result['ok'] else 1)

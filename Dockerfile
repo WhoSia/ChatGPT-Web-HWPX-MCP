@@ -31,7 +31,7 @@ RUN mkdir -p /out && npx --yes -p typescript@5.9.2 tsc --strict --target ES2022 
 FROM python:3.12-slim
 
 WORKDIR /app
-ENV HWPX_PRODUCT_RELEASE=0.38.0-p4.13
+ENV HWPX_PRODUCT_RELEASE=0.39.0-p4.14
 
 COPY requirements.txt .
 RUN apt-get update && apt-get install -y --no-install-recommends nodejs && rm -rf /var/lib/apt/lists/*
@@ -53,7 +53,7 @@ ENV P348_VERIFIER_BIN=/usr/local/bin/p348-marketplace-verifier
 ENV P348_TS_RUNTIME=/app/runtime/scripts/p348_marketplace_cli.js
 ENV P349_TS_RUNTIME=/app/runtime/scripts/p349_composition_cli.js
 
-COPY *.py ./
+COPY *.py p414_evidence_store.sql ./
 COPY scripts/ scripts/
 COPY benchmarks/ benchmarks/
 COPY corpus/ corpus/
@@ -108,7 +108,8 @@ RUN set -eux; \
     python scripts/p410_release_smoke.py; \
     python scripts/p411_release_smoke.py; \
     python scripts/p412_release_smoke.py; \
-    python scripts/p413_release_smoke.py
+    python scripts/p413_release_smoke.py; \
+    python scripts/p414_release_smoke.py
 
 ENV MCP_HOST=0.0.0.0
 ENV MCP_PORT=8000
@@ -119,5 +120,5 @@ ENV P1_MAX_TEXT_CHARS=100000
 
 EXPOSE 8000
 
-# P4.13 continuous Hancom evidence and public-authoring trust release candidate
+# P4.14 distributed native evidence and per-document trust release candidate
 CMD ["python", "server_p2.py"]

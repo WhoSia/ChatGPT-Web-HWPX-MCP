@@ -195,9 +195,9 @@ from common_ir import (
     slice_common_ir,
 )
 
-P2_VERSION = "0.38.0-p4.13"
+P2_VERSION = "0.39.0-p4.14"
 core.VERSION = P2_VERSION
-core.PHASE = "P4.13"
+core.PHASE = "P4.14"
 
 _original_metadata = core._metadata
 
@@ -5209,6 +5209,19 @@ def p2_capabilities() -> dict:
             "compare_p413_native_evidence_drift",
             "get_p413_public_authoring_trust_status",
             "get_p413_document_visual_authority_receipt",
+            "get_p414_capture_agent_contract",
+            "validate_p414_capture_job",
+            "validate_p414_signed_evidence_receipt",
+            "register_p414_capture_agent_key",
+            "revoke_p414_capture_agent_key",
+            "ingest_p414_signed_evidence_receipt",
+            "get_p414_hancom_build_matrix",
+            "evaluate_p414_release_capture_obligation",
+            "compare_p414_native_visual_drift",
+            "get_p414_release_visual_authority",
+            "evaluate_p414_rollback_authority",
+            "get_p414_document_native_trust_receipt",
+            "get_p414_evidence_service_health",
             "get_p412_defect_eradication_contract",
             "localize_p412_native_visual_failure",
             "compile_p412_repaired_visual_payload",
@@ -7155,6 +7168,9 @@ P412_NATIVE_VISUAL_REPAIR = register_p412_tools(core)
 
 from p413_mcp import register_p413_tools
 P413_HANCOM_EVIDENCE_TRUST = register_p413_tools(core)
+
+from p414_mcp import register_p414_tools
+P414_DISTRIBUTED_NATIVE_EVIDENCE = register_p414_tools(core)
 
 
 if __name__ == "__main__":

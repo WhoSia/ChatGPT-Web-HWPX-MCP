@@ -1,0 +1,7 @@
+[package]
+name="p343-policy-gate"
+version="0.1.0"
+edition="2021"
+publish=false
+[lib]
+path="src/lib.rs"

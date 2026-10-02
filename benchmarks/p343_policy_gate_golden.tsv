@@ -1,0 +1,7 @@
+case	hard_violations	semantic_preserved	structure_preserved	grade	expected
+clean-targeted	0	true	true	TARGETED_PARTS_ONLY	PASS
+clean-identical	0	true	true	PACKAGE_IDENTICAL	PASS
+hard-violation	1	true	true	PACKAGE_IDENTICAL	FAIL
+semantic-drift	0	false	true	TARGETED_PARTS_ONLY	FAIL
+structure-drift	0	true	false	TARGETED_PARTS_ONLY	FAIL
+weak-footprint	0	true	true	PACKAGE_VALID_ONLY	FAIL

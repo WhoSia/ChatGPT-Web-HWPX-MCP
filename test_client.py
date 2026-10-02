@@ -5,6 +5,8 @@ import base64
 import hashlib
 import json
 import os
+import uuid
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from urllib.parse import parse_qs, urljoin, urlparse
 
@@ -16,6 +18,9 @@ from mcp import Client
 from mcp.client.auth import AuthorizationCodeResult, OAuthClientProvider
 from mcp.client.streamable_http import streamable_http_client
 from mcp.shared.auth import OAuthClientInformationFull, OAuthClientMetadata, OAuthToken
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+from p414_evidence_service import PRODUCT as P414_PRODUCT, SCHEMA as P414_SCHEMA, canonical_json as p414_canonical_json, canonical_sha256 as p414_canonical_sha256
 
 URL = os.environ.get("MCP_URL", "http://127.0.0.1:8000/mcp")
 RUN_WRITE_TEST = os.environ.get(
@@ -97,6 +102,57 @@ def _payload(result):
         except json.JSONDecodeError:
             continue
     return None
+
+
+async def _p414_oauth_signed_receipt_lifecycle(client) -> None:
+    private = Ed25519PrivateKey.generate()
+    public = private.public_key().public_bytes(serialization.Encoding.Raw, serialization.PublicFormat.Raw)
+    agent_id = "ci-agent-" + uuid.uuid4().hex
+    key_id = "ci-key-" + uuid.uuid4().hex
+    public_b64 = base64.b64encode(public).decode("ascii")
+    registered = _payload(await client.call_tool("register_p414_capture_agent_key", {"agent_id": agent_id, "key_id": key_id, "public_key_ed25519_b64": public_b64}))
+    if not registered or registered.get("status") != "ACTIVE":
+        raise RuntimeError(f"P4.14 OAuth key enrollment failed: {registered}")
+    now = datetime.now(timezone.utc)
+    manifest = {"files": [{"fixture_id": "ci-fixture", "path": "fixture.hwpx", "sha256": "a" * 64, "bytes": 12, "lowering_family": "CI_ONLY"}]}
+    payload = {
+        "schema": P414_SCHEMA, "protocol_version": "1.0", "product": P414_PRODUCT,
+        "job_id": "ci-job-" + uuid.uuid4().hex,
+        "exact_head": os.environ.get("P414_RELEASE_EXACT_HEAD", "b" * 40),
+        "source_manifest_sha256": p414_canonical_sha256(manifest), "source_manifest": manifest,
+        "hancom_version": "TEST_ONLY", "hancom_build": "TEST_ONLY", "hancom_executable_sha256": "c" * 64,
+        "windows_version": "CI TEST ONLY", "windows_build": "0", "capture_agent_version": "1.0.0",
+        "issued_at": now.isoformat(), "expires_at": (now + timedelta(hours=1)).isoformat(), "nonce": uuid.uuid4().hex + uuid.uuid4().hex,
+        "source_files": [{"fixture_id": "ci-fixture", "path": "fixture.hwpx", "sha256": "a" * 64, "unchanged_after_capture": True}],
+        "outputs": [{"fixture_id": "ci-fixture", "pdf_sha256": "d" * 64, "export_succeeded": True, "page_count": 1, "bytes": 64}],
+        "capture_manifest_sha256": "e" * 64,
+        "process_custody": {"parent_pid": os.getpid(), "owned_hwp_pids": [], "terminated_owned_hwp_pids": [], "global_kill_used": False},
+        "capture_status": "CAPTURED", "recovery_status": "COMPLETE", "visual_verdict": "PENDING",
+        "visual_observations": {"human_adjudications": []}, "document_binding": None, "captured_at": now.isoformat(), "test_only": True,
+    }
+    receipt = {
+        "schema": P414_SCHEMA, "agent_id": agent_id, "key_id": key_id, "signed_payload": payload,
+        "signature_ed25519_b64": base64.b64encode(private.sign(p414_canonical_json(payload))).decode("ascii"),
+        "canonical_sha256": p414_canonical_sha256(payload),
+    }
+    validated = _payload(await client.call_tool("validate_p414_signed_evidence_receipt", {"receipt": receipt}))
+    if not validated or not validated.get("accepted"):
+        raise RuntimeError(f"P4.14 OAuth signature verification failed: {validated}")
+    accepted = _payload(await client.call_tool("ingest_p414_signed_evidence_receipt", {"receipt": receipt}))
+    if not accepted or not accepted.get("accepted") or not accepted.get("raw_receipt_preserved"):
+        raise RuntimeError(f"P4.14 signed receipt ingestion failed: {accepted}")
+    retry = _payload(await client.call_tool("ingest_p414_signed_evidence_receipt", {"receipt": receipt}))
+    if not retry or not retry.get("accepted") or not retry.get("idempotent_retry"):
+        raise RuntimeError(f"P4.14 exact receipt retry failed idempotency: {retry}")
+    replay_payload = {**payload, "captured_at": (now + timedelta(seconds=1)).isoformat()}
+    replay_receipt = {**receipt, "signed_payload": replay_payload, "signature_ed25519_b64": base64.b64encode(private.sign(p414_canonical_json(replay_payload))).decode("ascii"), "canonical_sha256": p414_canonical_sha256(replay_payload)}
+    replay = _payload(await client.call_tool("ingest_p414_signed_evidence_receipt", {"receipt": replay_receipt}))
+    if not replay or replay.get("accepted") is not False or not any(x.get("code") == "REPLAYED_JOB_OR_NONCE" for x in replay.get("issues", [])):
+        raise RuntimeError(f"P4.14 replayed receipt was not rejected: {replay}")
+    revoked = _payload(await client.call_tool("revoke_p414_capture_agent_key", {"key_id": key_id, "reason": "OAuth lifecycle ephemeral test key"}))
+    after_revoke = _payload(await client.call_tool("validate_p414_signed_evidence_receipt", {"receipt": receipt}))
+    if not revoked or revoked.get("status") != "REVOKED" or after_revoke.get("accepted") or not any(x.get("code") == "KEY_NOT_ACTIVE" for x in after_revoke.get("issues", [])):
+        raise RuntimeError(f"P4.14 key revocation lifecycle failed: {revoked}, {after_revoke}")
 
 
 async def main() -> None:
@@ -251,6 +307,74 @@ async def main() -> None:
                 "compile_document_design",
                 "get_presentation_role_hypotheses",
                 "evaluate_generated_document_quality",
+                "get_mutation_footprint_contract",
+                "certify_document_revision_mutation_footprint",
+                "get_corpus_evidence_contract",
+                "query_corpus_coverage_ledger",
+                "query_evidence_grounded_design_generalizations",
+                "get_organization_template_adaptation_contract",
+                "validate_organization_design_policy",
+                "plan_organization_template_migration",
+                "apply_organization_template_migration",
+                "adjudicate_cross_template_generalization",
+                "get_autonomous_authoring_contract",
+                "get_autonomous_authoring_run",
+                "start_autonomous_professional_authoring",
+                "resume_autonomous_professional_authoring",
+                "get_document_transaction_runtime_contract",
+                "get_document_runtime_capabilities",
+                "validate_document_runtime_extension",
+                "compile_document_transaction",
+                "get_document_transaction_run",
+                "advance_document_transaction",
+                "resolve_document_transaction_external",
+                "abort_document_transaction",
+                "replay_document_transaction",
+                "get_document_transaction_observability",
+                "get_developer_platform_contract",
+                "project_document_tool_surface",
+                "validate_document_effect_composition",
+                "validate_document_tool_sequence",
+                "inspect_document_runtime",
+                "get_document_runtime_diagnostics",
+                "get_host_adapter_registry",
+                "hot_swap_document_host_adapter_profile",
+                "rollback_document_host_adapter_profile",
+                "get_extension_supply_chain_contract",
+                "verify_extension_package",
+                "compare_extension_build_reproducibility",
+                "solve_extension_package_compatibility",
+                "compare_extension_host_conformance",
+                "certify_document_extension_package",
+                "get_certified_extension_registry",
+                "install_certified_extension_package",
+                "advance_extension_package_rollout",
+                "rollback_extension_package_rollout",
+                "validate_sandboxed_document_extension",
+                "execute_sandboxed_document_extension_probe",
+                "generate_document_platform_contracts",
+                "get_product_operational_readiness_contract",
+                "get_product_runtime_compatibility",
+                "profile_product_operational_baseline",
+                "diagnose_product_failure",
+                "evaluate_python_hwpx_upgrade",
+                "get_dependency_migration_contract",
+                "get_dependency_runtime_state",
+                "adjudicate_dependency_upgrade",
+                "get_continuous_product_health_contract",
+                "get_cross_release_benchmark_history",
+                "localize_product_regression",
+                "build_reproducible_failure_bundle",
+                "adjudicate_continuous_product_health",
+                "get_release_health_intelligence_contract",
+                "append_release_health_observation",
+                "query_release_health_history",
+                "query_federated_corpus_provenance",
+                "attribute_document_feature_families",
+                "detect_release_compatibility_drift",
+                "route_native_render_world_contact",
+                "get_operator_quality_dashboard",
+                "export_operator_support_bundle",
             }
             missing = expected - set(names)
             if missing:
@@ -260,13 +384,351 @@ async def main() -> None:
                 if "access_token" in schema_text or "passphrase" in schema_text:
                     raise RuntimeError(f"secret-bearing field leaked into tool schema: {tool.name}")
 
-            read_payload = _payload(await client.call_tool("probe_read", {"message": "P3.41 OAuth smoke test"}))
-            if not read_payload or not read_payload.get("ok") or read_payload.get("version") != "0.18.0-p3.41":
-                raise RuntimeError(f"probe_read did not expose current P3.41 product version: {read_payload}")
+            tool_rows = {tool.name: tool for tool in tools.tools}
+            inspector_tool = tool_rows["inspect_document_runtime"].model_dump(by_alias=True)
+            swap_tool = tool_rows["hot_swap_document_host_adapter_profile"].model_dump(by_alias=True)
+            inspector_annotations = inspector_tool.get("annotations") or {}
+            swap_annotations = swap_tool.get("annotations") or {}
+            if (
+                inspector_annotations.get("readOnlyHint") is not True
+                or inspector_annotations.get("destructiveHint") is not False
+                or swap_annotations.get("readOnlyHint") is not False
+                or swap_annotations.get("destructiveHint") is not True
+                or "document_id" not in (swap_tool.get("inputSchema") or {}).get("required", [])
+            ):
+                raise RuntimeError(
+                    "P3.46 actual MCP ToolAnnotations diverged from effect projection: "
+                    f"inspector={inspector_annotations} swap={swap_annotations}"
+                )
+
+            read_payload = _payload(await client.call_tool("probe_read", {"message": "P4.14 OAuth smoke test"}))
+            if not read_payload or not read_payload.get("ok") or read_payload.get("version") != P414_PRODUCT:
+                raise RuntimeError(f"probe_read did not expose current P4.14 product version: {read_payload}")
 
             p2_caps = _payload(await client.call_tool("p2_capabilities", {}))
-            if not p2_caps or p2_caps.get("phase") != "P3.41":
+            if (
+                not p2_caps
+                or p2_caps.get("phase") != "P4.14"
+                or "get_p413_release_manifest" not in (p2_caps.get("tools_added") or [])
+                or "get_p413_document_visual_authority_receipt" not in (p2_caps.get("tools_added") or [])
+                or "ingest_p414_signed_evidence_receipt" not in (p2_caps.get("tools_added") or [])
+                or "get_p414_document_native_trust_receipt" not in (p2_caps.get("tools_added") or [])
+            ):
                 raise RuntimeError(f"p2_capabilities failed: {p2_caps}")
+
+            p41_contract = _payload(await client.call_tool("get_product_operational_readiness_contract", {}))
+            if (
+                not p41_contract
+                or p41_contract.get("phase") != "P4.1"
+                or p41_contract.get("product") != "0.27.0-p4.1"
+                or p41_contract.get("new_architecture_by_default") is not False
+            ):
+                raise RuntimeError(f"P4.1 operational contract failed: {p41_contract}")
+
+            p41_compat = _payload(await client.call_tool("get_product_runtime_compatibility", {
+                "candidate_python_hwpx_version": "6.6.0"
+            }))
+            if not p41_compat or p41_compat.get("production_pin_unchanged") is not True:
+                raise RuntimeError(f"P4.1 compatibility surface failed: {p41_compat}")
+
+            p42_contract = _payload(await client.call_tool("get_dependency_migration_contract", {}))
+            if (
+                not p42_contract
+                or p42_contract.get("phase") != "P4.2"
+                or p42_contract.get("product") != "0.28.0-p4.2"
+                or p42_contract.get("promotion_policy") != "EVIDENCE_GATED_NO_AUTOMATIC_DEPENDENCY_PROMOTION"
+            ):
+                raise RuntimeError(f"P4.2 migration contract failed: {p42_contract}")
+
+            p42_runtime = _payload(await client.call_tool("get_dependency_runtime_state", {}))
+            if not p42_runtime or p42_runtime.get("candidate") != "6.6.0":
+                raise RuntimeError(f"P4.2 runtime state failed: {p42_runtime}")
+
+            p43_contract = _payload(await client.call_tool("get_continuous_product_health_contract", {}))
+            if (
+                not p43_contract
+                or p43_contract.get("phase") != "P4.3"
+                or p43_contract.get("product") != "0.29.0-p4.3"
+                or len(p43_contract.get("independent_oracles", [])) < 3
+            ):
+                raise RuntimeError(f"P4.3 product health contract failed: {p43_contract}")
+
+            p43_history = _payload(await client.call_tool("get_cross_release_benchmark_history", {}))
+            if not p43_history or int(p43_history.get("entry_count", 0)) < 2:
+                raise RuntimeError(f"P4.3 benchmark history failed: {p43_history}")
+
+            p44_contract = _payload(await client.call_tool("get_release_health_intelligence_contract", {}))
+            if (
+                not p44_contract
+                or p44_contract.get("phase") != "P4.4"
+                or p44_contract.get("product") != "0.30.0-p4.4"
+                or p44_contract.get("store_mode") != "postgres-append-only-quality-intelligence"
+            ):
+                raise RuntimeError(f"P4.4 health intelligence contract failed: {p44_contract}")
+
+            p44_history = _payload(await client.call_tool("query_release_health_history", {"limit": 10}))
+            if not p44_history or int(p44_history.get("count", 0)) < 3:
+                raise RuntimeError(f"P4.4 durable release history failed: {p44_history}")
+
+            p44_dashboard = _payload(await client.call_tool("get_operator_quality_dashboard", {}))
+            if not p44_dashboard or int(p44_dashboard.get("release_observation_count", 0)) < 3:
+                raise RuntimeError(f"P4.4 operator dashboard failed: {p44_dashboard}")
+
+            p44_route = _payload(await client.call_tool("route_native_render_world_contact", {
+                "observation": {
+                    "locus": "INDEPENDENT_ORACLE_DIVERGENCE",
+                    "severity": "HIGH"
+                }
+            }))
+            if not p44_route or p44_route.get("route") != "NATIVE_RENDER_REQUIRED":
+                raise RuntimeError(f"P4.4 native-render routing failed: {p44_route}")
+
+            p45_contract = _payload(await client.call_tool("get_calibrated_quality_control_contract", {}))
+            if not p45_contract or p45_contract.get("phase") != "P4.5" or p45_contract.get("product") != "0.31.0-p4.5":
+                raise RuntimeError(f"P4.5 quality-control contract failed: {p45_contract}")
+
+            p45_slo = _payload(await client.call_tool("get_slo_readiness", {}))
+            if not p45_slo or p45_slo.get("state") != "PROVISIONAL_HARD_BUDGET":
+                raise RuntimeError(f"P4.5 conservative SLO readiness failed: {p45_slo}")
+
+            p45_queue = _payload(await client.call_tool("get_native_render_adjudication_queue", {}))
+            if not p45_queue or p45_queue.get("authority") != "QUEUE_ONLY_NO_RENDERER_INVOCATION":
+                raise RuntimeError(f"P4.5 native adjudication queue failed: {p45_queue}")
+
+            p46_contract = _payload(await client.call_tool("get_native_authoring_contract", {}))
+            if (
+                not p46_contract
+                or p46_contract.get("phase") != "P4.6"
+                or p46_contract.get("product") != "0.32.0-p4.6"
+                or len(p46_contract.get("high_level_tools", [])) != 5
+            ):
+                raise RuntimeError(f"P4.6 native authoring contract failed: {p46_contract}")
+
+            p46_caps = _payload(await client.call_tool("inspect_native_authoring_capabilities", {
+                "latex_samples": [r"\frac{a}{b}", r"\mathbb{R}", r"\mathcal{F}"]
+            }))
+            eq_caps = (p46_caps or {}).get("equations", {})
+            if int(eq_caps.get("supported_count", 0)) != 1 or int(eq_caps.get("abstained_count", 0)) != 2:
+                raise RuntimeError(f"P4.6 equation capability audit failed: {p46_caps}")
+
+            p47_contract = _payload(await client.call_tool("get_authoring_v2_contract", {}))
+            if (
+                not p47_contract
+                or p47_contract.get("phase") != "P4.7"
+                or p47_contract.get("product") != "0.33.0-p4.7"
+                or len(p47_contract.get("high_level_tools", [])) != 5
+            ):
+                raise RuntimeError(f"P4.7 authoring v2 contract failed: {p47_contract}")
+
+            p47_frontier = _payload(await client.call_tool("inspect_equation_render_frontier", {}))
+            if (
+                not p47_frontier
+                or p47_frontier.get("production_raw_eqedit") != "CLOSED"
+                or int(p47_frontier.get("candidate_count", 0)) < 8
+            ):
+                raise RuntimeError(f"P4.7 equation render frontier failed: {p47_frontier}")
+
+            p48_contract = _payload(await client.call_tool("get_component_authoring_contract", {}))
+            if (
+                not p48_contract
+                or p48_contract.get("phase") != "P4.8"
+                or p48_contract.get("product") != "0.34.0-p4.8"
+                or "bar_chart" not in (p48_contract.get("components") or [])
+            ):
+                raise RuntimeError(f"P4.8 component authoring contract failed: {p48_contract}")
+
+            p48_compiled = _payload(await client.call_tool("compile_document_components", {
+                "spec": {
+                    "title": "P4.8 lifecycle",
+                    "archetype": "TECHNICAL_NOTE",
+                    "sections": [{
+                        "components": [
+                            {"id": "eq", "type": "equation", "label": "one", "latex": "x=1"},
+                            {"id": "ref", "type": "equation_reference", "target": "one"}
+                        ]
+                    }]
+                }
+            }))
+            if (
+                not p48_compiled
+                or p48_compiled.get("ready") is not True
+                or (p48_compiled.get("equation_labels") or {}).get("one") != "1"
+            ):
+                raise RuntimeError(f"P4.8 component compile failed: {p48_compiled}")
+
+            p411_contract = _payload(await client.call_tool("get_p411_native_render_oracle_contract", {}))
+            if (
+                not p411_contract
+                or p411_contract.get("phase") != "P4.11"
+                or p411_contract.get("product") != "0.36.0-p4.11"
+                or "VECTOR_ESCAPE" not in (p411_contract.get("defect_taxonomy") or [])
+            ):
+                raise RuntimeError(f"P4.11 native render oracle contract failed: {p411_contract}")
+
+            p411_registry = _payload(await client.call_tool("get_p411_golden_registry", {}))
+            if (
+                not p411_registry
+                or p411_registry.get("case_count") != 8
+                or not p411_registry.get("registry_sha256")
+            ):
+                raise RuntimeError(f"P4.11 golden registry failed: {p411_registry}")
+
+            p411_capture = _payload(await client.call_tool("get_p411_windows_capture_worker_contract", {}))
+            if (
+                not p411_capture
+                or p411_capture.get("phase") != "P4.11"
+                or "owned_hwp_pids" not in (p411_capture.get("receipt_fields") or [])
+            ):
+                raise RuntimeError(f"P4.11 capture worker contract failed: {p411_capture}")
+
+            p411_release_contract = _payload(await client.call_tool("get_p411_release_promotion_contract", {}))
+            if (
+                not p411_release_contract
+                or p411_release_contract.get("product") != "0.36.0-p4.11"
+                or "SHADOW_NONBLOCKING" not in (p411_release_contract.get("modes") or [])
+            ):
+                raise RuntimeError(f"P4.11 release promotion contract failed: {p411_release_contract}")
+
+            p411_release_candidate = _payload(await client.call_tool("evaluate_p411_release_candidate", {
+                "evidence": {
+                    "exact_head": "a" * 40,
+                    "static_test_pass": True,
+                    "full_lifecycle_pass": True,
+                    "exact_head_docker_pass": True,
+                    "production_boundary_pass": True,
+                    "native_capture_pass": True,
+                    "visual_slo_status": "FAIL",
+                    "novel_unadjudicated": 0
+                },
+                "mode": "SHADOW_NONBLOCKING"
+            }))
+            if (
+                not p411_release_candidate
+                or p411_release_candidate.get("verdict") != "SERVICE_DEPLOYABLE_VISUAL_AUTHORITY_HOLD"
+                or p411_release_candidate.get("deployable") is not True
+                or p411_release_candidate.get("visual_authority_promoted") is not False
+            ):
+                raise RuntimeError(f"P4.11 release candidate governance failed: {p411_release_candidate}")
+
+            p412_contract = _payload(await client.call_tool("get_p412_defect_eradication_contract", {}))
+            if (
+                not p412_contract
+                or p412_contract.get("phase") != "P4.12"
+                or p412_contract.get("product") != "0.37.0-p4.12"
+                or (p412_contract.get("causal_hypothesis") or {}).get("unsafe_family") != "DRAWING_RECTANGLE_TEXTBOX_OVERLAY"
+            ):
+                raise RuntimeError(f"P4.12 defect eradication contract failed: {p412_contract}")
+
+            p412_payload = _payload(await client.call_tool("compile_p412_repaired_visual_payload", {
+                "plan": {
+                    "component_id": "ci_bar",
+                    "type": "bar_chart",
+                    "rows": [
+                        {"label": "A", "value": 1},
+                        {"label": "B", "value": 2}
+                    ]
+                }
+            }))
+            if (
+                not p412_payload
+                or p412_payload.get("primitive_family") != "PARAGRAPH_TEXT_VISUALIZATION"
+                or "A" not in p412_payload.get("paragraph_text", "")
+                or "B" not in p412_payload.get("paragraph_text", "")
+            ):
+                raise RuntimeError(f"P4.12 certified substitution failed: {p412_payload}")
+
+            p413_manifest = _payload(await client.call_tool("get_p413_release_manifest", {}))
+            if (
+                not p413_manifest
+                or p413_manifest.get("phase") != "P4.13"
+                or p413_manifest.get("product") != "0.38.0-p4.13"
+                or p413_manifest.get("baseline_case_count") != 5
+                or p413_manifest.get("native_visual_authority") != "BLOCKING_PROMOTION_ENABLED_FROM_P4.12_BASELINE"
+            ):
+                raise RuntimeError(f"P4.13 release manifest failed: {p413_manifest}")
+
+            p413_health = _payload(await client.call_tool("get_p413_evidence_health", {}))
+            if (
+                not p413_health
+                or p413_health.get("status") != "PASS"
+                or p413_health.get("clean_case_count") != 5
+                or p413_health.get("blocking_visual_promotion_authority") != "PASS"
+            ):
+                raise RuntimeError(f"P4.13 evidence health failed: {p413_health}")
+
+            p413_trust = _payload(await client.call_tool("get_p413_public_authoring_trust_status", {}))
+            if (
+                not p413_trust
+                or p413_trust.get("status") != "TRUST_BASELINE_ACTIVE"
+                or p413_trust.get("native_visual_authority") != "PROMOTED_BLOCKING_BASELINE"
+            ):
+                raise RuntimeError(f"P4.13 public authoring trust failed: {p413_trust}")
+
+            p414_contract = _payload(await client.call_tool("get_p414_capture_agent_contract", {}))
+            if not p414_contract or p414_contract.get("phase") != "P4.14" or p414_contract.get("product") != P414_PRODUCT:
+                raise RuntimeError(f"P4.14 capture-agent contract failed: {p414_contract}")
+            p414_health = _payload(await client.call_tool("get_p414_evidence_service_health", {}))
+            if not p414_health or p414_health.get("status") != "PASS" or p414_health.get("private_keys_present_on_server") is not False:
+                raise RuntimeError(f"P4.14 durable evidence health failed: {p414_health}")
+            p414_matrix = _payload(await client.call_tool("get_p414_hancom_build_matrix", {}))
+            if not p414_matrix or p414_matrix.get("prior_certified_release", {}).get("exact_head") != "adeb06e6f55fbc0b7116e998ebbfe3ed18811754" or not p414_matrix.get("inherited_release_baseline_is_not_agent_cell"):
+                raise RuntimeError(f"P4.14 build matrix failed: {p414_matrix}")
+            now = datetime.now(timezone.utc)
+            source_manifest = {"files": [{"fixture_id": "job-fixture", "path": "fixture.hwpx", "sha256": "a" * 64, "bytes": 12, "lowering_family": "CI_ONLY"}]}
+            capture_job = {
+                "job_id": "job-ci-" + uuid.uuid4().hex, "exact_head": os.environ.get("P414_RELEASE_EXACT_HEAD", "b" * 40),
+                "product": P414_PRODUCT, "source_root": "C:/p414/source", "source_manifest": source_manifest,
+                "source_manifest_sha256": p414_canonical_sha256(source_manifest), "hancom_build_expected": "13.0.0.3622",
+                "issued_at": now.isoformat(), "expires_at": (now + timedelta(hours=2)).isoformat(),
+                "nonce": uuid.uuid4().hex + uuid.uuid4().hex, "output_target": "C:/p414/output", "capture_kind": "CI_TEST",
+            }
+            job_valid = _payload(await client.call_tool("validate_p414_capture_job", {"job_envelope": capture_job}))
+            if not job_valid or job_valid.get("status") != "PASS":
+                raise RuntimeError(f"P4.14 job protocol validation failed: {job_valid}")
+            p414_obligation = _payload(await client.call_tool("evaluate_p414_release_capture_obligation", {}))
+            if not p414_obligation or p414_obligation.get("status") != "FRESH_CAPTURE_REQUIRED" or not any(x.get("code") == "CAPTURE_AGENT_PROTOCOL_CHANGE" for x in p414_obligation.get("triggers", [])):
+                raise RuntimeError(f"P4.14 release capture obligation failed: {p414_obligation}")
+            p414_authority = _payload(await client.call_tool("get_p414_release_visual_authority", {}))
+            if not p414_authority or p414_authority.get("authority_class") != "RELEASE_BASELINE_NATIVE_AUTHORITY" or p414_authority.get("current_agent_native_status") != "NATIVE_VERIFICATION_PENDING":
+                raise RuntimeError(f"P4.14 release/native authority separation failed: {p414_authority}")
+            p414_drift = _payload(await client.call_tool("compare_p414_native_visual_drift", {
+                "evidence_id": "0" * 64,
+            }))
+            if not p414_drift or p414_drift.get("status") != "EVIDENCE_NOT_FOUND" or p414_drift.get("evidence_complete") is not False:
+                raise RuntimeError(f"P4.14 drift gate accepted caller-authored evidence: {p414_drift}")
+            p414_rollback = _payload(await client.call_tool("evaluate_p414_rollback_authority", {
+                "evidence_id": "0" * 64,
+                "current_release": {"release_id": "candidate", "exact_head": "b" * 40, "render_deploy_id": "dep-new"},
+                "target_release": {"release_id": "prior", "exact_head": "a" * 40, "render_deploy_id": "dep-old", "certification_status": "CERTIFIED"},
+                "mode": "DRY_RUN",
+            }))
+            if not p414_rollback or p414_rollback.get("status") != "DENIED":
+                raise RuntimeError(f"P4.14 rollback evidence guard failed: {p414_rollback}")
+            await _p414_oauth_signed_receipt_lifecycle(client)
+            print("P4.14 OAuth contract, job, trust, drift, rollback, Ed25519 ingestion and replay guards PASS")
+
+            p411_shadow = _payload(await client.call_tool("evaluate_p411_shadow_release_gate", {
+                "evidence": {
+                    "static_test_pass": True,
+                    "structural_fidelity_pass": True,
+                    "exact_head_docker_pass": True,
+                    "native_capture_pass": True,
+                    "novel_unadjudicated": 0,
+                    "observation": {
+                        "page_width": 1000,
+                        "page_height": 1400,
+                        "regions": [],
+                        "vectors": []
+                    }
+                }
+            }))
+            if (
+                not p411_shadow
+                or (p411_shadow.get("visual_slo") or {}).get("status") != "PASS"
+                or (p411_shadow.get("gate") or {}).get("mode") != "SHADOW_NONBLOCKING"
+                or (p411_shadow.get("gate") or {}).get("promotion_eligible") is not True
+            ):
+                raise RuntimeError(f"P4.11 shadow promotion gate failed: {p411_shadow}")
 
             design_intelligence = _payload(await client.call_tool("get_document_design_intelligence_contract", {}))
             if (
@@ -305,6 +767,184 @@ async def main() -> None:
                 or p341_contract.get("polyglot", {}).get("rule") != "POLYGLOT_BY_COMPARATIVE_ADVANTAGE_NOT_LANGUAGE_COUNT"
             ):
                 raise RuntimeError(f"P3.41 page composition contract failed: {p341_contract}")
+
+            p342_mutation = _payload(await client.call_tool("get_mutation_footprint_contract", {}))
+            if (
+                not p342_mutation
+                or p342_mutation.get("phase") != "P3.42"
+                or p342_mutation.get("grades_strongest_first", [None])[0] != "PACKAGE_IDENTICAL"
+                or p342_mutation.get("scope_policy", {}).get("exact_paths_only") is not True
+            ):
+                raise RuntimeError(f"P3.42 mutation-footprint contract failed: {p342_mutation}")
+
+            p342_corpus = _payload(await client.call_tool("get_corpus_evidence_contract", {}))
+            if (
+                not p342_corpus
+                or p342_corpus.get("phase") != "P3.42"
+                or "WITHHELD" not in p342_corpus.get("statuses", [])
+                or "NOT_APPLICABLE" not in p342_corpus.get("statuses", [])
+            ):
+                raise RuntimeError(f"P3.42 corpus evidence contract failed: {p342_corpus}")
+            p343_contract = _payload(await client.call_tool("get_organization_template_adaptation_contract", {}))
+            if (
+                not p343_contract
+                or p343_contract.get("phase") != "P3.43"
+                or p343_contract.get("authority_order", [None])[0]
+                != "USER_OR_ORGANIZATION_HARD_CONSTRAINT"
+            ):
+                raise RuntimeError(f"P3.43 contract failed: {p343_contract}")
+
+            p344_contract = _payload(await client.call_tool("get_autonomous_authoring_contract", {}))
+            if (
+                not p344_contract
+                or p344_contract.get("phase") != "P3.44"
+                or p344_contract.get("runtime_language_roles", {}).get("rust") != "PRODUCTION_REPAIR_DELIVERY_GATE_BINARY"
+                or p344_contract.get("boundedness", {}).get("no_unbounded_agent_loop") is not True
+                or p344_contract.get("resume_semantics", {}).get("render_evidence_invalidated_after_repair") is not True
+            ):
+                raise RuntimeError(f"P3.44 autonomous authoring contract failed: {p344_contract}")
+
+            p345_contract = _payload(await client.call_tool("get_document_transaction_runtime_contract", {}))
+            if (
+                not p345_contract
+                or p345_contract.get("phase") != "P3.45"
+                or p345_contract.get("language_authority", {}).get("typescript")
+                != "PRIMARY_IR_COMPILER_SCHEDULER_AND_RUNTIME_STATE_MACHINE"
+                or p345_contract.get("language_authority", {}).get("rust")
+                != "AUTHORITATIVE_EVENT_REPLAY_AND_INVARIANT_KERNEL"
+                or p345_contract.get("incremental_recompilation", {}).get("document_mutations_never_cache_reused") is not True
+                or p345_contract.get("extensions", {}).get("dynamic_code_loading") is not False
+            ):
+                raise RuntimeError(f"P3.45 transaction runtime contract failed: {p345_contract}")
+
+            p345_caps = _payload(await client.call_tool("get_document_runtime_capabilities", {}))
+            if (
+                not p345_caps
+                or p345_caps.get("phase") != "P3.45"
+                or "document.render.evidence" not in p345_caps.get("supported_builtin_node_kinds", [])
+                or "DOCUMENT_SNAPSHOT" not in p345_caps.get("host_adapter_allowlist", [])
+            ):
+                raise RuntimeError(f"P3.45 runtime capability catalog failed: {p345_caps}")
+
+            p346_contract = _payload(await client.call_tool("get_developer_platform_contract", {}))
+            if (
+                not p346_contract
+                or p346_contract.get("phase") != "P3.46"
+                or p346_contract.get("product") != "0.23.0-p3.46"
+                or "RUNTIME_CONFIGURATION" not in p346_contract.get("effect_types", [])
+                or p346_contract.get("extensions", {}).get("arbitrary_in_process_loading") is not False
+                or p346_contract.get("inspector", {}).get("read_only") is not True
+                or p346_contract.get("adapter_registry", {}).get("active_profile") != "p3.46-guarded"
+            ):
+                raise RuntimeError(f"P3.46 developer platform contract failed: {p346_contract}")
+
+            p346_surface = _payload(await client.call_tool("project_document_tool_surface", {}))
+            projected = {row.get("name"): row for row in (p346_surface.get("tools") or [])}
+            if (
+                p346_surface.get("phase") != "P3.46"
+                or projected.get("inspect_document_runtime", {}).get("effect") != "READ_ONLY"
+                or projected.get("hot_swap_document_host_adapter_profile", {}).get("effect") != "RUNTIME_CONFIGURATION"
+            ):
+                raise RuntimeError(f"P3.46 projected tool surface failed: {p346_surface}")
+
+            def _json_type_set(schema):
+                if not isinstance(schema, dict):
+                    return set()
+                direct = schema.get("type")
+                types = set()
+                if isinstance(direct, str):
+                    types.add(direct)
+                elif isinstance(direct, list):
+                    types.update(str(row) for row in direct)
+                for row in schema.get("anyOf") or []:
+                    if isinstance(row, dict):
+                        types.update(_json_type_set(row))
+                return types
+
+            for tool_name, expected_tool in sorted(projected.items()):
+                actual_model = tool_rows.get(tool_name)
+                if actual_model is None:
+                    raise RuntimeError(
+                        f"P3.46 projected tool missing from actual MCP surface: {tool_name}"
+                    )
+                actual = actual_model.model_dump(by_alias=True)
+                actual_schema = actual.get("inputSchema") or {}
+                expected_schema = expected_tool.get("input_schema") or {}
+                actual_props = actual_schema.get("properties") or {}
+                expected_props = expected_schema.get("properties") or {}
+                if set(actual_props) != set(expected_props):
+                    raise RuntimeError(
+                        "P3.46 actual MCP property set diverged from TypeScript projection: "
+                        f"{tool_name} actual={sorted(actual_props)} expected={sorted(expected_props)}"
+                    )
+                if set(actual_schema.get("required") or []) != set(expected_schema.get("required") or []):
+                    raise RuntimeError(
+                        "P3.46 actual MCP required set diverged from TypeScript projection: "
+                        f"{tool_name}"
+                    )
+                for prop_name, expected_prop in expected_props.items():
+                    expected_types = _json_type_set(expected_prop)
+                    actual_types = _json_type_set(actual_props.get(prop_name) or {})
+                    expected_non_null = expected_types - {"null"}
+                    if expected_non_null and not expected_non_null.issubset(actual_types):
+                        raise RuntimeError(
+                            "P3.46 actual MCP property type diverged from TypeScript projection: "
+                            f"{tool_name}.{prop_name} actual={sorted(actual_types)} "
+                            f"expected={sorted(expected_non_null)}"
+                        )
+                    expected_items = (
+                        expected_prop.get("items")
+                        if isinstance(expected_prop, dict)
+                        else None
+                    )
+                    actual_items = (
+                        (actual_props.get(prop_name) or {}).get("items")
+                        if isinstance(actual_props.get(prop_name), dict)
+                        else None
+                    )
+                    if isinstance(expected_items, dict):
+                        expected_item_types = _json_type_set(expected_items) - {"null"}
+                        actual_item_types = _json_type_set(actual_items or {})
+                        if (
+                            expected_item_types
+                            and not expected_item_types.issubset(actual_item_types)
+                        ):
+                            raise RuntimeError(
+                                "P3.46 actual MCP array item type diverged from TypeScript projection: "
+                                f"{tool_name}.{prop_name}"
+                            )
+
+                projected_annotations = expected_tool.get("annotations") or {}
+                actual_annotations = actual.get("annotations") or {}
+                for annotation_name in (
+                    "readOnlyHint",
+                    "destructiveHint",
+                    "openWorldHint",
+                ):
+                    if actual_annotations.get(annotation_name) != projected_annotations.get(annotation_name):
+                        raise RuntimeError(
+                            "P3.46 actual MCP ToolAnnotations diverged from TypeScript projection: "
+                            f"{tool_name}.{annotation_name} "
+                            f"actual={actual_annotations.get(annotation_name)!r} "
+                            f"expected={projected_annotations.get(annotation_name)!r}"
+                        )
+
+            p346_effect = _payload(await client.call_tool("validate_document_effect_composition", {
+                "plan": {
+                    "schema": "chatgpt-web-hwpx-mcp/p3.46/effect-plan/v1",
+                    "nodes": [
+                        {"id": "inspect", "effect": "READ_ONLY", "action": "EXECUTE"},
+                        {"id": "configure", "deps": ["inspect"], "effect": "RUNTIME_CONFIGURATION", "action": "EXECUTE"},
+                        {"id": "deliver", "deps": ["configure"], "effect": "DELIVERY", "action": "EXECUTE"},
+                    ],
+                }
+            }))
+            if (
+                p346_effect.get("authority") != "CROSS_RUNTIME_EFFECT_PLAN_PASS"
+                or p346_effect.get("rust", {}).get("authority") != "RUST_EFFECT_PLAN_INVARIANT_PASS"
+            ):
+                raise RuntimeError(f"P3.46 cross-runtime effect validation failed: {p346_effect}")
+
             callout = _payload(await client.call_tool("compile_semantic_callout_block", {
                 "text": "핵심 판단은 장식이 아니라 의미를 인코딩해야 합니다.",
                 "block_id": "oauth_callout",
@@ -376,6 +1016,36 @@ async def main() -> None:
             assert delivery["ok"] and delivery["revision"] == 1
             assert any(block.type == "resource_link" for block in delivered.content)
             delivery_id = delivery["document_id"]
+
+            p346_registry = _payload(await client.call_tool(
+                "get_host_adapter_registry",
+                {"document_id": delivery_id},
+            ))
+            p346_swapped = _payload(await client.call_tool(
+                "hot_swap_document_host_adapter_profile",
+                {
+                    "document_id": delivery_id,
+                    "target_profile": "p3.45-compat",
+                    "expected_generation": int(p346_registry["generation"]),
+                },
+            ))
+            if (
+                p346_swapped.get("active_profile") != "p3.45-compat"
+                or p346_swapped.get("authority") != "OWNER_SCOPED_PRE_ADMITTED_ADAPTER_PROFILE_CAS_SWAP"
+            ):
+                raise RuntimeError(f"P3.46 owner-scoped adapter hot swap failed: {p346_swapped}")
+            p346_rolled = _payload(await client.call_tool(
+                "rollback_document_host_adapter_profile",
+                {
+                    "document_id": delivery_id,
+                    "expected_generation": int(p346_swapped["generation"]),
+                },
+            ))
+            if (
+                p346_rolled.get("active_profile") != "p3.46-guarded"
+                or p346_rolled.get("authority") != "OWNER_SCOPED_PRE_ADMITTED_ADAPTER_PROFILE_SAFE_ROLLBACK"
+            ):
+                raise RuntimeError(f"P3.46 owner-scoped adapter rollback failed: {p346_rolled}")
             async with httpx2.AsyncClient(timeout=60) as download_client:
                 original = await download_client.get(delivery["download_url"])
                 original.raise_for_status()
@@ -561,6 +1231,9 @@ async def main() -> None:
             assert p340_applied["revision_after"] == rich_delivery["revision"] + 1
             assert p340_applied["design_repair"]["semantic_changed"] is False
             assert p340_applied["design_repair"]["structure_changed"] is False
+            assert p340_applied["design_repair"]["phase"] == "P3.42"
+            assert p340_applied["design_repair"]["mutation_footprint"]["preservation"]["actual_grade"] == "TARGETED_PARTS_ONLY"
+            assert p340_applied["design_repair"]["preservation_enforcement"]["passed"] is True
 
             p340_after = _payload(await client.call_tool("diagnose_rendered_document_design", {
                 "document_id": rich_delivery["document_id"],
@@ -688,6 +1361,9 @@ async def main() -> None:
             ):
                 raise RuntimeError(f"P3.21 one-shot create failed: {planned}")
             planned_document_id = planned["document_id"]
+            document_trust = _payload(await client.call_tool("get_p414_document_native_trust_receipt", {"document_id": planned_document_id}))
+            if not document_trust or document_trust.get("authority_class") != "NATIVE_VERIFICATION_PENDING" or document_trust.get("document_id") != planned_document_id:
+                raise RuntimeError(f"P4.14 per-document trust failed to abstain without exact signed capture: {document_trust}")
 
             planned_map = _payload(await client.call_tool("get_document_map", {
                 "document_id": planned_document_id,

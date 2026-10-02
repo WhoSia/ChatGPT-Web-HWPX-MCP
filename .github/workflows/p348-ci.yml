@@ -1,0 +1,105 @@
+name: P3.48 verifiable public extension marketplace
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "contracts/p348_*"
+      - "scripts/p348_*"
+      - "rust/p348_marketplace_verifier/**"
+      - "p348_*"
+      - "test_p348_*"
+      - "server_p2.py"
+      - "Dockerfile"
+      - "requirements.txt"
+      - "test_client.py"
+      - "P348_TEST_LEDGER.md"
+      - ".github/workflows/p348-ci.yml"
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  typescript-marketplace:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: |
+          rm -rf .tmp/p348-ts
+          mkdir -p .tmp/p348-ts
+          npx --yes -p typescript@5.9.2 tsc --strict --target ES2022 --module commonjs --rootDir . --outDir .tmp/p348-ts contracts/p346_capability_kernel.ts contracts/p348_marketplace_kernel.ts scripts/p348_marketplace_cli.ts
+          node .tmp/p348-ts/scripts/p348_marketplace_cli.js contract | grep -q '"phase":"P3.48"'
+
+  rust-marketplace-verifier:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo test --manifest-path rust/p348_marketplace_verifier/Cargo.toml
+      - run: cargo build --release --manifest-path rust/p348_marketplace_verifier/Cargo.toml
+      - run: test "$(rust/p348_marketplace_verifier/target/release/p348-marketplace-verifier --contract)" = "p3.48-marketplace-verifier-v1"
+
+  python-ecosystem:
+    needs: [typescript-marketplace, rust-marketplace-verifier]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - uses: dtolnay/rust-toolchain@stable
+      - run: pip install -r requirements.txt -r requirements-dev.txt
+      - run: |
+          rm -rf .tmp/p346-ts .tmp/p347-ts .tmp/p348-ts
+          mkdir -p .tmp/p346-ts .tmp/p347-ts .tmp/p348-ts
+          npx --yes -p typescript@5.9.2 tsc --strict --target ES2022 --module commonjs --rootDir . --outDir .tmp/p346-ts contracts/p346_capability_kernel.ts contracts/p346_extension_sdk.ts scripts/p346_platform_cli.ts
+          npx --yes -p typescript@5.9.2 tsc --strict --target ES2022 --module commonjs --rootDir . --outDir .tmp/p347-ts contracts/p346_capability_kernel.ts contracts/p347_supply_chain_kernel.ts scripts/p347_supply_chain_cli.ts
+          npx --yes -p typescript@5.9.2 tsc --strict --target ES2022 --module commonjs --rootDir . --outDir .tmp/p348-ts contracts/p346_capability_kernel.ts contracts/p348_marketplace_kernel.ts scripts/p348_marketplace_cli.ts
+          cargo build --release --manifest-path rust/p346_guard/Cargo.toml
+          cargo build --release --manifest-path rust/p347_certifier/Cargo.toml
+          cargo build --release --manifest-path rust/p348_marketplace_verifier/Cargo.toml
+      - name: P3.47 preservation plus P3.48 marketplace regression
+        env:
+          P346_TS_RUNTIME: .tmp/p346-ts/scripts/p346_platform_cli.js
+          P346_GUARD_BIN: rust/p346_guard/target/release/p346-guard
+          P347_TS_RUNTIME: .tmp/p347-ts/scripts/p347_supply_chain_cli.js
+          P347_CERTIFIER_BIN: rust/p347_certifier/target/release/p347-certifier
+          P348_TS_RUNTIME: .tmp/p348-ts/scripts/p348_marketplace_cli.js
+          P348_VERIFIER_BIN: rust/p348_marketplace_verifier/target/release/p348-marketplace-verifier
+        run: |
+          python -m compileall -q p348_marketplace.py p348_mcp.py test_p348_marketplace.py test_p348_mcp.py scripts/p348_release_smoke.py
+          python -m pytest -q test_p347_supply_chain_bridge.py test_p347_mcp.py test_p348_marketplace.py test_p348_mcp.py
+          python scripts/p347_release_smoke.py
+          python scripts/p348_release_smoke.py
+
+  docker-image:
+    needs: [typescript-marketplace, rust-marketplace-verifier]
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build exact production Docker image
+        run: docker build --progress=plain -t hwpx-mcp-p348:\${{ github.sha }} .
+      - name: Verify packaged P3.47 and P3.48 authority
+        run: |
+          docker run --rm --entrypoint /bin/sh hwpx-mcp-p348:\${{ github.sha }} -c '
+            test "$(p347-certifier --contract)" = "p3.47-certification-guard-v1" &&
+            test "$(p348-marketplace-verifier --contract)" = "p3.48-marketplace-verifier-v1" &&
+            python scripts/p347_release_smoke.py &&
+            python scripts/p348_release_smoke.py
+          '
+
+  gate:
+    needs: [typescript-marketplace, rust-marketplace-verifier, python-ecosystem, docker-image]
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "P3.48 namespace + transparency + federation + discovery + revocation + offline verification PASS"

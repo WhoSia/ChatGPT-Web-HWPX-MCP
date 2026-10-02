@@ -1,0 +1,52 @@
+name: P4.11 continuous native render oracle
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "p411_*"
+      - "test_p411_*"
+      - "scripts/p411_*"
+      - "benchmarks/p411_*"
+      - "p48_mcp.py"
+      - "scripts/p48_component_benchmark.py"
+      - "server_p2.py"
+      - "test_client.py"
+      - "Dockerfile"
+      - "scripts/verify_production_boundary.py"
+      - ".github/workflows/p411-ci.yml"
+      - ".github/workflows/p1-ci.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  oracle:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12", cache: pip}
+      - run: pip install -r requirements.txt -r requirements-dev.txt
+      - run: python -m compileall -q p411_visual_oracle.py p411_capture_protocol.py p411_release_service.py p411_mcp.py test_p411_visual_oracle.py test_p411_capture_protocol.py test_p411_release_service.py scripts/p411_release_smoke.py scripts/p411_shadow_gate.py scripts/p411_materialize_golden_registry.py scripts/p411_materialize_capture_request.py
+      - run: python -m pytest -q test_p411_visual_oracle.py test_p411_capture_protocol.py test_p411_release_service.py
+      - run: python scripts/p411_release_smoke.py
+      - run: python scripts/p411_shadow_gate.py
+      - run: python scripts/p411_materialize_golden_registry.py
+      - run: python scripts/p48_component_benchmark.py --out /tmp/p411-component-benchmark
+      - uses: actions/upload-artifact@v4
+        with:
+          name: p411-shadow-visual-governance
+          path: |
+            /tmp/p411-shadow-gate.json
+            /tmp/p411-golden-registry.json
+            /tmp/p411-component-benchmark
+
+  docker-exact-head:
+    runs-on: ubuntu-latest
+    needs: oracle
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build --progress=plain -t hwpx-mcp-p411:${{ github.sha }} .
+      - run: docker run --rm --entrypoint python hwpx-mcp-p411:${{ github.sha }} scripts/p411_release_smoke.py

@@ -1,0 +1,109 @@
+name: P4.2 compatibility repair and migration gate
+on:
+  push:
+    branches: [main]
+    paths:
+      - "p42_*"
+      - "p41_operational.py"
+      - "test_p42_*"
+      - "scripts/p42_*"
+      - "corpus/p42-*"
+      - "p318_document_setup.py"
+      - "p319_structured_publishing.py"
+      - "p338_rich_builder.py"
+      - "server_p2.py"
+      - "Dockerfile"
+      - "test_client.py"
+      - "scripts/verify_production_boundary.py"
+      - ".github/workflows/p42-ci.yml"
+      - ".github/workflows/p1-ci.yml"
+  pull_request:
+    branches: [main]
+permissions: {contents: read}
+jobs:
+  source-pin-regression:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12", cache: pip}
+      - run: |
+          pip install -r requirements.txt -r requirements-dev.txt
+          pip install --upgrade --force-reinstall python-hwpx==6.5.0
+      - run: python -m pytest -q test_p318_document_setup.py test_p319_structured_publishing.py test_p338_rich_builder.py test_p42_migration.py test_p42_mcp.py
+
+  candidate-regression:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12", cache: pip}
+      - run: |
+          pip install -r requirements.txt -r requirements-dev.txt
+          pip install --upgrade --force-reinstall python-hwpx==6.6.0
+      - run: |
+          python -m pytest -q test_p318_document_setup.py test_p319_structured_publishing.py test_p338_rich_builder.py test_p42_migration.py test_p42_mcp.py
+          python scripts/p42_release_smoke.py
+
+  real-document-matrix:
+    strategy:
+      fail-fast: false
+      matrix:
+        python_hwpx: ["6.5.0", "6.6.0"]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12", cache: pip}
+      - run: |
+          pip install -r requirements.txt -r requirements-dev.txt
+          pip install --upgrade --force-reinstall python-hwpx==${{ matrix.python_hwpx }}
+      - run: python scripts/p42_real_document_matrix.py --manifest corpus/p42-real-document-canary.json --out p42-real-${{ matrix.python_hwpx }}.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: p42-real-document-${{ matrix.python_hwpx }}
+          path: p42-real-${{ matrix.python_hwpx }}.json
+
+  candidate-performance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12", cache: pip}
+      - run: |
+          pip install -r requirements.txt -r requirements-dev.txt
+          pip install --upgrade --force-reinstall python-hwpx==6.6.0
+      - run: python scripts/p42_performance_probe.py --out p42-performance-6.6.0.json --samples 3
+      - uses: actions/upload-artifact@v4
+        with:
+          name: p42-performance-6.6.0
+          path: p42-performance-6.6.0.json
+
+  candidate-docker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - run: grep -qx 'python-hwpx==6.6.0' requirements.txt
+      - run: docker build --progress=plain -t hwpx-mcp-p42-canary:${{ github.sha }} .
+      - run: docker run --rm --entrypoint /bin/sh hwpx-mcp-p42-canary:${{ github.sha }} -c 'python -c "import importlib.metadata as m; assert m.version(\"python-hwpx\")==\"6.6.0\"" && python scripts/p42_release_smoke.py'
+
+  rollback-rehearsal:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12", cache: pip}
+      - run: pip install -r requirements.txt -r requirements-dev.txt
+      - run: |
+          pip install --upgrade --force-reinstall python-hwpx==6.6.0
+          python -m pytest -q test_p318_document_setup.py test_p319_structured_publishing.py test_p338_rich_builder.py test_p42_migration.py
+          pip install --upgrade --force-reinstall python-hwpx==6.5.0
+          python -c 'import importlib.metadata as m; assert m.version("python-hwpx")=="6.5.0"'
+          python -m pytest -q test_p318_document_setup.py test_p319_structured_publishing.py test_p338_rich_builder.py test_p42_migration.py
+
+  gate:
+    needs: [source-pin-regression, candidate-regression, real-document-matrix, candidate-performance, candidate-docker, rollback-rehearsal]
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "P4.2 compatibility repair canary gate PASS"

@@ -171,6 +171,10 @@ class ProductionBoundaryTests(unittest.TestCase):
         healthy={'version':'v','release_commit':'a','oauth':{'durable_store_reachable':True},'documents':{'durable_store_reachable':True}}
         self.assertEqual(classify(200,healthy,'v','b'),'PRODUCTION_VERSION_STALE')
         self.assertEqual(classify(200,healthy,'v','a'),'READY')
+        p414={'version':'0.39.0-p4.14','release_commit':'a','oauth':{'durable_store_reachable':True},'documents':{'durable_store_reachable':True}}
+        self.assertEqual(classify(200,p414,'0.39.0-p4.14','a'),'DURABLE_STORE_UNAVAILABLE')
+        p414['p414_evidence']={'durable_store_reachable':True}
+        self.assertEqual(classify(200,p414,'0.39.0-p4.14','a'),'READY')
 
 
 if __name__=='__main__': unittest.main()

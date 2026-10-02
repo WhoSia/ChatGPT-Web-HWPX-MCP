@@ -1,0 +1,90 @@
+[
+  {
+    "source_id": "python-hwpx-formatting-showcase",
+    "feature_family": "FORMATTING",
+    "repository": "airmang/python-hwpx",
+    "commit": "dbb5e5f708ef5348081a7f0844d1b10e51895a18",
+    "path": "examples/FormattingShowcase.hwpx",
+    "git_blob_sha": "52201854accd21f73ea40d7bbf89fefcf09b47cc",
+    "expected_size": 20242,
+    "license": "Apache-2.0",
+    "download_url": "https://raw.githubusercontent.com/airmang/python-hwpx/dbb5e5f708ef5348081a7f0844d1b10e51895a18/examples/FormattingShowcase.hwpx"
+  },
+  {
+    "source_id": "python-hwpx-note-example",
+    "feature_family": "NOTES",
+    "repository": "airmang/python-hwpx",
+    "commit": "dbb5e5f708ef5348081a7f0844d1b10e51895a18",
+    "path": "examples/note_example.hwpx",
+    "git_blob_sha": "3e319300852c0677f955f334abfe2c8e831f5c12",
+    "expected_size": 49300,
+    "license": "Apache-2.0",
+    "download_url": "https://raw.githubusercontent.com/airmang/python-hwpx/dbb5e5f708ef5348081a7f0844d1b10e51895a18/examples/note_example.hwpx"
+  },
+  {
+    "source_id": "python-hwpx-exam-form",
+    "feature_family": "FORM_FIELDS",
+    "repository": "airmang/python-hwpx",
+    "commit": "dbb5e5f708ef5348081a7f0844d1b10e51895a18",
+    "path": "tests/fixtures/exam/A_form.hwpx",
+    "git_blob_sha": "e90c4b7c53cbc84aa62752a856804977133477ba",
+    "expected_size": 449139,
+    "license": "Apache-2.0",
+    "download_url": "https://raw.githubusercontent.com/airmang/python-hwpx/dbb5e5f708ef5348081a7f0844d1b10e51895a18/tests/fixtures/exam/A_form.hwpx"
+  },
+  {
+    "source_id": "python-hwpx-list-level3",
+    "feature_family": "NUMBERING",
+    "repository": "airmang/python-hwpx",
+    "commit": "dbb5e5f708ef5348081a7f0844d1b10e51895a18",
+    "path": "tests/fixtures/hancom_saved/list_number_level3.hwpx",
+    "git_blob_sha": "594e527ff778a5c64629932ba3bce878a0864cfc",
+    "expected_size": 5850,
+    "license": "Apache-2.0",
+    "download_url": "https://raw.githubusercontent.com/airmang/python-hwpx/dbb5e5f708ef5348081a7f0844d1b10e51895a18/tests/fixtures/hancom_saved/list_number_level3.hwpx"
+  },
+  {
+    "source_id": "python-hwpx-merge-3x3",
+    "feature_family": "MERGED_TABLES",
+    "repository": "airmang/python-hwpx",
+    "commit": "dbb5e5f708ef5348081a7f0844d1b10e51895a18",
+    "path": "tests/fixtures/hancom_saved/merge_3x3_a1c2.hwpx",
+    "git_blob_sha": "bf4943a276e14e4342291e350d3189ee2099ef2a",
+    "expected_size": 6228,
+    "license": "Apache-2.0",
+    "download_url": "https://raw.githubusercontent.com/airmang/python-hwpx/dbb5e5f708ef5348081a7f0844d1b10e51895a18/tests/fixtures/hancom_saved/merge_3x3_a1c2.hwpx"
+  },
+  {
+    "source_id": "python-hwpx-textbox-fields",
+    "feature_family": "TEXTBOX_FIELDS",
+    "repository": "airmang/python-hwpx",
+    "commit": "dbb5e5f708ef5348081a7f0844d1b10e51895a18",
+    "path": "tests/fixtures/hancom_saved/text_box_fields_before.hwpx",
+    "git_blob_sha": "2fdfd1f0361e9cf9443406e232e6b56428157438",
+    "expected_size": 9005,
+    "license": "Apache-2.0",
+    "download_url": "https://raw.githubusercontent.com/airmang/python-hwpx/dbb5e5f708ef5348081a7f0844d1b10e51895a18/tests/fixtures/hancom_saved/text_box_fields_before.hwpx"
+  },
+  {
+    "source_id": "hwpx-rust-hyperlink",
+    "feature_family": "HYPERLINKS",
+    "repository": "Han-taz/hwpx-rust",
+    "commit": "91492601c37648880d0720d485ca4095b82f6e5b",
+    "path": "crates/hwp-core/tests/fixtures/hyperlink.hwpx",
+    "git_blob_sha": "0f8f7f25ce340e080f7e8df3007419888b83e4d8",
+    "expected_size": 77543,
+    "license": "MIT",
+    "download_url": "https://raw.githubusercontent.com/Han-taz/hwpx-rust/91492601c37648880d0720d485ca4095b82f6e5b/crates/hwp-core/tests/fixtures/hyperlink.hwpx"
+  },
+  {
+    "source_id": "hwpx-rust-linespacing",
+    "feature_family": "LINE_SPACING",
+    "repository": "Han-taz/hwpx-rust",
+    "commit": "91492601c37648880d0720d485ca4095b82f6e5b",
+    "path": "crates/hwp-core/tests/fixtures/linespacing.hwpx",
+    "git_blob_sha": "bb29dc5cfad6950c9dc7db76cd6be81c20f18ff9",
+    "expected_size": 22531,
+    "license": "MIT",
+    "download_url": "https://raw.githubusercontent.com/Han-taz/hwpx-rust/91492601c37648880d0720d485ca4095b82f6e5b/crates/hwp-core/tests/fixtures/linespacing.hwpx"
+  }
+]

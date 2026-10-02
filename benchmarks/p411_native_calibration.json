@@ -1,0 +1,97 @@
+{
+  "phase": "P4.11",
+  "source_phase": "P4.10",
+  "schema": "chatgpt-web-hwpx-mcp/p411/native-calibration/v1",
+  "capture": {
+    "result_zip_sha256": "DF844C4A8618A5A66F482E145A4C24F70CBC4F59DA8E42F51BA14C9C77B2B01D",
+    "result_zip_bytes": 178009,
+    "archetype_manifest_sha256": "0A3CAAD2394F5106414513094034D39981A5045ACF3FB63D9E9D21B290B56507",
+    "equation_manifest_sha256": "EE339070300BE92CC1DF1181626349F6145AE8367AA5A2A493C5CD10C3B53A4A",
+    "archetype_capture_pass": "5/5",
+    "equation_capture_pass": "3/3"
+  },
+  "archetypes": [
+    {
+      "case_id": "p48-lab_report",
+      "source_sha256": "121A5C9866ED3A1927BED5CC944F56BEAB3AFFFABF2222F02BA6463F6F408AE6",
+      "pdf_sha256": "B482C41B99FF215EF88B79D4EFBB0335E91E92A603902DB288C9F41AF0A3DEF4",
+      "human_visual": {
+        "vector_escape": false,
+        "bar_series_visible": false,
+        "kpi_card_visible": false,
+        "notes": "No long diagonal observed; chart/KPI semantic graphics absent in native PDF."
+      }
+    },
+    {
+      "case_id": "p48-policy_brief",
+      "source_sha256": "7E9050A2B1B74C06F1B40286F600A3935DE2EA21E568E73D85592D0C44AAB7BB",
+      "pdf_sha256": "CC9DB688EA2EC6F2C4D1881394F38D0A2F553960F3F4D9E611DC5DDCD013A58B",
+      "human_visual": {
+        "vector_escape": false,
+        "bar_series_visible": false,
+        "kpi_card_visible": false,
+        "notes": "Chart/KPI semantic graphics absent in native PDF."
+      }
+    },
+    {
+      "case_id": "p48-research_report",
+      "source_sha256": "9CE0665122A72E1E33F12D29C1DBD9F6D7E6BC59974754DD09C0AB83E3EC8BB3",
+      "pdf_sha256": "8C90A3D7CD0F52C702BB2344FFDDF12F83A8F27346A4706539CF697995F0811F",
+      "human_visual": {
+        "vector_escape": true,
+        "bar_series_visible": false,
+        "kpi_card_visible": false,
+        "notes": "Long unintended diagonal visible in lower-left region; chart/KPI graphics absent."
+      }
+    },
+    {
+      "case_id": "p48-study_guide",
+      "source_sha256": "38A9E7E4E74DBC87FBF42F0B235BC30F13FF20A479429DB60CD932A7B352896F",
+      "pdf_sha256": "571BEC96CF6CA16B5C04C06177EADA6B3D849CAE7B0B671F7D8CA9D4055C52FD",
+      "human_visual": {
+        "vector_escape": false,
+        "bar_series_visible": false,
+        "kpi_card_visible": false,
+        "notes": "Chart/KPI semantic graphics absent in native PDF."
+      }
+    },
+    {
+      "case_id": "p48-technical_note",
+      "source_sha256": "15E63246691368E704862DFF4831C02391D0B777A73F2D8CD000CF98D3EA92C2",
+      "pdf_sha256": "E156F45CC23EB6B24B46C30D3A9DE33FBCB56C62CE6C435B25E8B8F806AEA720",
+      "human_visual": {
+        "vector_escape": true,
+        "bar_series_visible": false,
+        "kpi_card_visible": false,
+        "notes": "Long unintended diagonal crosses content; chart/KPI graphics absent."
+      }
+    }
+  ],
+  "equations": [
+    {
+      "variant_id": "lpile",
+      "source_sha256": "A35C6DEDFD0D3252066A71D0AD5A97FFB26E71A3EE007D0DB5E74D29EB770322",
+      "pdf_sha256": "311DF0384E27B4F58D4AFB92ACAEE745CF0E108A0E50130BD7BC864E5816E7C3",
+      "expected_alignment": "LEFT",
+      "observed_alignment": "LEFT",
+      "human_visual_status": "PASS"
+    },
+    {
+      "variant_id": "pile",
+      "source_sha256": "1C4055BDE1AB7560E1DD0CAFE653C9D9C9615C7BE8E911D3C9C915C5D4A3DBAE",
+      "pdf_sha256": "91772F809114DDC33976A59CB6761760D60943F1A129D3CD904829C599E53779",
+      "expected_alignment": "CENTER",
+      "observed_alignment": "CENTER",
+      "human_visual_status": "PASS"
+    },
+    {
+      "variant_id": "rpile",
+      "source_sha256": "F29CA7893802929DED39C02D1B6F12FDBDDF67FFB28C440D0ACC6CCC59CD0D1F",
+      "pdf_sha256": "E59D8D2E4EF4BD4B362B4F133E61D958ACD6D09EEDFAF1E8813B7E15975BA1E9",
+      "expected_alignment": "RIGHT",
+      "observed_alignment": "RIGHT",
+      "human_visual_status": "PASS"
+    }
+  ],
+  "authority": "HUMAN_VISUAL_CALIBRATION_FROM_P4.10_NATIVE_HANCOM_PDFS"
+}

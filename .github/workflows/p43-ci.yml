@@ -1,0 +1,142 @@
+name: P4.3 continuous product health gate
+on:
+  push:
+    branches: [main]
+    paths:
+      - "p43_*"
+      - "test_p43_*"
+      - "scripts/p43_*"
+      - "benchmarks/p43_*"
+      - "corpus/p42-real-document-canary.json"
+      - "p318_*"
+      - "p319_*"
+      - "p323_*"
+      - "p325_*"
+      - "server_p2.py"
+      - "Dockerfile"
+      - "test_client.py"
+      - "scripts/verify_production_boundary.py"
+      - ".github/workflows/p43-ci.yml"
+      - ".github/workflows/p1-ci.yml"
+  pull_request:
+    branches: [main]
+permissions: {contents: read}
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12", cache: pip}
+      - run: pip install -r requirements.txt -r requirements-dev.txt
+      - run: |
+          python -m compileall -q p43_quality.py p43_mcp.py test_p43_quality.py test_p43_mcp.py scripts/p43_oracles.py scripts/p43_feature_family_matrix.py scripts/p43_external_fixture_matrix.py scripts/p43_public_matrix.py scripts/p43_performance_probe.py scripts/p43_health_gate.py scripts/p43_release_smoke.py
+          python -m pytest -q test_p43_quality.py test_p43_mcp.py
+          python scripts/p43_release_smoke.py
+
+  generated-family-matrix:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12", cache: pip}
+      - run: |
+          pip install -r requirements.txt -r requirements-dev.txt
+          pip install hwpxkit==0.2.1
+          python -c 'import importlib.metadata as m; assert m.version("hwpxkit")=="0.2.1"'
+      - run: python scripts/p43_feature_family_matrix.py --out p43-generated-matrix.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: p43-generated-matrix
+          path: p43-generated-matrix.json
+
+  immutable-external-matrix:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12", cache: pip}
+      - run: |
+          pip install -r requirements.txt -r requirements-dev.txt
+          pip install hwpxkit==0.2.1
+          python -c 'import importlib.metadata as m; assert m.version("hwpxkit")=="0.2.1"'
+      - run: python scripts/p43_external_fixture_matrix.py --manifest corpus/p43-immutable-external-fixtures.json --out p43-external-matrix.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: p43-external-matrix
+          path: p43-external-matrix.json
+
+  live-official-freshness:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12", cache: pip}
+      - run: |
+          pip install -r requirements.txt -r requirements-dev.txt
+          pip install hwpxkit==0.2.1
+          python -c 'import importlib.metadata as m; assert m.version("hwpxkit")=="0.2.1"'
+      - run: python scripts/p43_public_matrix.py --manifest corpus/p42-real-document-canary.json --out p43-live-official.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: p43-live-official-freshness
+          path: p43-live-official.json
+
+  performance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12", cache: pip}
+      - run: pip install -r requirements.txt -r requirements-dev.txt
+      - run: python scripts/p43_performance_probe.py --out p43-performance.json --samples 7
+      - uses: actions/upload-artifact@v4
+        with:
+          name: p43-performance
+          path: p43-performance.json
+
+  docker-image:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build --progress=plain -t hwpx-mcp-p43:${{ github.sha }} .
+      - run: docker run --rm --entrypoint /bin/sh hwpx-mcp-p43:${{ github.sha }} -c 'python scripts/p43_release_smoke.py'
+
+  health-gate:
+    needs: [unit, generated-family-matrix, immutable-external-matrix, performance, docker-image]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12", cache: pip}
+      - run: pip install -r requirements.txt -r requirements-dev.txt
+      - uses: actions/download-artifact@v4
+        with:
+          name: p43-generated-matrix
+          path: artifacts/generated
+      - uses: actions/download-artifact@v4
+        with:
+          name: p43-external-matrix
+          path: artifacts/external
+      - uses: actions/download-artifact@v4
+        with:
+          name: p43-performance
+          path: artifacts/performance
+      - run: |
+          python scripts/p43_health_gate.py \
+            --generated artifacts/generated/p43-generated-matrix.json \
+            --external artifacts/external/p43-external-matrix.json \
+            --performance artifacts/performance/p43-performance.json \
+            --out p43-release-health.json \
+            --failures-out p43-failure-bundles.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: p43-release-health
+          path: |
+            p43-release-health.json
+            p43-failure-bundles.json
+      - run: echo "P4.3 continuous product health gate PASS"

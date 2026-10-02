@@ -1,0 +1,62 @@
+name: P3.49 multi-extension composition product gate
+on:
+  push:
+    branches: [main]
+    paths:
+      - "contracts/p349_*"
+      - "scripts/p349_*"
+      - "p349_*"
+      - "test_p349_*"
+      - "p347_mcp.py"
+      - "server_p2.py"
+      - "Dockerfile"
+      - "test_client.py"
+      - "scripts/verify_production_boundary.py"
+      - ".github/workflows/p349-ci.yml"
+      - ".github/workflows/p1-ci.yml"
+  pull_request:
+    branches: [main]
+permissions: {contents: read}
+jobs:
+  composition-kernel:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: "22"}
+      - run: |
+          rm -rf .tmp/p349-ts && mkdir -p .tmp/p349-ts
+          npx --yes -p typescript@5.9.2 tsc --strict --target ES2022 --module commonjs --rootDir . --outDir .tmp/p349-ts contracts/p349_composition_kernel.ts scripts/p349_composition_cli.ts
+          node .tmp/p349-ts/scripts/p349_composition_cli.js contract | grep -q '"phase":"P3.49"'
+  python-product:
+    needs: [composition-kernel]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12", cache: pip}
+      - uses: actions/setup-node@v4
+        with: {node-version: "22"}
+      - run: pip install -r requirements.txt -r requirements-dev.txt
+      - run: |
+          rm -rf .tmp/p349-ts && mkdir -p .tmp/p349-ts
+          npx --yes -p typescript@5.9.2 tsc --strict --target ES2022 --module commonjs --rootDir . --outDir .tmp/p349-ts contracts/p349_composition_kernel.ts scripts/p349_composition_cli.ts
+      - env:
+          P349_TS_RUNTIME: .tmp/p349-ts/scripts/p349_composition_cli.js
+        run: |
+          python -m compileall -q p349_composition.py p349_mcp.py test_p349_composition.py test_p349_mcp.py scripts/p349_release_smoke.py
+          python -m pytest -q test_p349_composition.py test_p349_mcp.py
+          python scripts/p349_release_smoke.py
+  docker-image:
+    needs: [composition-kernel]
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build --progress=plain -t hwpx-mcp-p349:${{ github.sha }} .
+      - run: docker run --rm --entrypoint /bin/sh hwpx-mcp-p349:${{ github.sha }} -c 'python scripts/p349_release_smoke.py'
+  gate:
+    needs: [composition-kernel,python-product,docker-image]
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "P3.49 deployable multi-extension composition product gate PASS"

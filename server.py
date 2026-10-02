@@ -25,6 +25,7 @@ from starlette.responses import FileResponse, HTMLResponse, JSONResponse, PlainT
 
 from auth_store import DurableOAuthStore
 from document_store import DurableDocumentStore
+from p414_evidence_store import P414EvidenceStore, default_database_url as p414_default_database_url
 from oauth_provider import HWPX_SCOPE, SUBJECT, SingleUserOAuthProvider, build_auth_settings
 
 PROJECT = "ChatGPT Web HWPX MCP"
@@ -50,6 +51,7 @@ STATE_SECRET = os.environ.get("P12_STATE_SECRET", "")
 DOCUMENT_DATABASE_URL = os.environ.get("P30_DOCUMENT_DATABASE_URL", "").strip() or AUTH_DATABASE_URL
 OAUTH_STORE = DurableOAuthStore(AUTH_DATABASE_URL, STATE_SECRET)
 DOCUMENT_STORE = DurableDocumentStore(DOCUMENT_DATABASE_URL, STATE_SECRET)
+P414_EVIDENCE_STORE = P414EvidenceStore(p414_default_database_url())
 OAUTH_PROVIDER = SingleUserOAuthProvider(
     base_url=PUBLIC_BASE_URL,
     resource_url=MCP_RESOURCE_URL,
@@ -700,7 +702,13 @@ async def health(_request):
     except Exception:
         document_counts = {}
         document_ok = False
-    durable_ok = oauth_ok and document_ok
+    try:
+        p414_evidence_counts = P414_EVIDENCE_STORE.counts()
+        p414_evidence_ok = True
+    except Exception:
+        p414_evidence_counts = {}
+        p414_evidence_ok = False
+    durable_ok = oauth_ok and document_ok and p414_evidence_ok
     return JSONResponse(
         {
             "status": "ok" if durable_ok else "degraded",
@@ -730,6 +738,14 @@ async def health(_request):
                     "idempotent_commit_receipts": True,
                     "crash_consistent_cache_rehydration": True,
                 },
+            },
+            "p414_evidence": {
+                "phase": "P4.14",
+                "product": "0.39.0-p4.14",
+                "durable_store_reachable": p414_evidence_ok,
+                "store_mode": P414_EVIDENCE_STORE.mode,
+                "counts": p414_evidence_counts,
+                "private_keys_present_on_server": False,
             },
             "ingress": {
                 "enabled": True,

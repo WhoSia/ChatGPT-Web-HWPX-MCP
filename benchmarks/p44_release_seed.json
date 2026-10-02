@@ -1,0 +1,9 @@
+{
+  "schema": "chatgpt-web-hwpx-mcp/p4.4/release-bootstrap/v1",
+  "entries": [
+    {"phase":"P4.1","product":"0.27.0-p4.1","exact_head":"0308498822fbaaf1d03cbbe0c480f51487d8f542","observed_at":"2026-09-27T00:00:00+00:00","python_hwpx":"6.5.0","authority":"FROZEN_EXACT_HEAD_CI_OBSERVATION","product_authority_pass":true,"oracle_divergence_count":0,"metrics":{"create_validate_p95_ms":298.197,"existing_validate_p95_ms":1.274}},
+    {"phase":"P4.2","product":"0.28.0-p4.2","exact_head":"41b7b0f6961ca2d51251b1adbe03cdcf5ad702fd","observed_at":"2026-09-28T00:00:00+00:00","python_hwpx":"6.6.0","authority":"FROZEN_EXACT_HEAD_CI_OBSERVATION","product_authority_pass":true,"oracle_divergence_count":0,"metrics":{"create_validate_p95_ms":113.801,"existing_validate_p95_ms":1.359}},
+    {"phase":"P4.3","product":"0.29.0-p4.3","exact_head":"a970def5bb92db5592b9e0e235baa98a8cd9ba1e","observed_at":"2026-09-29T05:08:04+00:00","python_hwpx":"6.6.0","authority":"P43_CLOSED_FINAL_HEAD_MIGRATION","feature_family_count":12,"corpus_document_count":32,"product_authority_pass":true,"independent_oracle_coverage":1.0,"oracle_divergence_count":0,"critical_failure_count":0,"metrics":{"create_validate_p95_ms":117.098,"existing_validate_p95_ms":1.327}}
+  ],
+  "policy":{"minimum_releases_for_calibrated_slo":5,"precalibration_mode":"PROVISIONAL_HARD_BUDGET","migration_rule":"P4.3 closed files are not rewritten; P4.4 imports the final closure authority as a durable bootstrap event"}
+}

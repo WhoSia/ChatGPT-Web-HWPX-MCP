@@ -1,4 +1,4 @@
-"""Bounded, classified public boundary check; no nested curl retries."""
+"""Bounded, classified public boundary check with cold-start route retries."""
 import argparse
 import json
 import time
@@ -18,6 +18,9 @@ def classify(status, body, version, commit=None):
         return 'PRODUCTION_VERSION_STALE'
     if (body.get('oauth', {}).get('durable_store_reachable') is not True
             or body.get('documents', {}).get('durable_store_reachable') is not True):
+        return 'DURABLE_STORE_UNAVAILABLE'
+    if (version == '0.39.0-p4.14'
+            and body.get('p414_evidence', {}).get('durable_store_reachable') is not True):
         return 'DURABLE_STORE_UNAVAILABLE'
     return 'READY'
 
@@ -41,9 +44,12 @@ def verify(base, version, commit, fetch=request, sleep=time.sleep):
     observations=[]
     # At most 8 health calls over ~6 minutes, followed by three boundary calls.
     for attempt in range(8):
+        started=time.perf_counter()
         status, body, retry=fetch(base+'/health')
+        elapsed_ms=round((time.perf_counter()-started)*1000,3)
         state=classify(status,body,version,commit)
         observations.append({'attempt':attempt+1,'http_status':status,'state':state,
+                             'latency_ms':elapsed_ms,
                              'observed_version':body.get('version') if isinstance(body,dict) else None,
                              'observed_commit':body.get('release_commit') if isinstance(body,dict) else None})
         print(json.dumps(observations[-1]),flush=True)
@@ -54,20 +60,36 @@ def verify(base, version, commit, fetch=request, sleep=time.sleep):
             sleep(delay)
     if state!='READY': return {'ok':False,'classification':state,'observations':observations}
     checks=[('/.well-known/oauth-protected-resource/mcp',False),('/.well-known/oauth-authorization-server',False),('/mcp',True)]
+    boundary_checks=[]
     for path,post in checks:
-        status,body,_=fetch(base+path,post=post)
-        valid=(status==401) if post else status==200 and isinstance(body,dict)
-        if valid and 'protected-resource' in path:
-            valid=body.get('resource')==base+'/mcp' and 'hwpx' in body.get('scopes_supported',[])
-        elif valid and 'authorization-server' in path:
-            valid=all(body.get(k) for k in ('authorization_endpoint','token_endpoint','registration_endpoint')) and 'offline_access' in body.get('scopes_supported',[])
+        attempts=[]
+        elapsed_total=0.0
+        valid=False
+        # Render free instances can return its own 503 wake-up interstitial
+        # immediately after /health has become ready. Retry only transient
+        # transport/unavailable statuses; semantic mismatches still fail closed.
+        for attempt in range(4):
+            started=time.perf_counter()
+            status,body,_=fetch(base+path,post=post)
+            elapsed_ms=round((time.perf_counter()-started)*1000,3)
+            elapsed_total+=elapsed_ms
+            valid=(status==401) if post else status==200 and isinstance(body,dict)
+            if valid and 'protected-resource' in path:
+                valid=body.get('resource')==base+'/mcp' and 'hwpx' in body.get('scopes_supported',[])
+            elif valid and 'authorization-server' in path:
+                valid=all(body.get(k) for k in ('authorization_endpoint','token_endpoint','registration_endpoint')) and 'offline_access' in body.get('scopes_supported',[])
+            attempts.append({'attempt':attempt+1,'http_status':status,'latency_ms':elapsed_ms,'valid':valid})
+            if valid or status not in (0,503) or attempt==3:
+                break
+            sleep((5,15,30)[attempt])
+        boundary_checks.append({'path':path,'http_status':status,'latency_ms':round(elapsed_total,3),'valid':valid,'attempts':attempts})
         if not valid:
-            return {'ok':False,'classification':'EXTERNAL_RATE_LIMIT' if status==429 else 'PROTECTED_BOUNDARY_FAILURE','path':path,'status':status,'observations':observations}
-    return {'ok':True,'classification':'PRODUCTION_BOUNDARY_PASS','observations':observations}
+            return {'ok':False,'classification':'EXTERNAL_RATE_LIMIT' if status==429 else 'PROTECTED_BOUNDARY_FAILURE','path':path,'status':status,'observations':observations,'boundary_checks':boundary_checks}
+    return {'ok':True,'classification':'PRODUCTION_BOUNDARY_PASS','observations':observations,'boundary_checks':boundary_checks}
 
 
 if __name__=='__main__':
-    p=argparse.ArgumentParser();p.add_argument('--base-url',required=True);p.add_argument('--version',default='0.18.0-p3.41');p.add_argument('--commit');p.add_argument('--receipt',default='production-boundary.json');a=p.parse_args()
+    p=argparse.ArgumentParser();p.add_argument('--base-url',required=True);p.add_argument('--version',default='0.39.0-p4.14');p.add_argument('--commit');p.add_argument('--receipt',default='production-boundary.json');a=p.parse_args()
     result=verify(a.base_url.rstrip('/'),a.version,a.commit)
     Path(a.receipt).write_text(json.dumps(result,indent=2)+'\n',encoding='utf-8')
     print(json.dumps(result));raise SystemExit(0 if result['ok'] else 1)

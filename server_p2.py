@@ -159,8 +159,10 @@ from p340_feedback_loop import (
     semantic_callout_block as p340_semantic_callout_block,
     diagnose_document_with_render as p340_diagnose_document_with_render,
     plan_executable_editorial_repairs as p340_plan_executable_editorial_repairs,
-    apply_document_design_repairs_atomic as p340_apply_document_design_repairs_atomic,
     compare_design_diagnostics as p340_compare_design_diagnostics,
+)
+from p342_mutation_footprint import (
+    apply_document_design_repairs_with_footprint_atomic as p342_apply_document_design_repairs_with_footprint_atomic,
 )
 from p341_page_composition import (
     page_composition_contract as p341_page_composition_contract,
@@ -193,9 +195,9 @@ from common_ir import (
     slice_common_ir,
 )
 
-P2_VERSION = "0.18.0-p3.41"
+P2_VERSION = "0.39.0-p4.14"
 core.VERSION = P2_VERSION
-core.PHASE = "P3.41"
+core.PHASE = "P4.14"
 
 _original_metadata = core._metadata
 
@@ -5200,6 +5202,44 @@ def p2_capabilities() -> dict:
         "phase": core.PHASE,
         "authenticated_subject": subject,
         "tools_added": [
+            "get_p413_release_manifest",
+            "get_p413_native_evidence_baseline",
+            "get_p413_evidence_health",
+            "validate_p413_native_evidence_receipt",
+            "compare_p413_native_evidence_drift",
+            "get_p413_public_authoring_trust_status",
+            "get_p413_document_visual_authority_receipt",
+            "get_p414_capture_agent_contract",
+            "validate_p414_capture_job",
+            "validate_p414_signed_evidence_receipt",
+            "register_p414_capture_agent_key",
+            "revoke_p414_capture_agent_key",
+            "ingest_p414_signed_evidence_receipt",
+            "get_p414_hancom_build_matrix",
+            "evaluate_p414_release_capture_obligation",
+            "compare_p414_native_visual_drift",
+            "get_p414_release_visual_authority",
+            "evaluate_p414_rollback_authority",
+            "get_p414_document_native_trust_receipt",
+            "get_p414_evidence_service_health",
+            "get_p412_defect_eradication_contract",
+            "localize_p412_native_visual_failure",
+            "compile_p412_repaired_visual_payload",
+            "requalify_p412_golden_corpus",
+            "evaluate_p412_blocking_promotion",
+            "get_p411_native_render_oracle_contract",
+            "get_p411_golden_registry",
+            "get_p411_calibration_summary",
+            "get_p411_native_raster_calibration",
+            "get_p411_visual_slo_policy",
+            "evaluate_p411_native_visual_observation",
+            "adjudicate_p411_visual_repair_candidate",
+            "evaluate_p411_shadow_release_gate",
+            "get_p411_release_promotion_contract",
+            "evaluate_p411_release_candidate",
+            "get_p411_windows_capture_worker_contract",
+            "validate_p411_capture_request",
+            "validate_p411_capture_receipt",
             "get_rich_document_builder_contract",
             "compile_rich_document_plan",
             "create_rich_document_and_deliver",
@@ -5308,6 +5348,10 @@ def p2_capabilities() -> dict:
             "promote_diagram_candidate",
             "plan_legacy_diagram_refactor",
             "apply_legacy_diagram_refactor",
+            "get_autonomous_authoring_contract",
+            "get_autonomous_authoring_run",
+            "start_autonomous_professional_authoring",
+            "resume_autonomous_professional_authoring",
         ],
         "operations": [
             "replace_paragraph_text",
@@ -6841,7 +6885,7 @@ def apply_document_design_repairs(
     metadata, path = _owned_document(document_id)
     current_revision = int(metadata["revision"])
     ingress = metadata.get("source") == "existing-ingress"
-    transaction = p340_apply_document_design_repairs_atomic(
+    transaction = p342_apply_document_design_repairs_with_footprint_atomic(
         path,
         repair_plan,
         expected_revision=int(expected_revision),
@@ -6958,8 +7002,175 @@ def compare_page_composition_diagnostics(before: dict, after: dict) -> dict:
     return {"ok": True, **p341_compare_page_composition_diagnostics(before, after)}
 
 
+def _apply_p343_migration(*, document_id: str, template: dict, targets_by_role: dict, policy: dict, expected_revision: int, lease_token: str = "") -> dict:
+    from p343_design_system import apply_constraint_preserving_template_migration_atomic
+    metadata,path=_owned_document(document_id);current=int(metadata["revision"]);ingress=metadata.get("source")=="existing-ingress"
+    migration=apply_constraint_preserving_template_migration_atomic(path,template,targets_by_role,policy,expected_revision=int(expected_revision),current_revision=current,validator=lambda candidate: core.validate_hwpx_package(candidate,ingress=ingress))
+    validation=migration["formatting_receipt"]["validation"]
+    metadata["revision"]=current+1;metadata["last_edit_at"]=core._utc_iso();metadata["p343_policy_sha256"]=migration["policy_sha256"];metadata["p343_template_sha256"]=migration["template_sha256"];metadata["p343_migration_receipt_sha256"]=migration["migration_receipt_sha256"]
+    if lease_token: metadata["_commit_lease_token"]=lease_token
+    _refresh_metadata(document_id,metadata,validation,build_document_map(path),build_formatting_map(path),build_inline_map(path),build_table_map(path),build_object_map(path),build_equation_map(path))
+    return {"ok":True,"document_id":document_id,"revision_before":current,"revision_after":int(metadata["revision"]),"sha256":validation["sha256"],"migration":migration,"validation":validation,"transaction":"COMMITTED","authority":"P3.43_ORGANIZATION_CONSTRAINED_TEMPLATE_MIGRATION"}
+
 from p335_mcp import register_corpus_tools
 CORPUS_REGISTRY = register_corpus_tools(core, _owned_document)
+
+from p342_mcp import register_p342_tools
+P342_EVIDENCE = register_p342_tools(core, _owned_document, CORPUS_REGISTRY)
+
+from p343_mcp import register_p343_tools
+P343_DESIGN_SYSTEM = register_p343_tools(core, _owned_document, CORPUS_REGISTRY, _apply_p343_migration)
+
+from p344_mcp import register_p344_tools
+P344_AUTONOMOUS_AUTHORING = register_p344_tools(
+    core,
+    compile_rich_plan=p338_compile_rich_document_plan,
+    create_document_from_plan=create_document_from_plan,
+    diagnose_rendered=diagnose_rendered_document_design,
+    plan_repairs=plan_executable_document_design_repairs,
+    apply_repairs=apply_document_design_repairs,
+    delivery_after_commit=_delivery_after_commit,
+)
+
+
+from p345_runtime_bridge import host_receipt_sha256 as _p345_host_sha
+
+
+def _p345_snapshot_adapter(*, document_id: str, current_revision: int, inputs: dict, lease_token: str = "") -> dict:
+    metadata, path = _owned_document(document_id)
+    if int(metadata["revision"]) != int(current_revision):
+        raise ValueError("P3.45 snapshot adapter revision mismatch")
+    document = build_document_map(path)
+    formatting = build_formatting_map(path)
+    inline = build_inline_map(path)
+    tables = build_table_map(path)
+    objects = build_object_map(path)
+    equations = build_equation_map(path)
+    receipt = {
+        "revision": int(current_revision),
+        "view": str(inputs.get("view") or "document"),
+        "semantic_sha256": document["semantic_sha256"],
+        "structure_sha256": document["structure_sha256"],
+        "formatting_sha256": formatting["formatting_sha256"],
+        "inline_structure_sha256": inline["inline_structure_sha256"],
+        "table_structure_sha256": tables["table_structure_sha256"],
+        "object_structure_sha256": objects["object_structure_sha256"],
+        "equation_structure_sha256": equations["equation_structure_sha256"],
+    }
+    digest = _p345_host_sha(receipt)
+    return {
+        "revision_after": int(current_revision),
+        "output_sha256": digest,
+        "receipt_sha256": digest,
+        "snapshot": receipt,
+        "authority": "P3.45_PURE_STRUCTURAL_SNAPSHOT",
+    }
+
+
+def _p345_text_adapter(*, document_id: str, current_revision: int, inputs: dict, lease_token: str = "") -> dict:
+    operations = inputs.get("operations")
+    if not isinstance(operations, list) or not operations:
+        raise ValueError("P3.45 text-edit node requires non-empty operations")
+    return apply_edits(document_id, int(current_revision), operations, lease_token)
+
+
+def _p345_format_adapter(*, document_id: str, current_revision: int, inputs: dict, lease_token: str = "") -> dict:
+    operations = inputs.get("operations")
+    if not isinstance(operations, list) or not operations:
+        raise ValueError("P3.45 format-edit node requires non-empty operations")
+    return apply_formatting(document_id, int(current_revision), operations, lease_token)
+
+
+def _p345_design_repair_adapter(*, document_id: str, current_revision: int, inputs: dict, lease_token: str = "") -> dict:
+    repair_plan = inputs.get("repair_plan")
+    if not isinstance(repair_plan, dict):
+        raise ValueError("P3.45 design-repair node requires repair_plan")
+    return apply_document_design_repairs(
+        document_id, int(current_revision), repair_plan, lease_token
+    )
+
+
+P346_HOST_ADAPTERS = {
+    "DOCUMENT_SNAPSHOT": _p345_snapshot_adapter,
+    "DOCUMENT_TEXT_EDIT": _p345_text_adapter,
+    "DOCUMENT_FORMAT_EDIT": _p345_format_adapter,
+    "DOCUMENT_DESIGN_REPAIR": _p345_design_repair_adapter,
+}
+
+from p346_mcp import AdapterRegistry, register_p346_tools
+P346_ADAPTER_REGISTRY = AdapterRegistry(P346_HOST_ADAPTERS)
+
+from p345_mcp import register_p345_tools
+P345_DOCUMENT_RUNTIME = register_p345_tools(
+    core,
+    _owned_document,
+    P346_HOST_ADAPTERS,
+    adapter_resolver=P346_ADAPTER_REGISTRY.resolve,
+)
+
+P346_DEVELOPER_PLATFORM = register_p346_tools(
+    core,
+    _owned_document,
+    P346_ADAPTER_REGISTRY,
+)
+
+from p347_mcp import CertifiedPackageRegistry, register_p347_tools
+P347_CERTIFIED_PACKAGE_REGISTRY = CertifiedPackageRegistry()
+P347_EXTENSION_ECOSYSTEM = register_p347_tools(
+    core,
+    _owned_document,
+    P347_CERTIFIED_PACKAGE_REGISTRY,
+)
+
+from p348_mcp import register_p348_tools
+P348_PUBLIC_EXTENSION_MARKETPLACE = register_p348_tools(
+    core,
+    _owned_document,
+    P347_CERTIFIED_PACKAGE_REGISTRY,
+)
+
+from p349_mcp import register_p349_tools
+P349_EXTENSION_COMPOSITION = register_p349_tools(
+    core,
+    _owned_document,
+    P347_CERTIFIED_PACKAGE_REGISTRY,
+    P346_ADAPTER_REGISTRY,
+)
+
+from p41_mcp import register_p41_tools
+P41_OPERATIONAL_READINESS = register_p41_tools(core)
+
+from p42_mcp import register_p42_tools
+P42_MIGRATION = register_p42_tools(core)
+
+from p43_mcp import register_p43_tools
+P43_PRODUCT_HEALTH = register_p43_tools(core)
+
+from p44_mcp import register_p44_tools
+P44_HEALTH_INTELLIGENCE = register_p44_tools(core)
+from p45_mcp import register_p45_tools
+P45_QUALITY_CONTROL = register_p45_tools(core)
+
+from p46_mcp import register_p46_tools
+P46_NATIVE_AUTHORING = register_p46_tools(core, _owned_document, _refresh_metadata)
+
+from p47_mcp import register_p47_tools
+P47_RENDER_GROUNDED_AUTHORING = register_p47_tools(core, _refresh_metadata, _delivery_after_commit)
+
+from p48_mcp import register_p48_tools
+P48_COMPONENT_AUTHORING = register_p48_tools(core, _refresh_metadata, _delivery_after_commit)
+
+from p411_mcp import register_p411_tools
+P411_NATIVE_RENDER_ORACLE = register_p411_tools(core)
+
+from p412_mcp import register_p412_tools
+P412_NATIVE_VISUAL_REPAIR = register_p412_tools(core)
+
+from p413_mcp import register_p413_tools
+P413_HANCOM_EVIDENCE_TRUST = register_p413_tools(core)
+
+from p414_mcp import register_p414_tools
+P414_DISTRIBUTED_NATIVE_EVIDENCE = register_p414_tools(core)
 
 
 if __name__ == "__main__":

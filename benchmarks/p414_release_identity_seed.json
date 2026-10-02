@@ -1,0 +1,36 @@
+{
+  "phase": "P4.14",
+  "parent": {
+    "release_id": "p413-adeb06e6-dep-davkg0vavr4c73cd4j30",
+    "product": "0.38.0-p4.13",
+    "exact_head": "adeb06e6f55fbc0b7116e998ebbfe3ed18811754",
+    "render_service_id": "srv-daiimp8ae00c73em8tjg",
+    "render_deploy_id": "dep-davkg0vavr4c73cd4j30",
+    "ci_workflow": "P4.13 continuous Hancom evidence and trust #4 SUCCESS",
+    "exact_head_docker": "SUCCESS",
+    "full_lifecycle": "#1379 SUCCESS",
+    "production_boundary": "attempt 2 SUCCESS",
+    "release_evidence_artifact": {
+      "id": 11211626569,
+      "sha256": "f8aa1109a95dfa650c82db08bd6fd24efa02c0b9586812c2444acbd382f02025"
+    }
+  },
+  "inherited_native_baseline": {
+    "phase": "P4.12",
+    "exact_head": "da77daa9c3d21fffb37a0e3b600f46205e8de6f1",
+    "source": "benchmarks/p412_native_requalification.json",
+    "status": "5/5 FRESH_HANCOM_CAPTURE + VISUAL_SLO + GOLDEN_REQUALIFICATION + BLOCKING_VISUAL_PROMOTION PASS",
+    "immutable_parent_evidence": true,
+    "source_fixture_artifact": {
+      "workflow_run_id": 36958530120,
+      "artifact_id": 11206901474,
+      "artifact_name": "p412-native-rerender-pack",
+      "artifact_size_bytes": 93637,
+      "artifact_sha256": "8983343985ab317f01a3182c5e222447e2a39042021b5714892f43bf391af9ab",
+      "source_head": "da77daa9c3d21fffb37a0e3b600f46205e8de6f1",
+      "custody_status": "ARTIFACT_DIGEST_AND_ALL_FIVE_SOURCE_SHA256_VERIFIED"
+    }
+  },
+  "private_key_policy": "CAPTURE_MACHINE_ONLY; NEVER_COMMIT_OR_STORE_SERVER_SIDE",
+  "authority": "P414_IMMUTABLE_PARENT_AND_BASELINE_SEED"
+}

@@ -218,7 +218,7 @@ jobs:
           for i in {1..40}; do
             if curl --fail --silent http://127.0.0.1:8000/health >/tmp/health.json; then
               cat /tmp/health.json
-              grep -q '0.38.0-p4.13' /tmp/health.json
+              python -c "import json; h=json.load(open('/tmp/health.json')); assert h['version']=='0.39.0-p4.14' and h['phase']=='P4.14' and h['p414_evidence']['durable_store_reachable'] is True"
               grep -q 'postgres-encrypted' /tmp/health.json
               exit 0
             fi

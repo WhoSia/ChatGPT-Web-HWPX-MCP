@@ -16,6 +16,7 @@ from p47_native_authoring import compile_unified_authoring_plan
 from p48_components import compile_document_components
 from p48_mcp import _execute_visual_plans, register_p48_tools
 from p49_visual_conformance import audit_materialized_visuals
+from p412_native_repair import audit_repaired_visuals
 
 
 def _visual_spec():
@@ -47,7 +48,7 @@ def _visual_spec():
     }
 
 
-def test_visual_plans_materialize_native_shapes_on_private_candidate():
+def test_visual_plans_materialize_p412_paragraph_visuals_on_private_candidate():
     components = compile_document_components(_visual_spec())
     assert components["ready"] is True
     unified = compile_unified_authoring_plan(components["unified_spec"])
@@ -58,29 +59,26 @@ def test_visual_plans_materialize_native_shapes_on_private_candidate():
         receipts = _execute_visual_plans(path, components["visual_plans"], composition["bindings"])
 
         assert [x["type"] for x in receipts] == ["bar_chart", "kpi_strip"]
+        assert all(x["primitive_family"] == "PARAGRAPH_TEXT_VISUALIZATION" for x in receipts)
         mapped = build_drawing_layer_map(path)
-        styles = build_drawing_style_map(path)
         assert mapped["family_counts"].get("polygon", 0) == 0
-        assert mapped["family_counts"].get("rect", 0) >= 10
-        assert styles["drawing_style_sha256"]
-        materialized = audit_materialized_visuals(path, receipts)
-        assert materialized["status"] == "PASS", materialized["issues"]
-        assert materialized["drawing_count"] == mapped["drawing_count"]
+        repaired = audit_repaired_visuals(path, receipts)
+        assert repaired["status"] == "PASS", repaired["issues"]
         safety = validate_editor_open_safety(path.read_bytes())
         assert safety.ok, safety.issues
 
 
-def test_bar_chart_receipts_preserve_semantic_rows():
+def test_bar_chart_receipts_preserve_semantic_rows_under_p412_substitution():
     components = compile_document_components(_visual_spec())
     unified = compile_unified_authoring_plan(components["unified_spec"])
     with tempfile.TemporaryDirectory() as tmp:
         path = Path(tmp) / "chart.hwpx"
         composition = compose_document_plan(path, unified["rich"]["plan"])
         receipt = _execute_visual_plans(path, [components["visual_plans"][0]], composition["bindings"])[0]
-        assert receipt["row_count"] == 2
-        assert [r["label"] for r in receipt["receipts"]] == ["대조군", "처리군"]
-        assert receipt["authority"] == "P4.9_GEOMETRY_SAFE_RECTANGLE_PLUS_TEXTBOX"
-        assert [r["children"] for r in receipt["receipts"]] == [["shape", "label", "value"], ["shape", "label", "value"]]
+        assert [r["label"] for r in receipt["semantic_rows"]] == ["대조군", "처리군"]
+        assert receipt["primitive_family"] == "PARAGRAPH_TEXT_VISUALIZATION"
+        assert receipt["substituted_from"] == "DRAWING_RECTANGLE_TEXTBOX_OVERLAY"
+        assert "대조군" in receipt["paragraph_text"] and "처리군" in receipt["paragraph_text"]
 
 
 class _MCP:

@@ -25,6 +25,7 @@ from starlette.responses import FileResponse, HTMLResponse, JSONResponse, PlainT
 
 from auth_store import DurableOAuthStore
 from document_store import DurableDocumentStore
+from durable_health import probe_durable_stores
 from p414_evidence_store import P414EvidenceStore, default_database_url as p414_default_database_url
 from oauth_provider import HWPX_SCOPE, SUBJECT, SingleUserOAuthProvider, build_auth_settings
 
@@ -690,24 +691,20 @@ async def p32_r2_auth_probe(request):
 
 @mcp.custom_route("/health", methods=["GET"])
 async def health(_request):
-    try:
-        oauth_counts = OAUTH_STORE.counts()
-        oauth_ok = True
-    except Exception:
-        oauth_counts = {}
-        oauth_ok = False
-    try:
-        document_counts = DOCUMENT_STORE.counts()
-        document_ok = True
-    except Exception:
-        document_counts = {}
-        document_ok = False
-    try:
-        p414_evidence_counts = P414_EVIDENCE_STORE.counts()
-        p414_evidence_ok = True
-    except Exception:
-        p414_evidence_counts = {}
-        p414_evidence_ok = False
+    # Render's Free instance has a 5-second health-check budget. Probe each
+    # unique durable database with one bounded SELECT instead of running
+    # several table-wide counts on every health request.
+    store_health = probe_durable_stores({
+        "oauth": OAUTH_STORE,
+        "documents": DOCUMENT_STORE,
+        "p414_evidence": P414_EVIDENCE_STORE,
+    })
+    oauth_ok = store_health["oauth"]
+    document_ok = store_health["documents"]
+    p414_evidence_ok = store_health["p414_evidence"]
+    # Counts remain available through the operational MCP surfaces; health is
+    # a readiness signal, not a dashboard query.
+    oauth_counts = document_counts = p414_evidence_counts = {}
     durable_ok = oauth_ok and document_ok and p414_evidence_ok
     return JSONResponse(
         {
@@ -724,11 +721,13 @@ async def health(_request):
                 "state_store": OAUTH_PROVIDER.state_store_mode,
                 "durable_store_reachable": oauth_ok,
                 "active_state_counts": oauth_counts,
+                "counts_sampled": False,
             },
             "documents": {
                 "store": DOCUMENT_STORE.mode,
                 "durable_store_reachable": document_ok,
                 "active_counts": document_counts,
+                "counts_sampled": False,
                 "local_cache": str(OBJECT_DIR),
                 "retention_seconds_default": DOC_TTL_SECONDS,
                 "restart_rehydration": True,
@@ -745,6 +744,7 @@ async def health(_request):
                 "durable_store_reachable": p414_evidence_ok,
                 "store_mode": P414_EVIDENCE_STORE.mode,
                 "counts": p414_evidence_counts,
+                "counts_sampled": False,
                 "private_keys_present_on_server": False,
             },
             "ingress": {

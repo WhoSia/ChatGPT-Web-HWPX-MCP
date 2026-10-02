@@ -1,4 +1,6 @@
 from p411_visual_oracle import (
+    adjudicate_repair_candidate,
+    calibration_summary,
     DEFECT_KPI_CONTAINER_COLLAPSE,
     DEFECT_LABEL_VALUE_DETACHMENT,
     DEFECT_VECTOR_ESCAPE,
@@ -71,3 +73,27 @@ def test_p411_archetype_aliasing_is_measurable_but_not_beauty_score():
     identity=evaluate_archetype_identity({"A":[1,0,0],"B":[1,0,0],"C":[0,1,0]},minimum_distance=0.1)
     assert identity["status"]=="FAIL"
     assert any(x["code"]=="ARCHETYPE_ALIASING" for x in identity["issues"])
+
+
+def test_p411_calibration_promotes_equation_alignment_but_preserves_visual_failures():
+    summary=calibration_summary()
+    assert summary["native_capture_pass"] is True
+    assert set(summary["alignment_promotion_eligible"])=={"lpile","pile","rpile"}
+    assert set(summary["vector_escape_cases"])=={"p48-research_report","p48-technical_note"}
+    assert len(summary["bar_series_absent_cases"])==5
+    assert len(summary["kpi_card_absent_cases"])==5
+
+def test_p411_repair_candidate_requires_native_rerender_and_reduces_hard_defects():
+    before={"issues":[{"code":"VECTOR_ESCAPE"},{"code":"KPI_CONTAINER_COLLAPSE"}]}
+    after={"issues":[{"code":"KPI_CONTAINER_COLLAPSE"}]}
+    held=adjudicate_repair_candidate(
+        before=before, after=after, semantic_equivalence_pass=True,
+        structural_proof_pass=True, native_rerender_pass=False
+    )
+    assert held["status"]=="HOLD"
+    promoted=adjudicate_repair_candidate(
+        before=before, after=after, semantic_equivalence_pass=True,
+        structural_proof_pass=True, native_rerender_pass=True
+    )
+    assert promoted["status"]=="PROMOTION_ELIGIBLE"
+    assert promoted["hard_defect_reduction"]==1

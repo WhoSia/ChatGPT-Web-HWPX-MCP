@@ -20,6 +20,7 @@ from p48_components import ARCHETYPES, compile_document_components
 from p48_mcp import _execute_visual_plans
 from p49_visual_conformance import audit_materialized_visuals, certify_visual_plans
 from p411_visual_oracle import structural_region_provenance_from_audit
+from p412_native_repair import audit_repaired_visuals
 
 
 def _scenario(archetype: str) -> dict:
@@ -72,12 +73,16 @@ def run(out: Path) -> dict:
         if visual_certificate["status"] != "PASS":
             raise RuntimeError(f"{archetype} P4.9 visual certificate failed: {visual_certificate['issues']}")
         visual = _execute_visual_plans(path, compiled["visual_plans"], composition["bindings"])
-        materialized_visual_audit = audit_materialized_visuals(path, visual)
-        p411_region_provenance = structural_region_provenance_from_audit(materialized_visual_audit)
-        if materialized_visual_audit["status"] != "PASS":
+        p412_repair_audit = audit_repaired_visuals(path, visual)
+        p411_region_provenance = {
+            "region_count": 0,
+            "region_provenance_sha256": p412_repair_audit["materialized_repair_audit_sha256"],
+            "authority": "P4.12_PARAGRAPH_VISUALIZATION_HAS_NO_DRAWING_REGION_OBJECTS",
+        }
+        if p412_repair_audit["status"] != "PASS":
             raise RuntimeError(
-                f"{archetype} P4.9 post-materialization visual audit failed: "
-                f"{materialized_visual_audit['issues']}"
+                f"{archetype} P4.12 post-materialization repaired visual audit failed: "
+                f"{p412_repair_audit['issues']}"
             )
         raw = path.read_bytes()
         safety = validate_editor_open_safety(raw)
@@ -95,8 +100,10 @@ def run(out: Path) -> dict:
             "visual_component_count": len(visual),
             "visual_certificate_sha256": visual_certificate["visual_certificate_sha256"],
             "visual_certificate_status": visual_certificate["status"],
-            "materialized_visual_audit_sha256": materialized_visual_audit["materialized_visual_audit_sha256"],
-            "materialized_visual_audit_status": materialized_visual_audit["status"],
+            "materialized_visual_audit_sha256": None,
+            "materialized_visual_audit_status": "SUPERSEDED_BY_P4.12_PARAGRAPH_SUBSTITUTION",
+            "p412_repair_audit_sha256": p412_repair_audit["materialized_repair_audit_sha256"],
+            "p412_repair_audit_status": p412_repair_audit["status"],
             "p411_region_provenance_sha256": p411_region_provenance["region_provenance_sha256"],
             "p411_region_provenance_count": p411_region_provenance["region_count"],
             "drawing_count": drawings["drawing_count"],

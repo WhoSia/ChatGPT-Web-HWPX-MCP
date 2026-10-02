@@ -5205,6 +5205,8 @@ def p2_capabilities() -> dict:
             "get_p411_native_render_oracle_contract",
             "get_p411_golden_registry",
             "get_p411_calibration_summary",
+            "get_p411_native_raster_calibration",
+            "get_p411_visual_slo_policy",
             "evaluate_p411_native_visual_observation",
             "adjudicate_p411_visual_repair_candidate",
             "evaluate_p411_shadow_release_gate",

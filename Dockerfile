@@ -31,7 +31,7 @@ RUN mkdir -p /out && npx --yes -p typescript@5.9.2 tsc --strict --target ES2022 
 FROM python:3.12-slim
 
 WORKDIR /app
-ENV HWPX_PRODUCT_RELEASE=0.35.0-p4.10
+ENV HWPX_PRODUCT_RELEASE=0.36.0-p4.11
 
 COPY requirements.txt .
 RUN apt-get update && apt-get install -y --no-install-recommends nodejs && rm -rf /var/lib/apt/lists/*
@@ -141,14 +141,21 @@ RUN python scripts/p47_release_smoke.py
 COPY p49_visual_conformance.py p49_visual_conformance.py
 COPY p49_equation_witnesses.py p49_equation_witnesses.py
 COPY p410_closure.py p410_closure.py
+COPY p411_visual_oracle.py p411_visual_oracle.py
+COPY p411_capture_protocol.py p411_capture_protocol.py
+COPY p411_mcp.py p411_mcp.py
+COPY benchmarks/p411_native_calibration.json benchmarks/p411_native_calibration.json
 COPY scripts/p48_release_smoke.py scripts/p48_release_smoke.py
 COPY scripts/p48_component_benchmark.py scripts/p48_component_benchmark.py
 COPY scripts/p49_release_smoke.py scripts/p49_release_smoke.py
 COPY scripts/p410_release_smoke.py scripts/p410_release_smoke.py
+COPY scripts/p411_release_smoke.py scripts/p411_release_smoke.py
+COPY scripts/p411_shadow_gate.py scripts/p411_shadow_gate.py
 RUN python scripts/p48_release_smoke.py
 RUN python scripts/p48_component_benchmark.py --out /tmp/p48-component-benchmark >/dev/null
 RUN python scripts/p49_release_smoke.py
 RUN python scripts/p410_release_smoke.py
+RUN python scripts/p411_release_smoke.py
 
 ENV MCP_HOST=0.0.0.0
 ENV MCP_PORT=8000
@@ -159,5 +166,5 @@ ENV P1_MAX_TEXT_CHARS=100000
 
 EXPOSE 8000
 
-# P4.10 exact-head native-visual closure candidate
+# P4.11 continuous native render oracle release candidate
 CMD ["python", "server_p2.py"]

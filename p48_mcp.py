@@ -19,6 +19,7 @@ from p46_native_authoring import compile_native_authoring_bundle
 from p47_native_authoring import compile_unified_authoring_plan as compile_unified_authoring_plan_kernel
 from p49_visual_conformance import audit_materialized_visuals, certify_visual_plans
 from p411_visual_oracle import structural_region_provenance_from_audit
+from p412_native_repair import audit_repaired_visuals, execute_repaired_visual_plans
 from p48_components import (
     component_authoring_contract,
     compile_document_components as compile_document_components_kernel,
@@ -269,19 +270,7 @@ def _execute_visual_plans(path, visual_plans: list[dict], bindings: dict[str, di
             "P4.9 visual geometry certificate refused lowering: "
             + json.dumps(certificate["issues"], ensure_ascii=False, sort_keys=True)
         )
-    receipts = []
-    for plan in visual_plans:
-        binding = bindings.get(str(plan["anchor_block_id"]))
-        if not binding:
-            raise ValueError(f"visual anchor block missing: {plan['anchor_block_id']}")
-        anchor = str(binding["locator"])
-        if plan["type"] == "bar_chart":
-            receipts.append(_execute_bar_chart(path, plan, anchor))
-        elif plan["type"] == "kpi_strip":
-            receipts.append(_execute_kpi_strip(path, plan, anchor))
-        else:
-            raise ValueError(f"unsupported visual plan type: {plan['type']}")
-    return receipts
+    return execute_repaired_visual_plans(path, visual_plans, bindings)
 
 
 
@@ -486,12 +475,16 @@ def register_p48_tools(core, refresh_metadata, delivery_after_commit):
                 list(components["visual_plans"]),
                 dict(composition["bindings"]),
             )
-            materialized_visual_audit = audit_materialized_visuals(path, visual_receipts)
-            p411_region_provenance = structural_region_provenance_from_audit(materialized_visual_audit)
-            if materialized_visual_audit["status"] != "PASS":
+            p412_repair_audit = audit_repaired_visuals(path, visual_receipts)
+            p411_region_provenance = {
+                "region_count": 0,
+                "region_provenance_sha256": p412_repair_audit["materialized_repair_audit_sha256"],
+                "authority": "P4.12_PARAGRAPH_VISUALIZATION_HAS_NO_DRAWING_REGION_OBJECTS",
+            }
+            if p412_repair_audit["status"] != "PASS":
                 raise ValueError(
-                    "P4.9 post-materialization visual audit refused delivery: "
-                    + json.dumps(materialized_visual_audit["issues"], ensure_ascii=False, sort_keys=True)
+                    "P4.12 post-materialization repaired visual audit refused delivery: "
+                    + json.dumps(p412_repair_audit["issues"], ensure_ascii=False, sort_keys=True)
                 )
 
             validation = core.validate_hwpx_package(path, ingress=False)
@@ -523,8 +516,10 @@ def register_p48_tools(core, refresh_metadata, delivery_after_commit):
             metadata["p48_visual_receipts"] = visual_receipts
             metadata["p49_visual_certificate_status"] = visual_certificate["status"]
             metadata["p49_visual_certificate_sha256"] = visual_certificate["visual_certificate_sha256"]
-            metadata["p49_materialized_visual_audit_status"] = materialized_visual_audit["status"]
-            metadata["p49_materialized_visual_audit_sha256"] = materialized_visual_audit["materialized_visual_audit_sha256"]
+            metadata["p49_materialized_visual_audit_status"] = "SUPERSEDED_BY_P4.12_PARAGRAPH_SUBSTITUTION"
+            metadata["p49_materialized_visual_audit_sha256"] = None
+            metadata["p412_repair_audit_status"] = p412_repair_audit["status"]
+            metadata["p412_repair_audit_sha256"] = p412_repair_audit["materialized_repair_audit_sha256"]
             metadata["p411_region_provenance_sha256"] = p411_region_provenance["region_provenance_sha256"]
             metadata["p411_region_provenance_count"] = p411_region_provenance["region_count"]
             metadata["p48_native_bundle_sha256"] = None if compiled_native is None else compiled_native["bundle_sha256"]
@@ -578,8 +573,13 @@ def register_p48_tools(core, refresh_metadata, delivery_after_commit):
                             "sha256": visual_certificate["visual_certificate_sha256"],
                         },
                         "p49_materialized_visual_audit": {
-                            "status": materialized_visual_audit["status"],
-                            "sha256": materialized_visual_audit["materialized_visual_audit_sha256"],
+                            "status": "SUPERSEDED_BY_P4.12_PARAGRAPH_SUBSTITUTION",
+                            "sha256": None,
+                        },
+                        "p412_repair_audit": {
+                            "status": p412_repair_audit["status"],
+                            "sha256": p412_repair_audit["materialized_repair_audit_sha256"],
+                            "primitive_family": p412_repair_audit["primitive_family"],
                         },
                         "p411_region_provenance": {
                             "count": p411_region_provenance["region_count"],

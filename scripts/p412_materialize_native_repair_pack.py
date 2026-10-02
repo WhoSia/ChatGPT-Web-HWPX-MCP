@@ -31,6 +31,10 @@ def run(out: Path, exact_head: str) -> dict:
     shutil.copy2(root/"scripts"/"p49_run_hancom_capture.ps1",capture/"p412_run_hancom_capture.ps1")
     shutil.copy2(root/"scripts"/"p411_windows_capture_worker.ps1",capture/"p412_windows_capture_worker.ps1")
 
+    unsafe=[row for row in benchmark["rows"] if int(row.get("drawing_count") or 0) != 0]
+    if unsafe:
+        raise RuntimeError("P4.12 repaired benchmark unexpectedly contains drawing objects: " + json.dumps(unsafe,ensure_ascii=False))
+
     source_files=[]
     for row in benchmark["rows"]:
         path=sources/row["filename"]

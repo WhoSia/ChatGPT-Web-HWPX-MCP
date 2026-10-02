@@ -195,9 +195,9 @@ from common_ir import (
     slice_common_ir,
 )
 
-P2_VERSION = "0.34.0-p4.8"
+P2_VERSION = "0.35.0-p4.10"
 core.VERSION = P2_VERSION
-core.PHASE = "P4.8"
+core.PHASE = "P4.10"
 
 _original_metadata = core._metadata
 

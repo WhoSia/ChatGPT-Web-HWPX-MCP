@@ -1,4 +1,4 @@
-"""Bounded, classified public boundary check; no nested curl retries."""
+"""Bounded, classified public boundary check with cold-start route retries."""
 import argparse
 import json
 import time
@@ -62,15 +62,27 @@ def verify(base, version, commit, fetch=request, sleep=time.sleep):
     checks=[('/.well-known/oauth-protected-resource/mcp',False),('/.well-known/oauth-authorization-server',False),('/mcp',True)]
     boundary_checks=[]
     for path,post in checks:
-        started=time.perf_counter()
-        status,body,_=fetch(base+path,post=post)
-        elapsed_ms=round((time.perf_counter()-started)*1000,3)
-        valid=(status==401) if post else status==200 and isinstance(body,dict)
-        if valid and 'protected-resource' in path:
-            valid=body.get('resource')==base+'/mcp' and 'hwpx' in body.get('scopes_supported',[])
-        elif valid and 'authorization-server' in path:
-            valid=all(body.get(k) for k in ('authorization_endpoint','token_endpoint','registration_endpoint')) and 'offline_access' in body.get('scopes_supported',[])
-        boundary_checks.append({'path':path,'http_status':status,'latency_ms':elapsed_ms,'valid':valid})
+        attempts=[]
+        elapsed_total=0.0
+        valid=False
+        # Render free instances can return its own 503 wake-up interstitial
+        # immediately after /health has become ready. Retry only transient
+        # transport/unavailable statuses; semantic mismatches still fail closed.
+        for attempt in range(4):
+            started=time.perf_counter()
+            status,body,_=fetch(base+path,post=post)
+            elapsed_ms=round((time.perf_counter()-started)*1000,3)
+            elapsed_total+=elapsed_ms
+            valid=(status==401) if post else status==200 and isinstance(body,dict)
+            if valid and 'protected-resource' in path:
+                valid=body.get('resource')==base+'/mcp' and 'hwpx' in body.get('scopes_supported',[])
+            elif valid and 'authorization-server' in path:
+                valid=all(body.get(k) for k in ('authorization_endpoint','token_endpoint','registration_endpoint')) and 'offline_access' in body.get('scopes_supported',[])
+            attempts.append({'attempt':attempt+1,'http_status':status,'latency_ms':elapsed_ms,'valid':valid})
+            if valid or status not in (0,503) or attempt==3:
+                break
+            sleep((5,15,30)[attempt])
+        boundary_checks.append({'path':path,'http_status':status,'latency_ms':round(elapsed_total,3),'valid':valid,'attempts':attempts})
         if not valid:
             return {'ok':False,'classification':'EXTERNAL_RATE_LIMIT' if status==429 else 'PROTECTED_BOUNDARY_FAILURE','path':path,'status':status,'observations':observations,'boundary_checks':boundary_checks}
     return {'ok':True,'classification':'PRODUCTION_BOUNDARY_PASS','observations':observations,'boundary_checks':boundary_checks}

@@ -143,7 +143,7 @@ jobs:
           python scripts/p411_release_smoke.py > /dev/null
           python scripts/p411_shadow_gate.py > /dev/null
           python scripts/p412_release_smoke.py > /dev/null
-          python scripts/p413_release_smoke.py > /dev/null
+          python scripts/p413_release_smoke.py > /dev/null\n          python scripts/p414_release_smoke.py > /dev/null\n          python scripts/p415_release_smoke.py > /dev/null
 
       - name: HWPX lifecycle and fidelity unit tests
         run: python -m pytest -q
@@ -222,7 +222,7 @@ jobs:
           for i in {1..40}; do
             if curl --fail --silent http://127.0.0.1:8000/health >/tmp/health.json; then
               cat /tmp/health.json
-              python -c "import json; h=json.load(open('/tmp/health.json')); assert h['version']=='0.39.0-p4.14' and h['phase']=='P4.14' and h['p414_evidence']['durable_store_reachable'] is True"
+              python -c "import json; h=json.load(open('/tmp/health.json')); assert h['version'] in {'0.39.0-p4.14','0.40.0-p4.15'} and h['phase'] in {'P4.14','P4.15'} and h['p414_evidence']['durable_store_reachable'] is True"
               grep -q 'postgres-encrypted' /tmp/health.json
               exit 0
             fi

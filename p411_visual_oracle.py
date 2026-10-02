@@ -483,3 +483,24 @@ def calibration_summary(calibration: dict | None = None) -> dict:
     }
     result["calibration_summary_sha256"]=_sha(result)
     return result
+
+
+def load_native_raster_calibration(path: Path = Path("benchmarks/p411_native_raster_manifest.json")) -> dict:
+    data=json.loads(path.read_text(encoding="utf-8"))
+    cases=list(data.get("cases") or [])
+    issues=[]
+    for case in cases:
+        pdf_hash=str(case.get("source_pdf_sha256") or "")
+        if len(pdf_hash)!=64:
+            issues.append({"code":"INVALID_SOURCE_PDF_HASH","case_id":case.get("case_id")})
+        for page in case.get("pages") or []:
+            if int(page.get("page") or 0)<1 or int(page.get("width_px") or 0)<1 or int(page.get("height_px") or 0)<1:
+                issues.append({"code":"INVALID_RASTER_DIMENSION","case_id":case.get("case_id")})
+            if len(str(page.get("sha256") or ""))!=64:
+                issues.append({"code":"INVALID_RASTER_HASH","case_id":case.get("case_id")})
+    return {
+        **data,
+        "status":"PASS" if not issues else "FAIL",
+        "issues":issues,
+        "case_count":len(cases),
+    }

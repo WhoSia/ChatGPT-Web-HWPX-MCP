@@ -7178,6 +7178,9 @@ P413_HANCOM_EVIDENCE_TRUST = register_p413_tools(core)
 from p414_mcp import register_p414_tools
 P414_DISTRIBUTED_NATIVE_EVIDENCE = register_p414_tools(core)
 
+from p415_mcp import register_p415_tools
+P415_SELF_VERIFYING_RELEASE_AUTHORITY = register_p415_tools(core)
+
 
 if __name__ == "__main__":
     host = os.environ.get("MCP_HOST", "0.0.0.0")

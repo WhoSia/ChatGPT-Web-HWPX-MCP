@@ -1,3 +1,8 @@
+from pathlib import Path
+import sys
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
 from p411_capture_protocol import capture_worker_contract
 from p411_release_service import evaluate_release_candidate, release_promotion_contract
 from p411_visual_oracle import build_golden_registry, evaluate_visual_slo, load_calibration, load_visual_slo_policy, native_render_oracle_contract

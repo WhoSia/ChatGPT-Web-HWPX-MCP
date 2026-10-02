@@ -19,6 +19,7 @@ from p47_native_authoring import compile_unified_authoring_plan
 from p48_components import ARCHETYPES, compile_document_components
 from p48_mcp import _execute_visual_plans
 from p49_visual_conformance import audit_materialized_visuals, certify_visual_plans
+from p411_visual_oracle import structural_region_provenance_from_audit
 
 
 def _scenario(archetype: str) -> dict:
@@ -72,6 +73,7 @@ def run(out: Path) -> dict:
             raise RuntimeError(f"{archetype} P4.9 visual certificate failed: {visual_certificate['issues']}")
         visual = _execute_visual_plans(path, compiled["visual_plans"], composition["bindings"])
         materialized_visual_audit = audit_materialized_visuals(path, visual)
+        p411_region_provenance = structural_region_provenance_from_audit(materialized_visual_audit)
         if materialized_visual_audit["status"] != "PASS":
             raise RuntimeError(
                 f"{archetype} P4.9 post-materialization visual audit failed: "
@@ -95,6 +97,8 @@ def run(out: Path) -> dict:
             "visual_certificate_status": visual_certificate["status"],
             "materialized_visual_audit_sha256": materialized_visual_audit["materialized_visual_audit_sha256"],
             "materialized_visual_audit_status": materialized_visual_audit["status"],
+            "p411_region_provenance_sha256": p411_region_provenance["region_provenance_sha256"],
+            "p411_region_provenance_count": p411_region_provenance["region_count"],
             "drawing_count": drawings["drawing_count"],
             "table_count": tables["table_count"],
             "equation_count": equations["equation_count"],

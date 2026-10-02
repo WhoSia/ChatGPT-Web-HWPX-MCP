@@ -1,0 +1,144 @@
+name: P4.15 self-verifying release authority
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "p415_*"
+      - "test_p415_*"
+      - "scripts/p415_*"
+      - "docs/p415-*"
+      - "server_p2.py"
+      - "Dockerfile"
+      - "scripts/verify_production_boundary.py"
+      - ".github/workflows/p415-ci.yml"
+      - ".github/workflows/p414-ci.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  authority-kernel:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt -r requirements-dev.txt
+      - run: python -m compileall -q p415_authority.py p415_mcp.py test_p415_authority.py scripts/p415_release_smoke.py scripts/p415_materialize_release_authority.py
+      - run: python -m pytest -q test_p415_authority.py
+      - run: python scripts/p415_release_smoke.py
+      - run: python scripts/p415_materialize_release_authority.py --out /tmp/p415-authority --exact-head ${{ github.sha }} --ci-pass
+      - uses: actions/upload-artifact@v4
+        with:
+          name: p415-authority-kernel
+          path: /tmp/p415-authority
+
+  full-lifecycle:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: hwpx_p415_lifecycle
+        ports: [5432:5432]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d hwpx_p415_lifecycle"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      P12_AUTH_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/hwpx_p415_lifecycle
+      P30_DOCUMENT_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/hwpx_p415_lifecycle
+      P414_EVIDENCE_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/hwpx_p415_lifecycle
+      P12_STATE_SECRET: p415-ci-state-secret-not-a-production-secret-32-chars-minimum
+      P11_OAUTH_PASSPHRASE: p415-ci-oauth-approval-passphrase-not-production
+      P1_DOWNLOAD_SECRET: p415-ci-download-secret-not-production
+      P1_OBJECT_DIR: /tmp/p415-lifecycle-objects
+      MCP_URL: http://127.0.0.1:8000/mcp
+      P414_RELEASE_EXACT_HEAD: ${{ github.sha }}
+      RENDER_GIT_COMMIT: ${{ github.sha }}
+      P414_ALLOW_TEST_RECEIPTS: "1"
+      RUN_P2_WRITE_TEST: "1"
+      PIP_DISABLE_PIP_VERSION_CHECK: "1"
+      P345_TS_RUNTIME: ${{ github.workspace }}/.tmp/p345-ts/scripts/p345_runtime_cli.js
+      P345_REPLAY_BIN: ${{ github.workspace }}/rust/p345_replay/target/release/p345-replay
+      P346_TS_RUNTIME: ${{ github.workspace }}/.tmp/p346-ts/scripts/p346_platform_cli.js
+      P346_GUARD_BIN: ${{ github.workspace }}/rust/p346_guard/target/release/p346-guard
+      P347_TS_RUNTIME: ${{ github.workspace }}/.tmp/p347-ts/scripts/p347_supply_chain_cli.js
+      P347_CERTIFIER_BIN: ${{ github.workspace }}/rust/p347_certifier/target/release/p347-certifier
+      P348_TS_RUNTIME: ${{ github.workspace }}/.tmp/p348-ts/scripts/p348_marketplace_cli.js
+      P348_VERIFIER_BIN: ${{ github.workspace }}/rust/p348_marketplace_verifier/target/release/p348-marketplace-verifier
+      P349_TS_RUNTIME: ${{ github.workspace }}/.tmp/p349-ts/scripts/p349_composition_cli.js
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - uses: dtolnay/rust-toolchain@stable
+      - run: pip install -r requirements.txt -r requirements-dev.txt
+      - name: Build inherited platform runtimes
+        run: |
+          rm -rf .tmp/p345-ts .tmp/p346-ts .tmp/p347-ts .tmp/p348-ts .tmp/p349-ts
+          mkdir -p .tmp/p345-ts .tmp/p346-ts .tmp/p347-ts .tmp/p348-ts .tmp/p349-ts
+          npx --yes -p typescript@5.9.2 tsc --strict --target ES2022 --module commonjs --rootDir . --outDir .tmp/p345-ts contracts/p345_runtime.ts contracts/p345_extension_sdk.ts scripts/p345_runtime_cli.ts
+          npx --yes -p typescript@5.9.2 tsc --strict --target ES2022 --module commonjs --rootDir . --outDir .tmp/p346-ts contracts/p346_capability_kernel.ts contracts/p346_extension_sdk.ts scripts/p346_platform_cli.ts
+          npx --yes -p typescript@5.9.2 tsc --strict --target ES2022 --module commonjs --rootDir . --outDir .tmp/p347-ts contracts/p346_capability_kernel.ts contracts/p347_supply_chain_kernel.ts scripts/p347_supply_chain_cli.ts
+          npx --yes -p typescript@5.9.2 tsc --strict --target ES2022 --module commonjs --rootDir . --outDir .tmp/p348-ts contracts/p346_capability_kernel.ts contracts/p348_marketplace_kernel.ts scripts/p348_marketplace_cli.ts
+          npx --yes -p typescript@5.9.2 tsc --strict --target ES2022 --module commonjs --rootDir . --outDir .tmp/p349-ts contracts/p349_composition_kernel.ts scripts/p349_composition_cli.ts
+          cargo build --release --manifest-path rust/p345_replay/Cargo.toml
+          cargo build --release --manifest-path rust/p346_guard/Cargo.toml
+          cargo build --release --manifest-path rust/p347_certifier/Cargo.toml
+          cargo build --release --manifest-path rust/p348_marketplace_verifier/Cargo.toml
+      - name: Start exact-head service
+        run: |
+          python server_p2.py > /tmp/p415-server.log 2>&1 &
+          echo $! > /tmp/p415-server.pid
+          for attempt in $(seq 1 60); do
+            if curl --silent --fail http://127.0.0.1:8000/health > /tmp/p415-health.json; then break; fi
+            sleep 2
+          done
+          cat /tmp/p415-health.json
+          python -c "import json; x=json.load(open('/tmp/p415-health.json')); assert x['phase']=='P4.15' and x['version']=='0.40.0-p4.15' and x['p414_evidence']['durable_store_reachable'] is True"
+      - name: Full OAuth and MCP lifecycle
+        run: python test_client.py
+      - if: always()
+        run: cat /tmp/p415-server.log
+
+  docker-exact-head:
+    runs-on: ubuntu-latest
+    needs: [authority-kernel, full-lifecycle]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - run: docker build --progress=plain -t hwpx-mcp-p415:${{ github.sha }} .
+      - run: docker run --rm --entrypoint python hwpx-mcp-p415:${{ github.sha }} scripts/p415_release_smoke.py
+      - run: docker run --rm --entrypoint python hwpx-mcp-p415:${{ github.sha }} scripts/p414_release_smoke.py
+
+  machine-evidence:
+    runs-on: ubuntu-latest
+    needs: [authority-kernel, full-lifecycle, docker-exact-head]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python scripts/p415_materialize_release_authority.py --out /tmp/p415-machine-evidence --exact-head ${{ github.sha }} --ci-pass --lifecycle-pass --docker-pass
+      - uses: actions/upload-artifact@v4
+        with:
+          name: p415-machine-evidence
+          path: /tmp/p415-machine-evidence

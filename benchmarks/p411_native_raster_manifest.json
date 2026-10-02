@@ -1,0 +1,110 @@
+{
+  "phase": "P4.11",
+  "source_phase": "P4.10",
+  "schema": "chatgpt-web-hwpx-mcp/p411/page-raster-calibration/v1",
+  "renderer": "pdfium",
+  "dpi": 160,
+  "page_size_px": [
+    1323,
+    1869
+  ],
+  "cases": [
+    {
+      "case_id": "p48-lab_report",
+      "source_pdf_sha256": "B482C41B99FF215EF88B79D4EFBB0335E91E92A603902DB288C9F41AF0A3DEF4",
+      "pages": [
+        {
+          "page": 1,
+          "width_px": 1323,
+          "height_px": 1869,
+          "sha256": "9ed74ead167bca4884c7a74250d7e30bb978b36b480b3886bc77fe68f63a3896"
+        }
+      ]
+    },
+    {
+      "case_id": "p48-policy_brief",
+      "source_pdf_sha256": "CC9DB688EA2EC6F2C4D1881394F38D0A2F553960F3F4D9E611DC5DDCD013A58B",
+      "pages": [
+        {
+          "page": 1,
+          "width_px": 1323,
+          "height_px": 1869,
+          "sha256": "88cd746b6fcbce55536088c367951eafe8c946aeb713f5489881dbedc303157b"
+        }
+      ]
+    },
+    {
+      "case_id": "p48-research_report",
+      "source_pdf_sha256": "8C90A3D7CD0F52C702BB2344FFDDF12F83A8F27346A4706539CF697995F0811F",
+      "pages": [
+        {
+          "page": 1,
+          "width_px": 1323,
+          "height_px": 1869,
+          "sha256": "f6204f1d7d3b080533e2aab67d303d0f4afcadec1eff11d0484c473b107e8928"
+        }
+      ]
+    },
+    {
+      "case_id": "p48-study_guide",
+      "source_pdf_sha256": "571BEC96CF6CA16B5C04C06177EADA6B3D849CAE7B0B671F7D8CA9D4055C52FD",
+      "pages": [
+        {
+          "page": 1,
+          "width_px": 1323,
+          "height_px": 1869,
+          "sha256": "d473c217e655630d2be8d4286ee2d517682b24ab3c7c6f89c119e6028abe3a78"
+        }
+      ]
+    },
+    {
+      "case_id": "p48-technical_note",
+      "source_pdf_sha256": "E156F45CC23EB6B24B46C30D3A9DE33FBCB56C62CE6C435B25E8B8F806AEA720",
+      "pages": [
+        {
+          "page": 1,
+          "width_px": 1323,
+          "height_px": 1869,
+          "sha256": "347b9053bc02e8bba96ea39075a82d7bf2eb42e3b37b3da56bf429754e37a9ea"
+        }
+      ]
+    },
+    {
+      "case_id": "p49-lpile-alignment-witness",
+      "source_pdf_sha256": "311DF0384E27B4F58D4AFB92ACAEE745CF0E108A0E50130BD7BC864E5816E7C3",
+      "pages": [
+        {
+          "page": 1,
+          "width_px": 1323,
+          "height_px": 1869,
+          "sha256": "2c2a0471de2c89a68b54dca64cff0f1b1f6306bb1ea20e3ae7d18701f58715d8"
+        }
+      ]
+    },
+    {
+      "case_id": "p49-pile-alignment-witness",
+      "source_pdf_sha256": "91772F809114DDC33976A59CB6761760D60943F1A129D3CD904829C599E53779",
+      "pages": [
+        {
+          "page": 1,
+          "width_px": 1323,
+          "height_px": 1869,
+          "sha256": "73a0051035efc43238fd437d6fe50cd13ef664689e12f4380c73731be7d97bc5"
+        }
+      ]
+    },
+    {
+      "case_id": "p49-rpile-alignment-witness",
+      "source_pdf_sha256": "E59D8D2E4EF4BD4B362B4F133E61D958ACD6D09EEDFAF1E8813B7E15975BA1E9",
+      "pages": [
+        {
+          "page": 1,
+          "width_px": 1323,
+          "height_px": 1869,
+          "sha256": "a3b8257a04d8087a99234bc422f7215bb7f8219547c3fa8c6ad8484e47330b6c"
+        }
+      ]
+    }
+  ],
+  "authority": "PDFIUM_160DPI_RASTER_CUSTODY_FROM_P410_NATIVE_HANCOM_PDFS"
+}

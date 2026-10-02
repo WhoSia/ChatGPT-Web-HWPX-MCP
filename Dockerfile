@@ -146,6 +146,7 @@ COPY p411_capture_protocol.py p411_capture_protocol.py
 COPY p411_release_service.py p411_release_service.py
 COPY p411_mcp.py p411_mcp.py
 COPY benchmarks/p411_native_calibration.json benchmarks/p411_native_calibration.json
+COPY benchmarks/p411_native_raster_manifest.json benchmarks/p411_native_raster_manifest.json
 COPY benchmarks/p411_visual_slo_policy.json benchmarks/p411_visual_slo_policy.json
 COPY scripts/p48_release_smoke.py scripts/p48_release_smoke.py
 COPY scripts/p48_component_benchmark.py scripts/p48_component_benchmark.py

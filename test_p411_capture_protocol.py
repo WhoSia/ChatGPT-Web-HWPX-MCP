@@ -1,3 +1,4 @@
+from pathlib import Path
 from p411_capture_protocol import capture_worker_contract, validate_capture_receipt, validate_capture_request
 
 def test_p411_capture_request_contract():
@@ -21,3 +22,12 @@ def test_p411_receipt_never_allows_cleanup_of_preexisting_pid():
     result=validate_capture_receipt(receipt)
     assert result["status"]=="FAIL"
     assert any(x["code"]=="FORCED_CLEANUP_NOT_OWNED" for x in result["issues"])
+
+
+def test_p411_windows_worker_aggregates_only_owned_capture_pids():
+    text=Path("scripts/p411_windows_capture_worker.ps1").read_text(encoding="utf-8")
+    assert "$owned = @($m.rows" in text
+    assert "$forced = @($m.rows" in text
+    assert "Stop-Process" not in text
+    assert "owned_hwp_pids = @($owned)" in text
+    assert "forced_cleanup_pids = @($forced)" in text

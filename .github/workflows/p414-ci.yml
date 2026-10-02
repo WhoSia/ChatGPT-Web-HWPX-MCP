@@ -127,7 +127,7 @@ jobs:
             sleep 2
           done
           cat /tmp/p414-health.json
-          python -c "import json; x=json.load(open('/tmp/p414-health.json')); assert x['phase']=='P4.14' and x['version']=='0.39.0-p4.14' and x['p414_evidence']['durable_store_reachable'] is True"
+          python -c "import json; x=json.load(open('/tmp/p414-health.json')); assert x['phase'] in {'P4.14','P4.15'} and x['version'] in {'0.39.0-p4.14','0.40.0-p4.15'} and x['p414_evidence']['durable_store_reachable'] is True"
       - name: Full OAuth and MCP lifecycle
         run: python test_client.py
       - if: always()

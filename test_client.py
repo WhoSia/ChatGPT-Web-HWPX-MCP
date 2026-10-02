@@ -346,8 +346,8 @@ async def main() -> None:
                 )
 
             read_payload = _payload(await client.call_tool("probe_read", {"message": "P4.8 OAuth smoke test"}))
-            if not read_payload or not read_payload.get("ok") or read_payload.get("version") != "0.34.0-p4.8":
-                raise RuntimeError(f"probe_read did not expose current P4.8 product version: {read_payload}")
+            if not read_payload or not read_payload.get("ok") or read_payload.get("version") != "0.35.0-p4.10":
+                raise RuntimeError(f"probe_read did not expose current P4.10 product version: {read_payload}")
 
             p2_caps = _payload(await client.call_tool("p2_capabilities", {}))
             if not p2_caps or p2_caps.get("phase") != "P4.8":

@@ -3,6 +3,7 @@ from __future__ import annotations
 from mcp.types import ToolAnnotations
 
 from p411_capture_protocol import capture_worker_contract, validate_capture_request, validate_capture_receipt
+from p411_release_service import evaluate_release_candidate, release_promotion_contract
 from p411_visual_oracle import (
     adjudicate_repair_candidate,
     build_golden_registry,
@@ -68,6 +69,16 @@ def register_p411_tools(core):
             blocking=False,
         )
         return {"ok":True, "visual_slo":slo, "gate":gate}
+
+    @core.mcp.tool(annotations=read)
+    def get_p411_release_promotion_contract() -> dict:
+        core._caller_subject()
+        return {"ok":True, **release_promotion_contract()}
+
+    @core.mcp.tool(annotations=read)
+    def evaluate_p411_release_candidate(evidence: dict, mode: str = "SHADOW_NONBLOCKING") -> dict:
+        core._caller_subject()
+        return {"ok":True, **evaluate_release_candidate(evidence, mode=mode)}
 
     @core.mcp.tool(annotations=read)
     def get_p411_windows_capture_worker_contract() -> dict:

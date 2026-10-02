@@ -317,3 +317,92 @@ def evaluate_shadow_release_gate(*, static_test_pass: bool, structural_fidelity_
 
 def load_calibration(path: Path = Path("benchmarks/p411_native_calibration.json")) -> dict:
     return json.loads(path.read_text(encoding="utf-8"))
+
+
+def build_page_raster_manifest(pages: list[dict], *, renderer: str, dpi: int) -> dict:
+    issues=[]
+    normalized=[]
+    for page in pages:
+        number=int(page.get("page") or 0)
+        width=int(page.get("width_px") or 0)
+        height=int(page.get("height_px") or 0)
+        digest=str(page.get("sha256") or "")
+        if number < 1 or width < 1 or height < 1 or len(digest) != 64:
+            issues.append({"code":"INVALID_PAGE_RASTER_EVIDENCE","page":number})
+        normalized.append({
+            "page":number,
+            "width_px":width,
+            "height_px":height,
+            "sha256":digest,
+            "source_pdf_sha256":page.get("source_pdf_sha256"),
+        })
+    result={
+        "phase":PHASE,
+        "schema":"chatgpt-web-hwpx-mcp/p411/page-raster-evidence/v1",
+        "status":"PASS" if not issues else "FAIL",
+        "renderer":str(renderer),
+        "dpi":int(dpi),
+        "page_count":len(normalized),
+        "pages":normalized,
+        "issues":issues,
+        "authority":"PAGE_RASTER_EVIDENCE_MANIFEST_NOT_SEMANTIC_VERDICT",
+    }
+    result["page_raster_manifest_sha256"]=_sha(result)
+    return result
+
+def structural_region_provenance_from_audit(audit: dict) -> dict:
+    rows=[]
+    for component in audit.get("components") or []:
+        cid=str(component.get("component_id") or "")
+        for group in component.get("semantic_groups") or []:
+            gid=group.get("semantic_group_id")
+            for obj in group.get("objects") or []:
+                pos=obj.get("position") or {}
+                rows.append({
+                    "component_id":cid,
+                    "semantic_group_id":gid,
+                    "role":obj.get("role"),
+                    "object_locator":obj.get("locator"),
+                    "kind":obj.get("kind"),
+                    "width":obj.get("width"),
+                    "height":obj.get("height"),
+                    "position":pos,
+                    "coordinate_space":"HWPX_SERIALIZED_OBJECT",
+                })
+    result={
+        "phase":PHASE,
+        "schema":"chatgpt-web-hwpx-mcp/p411/component-region-provenance/v1",
+        "region_count":len(rows),
+        "regions":rows,
+        "authority":"STRUCTURAL_REGION_PROVENANCE_REQUIRES_NATIVE_PAGE_REGISTRATION_FOR_PIXEL_DIFF",
+    }
+    result["region_provenance_sha256"]=_sha(result)
+    return result
+
+def evaluate_archetype_identity(signatures: dict[str, list[float]], *, minimum_distance: float = 0.15) -> dict:
+    names=sorted(signatures)
+    pairs=[]
+    failures=[]
+    for i,name_a in enumerate(names):
+        a=[float(x) for x in signatures[name_a]]
+        for name_b in names[i+1:]:
+            b=[float(x) for x in signatures[name_b]]
+            if len(a)!=len(b) or not a:
+                distance=0.0
+            else:
+                denom=max(1.0, math.sqrt(sum(x*x for x in a))+math.sqrt(sum(x*x for x in b)))
+                distance=math.sqrt(sum((x-y)**2 for x,y in zip(a,b)))/denom
+            row={"a":name_a,"b":name_b,"distance":distance}
+            pairs.append(row)
+            if distance < float(minimum_distance):
+                failures.append({"code":DEFECT_ARCHETYPE_ALIASING,**row})
+    result={
+        "phase":PHASE,
+        "status":"PASS" if not failures else "FAIL",
+        "minimum_distance":float(minimum_distance),
+        "pairs":pairs,
+        "issues":failures,
+        "authority":"ARCHETYPE_IDENTITY_DISTANCE_HEURISTIC_REQUIRES_HUMAN_CALIBRATION",
+    }
+    result["archetype_identity_sha256"]=_sha(result)
+    return result

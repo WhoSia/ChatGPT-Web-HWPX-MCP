@@ -21,6 +21,7 @@ from mcp.shared.auth import OAuthClientInformationFull, OAuthClientMetadata, OAu
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from p414_evidence_service import PRODUCT as P414_PRODUCT, SCHEMA as P414_SCHEMA, canonical_json as p414_canonical_json, canonical_sha256 as p414_canonical_sha256
+from p415_authority import PRODUCT as P415_PRODUCT
 
 URL = os.environ.get("MCP_URL", "http://127.0.0.1:8000/mcp")
 RUN_WRITE_TEST = os.environ.get(
@@ -375,6 +376,12 @@ async def main() -> None:
                 "route_native_render_world_contact",
                 "get_operator_quality_dashboard",
                 "export_operator_support_bundle",
+                "get_p415_release_authority_contract",
+                "verify_p415_release_evidence_graph",
+                "evaluate_p415_release_admission",
+                "reconcile_p415_native_hosted_conformance",
+                "verify_p415_continuous_production_attestation",
+                "evaluate_p415_rollback_authority",
             }
             missing = expected - set(names)
             if missing:
@@ -408,13 +415,22 @@ async def main() -> None:
             p2_caps = _payload(await client.call_tool("p2_capabilities", {}))
             if (
                 not p2_caps
-                or p2_caps.get("phase") != "P4.14"
+                or p2_caps.get("phase") != "P4.15"
                 or "get_p413_release_manifest" not in (p2_caps.get("tools_added") or [])
                 or "get_p413_document_visual_authority_receipt" not in (p2_caps.get("tools_added") or [])
                 or "ingest_p414_signed_evidence_receipt" not in (p2_caps.get("tools_added") or [])
                 or "get_p414_document_native_trust_receipt" not in (p2_caps.get("tools_added") or [])
             ):
                 raise RuntimeError(f"p2_capabilities failed: {p2_caps}")
+
+            p415_contract = _payload(await client.call_tool("get_p415_release_authority_contract", {}))
+            if (
+                not p415_contract
+                or p415_contract.get("phase") != "P4.15"
+                or p415_contract.get("product") != P415_PRODUCT
+                or p415_contract.get("native_rule") != "HOSTED_SUCCESS_NEVER_IMPLIES_NATIVE_HANCOM_PASS"
+            ):
+                raise RuntimeError(f"P4.15 release-authority contract failed: {p415_contract}")
 
             p41_contract = _payload(await client.call_tool("get_product_operational_readiness_contract", {}))
             if (

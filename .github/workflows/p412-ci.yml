@@ -10,6 +10,7 @@ on:
       - "p48_mcp.py"
       - "test_p48_mcp.py"
       - "scripts/p48_component_benchmark.py"
+      - "scripts/p48_release_smoke.py"
       - "scripts/p49_release_smoke.py"
       - "server_p2.py"
       - "test_client.py"

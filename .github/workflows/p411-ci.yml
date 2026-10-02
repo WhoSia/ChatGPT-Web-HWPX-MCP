@@ -8,6 +8,8 @@ on:
       - "test_p411_*"
       - "scripts/p411_*"
       - "benchmarks/p411_*"
+      - "p48_mcp.py"
+      - "scripts/p48_component_benchmark.py"
       - "server_p2.py"
       - "test_client.py"
       - "Dockerfile"
@@ -31,10 +33,13 @@ jobs:
       - run: python -m pytest -q test_p411_visual_oracle.py test_p411_capture_protocol.py
       - run: python scripts/p411_release_smoke.py
       - run: python scripts/p411_shadow_gate.py
+      - run: python scripts/p48_component_benchmark.py --out /tmp/p411-component-benchmark
       - uses: actions/upload-artifact@v4
         with:
           name: p411-shadow-visual-governance
-          path: /tmp/p411-shadow-gate.json
+          path: |
+            /tmp/p411-shadow-gate.json
+            /tmp/p411-component-benchmark
 
   docker-exact-head:
     runs-on: ubuntu-latest

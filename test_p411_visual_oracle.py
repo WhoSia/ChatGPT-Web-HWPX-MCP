@@ -12,6 +12,7 @@ from p411_visual_oracle import (
     evaluate_shadow_release_gate,
     evaluate_visual_slo,
     load_calibration,
+    load_native_raster_calibration,
     native_render_oracle_contract,
     plan_bounded_repairs,
 )
@@ -97,3 +98,11 @@ def test_p411_repair_candidate_requires_native_rerender_and_reduces_hard_defects
     )
     assert promoted["status"]=="PROMOTION_ELIGIBLE"
     assert promoted["hard_defect_reduction"]==1
+
+
+def test_p411_native_raster_calibration_is_hash_bound():
+    raster=load_native_raster_calibration()
+    assert raster["status"]=="PASS"
+    assert raster["case_count"]==8
+    assert raster["renderer"]=="pdfium"
+    assert raster["dpi"]==160

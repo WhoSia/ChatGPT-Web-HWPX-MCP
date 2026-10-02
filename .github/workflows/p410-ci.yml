@@ -32,18 +32,20 @@ jobs:
           python-version: "3.12"
           cache: pip
       - run: pip install -r requirements.txt -r requirements-dev.txt
-      - run: python -m compileall -q p410_closure.py test_p410_closure.py scripts/p410_release_smoke.py p49_visual_conformance.py p49_equation_witnesses.py
-      - run: python -m pytest -q test_p410_closure.py test_p49_visual_conformance.py test_p49_equation_witnesses.py test_p49_capture_contract.py
+      - run: python -m compileall -q p410_closure.py test_p410_closure.py test_p410_native_closure_pack.py scripts/p410_release_smoke.py scripts/p410_materialize_native_closure_pack.py p49_visual_conformance.py p49_equation_witnesses.py
+      - run: python -m pytest -q test_p410_closure.py test_p410_native_closure_pack.py test_p49_visual_conformance.py test_p49_equation_witnesses.py test_p49_capture_contract.py
       - run: python scripts/p49_release_smoke.py
       - run: python scripts/p410_release_smoke.py
       - run: python scripts/p48_component_benchmark.py --out /tmp/p410-component-benchmark
       - run: python scripts/p49_materialize_equation_witnesses.py --out /tmp/p410-equation-witness
+      - run: python scripts/p410_materialize_native_closure_pack.py --out /tmp/p410-native-closure-pack
       - uses: actions/upload-artifact@v4
         with:
           name: p410-closure-evidence
           path: |
             /tmp/p410-component-benchmark
             /tmp/p410-equation-witness
+            /tmp/p410-native-closure-pack
 
   docker-exact-head:
     runs-on: ubuntu-latest

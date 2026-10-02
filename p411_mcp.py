@@ -4,7 +4,9 @@ from mcp.types import ToolAnnotations
 
 from p411_capture_protocol import capture_worker_contract, validate_capture_request, validate_capture_receipt
 from p411_visual_oracle import (
+    adjudicate_repair_candidate,
     build_golden_registry,
+    calibration_summary,
     detect_native_visual_defects,
     evaluate_shadow_release_gate,
     evaluate_visual_slo,
@@ -27,12 +29,29 @@ def register_p411_tools(core):
         return {"ok":True, **build_golden_registry(load_calibration())}
 
     @core.mcp.tool(annotations=read)
+    def get_p411_calibration_summary() -> dict:
+        core._caller_subject()
+        return {"ok":True, **calibration_summary()}
+
+    @core.mcp.tool(annotations=read)
     def evaluate_p411_native_visual_observation(observation: dict) -> dict:
         core._caller_subject()
         defects=detect_native_visual_defects(observation)
         slo=evaluate_visual_slo(defects, novel_unadjudicated=int(observation.get("novel_unadjudicated") or 0))
         repairs=plan_bounded_repairs(defects)
         return {"ok":True, "defects":defects, "visual_slo":slo, "repair_plan":repairs}
+
+    @core.mcp.tool(annotations=read)
+    def adjudicate_p411_visual_repair_candidate(evidence: dict) -> dict:
+        core._caller_subject()
+        result=adjudicate_repair_candidate(
+            before=evidence.get("before") or {},
+            after=evidence.get("after") or {},
+            semantic_equivalence_pass=bool(evidence.get("semantic_equivalence_pass")),
+            structural_proof_pass=bool(evidence.get("structural_proof_pass")),
+            native_rerender_pass=bool(evidence.get("native_rerender_pass")),
+        )
+        return {"ok":True, **result}
 
     @core.mcp.tool(annotations=read)
     def evaluate_p411_shadow_release_gate(evidence: dict) -> dict:

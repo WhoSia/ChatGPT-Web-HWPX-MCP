@@ -1,6 +1,7 @@
 # ChatGPT Web HWPX MCP P4.14 — Distributed Native Capture Agent, Signed Evidence Ingestion, Hancom Build-Matrix Certification, Release-Triggered Visual Drift Adjudication, Automated Rollback Authority & Per-Document Public Trust Receipts
 
-Product: `0.39.0-p4.14`  
+Product: `0.39.0-p4.14`
+
 Immutable parent: P4.13 `0.38.0-p4.13`, exact head `adeb06e6f55fbc0b7116e998ebbfe3ed18811754`, Render deploy `dep-davkg0vavr4c73cd4j30`.
 
 ## Frozen invariants

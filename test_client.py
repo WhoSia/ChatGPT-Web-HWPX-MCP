@@ -5,6 +5,8 @@ import base64
 import hashlib
 import json
 import os
+import uuid
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from urllib.parse import parse_qs, urljoin, urlparse
 
@@ -16,6 +18,9 @@ from mcp import Client
 from mcp.client.auth import AuthorizationCodeResult, OAuthClientProvider
 from mcp.client.streamable_http import streamable_http_client
 from mcp.shared.auth import OAuthClientInformationFull, OAuthClientMetadata, OAuthToken
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+from p414_evidence_service import PRODUCT as P414_PRODUCT, SCHEMA as P414_SCHEMA, canonical_json as p414_canonical_json, canonical_sha256 as p414_canonical_sha256
 
 URL = os.environ.get("MCP_URL", "http://127.0.0.1:8000/mcp")
 RUN_WRITE_TEST = os.environ.get(
@@ -97,6 +102,57 @@ def _payload(result):
         except json.JSONDecodeError:
             continue
     return None
+
+
+async def _p414_oauth_signed_receipt_lifecycle(client) -> None:
+    private = Ed25519PrivateKey.generate()
+    public = private.public_key().public_bytes(serialization.Encoding.Raw, serialization.PublicFormat.Raw)
+    agent_id = "ci-agent-" + uuid.uuid4().hex
+    key_id = "ci-key-" + uuid.uuid4().hex
+    public_b64 = base64.b64encode(public).decode("ascii")
+    registered = _payload(await client.call_tool("register_p414_capture_agent_key", {"agent_id": agent_id, "key_id": key_id, "public_key_ed25519_b64": public_b64}))
+    if not registered or registered.get("status") != "ACTIVE":
+        raise RuntimeError(f"P4.14 OAuth key enrollment failed: {registered}")
+    now = datetime.now(timezone.utc)
+    manifest = {"files": [{"fixture_id": "ci-fixture", "path": "fixture.hwpx", "sha256": "a" * 64, "bytes": 12, "lowering_family": "CI_ONLY"}]}
+    payload = {
+        "schema": P414_SCHEMA, "protocol_version": "1.0", "product": P414_PRODUCT,
+        "job_id": "ci-job-" + uuid.uuid4().hex,
+        "exact_head": os.environ.get("P414_RELEASE_EXACT_HEAD", "b" * 40),
+        "source_manifest_sha256": p414_canonical_sha256(manifest), "source_manifest": manifest,
+        "hancom_version": "TEST_ONLY", "hancom_build": "TEST_ONLY", "hancom_executable_sha256": "c" * 64,
+        "windows_version": "CI TEST ONLY", "windows_build": "0", "capture_agent_version": "1.0.0",
+        "issued_at": now.isoformat(), "expires_at": (now + timedelta(hours=1)).isoformat(), "nonce": uuid.uuid4().hex + uuid.uuid4().hex,
+        "source_files": [{"fixture_id": "ci-fixture", "path": "fixture.hwpx", "sha256": "a" * 64, "unchanged_after_capture": True}],
+        "outputs": [{"fixture_id": "ci-fixture", "pdf_sha256": "d" * 64, "export_succeeded": True, "page_count": 1, "bytes": 64}],
+        "capture_manifest_sha256": "e" * 64,
+        "process_custody": {"parent_pid": os.getpid(), "owned_hwp_pids": [], "terminated_owned_hwp_pids": [], "global_kill_used": False},
+        "capture_status": "CAPTURED", "recovery_status": "COMPLETE", "visual_verdict": "PENDING",
+        "visual_observations": {"human_adjudications": []}, "document_binding": None, "captured_at": now.isoformat(), "test_only": True,
+    }
+    receipt = {
+        "schema": P414_SCHEMA, "agent_id": agent_id, "key_id": key_id, "signed_payload": payload,
+        "signature_ed25519_b64": base64.b64encode(private.sign(p414_canonical_json(payload))).decode("ascii"),
+        "canonical_sha256": p414_canonical_sha256(payload),
+    }
+    validated = _payload(await client.call_tool("validate_p414_signed_evidence_receipt", {"receipt": receipt}))
+    if not validated or not validated.get("accepted"):
+        raise RuntimeError(f"P4.14 OAuth signature verification failed: {validated}")
+    accepted = _payload(await client.call_tool("ingest_p414_signed_evidence_receipt", {"receipt": receipt}))
+    if not accepted or not accepted.get("accepted") or not accepted.get("raw_receipt_preserved"):
+        raise RuntimeError(f"P4.14 signed receipt ingestion failed: {accepted}")
+    retry = _payload(await client.call_tool("ingest_p414_signed_evidence_receipt", {"receipt": receipt}))
+    if not retry or not retry.get("accepted") or not retry.get("idempotent_retry"):
+        raise RuntimeError(f"P4.14 exact receipt retry failed idempotency: {retry}")
+    replay_payload = {**payload, "captured_at": (now + timedelta(seconds=1)).isoformat()}
+    replay_receipt = {**receipt, "signed_payload": replay_payload, "signature_ed25519_b64": base64.b64encode(private.sign(p414_canonical_json(replay_payload))).decode("ascii"), "canonical_sha256": p414_canonical_sha256(replay_payload)}
+    replay = _payload(await client.call_tool("ingest_p414_signed_evidence_receipt", {"receipt": replay_receipt}))
+    if not replay or replay.get("accepted") is not False or not any(x.get("code") == "REPLAYED_JOB_OR_NONCE" for x in replay.get("issues", [])):
+        raise RuntimeError(f"P4.14 replayed receipt was not rejected: {replay}")
+    revoked = _payload(await client.call_tool("revoke_p414_capture_agent_key", {"key_id": key_id, "reason": "OAuth lifecycle ephemeral test key"}))
+    after_revoke = _payload(await client.call_tool("validate_p414_signed_evidence_receipt", {"receipt": receipt}))
+    if not revoked or revoked.get("status") != "REVOKED" or after_revoke.get("accepted") or not any(x.get("code") == "KEY_NOT_ACTIVE" for x in after_revoke.get("issues", [])):
+        raise RuntimeError(f"P4.14 key revocation lifecycle failed: {revoked}, {after_revoke}")
 
 
 async def main() -> None:
@@ -345,16 +401,18 @@ async def main() -> None:
                     f"inspector={inspector_annotations} swap={swap_annotations}"
                 )
 
-            read_payload = _payload(await client.call_tool("probe_read", {"message": "P4.13 OAuth smoke test"}))
-            if not read_payload or not read_payload.get("ok") or read_payload.get("version") != "0.38.0-p4.13":
-                raise RuntimeError(f"probe_read did not expose current P4.13 product version: {read_payload}")
+            read_payload = _payload(await client.call_tool("probe_read", {"message": "P4.14 OAuth smoke test"}))
+            if not read_payload or not read_payload.get("ok") or read_payload.get("version") != P414_PRODUCT:
+                raise RuntimeError(f"probe_read did not expose current P4.14 product version: {read_payload}")
 
             p2_caps = _payload(await client.call_tool("p2_capabilities", {}))
             if (
                 not p2_caps
-                or p2_caps.get("phase") != "P4.13"
+                or p2_caps.get("phase") != "P4.14"
                 or "get_p413_release_manifest" not in (p2_caps.get("tools_added") or [])
                 or "get_p413_document_visual_authority_receipt" not in (p2_caps.get("tools_added") or [])
+                or "ingest_p414_signed_evidence_receipt" not in (p2_caps.get("tools_added") or [])
+                or "get_p414_document_native_trust_receipt" not in (p2_caps.get("tools_added") or [])
             ):
                 raise RuntimeError(f"p2_capabilities failed: {p2_caps}")
 
@@ -605,6 +663,49 @@ async def main() -> None:
                 or p413_trust.get("native_visual_authority") != "PROMOTED_BLOCKING_BASELINE"
             ):
                 raise RuntimeError(f"P4.13 public authoring trust failed: {p413_trust}")
+
+            p414_contract = _payload(await client.call_tool("get_p414_capture_agent_contract", {}))
+            if not p414_contract or p414_contract.get("phase") != "P4.14" or p414_contract.get("product") != P414_PRODUCT:
+                raise RuntimeError(f"P4.14 capture-agent contract failed: {p414_contract}")
+            p414_health = _payload(await client.call_tool("get_p414_evidence_service_health", {}))
+            if not p414_health or p414_health.get("status") != "PASS" or p414_health.get("private_keys_present_on_server") is not False:
+                raise RuntimeError(f"P4.14 durable evidence health failed: {p414_health}")
+            p414_matrix = _payload(await client.call_tool("get_p414_hancom_build_matrix", {}))
+            if not p414_matrix or p414_matrix.get("prior_certified_release", {}).get("exact_head") != "adeb06e6f55fbc0b7116e998ebbfe3ed18811754" or not p414_matrix.get("inherited_release_baseline_is_not_agent_cell"):
+                raise RuntimeError(f"P4.14 build matrix failed: {p414_matrix}")
+            now = datetime.now(timezone.utc)
+            source_manifest = {"files": [{"fixture_id": "job-fixture", "path": "fixture.hwpx", "sha256": "a" * 64, "bytes": 12, "lowering_family": "CI_ONLY"}]}
+            capture_job = {
+                "job_id": "job-ci-" + uuid.uuid4().hex, "exact_head": os.environ.get("P414_RELEASE_EXACT_HEAD", "b" * 40),
+                "product": P414_PRODUCT, "source_root": "C:/p414/source", "source_manifest": source_manifest,
+                "source_manifest_sha256": p414_canonical_sha256(source_manifest), "hancom_build_expected": "13.0.0.3622",
+                "issued_at": now.isoformat(), "expires_at": (now + timedelta(hours=2)).isoformat(),
+                "nonce": uuid.uuid4().hex + uuid.uuid4().hex, "output_target": "C:/p414/output", "capture_kind": "CI_TEST",
+            }
+            job_valid = _payload(await client.call_tool("validate_p414_capture_job", {"job_envelope": capture_job}))
+            if not job_valid or job_valid.get("status") != "PASS":
+                raise RuntimeError(f"P4.14 job protocol validation failed: {job_valid}")
+            p414_obligation = _payload(await client.call_tool("evaluate_p414_release_capture_obligation", {}))
+            if not p414_obligation or p414_obligation.get("status") != "FRESH_CAPTURE_REQUIRED" or not any(x.get("code") == "CAPTURE_AGENT_PROTOCOL_CHANGE" for x in p414_obligation.get("triggers", [])):
+                raise RuntimeError(f"P4.14 release capture obligation failed: {p414_obligation}")
+            p414_authority = _payload(await client.call_tool("get_p414_release_visual_authority", {}))
+            if not p414_authority or p414_authority.get("authority_class") != "RELEASE_BASELINE_NATIVE_AUTHORITY" or p414_authority.get("current_agent_native_status") != "NATIVE_VERIFICATION_PENDING":
+                raise RuntimeError(f"P4.14 release/native authority separation failed: {p414_authority}")
+            p414_drift = _payload(await client.call_tool("compare_p414_native_visual_drift", {
+                "evidence_id": "0" * 64,
+            }))
+            if not p414_drift or p414_drift.get("status") != "EVIDENCE_NOT_FOUND" or p414_drift.get("evidence_complete") is not False:
+                raise RuntimeError(f"P4.14 drift gate accepted caller-authored evidence: {p414_drift}")
+            p414_rollback = _payload(await client.call_tool("evaluate_p414_rollback_authority", {
+                "evidence_id": "0" * 64,
+                "current_release": {"release_id": "candidate", "exact_head": "b" * 40, "render_deploy_id": "dep-new"},
+                "target_release": {"release_id": "prior", "exact_head": "a" * 40, "render_deploy_id": "dep-old", "certification_status": "CERTIFIED"},
+                "mode": "DRY_RUN",
+            }))
+            if not p414_rollback or p414_rollback.get("status") != "DENIED":
+                raise RuntimeError(f"P4.14 rollback evidence guard failed: {p414_rollback}")
+            await _p414_oauth_signed_receipt_lifecycle(client)
+            print("P4.14 OAuth contract, job, trust, drift, rollback, Ed25519 ingestion and replay guards PASS")
 
             p411_shadow = _payload(await client.call_tool("evaluate_p411_shadow_release_gate", {
                 "evidence": {
@@ -1260,6 +1361,9 @@ async def main() -> None:
             ):
                 raise RuntimeError(f"P3.21 one-shot create failed: {planned}")
             planned_document_id = planned["document_id"]
+            document_trust = _payload(await client.call_tool("get_p414_document_native_trust_receipt", {"document_id": planned_document_id}))
+            if not document_trust or document_trust.get("authority_class") != "NATIVE_VERIFICATION_PENDING" or document_trust.get("document_id") != planned_document_id:
+                raise RuntimeError(f"P4.14 per-document trust failed to abstain without exact signed capture: {document_trust}")
 
             planned_map = _payload(await client.call_tool("get_document_map", {
                 "document_id": planned_document_id,

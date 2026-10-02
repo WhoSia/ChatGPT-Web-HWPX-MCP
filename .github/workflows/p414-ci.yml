@@ -1,0 +1,114 @@
+name: P4.14 distributed native evidence and trust
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "p414_*"
+      - "p414_evidence_store.sql"
+      - "test_p414_*"
+      - "scripts/p414_*"
+      - "benchmarks/p414_*"
+      - "server.py"
+      - "server_p2.py"
+      - "test_client.py"
+      - "Dockerfile"
+      - "scripts/verify_production_boundary.py"
+      - ".github/workflows/p414-ci.yml"
+      - ".github/workflows/p1-ci.yml"
+      - "requirements.txt"
+      - "requirements-dev.txt"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  evidence-service:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: hwpx_p414_test
+        ports: [5432:5432]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d hwpx_p414_test"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      P414_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/hwpx_p414_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt -r requirements-dev.txt
+      - run: python -m compileall -q p414_evidence_service.py p414_evidence_store.py p414_mcp.py test_p414_evidence_service.py test_p414_evidence_store.py test_p414_docker_layer_budget.py scripts/p414_release_smoke.py scripts/p414_materialize_release_evidence.py scripts/p414_materialize_capture_job.py scripts/p414_sign_receipt.py
+      - run: python -m pytest -q test_p414_evidence_service.py test_p414_evidence_store.py test_p414_docker_layer_budget.py
+      - run: python scripts/p414_release_smoke.py
+      - run: python scripts/p414_materialize_release_evidence.py --out /tmp/p414-release-evidence --exact-head ${{ github.sha }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: p414-release-evidence
+          path: /tmp/p414-release-evidence
+
+  oauth-full-lifecycle:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: hwpx_p414_lifecycle
+        ports: [5432:5432]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d hwpx_p414_lifecycle"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      P12_AUTH_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/hwpx_p414_lifecycle
+      P30_DOCUMENT_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/hwpx_p414_lifecycle
+      P414_EVIDENCE_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/hwpx_p414_lifecycle
+      P12_STATE_SECRET: p414-ci-state-secret-not-a-production-secret-32-chars-minimum
+      P11_OAUTH_PASSPHRASE: p414-ci-oauth-approval-passphrase-not-production
+      P1_DOWNLOAD_SECRET: p414-ci-download-secret-not-production
+      P1_OBJECT_DIR: /tmp/p414-lifecycle-objects
+      MCP_URL: http://127.0.0.1:8000/mcp
+      P414_RELEASE_EXACT_HEAD: ${{ github.sha }}
+      RENDER_GIT_COMMIT: ${{ github.sha }}
+      P414_ALLOW_TEST_RECEIPTS: "1"
+      RUN_P2_WRITE_TEST: "1"
+      PIP_DISABLE_PIP_VERSION_CHECK: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt -r requirements-dev.txt
+      - name: Start the exact-head service
+        run: |
+          python server_p2.py > /tmp/p414-server.log 2>&1 &
+          echo $! > /tmp/p414-server.pid
+          for attempt in $(seq 1 60); do
+            if curl --silent --fail http://127.0.0.1:8000/health > /tmp/p414-health.json; then break; fi
+            sleep 2
+          done
+          cat /tmp/p414-health.json
+          python -c "import json; x=json.load(open('/tmp/p414-health.json')); assert x['phase']=='P4.14' and x['version']=='0.39.0-p4.14' and x['p414_evidence']['durable_store_reachable'] is True"
+      - name: Full OAuth and MCP lifecycle
+        run: python test_client.py
+      - if: always()
+        run: cat /tmp/p414-server.log
+
+  docker-exact-head:
+    runs-on: ubuntu-latest
+    needs: [evidence-service, oauth-full-lifecycle]
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build --progress=plain -t hwpx-mcp-p414:${{ github.sha }} .
+      - run: docker run --rm --entrypoint python hwpx-mcp-p414:${{ github.sha }} scripts/p414_release_smoke.py
+      - run: docker run --rm --entrypoint python hwpx-mcp-p414:${{ github.sha }} scripts/p413_release_smoke.py

@@ -7,6 +7,7 @@ on:
       - "p414_*"
       - "p414_evidence_store.sql"
       - "test_p414_*"
+      - "test_p335_registry_atlas.py"
       - "scripts/p414_*"
       - "benchmarks/p414_*"
       - "server.py"

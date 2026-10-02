@@ -31,7 +31,7 @@ RUN mkdir -p /out && npx --yes -p typescript@5.9.2 tsc --strict --target ES2022 
 FROM python:3.12-slim
 
 WORKDIR /app
-ENV HWPX_PRODUCT_RELEASE=0.37.0-p4.12
+ENV HWPX_PRODUCT_RELEASE=0.38.0-p4.13
 
 COPY requirements.txt .
 RUN apt-get update && apt-get install -y --no-install-recommends nodejs && rm -rf /var/lib/apt/lists/*
@@ -147,9 +147,12 @@ COPY p411_release_service.py p411_release_service.py
 COPY p411_mcp.py p411_mcp.py
 COPY p412_native_repair.py p412_native_repair.py
 COPY p412_mcp.py p412_mcp.py
+COPY p413_evidence_service.py p413_evidence_service.py
+COPY p413_mcp.py p413_mcp.py
 COPY benchmarks/p411_native_calibration.json benchmarks/p411_native_calibration.json
 COPY benchmarks/p411_native_raster_manifest.json benchmarks/p411_native_raster_manifest.json
 COPY benchmarks/p411_visual_slo_policy.json benchmarks/p411_visual_slo_policy.json
+COPY benchmarks/p412_native_requalification.json benchmarks/p412_native_requalification.json
 COPY scripts/p48_release_smoke.py scripts/p48_release_smoke.py
 COPY scripts/p48_component_benchmark.py scripts/p48_component_benchmark.py
 COPY scripts/p49_release_smoke.py scripts/p49_release_smoke.py
@@ -157,12 +160,14 @@ COPY scripts/p410_release_smoke.py scripts/p410_release_smoke.py
 COPY scripts/p411_release_smoke.py scripts/p411_release_smoke.py
 COPY scripts/p411_shadow_gate.py scripts/p411_shadow_gate.py
 COPY scripts/p412_release_smoke.py scripts/p412_release_smoke.py
+COPY scripts/p413_release_smoke.py scripts/p413_release_smoke.py
 RUN python scripts/p48_release_smoke.py
 RUN python scripts/p48_component_benchmark.py --out /tmp/p48-component-benchmark >/dev/null
 RUN python scripts/p49_release_smoke.py
 RUN python scripts/p410_release_smoke.py
 RUN python scripts/p411_release_smoke.py
 RUN python scripts/p412_release_smoke.py
+RUN python scripts/p413_release_smoke.py
 
 ENV MCP_HOST=0.0.0.0
 ENV MCP_PORT=8000

@@ -345,12 +345,12 @@ async def main() -> None:
                     f"inspector={inspector_annotations} swap={swap_annotations}"
                 )
 
-            read_payload = _payload(await client.call_tool("probe_read", {"message": "P4.8 OAuth smoke test"}))
+            read_payload = _payload(await client.call_tool("probe_read", {"message": "P4.10 OAuth smoke test"}))
             if not read_payload or not read_payload.get("ok") or read_payload.get("version") != "0.35.0-p4.10":
                 raise RuntimeError(f"probe_read did not expose current P4.10 product version: {read_payload}")
 
             p2_caps = _payload(await client.call_tool("p2_capabilities", {}))
-            if not p2_caps or p2_caps.get("phase") != "P4.8":
+            if not p2_caps or p2_caps.get("phase") != "P4.10":
                 raise RuntimeError(f"p2_capabilities failed: {p2_caps}")
 
             p41_contract = _payload(await client.call_tool("get_product_operational_readiness_contract", {}))

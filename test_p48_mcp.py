@@ -62,6 +62,7 @@ def test_visual_plans_materialize_p412_paragraph_visuals_on_private_candidate():
         assert all(x["primitive_family"] == "PARAGRAPH_TEXT_VISUALIZATION" for x in receipts)
         mapped = build_drawing_layer_map(path)
         assert mapped["family_counts"].get("polygon", 0) == 0
+        assert mapped["family_counts"].get("rect", 0) == 0
         repaired = audit_repaired_visuals(path, receipts)
         assert repaired["status"] == "PASS", repaired["issues"]
         safety = validate_editor_open_safety(path.read_bytes())

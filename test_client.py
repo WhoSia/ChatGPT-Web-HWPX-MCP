@@ -518,6 +518,35 @@ async def main() -> None:
             ):
                 raise RuntimeError(f"P4.11 capture worker contract failed: {p411_capture}")
 
+            p411_release_contract = _payload(await client.call_tool("get_p411_release_promotion_contract", {}))
+            if (
+                not p411_release_contract
+                or p411_release_contract.get("product") != "0.36.0-p4.11"
+                or "SHADOW_NONBLOCKING" not in (p411_release_contract.get("modes") or [])
+            ):
+                raise RuntimeError(f"P4.11 release promotion contract failed: {p411_release_contract}")
+
+            p411_release_candidate = _payload(await client.call_tool("evaluate_p411_release_candidate", {
+                "evidence": {
+                    "exact_head": "a" * 40,
+                    "static_test_pass": True,
+                    "full_lifecycle_pass": True,
+                    "exact_head_docker_pass": True,
+                    "production_boundary_pass": True,
+                    "native_capture_pass": True,
+                    "visual_slo_status": "FAIL",
+                    "novel_unadjudicated": 0
+                },
+                "mode": "SHADOW_NONBLOCKING"
+            }))
+            if (
+                not p411_release_candidate
+                or p411_release_candidate.get("verdict") != "SERVICE_DEPLOYABLE_VISUAL_AUTHORITY_HOLD"
+                or p411_release_candidate.get("deployable") is not True
+                or p411_release_candidate.get("visual_authority_promoted") is not False
+            ):
+                raise RuntimeError(f"P4.11 release candidate governance failed: {p411_release_candidate}")
+
             p411_shadow = _payload(await client.call_tool("evaluate_p411_shadow_release_gate", {
                 "evidence": {
                     "static_test_pass": True,

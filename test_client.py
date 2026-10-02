@@ -497,7 +497,7 @@ async def main() -> None:
             if (
                 not p411_contract
                 or p411_contract.get("phase") != "P4.11"
-                or p411_contract.get("product") != "0.37.0-p4.12"
+                or p411_contract.get("product") != "0.36.0-p4.11"
                 or "VECTOR_ESCAPE" not in (p411_contract.get("defect_taxonomy") or [])
             ):
                 raise RuntimeError(f"P4.11 native render oracle contract failed: {p411_contract}")
@@ -521,7 +521,7 @@ async def main() -> None:
             p411_release_contract = _payload(await client.call_tool("get_p411_release_promotion_contract", {}))
             if (
                 not p411_release_contract
-                or p411_release_contract.get("product") != "0.37.0-p4.12"
+                or p411_release_contract.get("product") != "0.36.0-p4.11"
                 or "SHADOW_NONBLOCKING" not in (p411_release_contract.get("modes") or [])
             ):
                 raise RuntimeError(f"P4.11 release promotion contract failed: {p411_release_contract}")

@@ -1,6 +1,11 @@
 from __future__ import annotations
-import json
+
 from pathlib import Path
+import sys
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+import json
 from p411_visual_oracle import build_golden_registry, calibration_summary, load_calibration
 
 out=Path("/tmp/p411-golden-registry.json")

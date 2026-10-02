@@ -493,6 +493,54 @@ async def main() -> None:
             ):
                 raise RuntimeError(f"P4.8 component compile failed: {p48_compiled}")
 
+            p411_contract = _payload(await client.call_tool("get_p411_native_render_oracle_contract", {}))
+            if (
+                not p411_contract
+                or p411_contract.get("phase") != "P4.11"
+                or p411_contract.get("product") != "0.36.0-p4.11"
+                or "VECTOR_ESCAPE" not in (p411_contract.get("defect_taxonomy") or [])
+            ):
+                raise RuntimeError(f"P4.11 native render oracle contract failed: {p411_contract}")
+
+            p411_registry = _payload(await client.call_tool("get_p411_golden_registry", {}))
+            if (
+                not p411_registry
+                or p411_registry.get("case_count") != 8
+                or not p411_registry.get("registry_sha256")
+            ):
+                raise RuntimeError(f"P4.11 golden registry failed: {p411_registry}")
+
+            p411_capture = _payload(await client.call_tool("get_p411_windows_capture_worker_contract", {}))
+            if (
+                not p411_capture
+                or p411_capture.get("phase") != "P4.11"
+                or "owned_hwp_pids" not in (p411_capture.get("receipt_fields") or [])
+            ):
+                raise RuntimeError(f"P4.11 capture worker contract failed: {p411_capture}")
+
+            p411_shadow = _payload(await client.call_tool("evaluate_p411_shadow_release_gate", {
+                "evidence": {
+                    "static_test_pass": True,
+                    "structural_fidelity_pass": True,
+                    "exact_head_docker_pass": True,
+                    "native_capture_pass": True,
+                    "novel_unadjudicated": 0,
+                    "observation": {
+                        "page_width": 1000,
+                        "page_height": 1400,
+                        "regions": [],
+                        "vectors": []
+                    }
+                }
+            }))
+            if (
+                not p411_shadow
+                or (p411_shadow.get("visual_slo") or {}).get("status") != "PASS"
+                or (p411_shadow.get("gate") or {}).get("mode") != "SHADOW_NONBLOCKING"
+                or (p411_shadow.get("gate") or {}).get("promotion_eligible") is not True
+            ):
+                raise RuntimeError(f"P4.11 shadow promotion gate failed: {p411_shadow}")
+
             design_intelligence = _payload(await client.call_tool("get_document_design_intelligence_contract", {}))
             if (
                 not design_intelligence

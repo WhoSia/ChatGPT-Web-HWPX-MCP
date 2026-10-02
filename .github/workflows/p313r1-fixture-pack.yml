@@ -12,6 +12,9 @@ on:
       - ".github/workflows/p313r1-fixture-pack.yml"
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   materialize:
     runs-on: ubuntu-latest

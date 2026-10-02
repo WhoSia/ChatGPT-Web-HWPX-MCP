@@ -6,6 +6,9 @@ on:
     paths:
       - ".github/p32-world-contact-trigger"
 
+permissions:
+  contents: read
+
 jobs:
   world-contact:
     runs-on: ubuntu-latest

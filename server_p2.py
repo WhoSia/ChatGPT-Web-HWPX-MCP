@@ -195,9 +195,9 @@ from common_ir import (
     slice_common_ir,
 )
 
-P2_VERSION = "0.35.0-p4.10"
+P2_VERSION = "0.36.0-p4.11"
 core.VERSION = P2_VERSION
-core.PHASE = "P4.10"
+core.PHASE = "P4.11"
 
 _original_metadata = core._metadata
 
@@ -7121,6 +7121,9 @@ P47_RENDER_GROUNDED_AUTHORING = register_p47_tools(core, _refresh_metadata, _del
 
 from p48_mcp import register_p48_tools
 P48_COMPONENT_AUTHORING = register_p48_tools(core, _refresh_metadata, _delivery_after_commit)
+
+from p411_mcp import register_p411_tools
+P411_NATIVE_RENDER_ORACLE = register_p411_tools(core)
 
 
 if __name__ == "__main__":

@@ -345,12 +345,12 @@ async def main() -> None:
                     f"inspector={inspector_annotations} swap={swap_annotations}"
                 )
 
-            read_payload = _payload(await client.call_tool("probe_read", {"message": "P4.11 OAuth smoke test"}))
-            if not read_payload or not read_payload.get("ok") or read_payload.get("version") != "0.36.0-p4.11":
-                raise RuntimeError(f"probe_read did not expose current P4.11 product version: {read_payload}")
+            read_payload = _payload(await client.call_tool("probe_read", {"message": "P4.12 OAuth smoke test"}))
+            if not read_payload or not read_payload.get("ok") or read_payload.get("version") != "0.37.0-p4.12":
+                raise RuntimeError(f"probe_read did not expose current P4.12 product version: {read_payload}")
 
             p2_caps = _payload(await client.call_tool("p2_capabilities", {}))
-            if not p2_caps or p2_caps.get("phase") != "P4.11":
+            if not p2_caps or p2_caps.get("phase") != "P4.12":
                 raise RuntimeError(f"p2_capabilities failed: {p2_caps}")
 
             p41_contract = _payload(await client.call_tool("get_product_operational_readiness_contract", {}))
@@ -497,7 +497,7 @@ async def main() -> None:
             if (
                 not p411_contract
                 or p411_contract.get("phase") != "P4.11"
-                or p411_contract.get("product") != "0.36.0-p4.11"
+                or p411_contract.get("product") != "0.37.0-p4.12"
                 or "VECTOR_ESCAPE" not in (p411_contract.get("defect_taxonomy") or [])
             ):
                 raise RuntimeError(f"P4.11 native render oracle contract failed: {p411_contract}")
@@ -521,7 +521,7 @@ async def main() -> None:
             p411_release_contract = _payload(await client.call_tool("get_p411_release_promotion_contract", {}))
             if (
                 not p411_release_contract
-                or p411_release_contract.get("product") != "0.36.0-p4.11"
+                or p411_release_contract.get("product") != "0.37.0-p4.12"
                 or "SHADOW_NONBLOCKING" not in (p411_release_contract.get("modes") or [])
             ):
                 raise RuntimeError(f"P4.11 release promotion contract failed: {p411_release_contract}")
@@ -546,6 +546,33 @@ async def main() -> None:
                 or p411_release_candidate.get("visual_authority_promoted") is not False
             ):
                 raise RuntimeError(f"P4.11 release candidate governance failed: {p411_release_candidate}")
+
+            p412_contract = _payload(await client.call_tool("get_p412_defect_eradication_contract", {}))
+            if (
+                not p412_contract
+                or p412_contract.get("phase") != "P4.12"
+                or p412_contract.get("product") != "0.37.0-p4.12"
+                or (p412_contract.get("causal_hypothesis") or {}).get("unsafe_family") != "DRAWING_RECTANGLE_TEXTBOX_OVERLAY"
+            ):
+                raise RuntimeError(f"P4.12 defect eradication contract failed: {p412_contract}")
+
+            p412_payload = _payload(await client.call_tool("compile_p412_repaired_visual_payload", {
+                "plan": {
+                    "component_id": "ci_bar",
+                    "type": "bar_chart",
+                    "rows": [
+                        {"label": "A", "value": 1},
+                        {"label": "B", "value": 2}
+                    ]
+                }
+            }))
+            if (
+                not p412_payload
+                or p412_payload.get("primitive_family") != "PARAGRAPH_TEXT_VISUALIZATION"
+                or "A" not in p412_payload.get("paragraph_text", "")
+                or "B" not in p412_payload.get("paragraph_text", "")
+            ):
+                raise RuntimeError(f"P4.12 certified substitution failed: {p412_payload}")
 
             p411_shadow = _payload(await client.call_tool("evaluate_p411_shadow_release_gate", {
                 "evidence": {

@@ -143,6 +143,7 @@ COPY p49_equation_witnesses.py p49_equation_witnesses.py
 COPY p410_closure.py p410_closure.py
 COPY p411_visual_oracle.py p411_visual_oracle.py
 COPY p411_capture_protocol.py p411_capture_protocol.py
+COPY p411_release_service.py p411_release_service.py
 COPY p411_mcp.py p411_mcp.py
 COPY benchmarks/p411_native_calibration.json benchmarks/p411_native_calibration.json
 COPY scripts/p48_release_smoke.py scripts/p48_release_smoke.py

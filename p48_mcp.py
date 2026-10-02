@@ -339,7 +339,16 @@ def register_p48_tools(core, refresh_metadata, delivery_after_commit):
     @core.mcp.tool(annotations=read)
     def get_component_authoring_contract() -> dict:
         core._caller_subject()
-        return {"ok": True, **component_authoring_contract()}
+        contract = component_authoring_contract()
+        contract["active_visual_backend"] = {
+            "phase": "P4.12",
+            "product": "0.37.0-p4.12",
+            "bar_chart": "PARAGRAPH_TEXT_VISUALIZATION",
+            "kpi_strip": "PARAGRAPH_TEXT_VISUALIZATION",
+            "supersedes_runtime_family": "DRAWING_RECTANGLE_TEXTBOX_OVERLAY",
+            "native_render_authority": "PENDING_FRESH_HANCOM_REQUALIFICATION",
+        }
+        return {"ok": True, **contract}
 
     @core.mcp.tool(annotations=read)
     def compile_document_components(spec: dict) -> dict:

@@ -30,6 +30,7 @@ jobs:
       P1_DOWNLOAD_SECRET: ci-download-secret
       P12_AUTH_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/hwpx
       P12_STATE_SECRET: ci-p12-state-secret-0123456789-abcdefghijklmnopqrstuvwxyz
+      P414_ALLOW_TEST_RECEIPTS: "1"
       P345_TS_RUNTIME: ${{ github.workspace }}/.tmp/p345-ts/scripts/p345_runtime_cli.js
       P345_REPLAY_BIN: ${{ github.workspace }}/rust/p345_replay/target/release/p345-replay
       P346_TS_RUNTIME: ${{ github.workspace }}/.tmp/p346-ts/scripts/p346_platform_cli.js

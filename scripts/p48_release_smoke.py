@@ -13,6 +13,7 @@ from p325_drawing_layer import build_drawing_layer_map
 from p47_native_authoring import compile_unified_authoring_plan
 from p48_components import component_authoring_contract, compile_document_components
 from p48_mcp import _execute_visual_plans
+from p412_native_repair import audit_repaired_visuals
 
 
 spec = {
@@ -47,8 +48,11 @@ with tempfile.TemporaryDirectory() as tmp:
     assert visual and visual[0]["type"] == "bar_chart"
     mapped = build_drawing_layer_map(path)
     assert mapped["family_counts"].get("polygon", 0) == 0
-    assert mapped["family_counts"].get("rect", 0) >= 6
+    assert mapped["family_counts"].get("rect", 0) == 0
+    repaired = audit_repaired_visuals(path, visual)
+    assert repaired["status"] == "PASS", repaired["issues"]
+    assert all(item["primitive_family"] == "PARAGRAPH_TEXT_VISUALIZATION" for item in visual)
     safety = validate_editor_open_safety(path.read_bytes())
     assert safety.ok, safety.issues
 
-print("P4.8 semantic component authoring smoke PASS")
+print("P4.8 semantic component authoring + P4.12 active visual substitution smoke PASS")

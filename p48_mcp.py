@@ -18,6 +18,7 @@ from p338_rich_builder import evaluate_preview_readiness
 from p46_native_authoring import compile_native_authoring_bundle
 from p47_native_authoring import compile_unified_authoring_plan as compile_unified_authoring_plan_kernel
 from p49_visual_conformance import audit_materialized_visuals, certify_visual_plans
+from p411_visual_oracle import structural_region_provenance_from_audit
 from p48_components import (
     component_authoring_contract,
     compile_document_components as compile_document_components_kernel,
@@ -486,6 +487,7 @@ def register_p48_tools(core, refresh_metadata, delivery_after_commit):
                 dict(composition["bindings"]),
             )
             materialized_visual_audit = audit_materialized_visuals(path, visual_receipts)
+            p411_region_provenance = structural_region_provenance_from_audit(materialized_visual_audit)
             if materialized_visual_audit["status"] != "PASS":
                 raise ValueError(
                     "P4.9 post-materialization visual audit refused delivery: "
@@ -523,6 +525,8 @@ def register_p48_tools(core, refresh_metadata, delivery_after_commit):
             metadata["p49_visual_certificate_sha256"] = visual_certificate["visual_certificate_sha256"]
             metadata["p49_materialized_visual_audit_status"] = materialized_visual_audit["status"]
             metadata["p49_materialized_visual_audit_sha256"] = materialized_visual_audit["materialized_visual_audit_sha256"]
+            metadata["p411_region_provenance_sha256"] = p411_region_provenance["region_provenance_sha256"]
+            metadata["p411_region_provenance_count"] = p411_region_provenance["region_count"]
             metadata["p48_native_bundle_sha256"] = None if compiled_native is None else compiled_native["bundle_sha256"]
             metadata["p48_preview_readiness_sha256"] = readiness["preview_readiness_sha256"]
             if normalized_request_id:
@@ -576,6 +580,11 @@ def register_p48_tools(core, refresh_metadata, delivery_after_commit):
                         "p49_materialized_visual_audit": {
                             "status": materialized_visual_audit["status"],
                             "sha256": materialized_visual_audit["materialized_visual_audit_sha256"],
+                        },
+                        "p411_region_provenance": {
+                            "count": p411_region_provenance["region_count"],
+                            "sha256": p411_region_provenance["region_provenance_sha256"],
+                            "coordinate_space": "HWPX_SERIALIZED_OBJECT",
                         },
                         "native_receipts": native_receipts,
                         "preview_readiness": readiness,

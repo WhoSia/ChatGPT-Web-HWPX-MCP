@@ -11,7 +11,7 @@ from hwpx.tools.package_validator import validate_editor_open_safety
 from p321_document_composer import compose_document_plan
 from p47_native_authoring import compile_unified_authoring_plan
 from p48_components import compile_document_components
-from p48_mcp import _execute_visual_plans
+from p48_mcp import _execute_bar_chart, _execute_kpi_strip
 from p49_equation_witnesses import alignment_witness_contract, adjudicate_alignment_witness
 from p49_visual_conformance import audit_materialized_visuals, certify_visual_plans
 
@@ -53,7 +53,15 @@ unified = compile_unified_authoring_plan(compiled["unified_spec"])
 with tempfile.TemporaryDirectory() as tmp:
     path = Path(tmp) / "p49-release-smoke.hwpx"
     composition = compose_document_plan(path, unified["rich"]["plan"])
-    receipts = _execute_visual_plans(path, compiled["visual_plans"], composition["bindings"])
+    receipts = []
+    for plan in compiled["visual_plans"]:
+        anchor = str(composition["bindings"][str(plan["anchor_block_id"])]["locator"])
+        if plan["type"] == "bar_chart":
+            receipts.append(_execute_bar_chart(path, plan, anchor))
+        elif plan["type"] == "kpi_strip":
+            receipts.append(_execute_kpi_strip(path, plan, anchor))
+        else:
+            raise AssertionError(plan["type"])
     materialized = audit_materialized_visuals(path, receipts)
     assert materialized["status"] == "PASS", materialized["issues"]
     safety = validate_editor_open_safety(path.read_bytes())

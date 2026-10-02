@@ -9,6 +9,7 @@ on:
       - "scripts/p415_*"
       - "docs/p415-*"
       - "server_p2.py"
+      - "test_client.py"
       - "Dockerfile"
       - "scripts/verify_production_boundary.py"
       - ".github/workflows/p415-ci.yml"

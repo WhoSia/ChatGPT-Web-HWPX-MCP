@@ -168,11 +168,13 @@ class ProductionBoundaryTests(unittest.TestCase):
         self.assertFalse(result['ok']);self.assertEqual(len(calls),8);self.assertEqual(delays,[60]*7)
 
     def test_exact_head_required(self):
-        healthy={'version':'v','release_commit':'a','oauth':{'durable_store_reachable':True},'documents':{'durable_store_reachable':True},'p414_evidence':{'durable_store_reachable':True}}
+        healthy={'version':'v','release_commit':'a','oauth':{'durable_store_reachable':True},'documents':{'durable_store_reachable':True}}
         self.assertEqual(classify(200,healthy,'v','b'),'PRODUCTION_VERSION_STALE')
         self.assertEqual(classify(200,healthy,'v','a'),'READY')
-        without_p414={key:value for key,value in healthy.items() if key!='p414_evidence'}
-        self.assertEqual(classify(200,without_p414,'v','a'),'DURABLE_STORE_UNAVAILABLE')
+        p414={'version':'0.39.0-p4.14','release_commit':'a','oauth':{'durable_store_reachable':True},'documents':{'durable_store_reachable':True}}
+        self.assertEqual(classify(200,p414,'0.39.0-p4.14','a'),'DURABLE_STORE_UNAVAILABLE')
+        p414['p414_evidence']={'durable_store_reachable':True}
+        self.assertEqual(classify(200,p414,'0.39.0-p4.14','a'),'READY')
 
 
 if __name__=='__main__': unittest.main()

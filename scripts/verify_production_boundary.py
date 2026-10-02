@@ -17,8 +17,10 @@ def classify(status, body, version, commit=None):
     if body['version'] != version or (commit and body.get('release_commit') != commit):
         return 'PRODUCTION_VERSION_STALE'
     if (body.get('oauth', {}).get('durable_store_reachable') is not True
-            or body.get('documents', {}).get('durable_store_reachable') is not True
-            or body.get('p414_evidence', {}).get('durable_store_reachable') is not True):
+            or body.get('documents', {}).get('durable_store_reachable') is not True):
+        return 'DURABLE_STORE_UNAVAILABLE'
+    if (version == '0.39.0-p4.14'
+            and body.get('p414_evidence', {}).get('durable_store_reachable') is not True):
         return 'DURABLE_STORE_UNAVAILABLE'
     return 'READY'
 

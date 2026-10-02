@@ -47,8 +47,8 @@ jobs:
           python-version: "3.12"
           cache: pip
       - run: pip install -r requirements.txt -r requirements-dev.txt
-      - run: python -m compileall -q p414_evidence_service.py p414_evidence_store.py p414_mcp.py test_p414_evidence_service.py test_p414_evidence_store.py test_p414_docker_layer_budget.py scripts/p414_release_smoke.py scripts/p414_materialize_release_evidence.py scripts/p414_materialize_capture_job.py scripts/p414_sign_receipt.py
-      - run: python -m pytest -q test_p414_evidence_service.py test_p414_evidence_store.py test_p414_docker_layer_budget.py
+      - run: python -m compileall -q p414_evidence_service.py p414_evidence_store.py p414_mcp.py test_p414_production_boundary.py test_p414_evidence_service.py test_p414_evidence_store.py test_p414_docker_layer_budget.py scripts/verify_production_boundary.py scripts/p414_release_smoke.py scripts/p414_materialize_release_evidence.py scripts/p414_materialize_capture_job.py scripts/p414_sign_receipt.py
+      - run: python -m pytest -q test_p414_production_boundary.py test_p414_evidence_service.py test_p414_evidence_store.py test_p414_docker_layer_budget.py
       - run: python scripts/p414_release_smoke.py
       - run: python scripts/p414_materialize_release_evidence.py --out /tmp/p414-release-evidence --exact-head ${{ github.sha }}
       - uses: actions/upload-artifact@v4

@@ -78,3 +78,19 @@ def test_uncertified_or_digest_mismatched_rollback_denied():
     assert evaluate_rollback(current_head=head, target_release=target, ancestry_proven=True, artifact_sha256_observed="5" * 64)["authorized"] is False
     target["certification_status"] = "CERTIFIED"
     assert evaluate_rollback(current_head=head, target_release=target, ancestry_proven=True, artifact_sha256_observed="6" * 64)["authorized"] is False
+
+
+def test_dangling_or_tampered_edge_fails():
+    from p415_authority import canonical_sha256, make_edge
+    graph = machine_graph()
+    graph["edges"] = [make_edge("head", "missing-node", "DEPENDS_ON")]
+    graph["graph_sha256"] = canonical_sha256({k: v for k, v in graph.items() if k != "graph_sha256"})
+    result = verify_graph(graph)
+    assert any(x["code"] == "DANGLING_EDGE" for x in result["issues"])
+
+    graph = machine_graph()
+    graph["edges"] = [make_edge("head", "ci", "DEPENDS_ON")]
+    graph["edges"][0]["relation"] = "FORGED"
+    graph["graph_sha256"] = canonical_sha256({k: v for k, v in graph.items() if k != "graph_sha256"})
+    result = verify_graph(graph)
+    assert any(x["code"] == "EDGE_DIGEST_MISMATCH" for x in result["issues"])

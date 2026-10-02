@@ -3,6 +3,9 @@ from p411_visual_oracle import (
     DEFECT_LABEL_VALUE_DETACHMENT,
     DEFECT_VECTOR_ESCAPE,
     build_golden_registry,
+    build_page_raster_manifest,
+    structural_region_provenance_from_audit,
+    evaluate_archetype_identity,
     detect_native_visual_defects,
     evaluate_shadow_release_gate,
     evaluate_visual_slo,
@@ -48,3 +51,23 @@ def test_p411_detector_slo_repair_and_shadow_gate():
     assert gate["mode"]=="SHADOW_NONBLOCKING"
     assert gate["promotion_eligible"] is False
     assert gate["release_blocked"] is False
+
+
+def test_p411_page_raster_and_region_provenance():
+    manifest=build_page_raster_manifest(
+        [{"page":1,"width_px":1200,"height_px":1600,"sha256":"a"*64,"source_pdf_sha256":"b"*64}],
+        renderer="pdfium",
+        dpi=160,
+    )
+    assert manifest["status"]=="PASS"
+    audit={"components":[{"component_id":"c","semantic_groups":[{"semantic_group_id":"g","objects":[
+        {"role":"label","locator":"loc","kind":"rect","width":10,"height":20,"position":{"x":1,"y":2}}
+    ]}]}]}
+    provenance=structural_region_provenance_from_audit(audit)
+    assert provenance["region_count"]==1
+    assert provenance["regions"][0]["coordinate_space"]=="HWPX_SERIALIZED_OBJECT"
+
+def test_p411_archetype_aliasing_is_measurable_but_not_beauty_score():
+    identity=evaluate_archetype_identity({"A":[1,0,0],"B":[1,0,0],"C":[0,1,0]},minimum_distance=0.1)
+    assert identity["status"]=="FAIL"
+    assert any(x["code"]=="ARCHETYPE_ALIASING" for x in identity["issues"])

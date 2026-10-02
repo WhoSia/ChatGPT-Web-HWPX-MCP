@@ -406,3 +406,74 @@ def evaluate_archetype_identity(signatures: dict[str, list[float]], *, minimum_d
     }
     result["archetype_identity_sha256"]=_sha(result)
     return result
+
+
+def adjudicate_repair_candidate(*, before: dict, after: dict, semantic_equivalence_pass: bool,
+                                structural_proof_pass: bool, native_rerender_pass: bool) -> dict:
+    before_codes=[str(x.get("code") or "") for x in before.get("issues") or []]
+    after_codes=[str(x.get("code") or "") for x in after.get("issues") or []]
+    before_hard=[x for x in before_codes if x in {
+        DEFECT_VECTOR_ESCAPE, DEFECT_REGION_CLIP, DEFECT_TEXT_DISAPPEARANCE,
+        DEFECT_LABEL_VALUE_DETACHMENT, DEFECT_KPI_CONTAINER_COLLAPSE,
+        DEFECT_OBJECT_OVERLAP, DEFECT_ALIGNMENT_DRIFT,
+    }]
+    after_hard=[x for x in after_codes if x in {
+        DEFECT_VECTOR_ESCAPE, DEFECT_REGION_CLIP, DEFECT_TEXT_DISAPPEARANCE,
+        DEFECT_LABEL_VALUE_DETACHMENT, DEFECT_KPI_CONTAINER_COLLAPSE,
+        DEFECT_OBJECT_OVERLAP, DEFECT_ALIGNMENT_DRIFT,
+    }]
+    new_defects=sorted(set(after_hard)-set(before_hard))
+    reduced=len(after_hard) < len(before_hard)
+    admissible=all([
+        bool(semantic_equivalence_pass),
+        bool(structural_proof_pass),
+        bool(native_rerender_pass),
+        not new_defects,
+        reduced or (not before_hard and not after_hard),
+    ])
+    result={
+        "phase":PHASE,
+        "status":"PROMOTION_ELIGIBLE" if admissible else "HOLD",
+        "semantic_equivalence_pass":bool(semantic_equivalence_pass),
+        "structural_proof_pass":bool(structural_proof_pass),
+        "native_rerender_pass":bool(native_rerender_pass),
+        "hard_defects_before":before_hard,
+        "hard_defects_after":after_hard,
+        "new_hard_defects":new_defects,
+        "hard_defect_reduction":len(before_hard)-len(after_hard),
+        "authority":"P4.11_BOUNDED_SELF_REPAIR_ADJUDICATION",
+    }
+    result["repair_adjudication_sha256"]=_sha(result)
+    return result
+
+def calibration_summary(calibration: dict | None = None) -> dict:
+    data=calibration or load_calibration()
+    vector_cases=[]
+    missing_bar=[]
+    missing_kpi=[]
+    for row in data.get("archetypes") or []:
+        visual=row.get("human_visual") or {}
+        if visual.get("vector_escape") is True:
+            vector_cases.append(row["case_id"])
+        if visual.get("bar_series_visible") is False:
+            missing_bar.append(row["case_id"])
+        if visual.get("kpi_card_visible") is False:
+            missing_kpi.append(row["case_id"])
+    promoted_alignment=[
+        row["variant_id"] for row in data.get("equations") or []
+        if row.get("human_visual_status")=="PASS"
+        and row.get("observed_alignment")==row.get("expected_alignment")
+    ]
+    result={
+        "phase":PHASE,
+        "native_capture_pass":data.get("capture",{}).get("archetype_capture_pass")=="5/5"
+            and data.get("capture",{}).get("equation_capture_pass")=="3/3",
+        "vector_escape_cases":vector_cases,
+        "bar_series_absent_cases":missing_bar,
+        "kpi_card_absent_cases":missing_kpi,
+        "alignment_promotion_eligible":promoted_alignment,
+        "visual_regression_count":len(vector_cases)+len(missing_bar)+len(missing_kpi),
+        "authority":"P410_NATIVE_PACKET_INGESTED_AS_P411_CALIBRATION",
+    }
+    result["calibration_summary_sha256"]=_sha(result)
+    return result

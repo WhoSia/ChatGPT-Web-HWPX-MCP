@@ -53,121 +53,62 @@ ENV P348_VERIFIER_BIN=/usr/local/bin/p348-marketplace-verifier
 ENV P348_TS_RUNTIME=/app/runtime/scripts/p348_marketplace_cli.js
 ENV P349_TS_RUNTIME=/app/runtime/scripts/p349_composition_cli.js
 
-COPY p348_marketplace.py p348_mcp.py p349_composition.py p349_mcp.py p41_operational.py p41_mcp.py p42_migration.py p42_mcp.py p43_quality.py p43_mcp.py p44_health_intelligence.py p44_health_store.py p44_mcp.py p45_quality_control.py p45_mcp.py p46_native_authoring.py p46_mcp.py p47_native_authoring.py p47_mcp.py p48_components.py p48_mcp.py ./
-COPY server.py server_p2.py p2_document.py p22_formatting.py p23_richtext.py p24_inline.py p25_controls.py p26_controls.py p27_tables.py p28_tables.py p29_objects.py p210_equations.py document_store.py oauth_provider.py auth_store.py hwp5_reader.py common_ir.py p39_textbox.py p311_layout_fidelity.py p312_render_harness.py p313_capture_custody.py p314_capture_intake.py p315_cross_version.py p315_replay_builder.py p316_version_indexed.py p316_stability_builder.py p317_fidelity_envelope.py p317_page_geometry.py p318_document_setup.py p319_structured_publishing.py p320_annotation_apparatus.py p321_document_composer.py p322_review_workflow.py p323_advanced_tables.py p324_story_layer.py p325_drawing_layer.py p326_drawing_style.py p327_diagram_composition.py p328_high_level_diagrams.py p329_diagram_lifecycle.py p330_diagram_design_system.py p331_diagram_quality_assurance.py p332_brownfield_diagrams.py p333_file_delivery.py p334_rare_feature_registry.py p334r1_column_insertion.py p334r2_tracked_resolution.py p334r2_package_validation.py p334r3_existing_group.py p335_typography.py p335_paragraph.py p335_corpus.py p335_registry.py p335_visual.py p335_atlas.py p335_mcp.py p336_corpus.py p336r2_design.py p337_product_workflow.py p338_rich_builder.py p339_design_intelligence.py p340_feedback_loop.py p341_page_composition.py p342_mutation_footprint.py p342_corpus_evidence.py p342_mcp.py p343_design_system.py p343_mcp.py p344_autonomous_authoring.py p344_mcp.py p345_runtime_bridge.py p345_mcp.py p346_platform_bridge.py p346_mcp.py p347_trust.py p347_supply_chain_bridge.py p347_mcp.py capture_runtime.py ./
-COPY scripts/p321_release_smoke.py scripts/p321_release_smoke.py
-COPY scripts/p322_release_smoke.py scripts/p322_release_smoke.py
-COPY scripts/p323_release_smoke.py scripts/p323_release_smoke.py
-COPY scripts/p324_release_smoke.py scripts/p324_release_smoke.py
-COPY scripts/p325_release_smoke.py scripts/p325_release_smoke.py
-COPY scripts/p326_release_smoke.py scripts/p326_release_smoke.py
-COPY scripts/p327_release_smoke.py scripts/p327_release_smoke.py
-COPY scripts/p328_release_smoke.py scripts/p328_release_smoke.py
-COPY scripts/p329_release_smoke.py scripts/p329_release_smoke.py
-COPY scripts/p330_release_smoke.py scripts/p330_release_smoke.py
-COPY scripts/p331_release_smoke.py scripts/p331_release_smoke.py
-COPY scripts/p332_release_smoke.py scripts/p332_release_smoke.py
-RUN python scripts/p321_release_smoke.py
-RUN python scripts/p322_release_smoke.py
-RUN python scripts/p323_release_smoke.py
-RUN python scripts/p324_release_smoke.py
-RUN python scripts/p325_release_smoke.py
-RUN python scripts/p326_release_smoke.py
-RUN python scripts/p327_release_smoke.py
-RUN python scripts/p328_release_smoke.py
-RUN python scripts/p329_release_smoke.py
-RUN python scripts/p330_release_smoke.py
-RUN python scripts/p331_release_smoke.py
-RUN python scripts/p332_release_smoke.py
-COPY scripts/p333_release_smoke.py scripts/p333_release_smoke.py
-RUN python scripts/p333_release_smoke.py
-COPY scripts/p334_release_smoke.py scripts/p334_release_smoke.py
-RUN python scripts/p334_release_smoke.py
-COPY scripts/p335_release_smoke.py scripts/p335_release_smoke.py
-RUN python scripts/p335_release_smoke.py
-COPY scripts/p335r4_release_smoke.py scripts/p335r4_release_smoke.py
-RUN python scripts/p335r4_release_smoke.py
-COPY scripts/p336r1_release_smoke.py scripts/p336r1_release_smoke.py
-RUN python scripts/p336r1_release_smoke.py
-COPY scripts/p336r2_release_smoke.py scripts/p336r2_release_smoke.py
-RUN python scripts/p336r2_release_smoke.py
-COPY scripts/p336r2r2_release_smoke.py scripts/p336r2r2_release_smoke.py
-RUN python scripts/p336r2r2_release_smoke.py
-COPY scripts/p337_release_smoke.py scripts/p337_release_smoke.py
-RUN python scripts/p337_release_smoke.py
-COPY scripts/p338_release_smoke.py scripts/p338_release_smoke.py
-RUN python scripts/p338_release_smoke.py
-COPY scripts/p339_release_smoke.py scripts/p339_release_smoke.py
-RUN python scripts/p339_release_smoke.py
-COPY scripts/p340_release_smoke.py scripts/p340_release_smoke.py
-RUN python scripts/p340_release_smoke.py
-COPY scripts/p341_release_smoke.py scripts/p341_release_smoke.py
-RUN python scripts/p341_release_smoke.py
-COPY scripts/p342_release_smoke.py scripts/p342_release_smoke.py
-RUN python scripts/p342_release_smoke.py
-COPY scripts/p343_release_smoke.py scripts/p343_release_smoke.py
-RUN python scripts/p343_release_smoke.py
-COPY scripts/p344_release_smoke.py scripts/p344_release_smoke.py
-RUN P344_REQUIRE_RUST_GATE=1 python scripts/p344_release_smoke.py
-COPY scripts/p345_release_smoke.py scripts/p345_release_smoke.py
-RUN python scripts/p345_release_smoke.py
-COPY scripts/p346_release_smoke.py scripts/p346_release_smoke.py
-RUN python scripts/p346_release_smoke.py
-COPY scripts/p347_release_smoke.py scripts/p347_release_smoke.py
-RUN python scripts/p347_release_smoke.py
-COPY scripts/p348_release_smoke.py scripts/p348_release_smoke.py
-RUN python scripts/p348_release_smoke.py
-COPY scripts/p349_release_smoke.py scripts/p349_release_smoke.py
-RUN python scripts/p349_release_smoke.py
-COPY scripts/p41_release_smoke.py scripts/p41_release_smoke.py
-RUN python scripts/p41_release_smoke.py
-COPY scripts/p42_release_smoke.py scripts/p42_release_smoke.py
-RUN python scripts/p42_release_smoke.py
-COPY benchmarks/p43_release_history.json benchmarks/p43_release_history.json
-COPY scripts/p43_release_smoke.py scripts/p43_release_smoke.py
-RUN python scripts/p43_release_smoke.py
-COPY benchmarks/p44_release_seed.json benchmarks/p44_release_seed.json
-COPY corpus/p43-immutable-external-fixtures.json corpus/p43-immutable-external-fixtures.json
-COPY corpus/p44-federation-registry.json corpus/p44-federation-registry.json
-COPY scripts/p44_release_smoke.py scripts/p44_release_smoke.py
-RUN python scripts/p44_release_smoke.py
-COPY scripts/p45_release_smoke.py scripts/p45_release_smoke.py
-RUN python scripts/p45_release_smoke.py
-COPY scripts/p46_release_smoke.py scripts/p46_release_smoke.py
-COPY scripts/p46_real_document_benchmark.py scripts/p46_real_document_benchmark.py
-RUN python scripts/p46_release_smoke.py
-COPY scripts/p47_release_smoke.py scripts/p47_release_smoke.py
-RUN python scripts/p47_release_smoke.py
-COPY p49_visual_conformance.py p49_visual_conformance.py
-COPY p49_equation_witnesses.py p49_equation_witnesses.py
-COPY p410_closure.py p410_closure.py
-COPY p411_visual_oracle.py p411_visual_oracle.py
-COPY p411_capture_protocol.py p411_capture_protocol.py
-COPY p411_release_service.py p411_release_service.py
-COPY p411_mcp.py p411_mcp.py
-COPY p412_native_repair.py p412_native_repair.py
-COPY p412_mcp.py p412_mcp.py
-COPY p413_evidence_service.py p413_evidence_service.py
-COPY p413_mcp.py p413_mcp.py
-COPY benchmarks/p411_native_calibration.json benchmarks/p411_native_calibration.json
-COPY benchmarks/p411_native_raster_manifest.json benchmarks/p411_native_raster_manifest.json
-COPY benchmarks/p411_visual_slo_policy.json benchmarks/p411_visual_slo_policy.json
-COPY benchmarks/p412_native_requalification.json benchmarks/p412_native_requalification.json
-COPY scripts/p48_release_smoke.py scripts/p48_release_smoke.py
-COPY scripts/p48_component_benchmark.py scripts/p48_component_benchmark.py
-COPY scripts/p49_release_smoke.py scripts/p49_release_smoke.py
-COPY scripts/p410_release_smoke.py scripts/p410_release_smoke.py
-COPY scripts/p411_release_smoke.py scripts/p411_release_smoke.py
-COPY scripts/p411_shadow_gate.py scripts/p411_shadow_gate.py
-COPY scripts/p412_release_smoke.py scripts/p412_release_smoke.py
-COPY scripts/p413_release_smoke.py scripts/p413_release_smoke.py
-RUN python scripts/p48_release_smoke.py
-RUN python scripts/p48_component_benchmark.py --out /tmp/p48-component-benchmark >/dev/null
-RUN python scripts/p49_release_smoke.py
-RUN python scripts/p410_release_smoke.py
-RUN python scripts/p411_release_smoke.py
-RUN python scripts/p412_release_smoke.py
-RUN python scripts/p413_release_smoke.py
+COPY *.py ./
+COPY scripts/ scripts/
+COPY benchmarks/ benchmarks/
+COPY corpus/ corpus/
+
+# Historical release-line smoke gates are intentionally retained, but executed
+# in two layers so the production image stays below overlayfs layer-depth limits.
+RUN set -eux; \
+    python scripts/p321_release_smoke.py; \
+    python scripts/p322_release_smoke.py; \
+    python scripts/p323_release_smoke.py; \
+    python scripts/p324_release_smoke.py; \
+    python scripts/p325_release_smoke.py; \
+    python scripts/p326_release_smoke.py; \
+    python scripts/p327_release_smoke.py; \
+    python scripts/p328_release_smoke.py; \
+    python scripts/p329_release_smoke.py; \
+    python scripts/p330_release_smoke.py; \
+    python scripts/p331_release_smoke.py; \
+    python scripts/p332_release_smoke.py; \
+    python scripts/p333_release_smoke.py; \
+    python scripts/p334_release_smoke.py; \
+    python scripts/p335_release_smoke.py; \
+    python scripts/p335r4_release_smoke.py; \
+    python scripts/p336r1_release_smoke.py; \
+    python scripts/p336r2_release_smoke.py; \
+    python scripts/p336r2r2_release_smoke.py; \
+    python scripts/p337_release_smoke.py; \
+    python scripts/p338_release_smoke.py; \
+    python scripts/p339_release_smoke.py; \
+    python scripts/p340_release_smoke.py; \
+    python scripts/p341_release_smoke.py; \
+    python scripts/p342_release_smoke.py; \
+    python scripts/p343_release_smoke.py; \
+    P344_REQUIRE_RUST_GATE=1 python scripts/p344_release_smoke.py; \
+    python scripts/p345_release_smoke.py; \
+    python scripts/p346_release_smoke.py; \
+    python scripts/p347_release_smoke.py; \
+    python scripts/p348_release_smoke.py; \
+    python scripts/p349_release_smoke.py
+
+RUN set -eux; \
+    python scripts/p41_release_smoke.py; \
+    python scripts/p42_release_smoke.py; \
+    python scripts/p43_release_smoke.py; \
+    python scripts/p44_release_smoke.py; \
+    python scripts/p45_release_smoke.py; \
+    python scripts/p46_release_smoke.py; \
+    python scripts/p47_release_smoke.py; \
+    python scripts/p48_release_smoke.py; \
+    python scripts/p48_component_benchmark.py --out /tmp/p48-component-benchmark >/dev/null; \
+    python scripts/p49_release_smoke.py; \
+    python scripts/p410_release_smoke.py; \
+    python scripts/p411_release_smoke.py; \
+    python scripts/p412_release_smoke.py; \
+    python scripts/p413_release_smoke.py
 
 ENV MCP_HOST=0.0.0.0
 ENV MCP_PORT=8000
@@ -178,5 +119,5 @@ ENV P1_MAX_TEXT_CHARS=100000
 
 EXPOSE 8000
 
-# P4.11 continuous native render oracle release candidate
+# P4.13 continuous Hancom evidence and public-authoring trust release candidate
 CMD ["python", "server_p2.py"]

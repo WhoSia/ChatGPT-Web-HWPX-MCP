@@ -13,6 +13,9 @@ on:
       - "server_p2.py"
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   real-hwp:
     runs-on: ubuntu-latest

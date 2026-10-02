@@ -31,7 +31,7 @@ RUN mkdir -p /out && npx --yes -p typescript@5.9.2 tsc --strict --target ES2022 
 FROM python:3.12-slim
 
 WORKDIR /app
-ENV HWPX_PRODUCT_RELEASE=0.39.0-p4.14
+ENV HWPX_PRODUCT_RELEASE=0.40.0-p4.15
 
 COPY requirements.txt .
 RUN apt-get update && apt-get install -y --no-install-recommends nodejs && rm -rf /var/lib/apt/lists/*
@@ -120,5 +120,5 @@ ENV P1_MAX_TEXT_CHARS=100000
 
 EXPOSE 8000
 
-# P4.14 distributed native evidence and per-document trust release candidate
+# P4.15 self-verifying release authority candidate
 CMD ["python", "server_p2.py"]

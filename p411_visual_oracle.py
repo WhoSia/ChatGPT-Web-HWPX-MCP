@@ -234,15 +234,19 @@ def detect_native_visual_defects(observation: dict) -> dict:
     result["defect_receipt_sha256"] = _sha(result)
     return result
 
-def evaluate_visual_slo(defects: dict, *, novel_unadjudicated: int = 0) -> dict:
+def load_visual_slo_policy(path: Path = Path("benchmarks/p411_visual_slo_policy.json")) -> dict:
+    return json.loads(path.read_text(encoding="utf-8"))
+
+def evaluate_visual_slo(defects: dict, *, novel_unadjudicated: int = 0, policy: dict | None = None) -> dict:
     counts: dict[str,int] = {}
     for issue in defects.get("issues") or []:
         counts[issue["code"]] = counts.get(issue["code"], 0) + 1
-    hard_zero = [
+    policy = policy or load_visual_slo_policy()
+    hard_zero = list(policy.get("hard_zero") or [
         DEFECT_VECTOR_ESCAPE, DEFECT_REGION_CLIP, DEFECT_TEXT_DISAPPEARANCE,
         DEFECT_LABEL_VALUE_DETACHMENT, DEFECT_KPI_CONTAINER_COLLAPSE,
         DEFECT_OBJECT_OVERLAP, DEFECT_ALIGNMENT_DRIFT,
-    ]
+    ])
     failures = {code: counts.get(code,0) for code in hard_zero if counts.get(code,0) != 0}
     if novel_unadjudicated:
         failures["UNADJUDICATED_NOVEL_DEFECT"] = int(novel_unadjudicated)
@@ -252,6 +256,8 @@ def evaluate_visual_slo(defects: dict, *, novel_unadjudicated: int = 0) -> dict:
         "counts": counts,
         "failures": failures,
         "slo": {code: 0 for code in hard_zero},
+        "policy_schema": policy.get("schema"),
+        "policy_mode": policy.get("mode"),
         "authority": "P4.11_VISUAL_SLO_EVALUATOR",
     }
     result["visual_slo_sha256"] = _sha(result)

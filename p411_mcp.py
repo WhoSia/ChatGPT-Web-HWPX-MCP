@@ -12,6 +12,8 @@ from p411_visual_oracle import (
     evaluate_shadow_release_gate,
     evaluate_visual_slo,
     load_calibration,
+    load_native_raster_calibration,
+    load_visual_slo_policy,
     native_render_oracle_contract,
     plan_bounded_repairs,
 )
@@ -33,6 +35,16 @@ def register_p411_tools(core):
     def get_p411_calibration_summary() -> dict:
         core._caller_subject()
         return {"ok":True, **calibration_summary()}
+
+    @core.mcp.tool(annotations=read)
+    def get_p411_native_raster_calibration() -> dict:
+        core._caller_subject()
+        return {"ok":True, **load_native_raster_calibration()}
+
+    @core.mcp.tool(annotations=read)
+    def get_p411_visual_slo_policy() -> dict:
+        core._caller_subject()
+        return {"ok":True, **load_visual_slo_policy()}
 
     @core.mcp.tool(annotations=read)
     def evaluate_p411_native_visual_observation(observation: dict) -> dict:

@@ -1,0 +1,27 @@
+{
+  "schema": "chatgpt-web-hwpx-mcp/p411/visual-slo-policy/v1",
+  "phase": "P4.11",
+  "product": "0.36.0-p4.11",
+  "mode": "SHADOW_NONBLOCKING",
+  "hard_zero": [
+    "VECTOR_ESCAPE",
+    "REGION_CLIP",
+    "TEXT_DISAPPEARANCE",
+    "LABEL_VALUE_DETACHMENT",
+    "KPI_CONTAINER_COLLAPSE",
+    "OBJECT_OVERLAP",
+    "ALIGNMENT_DRIFT"
+  ],
+  "diagnostic_only": [
+    "WHITESPACE_BLOWOUT",
+    "ARCHETYPE_ALIASING"
+  ],
+  "novel_unadjudicated_max": 0,
+  "corpus_families": [
+    "archetype-regression",
+    "equation-alignment",
+    "future-real-document"
+  ],
+  "promotion": "blocking eligibility may only be enabled after false-positive calibration",
+  "authority": "P4.11_VERSIONED_VISUAL_SLO_POLICY"
+}

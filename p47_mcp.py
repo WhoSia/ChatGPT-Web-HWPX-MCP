@@ -15,6 +15,7 @@ from p325_drawing_layer import apply_drawing_layer_atomic, build_drawing_layer_m
 from p338_rich_builder import evaluate_preview_readiness
 from p321_document_composer import compose_document_plan
 from p46_native_authoring import compile_native_authoring_bundle
+from p416_generation_manifest import build_authoring_generation_manifest
 from p47_native_authoring import (
     adjudicate_equation_render_evidence as adjudicate_equation_render_evidence_kernel,
     authoring_v2_contract,
@@ -97,6 +98,8 @@ def register_p47_tools(core, refresh_metadata, delivery_after_commit):
                             "unified_authoring": {
                                 "unified_plan_sha256": compiled["unified_plan_sha256"],
                                 "idempotent_replay": True,
+                                "generation_manifest": existing.get("p416_generation_manifest"),
+                                "generation_manifest_sha256": existing.get("p416_generation_manifest_sha256"),
                             }
                         },
                     },
@@ -141,6 +144,38 @@ def register_p47_tools(core, refresh_metadata, delivery_after_commit):
             if readiness["verdict"] in {"FAIL", "HOLD"}:
                 raise ValueError(f"P4.7 preview-readiness gate refused delivery: {readiness['verdict']}")
 
+            tool_trace = [
+                {"tool": "compose_document_plan", "capability": "RICH_COMPOSITION", "operation": {"unified_plan_sha256": compiled["unified_plan_sha256"]}},
+                {"tool": "validate_hwpx_package", "capability": "PACKAGE_VALIDATION", "operation": {"validation_sha256": validation["sha256"]}},
+                {"tool": "evaluate_preview_readiness", "capability": "PREVIEW_READINESS", "operation": {"preview_readiness_sha256": readiness["preview_readiness_sha256"]}},
+            ]
+            capability_path = ["P4.7_UNIFIED_AUTHORING", "RICH_COMPOSITION"]
+            if compiled_native is not None:
+                capability_path.append("NATIVE_AUTHORING_BUNDLE")
+                execution = compiled_native["execution_bundle"]
+                if execution["equations"]:
+                    tool_trace.append({"tool": "apply_equation_edits_atomic", "capability": "NATIVE_EQUATION", "operation": {"count": len(execution["equations"])}})
+                if execution["tables"]:
+                    tool_trace.append({"tool": "apply_table_edits_atomic", "capability": "NATIVE_TABLE", "operation": {"count": len(execution["tables"])}})
+                if execution["drawings"]:
+                    tool_trace.append({"tool": "apply_drawing_layer_atomic", "capability": "NATIVE_DRAWING", "operation": {"count": len(execution["drawings"])}})
+            generation_manifest = build_authoring_generation_manifest(
+                path,
+                intent=spec,
+                plan={
+                    "unified_plan_sha256": compiled["unified_plan_sha256"],
+                    "rich_compile_sha256": compiled["rich"]["compile_sha256"],
+                    "native_bundle_sha256": None if compiled_native is None else compiled_native["bundle_sha256"],
+                },
+                capability_path=capability_path,
+                tool_trace=tool_trace,
+                deterministic_parameters={
+                    "filename": safe_filename,
+                    "native_operation_count": int(compiled["native_operation_count"]),
+                    "revision_semantics": "PRIVATE_CANDIDATE_TO_SINGLE_REVISION_1_COMMIT",
+                },
+            )
+
             logical = compiled["rich"]["plan"].get("document") or {}
             metadata = core._metadata(
                 document_id,
@@ -156,6 +191,8 @@ def register_p47_tools(core, refresh_metadata, delivery_after_commit):
             metadata["p47_native_bundle_sha256"] = None if compiled_native is None else compiled_native["bundle_sha256"]
             metadata["p47_preview_readiness_sha256"] = readiness["preview_readiness_sha256"]
             metadata["p47_lane_receipts"] = lane_receipts
+            metadata["p416_generation_manifest"] = generation_manifest
+            metadata["p416_generation_manifest_sha256"] = generation_manifest["manifest_sha256"]
             if normalized_request_id:
                 metadata["create_request_id_sha256"] = hashlib.sha256(normalized_request_id.encode("utf-8")).hexdigest()
 
@@ -198,6 +235,8 @@ def register_p47_tools(core, refresh_metadata, delivery_after_commit):
                         "preview_readiness": readiness,
                         "idempotent_replay": False,
                         "revision_semantics": "PRIVATE_CANDIDATE_TO_SINGLE_REVISION_1_COMMIT",
+                        "generation_manifest": generation_manifest,
+                        "generation_manifest_sha256": generation_manifest["manifest_sha256"],
                     }
                 },
             },

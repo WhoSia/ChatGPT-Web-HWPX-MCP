@@ -33,3 +33,17 @@ jobs:
         run: python -m py_compile p416_generation_manifest.py p416_mcp.py scripts/p416_verify_manifest.py
       - name: P4.16 adversarial manifest tests
         run: python -m pytest -q test_p416_generation_manifest.py
+
+  docker-exact-head:
+    runs-on: ubuntu-latest
+    needs: [generation-manifest-kernel]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Build exact-head image
+        run: docker build --progress=plain -t hwpx-mcp-p416:${{ github.sha }} .
+      - name: P4.16 provenance smoke in image
+        run: docker run --rm --entrypoint python hwpx-mcp-p416:${{ github.sha }} scripts/p416_release_smoke.py
+      - name: P4.15 backward authority smoke
+        run: docker run --rm --entrypoint python hwpx-mcp-p416:${{ github.sha }} scripts/p415_release_smoke.py

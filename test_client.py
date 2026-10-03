@@ -480,7 +480,7 @@ async def main() -> None:
                 if (
                     not manifest
                     or manifest.get("artifact_sha256") != p416_created.get("sha256")
-                    or manifest.get("release", {}).get("exact_head") != os.environ.get("RENDER_GIT_COMMIT")
+                    or manifest.get("release", {}).get("exact_head") != (os.environ.get("RENDER_GIT_COMMIT") or os.environ.get("GITHUB_SHA"))
                     or manifest.get("native_pass_inferred") is not False
                 ):
                     raise RuntimeError(f"P4.16 stored generation manifest mismatch: {p416_manifest_record}, delivery={p416_created}")

@@ -195,9 +195,9 @@ from common_ir import (
     slice_common_ir,
 )
 
-P2_VERSION = "0.40.0-p4.15"
+P2_VERSION = "0.41.0-p4.16"
 core.VERSION = P2_VERSION
-core.PHASE = "P4.15"
+core.PHASE = "P4.16"
 
 _original_metadata = core._metadata
 
@@ -5228,6 +5228,11 @@ def p2_capabilities() -> dict:
             "reconcile_p415_native_hosted_conformance",
             "verify_p415_continuous_production_attestation",
             "evaluate_p415_rollback_authority",
+            "get_p416_generation_manifest_contract",
+            "verify_p416_generation_manifest",
+            "get_p416_document_generation_manifest",
+            "get_p416_minimal_generation_witness",
+            "compare_p416_generation_reproduction",
             "get_p412_defect_eradication_contract",
             "localize_p412_native_visual_failure",
             "compile_p412_repaired_visual_payload",
@@ -7180,6 +7185,9 @@ P414_DISTRIBUTED_NATIVE_EVIDENCE = register_p414_tools(core)
 
 from p415_mcp import register_p415_tools
 P415_SELF_VERIFYING_RELEASE_AUTHORITY = register_p415_tools(core)
+
+from p416_mcp import register_p416_tools
+P416_DOCUMENT_PROVENANCE = register_p416_tools(core, _owned_document)
 
 
 if __name__ == "__main__":

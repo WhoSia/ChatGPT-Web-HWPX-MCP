@@ -22,6 +22,7 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from p414_evidence_service import PRODUCT as P414_PRODUCT, SCHEMA as P414_SCHEMA, canonical_json as p414_canonical_json, canonical_sha256 as p414_canonical_sha256
 from p415_authority import PRODUCT as P415_PRODUCT
+from p416_generation_manifest import PRODUCT as P416_PRODUCT
 
 URL = os.environ.get("MCP_URL", "http://127.0.0.1:8000/mcp")
 RUN_WRITE_TEST = os.environ.get(
@@ -382,6 +383,11 @@ async def main() -> None:
                 "reconcile_p415_native_hosted_conformance",
                 "verify_p415_continuous_production_attestation",
                 "evaluate_p415_rollback_authority",
+                "get_p416_generation_manifest_contract",
+                "verify_p416_generation_manifest",
+                "get_p416_document_generation_manifest",
+                "get_p416_minimal_generation_witness",
+                "compare_p416_generation_reproduction",
             }
             missing = expected - set(names)
             if missing:
@@ -408,20 +414,22 @@ async def main() -> None:
                     f"inspector={inspector_annotations} swap={swap_annotations}"
                 )
 
-            read_payload = _payload(await client.call_tool("probe_read", {"message": "P4.15 OAuth smoke test"}))
-            if not read_payload or not read_payload.get("ok") or read_payload.get("version") != P415_PRODUCT:
-                raise RuntimeError(f"probe_read did not expose current P4.15 product version: {read_payload}")
+            read_payload = _payload(await client.call_tool("probe_read", {"message": "P4.16 OAuth smoke test"}))
+            if not read_payload or not read_payload.get("ok") or read_payload.get("version") != P416_PRODUCT:
+                raise RuntimeError(f"probe_read did not expose current P4.16 product version: {read_payload}")
 
             p2_caps = _payload(await client.call_tool("p2_capabilities", {}))
             if (
                 not p2_caps
-                or p2_caps.get("phase") != "P4.15"
+                or p2_caps.get("phase") != "P4.16"
                 or "get_p413_release_manifest" not in (p2_caps.get("tools_added") or [])
                 or "get_p413_document_visual_authority_receipt" not in (p2_caps.get("tools_added") or [])
                 or "ingest_p414_signed_evidence_receipt" not in (p2_caps.get("tools_added") or [])
                 or "get_p414_document_native_trust_receipt" not in (p2_caps.get("tools_added") or [])
                 or "get_p415_release_authority_contract" not in (p2_caps.get("tools_added") or [])
                 or "evaluate_p415_release_admission" not in (p2_caps.get("tools_added") or [])
+                or "get_p416_generation_manifest_contract" not in (p2_caps.get("tools_added") or [])
+                or "verify_p416_generation_manifest" not in (p2_caps.get("tools_added") or [])
             ):
                 raise RuntimeError(f"p2_capabilities failed: {p2_caps}")
 
@@ -433,6 +441,66 @@ async def main() -> None:
                 or p415_contract.get("native_rule") != "HOSTED_SUCCESS_NEVER_IMPLIES_NATIVE_HANCOM_PASS"
             ):
                 raise RuntimeError(f"P4.15 release-authority contract failed: {p415_contract}")
+
+            p416_contract = _payload(await client.call_tool("get_p416_generation_manifest_contract", {}))
+            if (
+                not p416_contract
+                or p416_contract.get("phase") != "P4.16"
+                or p416_contract.get("product") != P416_PRODUCT
+                or p416_contract.get("offline_verification") is not True
+                or p416_contract.get("raw_private_inputs_stored_by_default") is not False
+            ):
+                raise RuntimeError(f"P4.16 generation-manifest contract failed: {p416_contract}")
+
+            if RUN_WRITE_TEST:
+                p416_created = _payload(await client.call_tool("create_unified_document_and_deliver", {
+                    "spec": {
+                        "rich_plan": {
+                            "sections": [{
+                                "blocks": [{"type": "paragraph", "text": "P4.16 manifest lifecycle"}]
+                            }]
+                        },
+                        "native_bundle": {}
+                    },
+                    "filename": "p416-manifest-lifecycle.hwpx",
+                    "request_id": "p416-ci-manifest-lifecycle",
+                    "link_ttl_seconds": 120
+                }))
+                if (
+                    not p416_created
+                    or not p416_created.get("document_id")
+                    or not (p416_created.get("product_context") or {}).get("unified_authoring", {}).get("generation_manifest_sha256")
+                ):
+                    raise RuntimeError(f"P4.16 authoring manifest delivery missing: {p416_created}")
+                p416_document_id = p416_created["document_id"]
+                p416_manifest_record = _payload(await client.call_tool("get_p416_document_generation_manifest", {
+                    "document_id": p416_document_id
+                }))
+                manifest = (p416_manifest_record or {}).get("manifest")
+                if (
+                    not manifest
+                    or manifest.get("artifact_sha256") != p416_created.get("sha256")
+                    or manifest.get("release", {}).get("exact_head") != os.environ.get("RENDER_GIT_COMMIT")
+                    or manifest.get("native_pass_inferred") is not False
+                ):
+                    raise RuntimeError(f"P4.16 stored generation manifest mismatch: {p416_manifest_record}, delivery={p416_created}")
+                p416_verified = _payload(await client.call_tool("verify_p416_generation_manifest", {
+                    "manifest": manifest,
+                    "artifact_sha256": p416_created["sha256"]
+                }))
+                if not p416_verified or p416_verified.get("status") != "PASS":
+                    raise RuntimeError(f"P4.16 consumer verifier failed: {p416_verified}")
+                p416_witness = _payload(await client.call_tool("get_p416_minimal_generation_witness", {
+                    "manifest": manifest
+                }))
+                if (
+                    not p416_witness
+                    or (p416_witness.get("ablation") or {}).get("status") != "PASS"
+                ):
+                    raise RuntimeError(f"P4.16 minimal witness ablation failed: {p416_witness}")
+                deleted_p416 = _payload(await client.call_tool("delete_document", {"document_id": p416_document_id}))
+                if not deleted_p416 or not deleted_p416.get("deleted"):
+                    raise RuntimeError(f"P4.16 lifecycle cleanup failed: {deleted_p416}")
 
             p41_contract = _payload(await client.call_tool("get_product_operational_readiness_contract", {}))
             if (

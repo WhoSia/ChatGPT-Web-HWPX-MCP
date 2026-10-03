@@ -30,9 +30,11 @@ jobs:
       - name: Install test dependencies
         run: python -m pip install -r requirements.txt -r requirements-dev.txt
       - name: Compile P4.16 kernel
-        run: python -m py_compile p416_generation_manifest.py p416_mcp.py scripts/p416_verify_manifest.py
+        run: python -m py_compile p416_generation_manifest.py p416_mcp.py p47_mcp.py p48_mcp.py server_p2.py scripts/p416_verify_manifest.py scripts/p416_release_smoke.py
       - name: P4.16 adversarial manifest tests
         run: python -m pytest -q test_p416_generation_manifest.py
+      - name: P4.16 release smoke
+        run: python scripts/p416_release_smoke.py
 
   docker-exact-head:
     runs-on: ubuntu-latest

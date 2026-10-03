@@ -5,6 +5,7 @@ import json
 import os
 import platform
 import re
+import subprocess
 from importlib import metadata as importlib_metadata
 from pathlib import Path
 from typing import Any, Mapping, Sequence
@@ -85,11 +86,24 @@ def _hex40(value: str, field: str) -> str:
     return v
 
 
+def _git_head_if_available() -> str:
+    try:
+        return subprocess.check_output(
+            ["git", "rev-parse", "HEAD"],
+            stderr=subprocess.DEVNULL,
+            text=True,
+            timeout=2,
+        ).strip().lower()
+    except (OSError, subprocess.SubprocessError):
+        return ""
+
+
 def runtime_release_identity() -> dict:
     exact_head = (
         os.environ.get("P416_RELEASE_EXACT_HEAD")
         or os.environ.get("RENDER_GIT_COMMIT")
         or os.environ.get("GITHUB_SHA")
+        or _git_head_if_available()
         or PARENT_HEAD
     ).strip().lower()
     _hex40(exact_head, "release.exact_head")
@@ -98,9 +112,23 @@ def runtime_release_identity() -> dict:
         or PARENT_RELEASE_AUTHORITY_SHA256
     ).strip().lower()
     _hex64(authority_digest, "release.authority_sha256")
+    exact_head_source = (
+        "ENVIRONMENT"
+        if (
+            os.environ.get("P416_RELEASE_EXACT_HEAD")
+            or os.environ.get("RENDER_GIT_COMMIT")
+            or os.environ.get("GITHUB_SHA")
+        )
+        else (
+            "GIT_CHECKOUT"
+            if _git_head_if_available()
+            else "P4.15_PARENT_FALLBACK"
+        )
+    )
     return {
         "product": PRODUCT,
         "exact_head": exact_head,
+        "exact_head_source": exact_head_source,
         "authority_sha256": authority_digest,
         "authority_scope": (
             "P4.16_RELEASE_AUTHORITY"

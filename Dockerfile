@@ -31,7 +31,7 @@ RUN mkdir -p /out && npx --yes -p typescript@5.9.2 tsc --strict --target ES2022 
 FROM python:3.12-slim
 
 WORKDIR /app
-ENV HWPX_PRODUCT_RELEASE=0.40.0-p4.15
+ENV HWPX_PRODUCT_RELEASE=0.41.0-p4.16
 
 COPY requirements.txt .
 RUN apt-get update && apt-get install -y --no-install-recommends nodejs && rm -rf /var/lib/apt/lists/*
@@ -110,7 +110,8 @@ RUN set -eux; \
     python scripts/p412_release_smoke.py; \
     python scripts/p413_release_smoke.py; \
     python scripts/p414_release_smoke.py; \
-    python scripts/p415_release_smoke.py
+    python scripts/p415_release_smoke.py; \
+    python scripts/p416_release_smoke.py
 
 ENV MCP_HOST=0.0.0.0
 ENV MCP_PORT=8000
@@ -121,5 +122,5 @@ ENV P1_MAX_TEXT_CHARS=100000
 
 EXPOSE 8000
 
-# P4.15 self-verifying release authority candidate
+# P4.16 verifiable document provenance candidate
 CMD ["python", "server_p2.py"]

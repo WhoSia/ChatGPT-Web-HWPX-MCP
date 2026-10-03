@@ -1,0 +1,35 @@
+name: P4.16 verifiable document provenance
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "p416_*.py"
+      - "test_p416_*.py"
+      - "scripts/p416_*.py"
+      - "docs/p416-*.md"
+      - ".github/workflows/p416-ci.yml"
+      - "server_p2.py"
+      - "p47_mcp.py"
+      - "p48_mcp.py"
+      - "Dockerfile"
+      - "test_client.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  generation-manifest-kernel:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install test dependencies
+        run: python -m pip install -r requirements.txt -r requirements-dev.txt
+      - name: Compile P4.16 kernel
+        run: python -m py_compile p416_generation_manifest.py p416_mcp.py scripts/p416_verify_manifest.py
+      - name: P4.16 adversarial manifest tests
+        run: python -m pytest -q test_p416_generation_manifest.py

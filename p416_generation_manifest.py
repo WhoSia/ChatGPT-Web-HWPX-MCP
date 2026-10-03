@@ -5,6 +5,7 @@ import json
 import os
 import platform
 import re
+from importlib import metadata as importlib_metadata
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
@@ -505,3 +506,41 @@ def default_runtime_components(
     if extra:
         base.update(normalize_structured_input(extra))
     return base
+
+
+def _package_version(distribution: str) -> str:
+    try:
+        return importlib_metadata.version(distribution)
+    except importlib_metadata.PackageNotFoundError:
+        return "UNAVAILABLE"
+
+
+def build_authoring_generation_manifest(
+    path: str | Path,
+    *,
+    intent: Mapping[str, Any],
+    plan: Mapping[str, Any],
+    capability_path: Sequence[str],
+    tool_trace: Sequence[Mapping[str, Any]],
+    deterministic_parameters: Mapping[str, Any],
+    source_inputs: Sequence[Mapping[str, Any]] = (),
+    parent_document: Mapping[str, Any] | None = None,
+    native_evidence_refs: Sequence[Mapping[str, Any]] = (),
+) -> dict:
+    return compile_generation_manifest_for_file(
+        path,
+        intent=intent,
+        plan=plan,
+        capability_path=capability_path,
+        tool_trace=tool_trace,
+        source_inputs=source_inputs,
+        runtime_components=default_runtime_components(
+            {
+                "python-hwpx": _package_version("python-hwpx"),
+                "mcp": _package_version("mcp"),
+            }
+        ),
+        deterministic_parameters=deterministic_parameters,
+        parent_document=parent_document,
+        native_evidence_refs=native_evidence_refs,
+    )

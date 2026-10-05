@@ -1,0 +1,50 @@
+name: P4.17 corpus-grounded document intelligence
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "p417_*.py"
+      - "test_p417_*.py"
+      - "scripts/p417_*.py"
+      - "benchmarks/p417_*"
+      - ".github/workflows/p417-ci.yml"
+      - "server_p2.py"
+      - "Dockerfile"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  corpus-kernel:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: python -m pip install -r requirements.txt -r requirements-dev.txt
+      - name: Compile P4.17 corpus kernel
+        run: python -m py_compile p417_corpus.py p417_mcp.py scripts/p417_acquire_corpus.py
+      - name: P4.17 corpus intelligence tests
+        run: python -m pytest -q test_p417_corpus.py
+
+  live-official-corpus:
+    runs-on: ubuntu-latest
+    needs: [corpus-kernel]
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Acquire bounded official HWPX corpus
+        run: python scripts/p417_acquire_corpus.py --out /tmp/p417-official-corpus.json --minimum-documents 1 --sleep-seconds 0.5
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: p417-official-corpus
+          path: /tmp/p417-official-corpus.json
+          if-no-files-found: ignore

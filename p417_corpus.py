@@ -58,6 +58,10 @@ def _xml_feature_scan(path: Path) -> dict:
     attribute_counts: Counter[str] = Counter()
     namespaces: Counter[str] = Counter()
     text_fragments: list[str] = []
+    font_faces: Counter[str] = Counter()
+    char_property_signatures: Counter[str] = Counter()
+    para_property_signatures: Counter[str] = Counter()
+    page_property_signatures: Counter[str] = Counter()
     xml_parts: list[str] = []
     binary_parts: list[str] = []
     part_sizes: dict[str, int] = {}
@@ -77,8 +81,20 @@ def _xml_feature_scan(path: Path) -> dict:
                     element_counts[_local(elem.tag)] += 1
                     if elem.tag.startswith("{"):
                         namespaces[elem.tag[1:].split("}", 1)[0]] += 1
-                    for key in elem.attrib:
-                        attribute_counts[_local(key)] += 1
+                    attrs = {_local(k): str(v) for k, v in elem.attrib.items()}
+                    for key in attrs:
+                        attribute_counts[key] += 1
+                    local = _local(elem.tag)
+                    if local.lower() in {"font", "fontface", "typeface"}:
+                        face = attrs.get("face") or attrs.get("name") or attrs.get("fontName")
+                        if face:
+                            font_faces[_safe_text(face)] += 1
+                    if local in {"charPr", "charProperties"}:
+                        char_property_signatures[_sha(attrs)] += 1
+                    if local in {"paraPr", "paraProperties"}:
+                        para_property_signatures[_sha(attrs)] += 1
+                    if local in {"pagePr", "pageProperties", "pageDef", "page"} and attrs:
+                        page_property_signatures[_sha(attrs)] += 1
                     if elem.text and elem.text.strip() and len(text_fragments) < 5000:
                         text_fragments.append(_safe_text(elem.text))
             else:
@@ -104,6 +120,10 @@ def _xml_feature_scan(path: Path) -> dict:
         "char_property_count": sum(element_counts[k] for k in ("charPr", "charProperties")),
         "para_property_count": sum(element_counts[k] for k in ("paraPr", "paraProperties")),
         "style_definition_count": element_counts.get("style", 0),
+        "font_face_counts": dict(font_faces.most_common(64)),
+        "char_property_signatures": dict(char_property_signatures.most_common(64)),
+        "para_property_signatures": dict(para_property_signatures.most_common(64)),
+        "page_property_signatures": dict(page_property_signatures.most_common(32)),
         "text_sha256": hashlib.sha256(text.encode("utf-8")).hexdigest(),
         "text_sample": text[:4000],
     }
@@ -142,6 +162,10 @@ def mine_style_grammar(features: dict) -> dict:
         "char_property_count": features.get("char_property_count", 0),
         "para_property_count": features.get("para_property_count", 0),
         "style_definition_count": features.get("style_definition_count", 0),
+        "font_faces": features.get("font_face_counts", {}),
+        "char_property_signatures": features.get("char_property_signatures", {}),
+        "para_property_signatures": features.get("para_property_signatures", {}),
+        "page_property_signatures": features.get("page_property_signatures", {}),
         "header_footer_signal": int(counts.get("header", 0)) + int(counts.get("footer", 0)),
         "section_signal": int(counts.get("section", 0)) + int(counts.get("sec", 0)),
     }

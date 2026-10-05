@@ -5237,6 +5237,7 @@ def p2_capabilities() -> dict:
             "get_p417_document_intelligence_contract",
             "infer_p417_document_archetype",
             "mine_p417_style_grammar",
+            "align_p417_render_pair",
             "summarize_p417_document_intelligence_dataset",
             "get_p412_defect_eradication_contract",
             "localize_p412_native_visual_failure",

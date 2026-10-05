@@ -1,0 +1,71 @@
+{
+  "schema": "chatgpt-web-hwpx-mcp/p4.17/public-corpus-seed/v1",
+  "policy": {
+    "raw_bytes_persisted": false,
+    "acquisition": "BOUNDED_EPHEMERAL_OFFICIAL_SOURCE",
+    "redistribution": "FEATURE_RECEIPTS_ONLY",
+    "licensing": "SOURCE_TERMS_REVIEW_REQUIRED_BEFORE_ANY_BYTE_REDISTRIBUTION"
+  },
+  "sources": [
+    {
+      "source_id": "kisa-2026-036",
+      "institution": "KISA",
+      "source_page": "https://www.kisa.or.kr/403/form?lang_type=KO&postSeq=10527",
+      "expected_attachment_patterns": [
+        "입찰공고",
+        "제안요청서"
+      ],
+      "archetype_hints": [
+        "BID_NOTICE",
+        "RFP"
+      ],
+      "source_date": "2026-03-24"
+    },
+    {
+      "source_id": "kisa-2026-234",
+      "institution": "KISA",
+      "source_page": "https://www.kisa.or.kr/403/form?postSeq=10866",
+      "expected_attachment_patterns": [
+        "입찰공고",
+        "공사개요서",
+        "시방서"
+      ],
+      "archetype_hints": [
+        "BID_NOTICE",
+        "SPECIFICATION"
+      ],
+      "source_date": "2026-09-30"
+    },
+    {
+      "source_id": "nts-2025-review-committee",
+      "institution": "NTS",
+      "source_page": "https://sc.nts.go.kr/nts/na/ntt/selectNttInfo.do?bbsId=1122&mi=2206&nttSn=1340290",
+      "expected_attachment_patterns": [
+        "공고문",
+        "자기소개서",
+        "이력서"
+      ],
+      "archetype_hints": [
+        "ANNOUNCEMENT",
+        "FORM"
+      ],
+      "source_date": "2025-02-10"
+    },
+    {
+      "source_id": "nssc-2024-rnd-call",
+      "institution": "NSSC",
+      "source_page": "https://www.nssc.go.kr/ko/cms/FR_BBS_CON/BoardView.do?BBS_SEQ=46119&BOARD_SEQ=4&CATE_SEQ=&CONTENTS_NO=&MENU_ID=180&SEARCH=&SEARCH_FLD=&SITE_NO=2&TEL_NO=&USER_NAME=&WRITER_DI=&_csrf=&pageNo=1&pagePerCnt=15",
+      "expected_attachment_patterns": [
+        "공고문",
+        "신청안내서",
+        "과제제안요구서"
+      ],
+      "archetype_hints": [
+        "RND_ANNOUNCEMENT",
+        "GUIDE",
+        "RFP_REQUIREMENT"
+      ],
+      "source_date": "2024"
+    }
+  ]
+}

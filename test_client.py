@@ -23,6 +23,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from p414_evidence_service import PRODUCT as P414_PRODUCT, SCHEMA as P414_SCHEMA, canonical_json as p414_canonical_json, canonical_sha256 as p414_canonical_sha256
 from p415_authority import PRODUCT as P415_PRODUCT
 from p416_generation_manifest import PRODUCT as P416_PRODUCT
+from p417_corpus import PRODUCT as P417_PRODUCT
 
 URL = os.environ.get("MCP_URL", "http://127.0.0.1:8000/mcp")
 RUN_WRITE_TEST = os.environ.get(
@@ -388,6 +389,10 @@ async def main() -> None:
                 "get_p416_document_generation_manifest",
                 "get_p416_minimal_generation_witness",
                 "compare_p416_generation_reproduction",
+                "summarize_p417_document_intelligence_dataset",
+                "mine_p417_style_grammar",
+                "infer_p417_document_archetype",
+                "get_p417_document_intelligence_contract",
             }
             missing = expected - set(names)
             if missing:
@@ -414,14 +419,14 @@ async def main() -> None:
                     f"inspector={inspector_annotations} swap={swap_annotations}"
                 )
 
-            read_payload = _payload(await client.call_tool("probe_read", {"message": "P4.16 OAuth smoke test"}))
-            if not read_payload or not read_payload.get("ok") or read_payload.get("version") != P416_PRODUCT:
-                raise RuntimeError(f"probe_read did not expose current P4.16 product version: {read_payload}")
+            read_payload = _payload(await client.call_tool("probe_read", {"message": "P4.17 OAuth smoke test"}))
+            if not read_payload or not read_payload.get("ok") or read_payload.get("version") != P417_PRODUCT:
+                raise RuntimeError(f"probe_read did not expose current P4.17 product version: {read_payload}")
 
             p2_caps = _payload(await client.call_tool("p2_capabilities", {}))
             if (
                 not p2_caps
-                or p2_caps.get("phase") != "P4.16"
+                or p2_caps.get("phase") != "P4.17"
                 or "get_p413_release_manifest" not in (p2_caps.get("tools_added") or [])
                 or "get_p413_document_visual_authority_receipt" not in (p2_caps.get("tools_added") or [])
                 or "ingest_p414_signed_evidence_receipt" not in (p2_caps.get("tools_added") or [])
@@ -451,6 +456,25 @@ async def main() -> None:
                 or p416_contract.get("raw_private_inputs_stored_by_default") is not False
             ):
                 raise RuntimeError(f"P4.16 generation-manifest contract failed: {p416_contract}")
+
+            p417_contract = _payload(await client.call_tool("get_p417_document_intelligence_contract", {}))
+            if (
+                not p417_contract
+                or p417_contract.get("phase") != "P4.17"
+                or p417_contract.get("product") != P417_PRODUCT
+                or p417_contract.get("raw_bytes_policy") != "EPHEMERAL_ONLY_BY_DEFAULT"
+                or p417_contract.get("render_pair_policy") != "PAIR_RECEIPT_DOES_NOT_IMPLY_NATIVE_VISUAL_AUTHORITY"
+            ):
+                raise RuntimeError(f"P4.17 document-intelligence contract failed: {p417_contract}")
+
+            p417_archetype = _payload(await client.call_tool("infer_p417_document_archetype", {
+                "filename": "[제안요청서] 테스트.hwpx",
+                "source_title": "제안요청서",
+                "text_sample": "",
+                "archetype_hints": []
+            }))
+            if not p417_archetype or p417_archetype.get("archetype") != "RFP":
+                raise RuntimeError(f"P4.17 archetype inference failed: {p417_archetype}")
 
             if RUN_WRITE_TEST:
                 p416_created = _payload(await client.call_tool("create_unified_document_and_deliver", {

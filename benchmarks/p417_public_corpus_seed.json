@@ -66,6 +66,37 @@
         "RFP_REQUIREMENT"
       ],
       "source_date": "2024"
+    },
+    {
+      "source_id": "mcst-2026-tourism-stars",
+      "institution": "MCST",
+      "source_page": "https://www.mcst.go.kr/site/s_notice/notice/noticeView.jsp?pFlagJob=N&pSeq=19394",
+      "expected_attachment_patterns": [
+        "개요",
+        "후보 추천 안내문",
+        "공고문"
+      ],
+      "archetype_hints": [
+        "ANNOUNCEMENT",
+        "GUIDE"
+      ],
+      "source_date": "2026-07-21"
+    },
+    {
+      "source_id": "mcst-2026-copyright-fee-opinion",
+      "institution": "MCST",
+      "source_page": "https://www.mcst.go.kr/site/s_notice/notice/noticeView.jsp?pSeq=19473",
+      "expected_attachment_patterns": [
+        "공고문",
+        "신구조문대비표",
+        "전문",
+        "의견제출양식"
+      ],
+      "archetype_hints": [
+        "ANNOUNCEMENT",
+        "FORM"
+      ],
+      "source_date": "2026-09-02"
     }
   ]
 }

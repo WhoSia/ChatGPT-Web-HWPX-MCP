@@ -196,6 +196,7 @@ from common_ir import (
 )
 
 P2_VERSION = "0.41.0-p4.16"
+# P4.16 closure candidate: exact-head CI rerun after attribution-history rewrite.
 core.VERSION = P2_VERSION
 core.PHASE = "P4.16"
 

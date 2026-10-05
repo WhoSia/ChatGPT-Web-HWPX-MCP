@@ -42,7 +42,7 @@ def discover_links(page_url: str, page: bytes) -> list[dict]:
     for match in re.finditer(r"<a\b[^>]*href=[\"']([^\"']+)[\"'][^>]*>(.*?)</a>", text, flags=re.I | re.S):
         href = html.unescape(match.group(1))
         label = _strip_tags(html.unescape(match.group(2)))
-        absolute = urllib.parse.urljoin(page_url, href)
+        absolute = normalize_attachment_url(urllib.parse.urljoin(page_url, href))
         combined = (absolute + " " + label).lower()
         if ".hwpx" in combined or "filedown" in combined or "download" in combined:
             out.append({"url": absolute, "label": label})
@@ -59,6 +59,17 @@ def discover_links(page_url: str, page: bytes) -> list[dict]:
 
 def _strip_tags(value: str) -> str:
     return " ".join(re.sub(r"<[^>]+>", " ", value).split())
+
+
+def normalize_attachment_url(url: str) -> str:
+    parsed = urllib.parse.urlparse(url)
+    query = urllib.parse.parse_qs(parsed.query)
+    if parsed.path.endswith("/attachFiles/viewer/skin/doc.html"):
+        fn = (query.get("fn") or [""])[0]
+        rs = (query.get("rs") or [""])[0]
+        if fn and rs:
+            return urllib.parse.urljoin(url, rs.rstrip("/") + "/" + fn)
+    return url
 
 
 def _matches(label: str, patterns: list[str]) -> bool:

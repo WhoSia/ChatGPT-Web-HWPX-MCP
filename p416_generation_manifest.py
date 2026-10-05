@@ -13,7 +13,8 @@ from typing import Any, Mapping, Sequence
 PHASE = "P4.16"
 PRODUCT = "0.41.0-p4.16"
 PARENT_PRODUCT = "0.40.0-p4.15"
-PARENT_HEAD = "76d43331f3998d62f6f2ddb885b290b336e563bb"
+LEGACY_PARENT_HEAD = "76d43331f3998d62f6f2ddb885b290b336e563bb"
+PARENT_HEAD = "2c11edbe7ae672136f1841ee37365a6e91731028"
 PARENT_RELEASE_AUTHORITY_SHA256 = "b6fcb775fd1367dfbc41fa3a58d6091496dd96e709ee39487b6ca247f31c7055"
 SCHEMA = "chatgpt-web-hwpx-mcp/p416/generation-manifest/v1"
 WITNESS_SCHEMA = "chatgpt-web-hwpx-mcp/p416/minimal-generation-witness/v1"
@@ -128,6 +129,7 @@ def runtime_release_identity() -> dict:
     return {
         "product": PRODUCT,
         "exact_head": exact_head,
+        "history_rewrite_equivalence": {"legacy_parent_head": LEGACY_PARENT_HEAD, "rewritten_parent_head": PARENT_HEAD, "reason": "HUMAN_ATTRIBUTION_REWRITE_ONLY"},
         "exact_head_source": exact_head_source,
         "authority_sha256": authority_digest,
         "authority_scope": (

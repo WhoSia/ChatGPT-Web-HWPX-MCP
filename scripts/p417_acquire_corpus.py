@@ -145,6 +145,7 @@ def main() -> int:
     ap.add_argument("--seed", default="benchmarks/p417_public_corpus_seed.json")
     ap.add_argument("--out", required=True)
     ap.add_argument("--minimum-documents", type=int, default=1)
+    ap.add_argument("--minimum-institutions", type=int, default=1)
     ap.add_argument("--sleep-seconds", type=float, default=0.4)
     args = ap.parse_args()
     seed = json.loads(Path(args.seed).read_text(encoding="utf-8"))
@@ -156,7 +157,10 @@ def main() -> int:
         "archetype_counts": dataset["archetype_counts"],
         "dataset_sha256": dataset["dataset_sha256"],
     }, ensure_ascii=False))
-    return 0 if dataset["record_count"] >= args.minimum_documents else 2
+    return 0 if (
+        dataset["record_count"] >= args.minimum_documents
+        and dataset["institution_count"] >= args.minimum_institutions
+    ) else 2
 
 
 if __name__ == "__main__":

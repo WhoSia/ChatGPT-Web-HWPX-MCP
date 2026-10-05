@@ -8,7 +8,8 @@ from typing import Any, Mapping, Sequence
 PHASE = "P4.15"
 PRODUCT = "0.40.0-p4.15"
 PARENT_PRODUCT = "0.39.0-p4.14"
-PARENT_HEAD = "43039e416fcd32baf2f01827b5decc77d0c81439"
+LEGACY_PARENT_HEAD = "43039e416fcd32baf2f01827b5decc77d0c81439"
+PARENT_HEAD = "c90eeeba4a832ae9c61a7fe83498961b84668cca"
 SCHEMA = "chatgpt-web-hwpx-mcp/p415/release-authority-graph/v1"
 _HEX40 = re.compile(r"^[0-9a-f]{40}$")
 _HEX64 = re.compile(r"^[0-9a-f]{64}$")
@@ -40,6 +41,7 @@ def authority_contract() -> dict:
         "product": PRODUCT,
         "schema": SCHEMA,
         "immutable_parent": {"product": PARENT_PRODUCT, "exact_head": PARENT_HEAD},
+        "history_rewrite_equivalence": {"legacy_exact_head": LEGACY_PARENT_HEAD, "rewritten_exact_head": PARENT_HEAD, "reason": "HUMAN_ATTRIBUTION_REWRITE_ONLY"},
         "evidence_planes": ["SOURCE_LINEAGE", "BUILD_TEST", "ARTIFACT", "HOSTED_RUNTIME", "NATIVE_RUNTIME", "ROLLBACK"],
         "truth_layers": {
             "OBSERVED": "Externally observed or independently reproducible evidence.",

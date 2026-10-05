@@ -17,7 +17,7 @@ def make_hwpx(path: Path, text: str, *, table: bool = False, equation: bool = Fa
     if equation:
         body.append('<equation><script>x+y</script></equation>')
     body.append('</section>')
-    header = '<?xml version="1.0" encoding="UTF-8"?><head><style id="1"/><charPr/><paraPr/></head>'
+    header = '<?xml version="1.0" encoding="UTF-8"?><head><font id="1" face="Hamchorom"/><style id="1"/><charPr id="1" height="1000"/><paraPr id="1" align="LEFT"/><pagePr width="59528" height="84188"/></head>'
     with zipfile.ZipFile(path, "w", compression=zipfile.ZIP_DEFLATED) as zf:
         zf.writestr("Contents/section0.xml", "".join(body))
         zf.writestr("Contents/header.xml", header)
@@ -31,6 +31,10 @@ def test_analyze_extracts_package_xml_and_style_grammar(tmp_path):
     assert record["package_features"]["xml_part_count"] == 2
     assert record["package_features"]["table_like_count"] == 1
     assert record["style_grammar"]["has_tables"] is True
+    assert record["style_grammar"]["font_faces"]["Hamchorom"] == 1
+    assert len(record["style_grammar"]["char_property_signatures"]) == 1
+    assert len(record["style_grammar"]["para_property_signatures"]) == 1
+    assert len(record["style_grammar"]["page_property_signatures"]) == 1
     assert record["archetype"]["archetype"] == "BID_NOTICE"
     assert record["source"]["raw_bytes_persisted"] is False
 

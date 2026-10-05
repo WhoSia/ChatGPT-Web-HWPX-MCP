@@ -195,10 +195,10 @@ from common_ir import (
     slice_common_ir,
 )
 
-P2_VERSION = "0.41.0-p4.16"
+P2_VERSION = "0.42.0-p4.17"
 # P4.16 closure candidate: exact-head CI rerun after attribution-history rewrite.
 core.VERSION = P2_VERSION
-core.PHASE = "P4.16"
+core.PHASE = "P4.17"
 
 _original_metadata = core._metadata
 
@@ -5234,6 +5234,10 @@ def p2_capabilities() -> dict:
             "get_p416_document_generation_manifest",
             "get_p416_minimal_generation_witness",
             "compare_p416_generation_reproduction",
+            "get_p417_document_intelligence_contract",
+            "infer_p417_document_archetype",
+            "mine_p417_style_grammar",
+            "summarize_p417_document_intelligence_dataset",
             "get_p412_defect_eradication_contract",
             "localize_p412_native_visual_failure",
             "compile_p412_repaired_visual_payload",
@@ -7189,6 +7193,9 @@ P415_SELF_VERIFYING_RELEASE_AUTHORITY = register_p415_tools(core)
 
 from p416_mcp import register_p416_tools
 P416_DOCUMENT_PROVENANCE = register_p416_tools(core, _owned_document)
+
+from p417_mcp import register_p417_tools
+P417_DOCUMENT_INTELLIGENCE = register_p417_tools(core)
 
 
 if __name__ == "__main__":

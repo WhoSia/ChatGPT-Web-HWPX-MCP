@@ -34,17 +34,30 @@ jobs:
   live-official-corpus:
     runs-on: ubuntu-latest
     needs: [corpus-kernel]
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
       - name: Acquire bounded official HWPX corpus
-        run: python scripts/p417_acquire_corpus.py --out /tmp/p417-official-corpus.json --minimum-documents 1 --sleep-seconds 0.5
+        run: python scripts/p417_acquire_corpus.py --out /tmp/p417-official-corpus.json --minimum-documents 4 --minimum-institutions 2 --sleep-seconds 0.5
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: p417-official-corpus
           path: /tmp/p417-official-corpus.json
           if-no-files-found: ignore
+
+  docker-exact-head:
+    runs-on: ubuntu-latest
+    needs: [corpus-kernel]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Build exact-head image
+        run: docker build --progress=plain -t hwpx-mcp-p417:${{ github.sha }} .
+      - name: Verify P4.17 kernel in exact-head image
+        run: docker run --rm --entrypoint python hwpx-mcp-p417:${{ github.sha }} -c "from p417_corpus import corpus_contract; c=corpus_contract(); assert c['phase']=='P4.17' and c['product']=='0.42.0-p4.17' and c['raw_bytes_policy']=='EPHEMERAL_ONLY_BY_DEFAULT'; print('P4.17 corpus kernel Docker PASS')"
+      - name: Preserve P4.16 backward authority smoke
+        run: docker run --rm --entrypoint python hwpx-mcp-p417:${{ github.sha }} scripts/p416_release_smoke.py

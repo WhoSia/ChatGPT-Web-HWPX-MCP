@@ -10,6 +10,7 @@ on:
       - "benchmarks/p417_*"
       - ".github/workflows/p417-ci.yml"
       - "server_p2.py"
+      - "test_client.py"
       - "Dockerfile"
   workflow_dispatch:
 

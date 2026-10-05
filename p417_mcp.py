@@ -5,6 +5,7 @@ from mcp.types import ToolAnnotations
 from p417_corpus import (
     PRODUCT,
     PHASE,
+    attach_render_pair,
     build_dataset,
     corpus_contract,
     infer_archetype,
@@ -42,6 +43,17 @@ def register_p417_tools(core):
     def mine_p417_style_grammar(package_features: dict) -> dict:
         core._caller_subject()
         return {"ok": True, **mine_style_grammar(package_features)}
+
+    @core.mcp.tool(annotations=read)
+    def align_p417_render_pair(record: dict, pdf_sha256: str, source: str = "USER_OR_OFFICIAL_PAIR") -> dict:
+        core._caller_subject()
+        paired = attach_render_pair(record, pdf_sha256=pdf_sha256, source=source)
+        return {
+            "ok": True,
+            "render_pair": paired["render_pair"],
+            "record_sha256": paired["record_sha256"],
+            "native_visual_authority": False,
+        }
 
     @core.mcp.tool(annotations=read)
     def summarize_p417_document_intelligence_dataset(records: list[dict]) -> dict:

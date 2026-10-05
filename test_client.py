@@ -391,6 +391,7 @@ async def main() -> None:
                 "compare_p416_generation_reproduction",
                 "summarize_p417_document_intelligence_dataset",
                 "mine_p417_style_grammar",
+                "align_p417_render_pair",
                 "infer_p417_document_archetype",
                 "get_p417_document_intelligence_contract",
             }
@@ -475,6 +476,53 @@ async def main() -> None:
             }))
             if not p417_archetype or p417_archetype.get("archetype") != "RFP":
                 raise RuntimeError(f"P4.17 archetype inference failed: {p417_archetype}")
+
+            p417_style = _payload(await client.call_tool("mine_p417_style_grammar", {
+                "package_features": {
+                    "element_counts": {"header": 1, "footer": 1, "section": 2},
+                    "table_like_count": 2,
+                    "paragraph_like_count": 10,
+                    "equation_like_count": 0,
+                    "picture_like_count": 1,
+                    "shape_like_count": 0,
+                    "char_property_count": 3,
+                    "para_property_count": 2,
+                    "style_definition_count": 4,
+                    "font_face_counts": {"Hamchorom": 7},
+                    "char_property_signatures": {"a": 3},
+                    "para_property_signatures": {"b": 2},
+                    "page_property_signatures": {"c": 1}
+                }
+            }))
+            if (
+                not p417_style
+                or p417_style.get("font_faces", {}).get("Hamchorom") != 7
+                or p417_style.get("has_tables") is not True
+            ):
+                raise RuntimeError(f"P4.17 style grammar failed: {p417_style}")
+
+            p417_pair = _payload(await client.call_tool("align_p417_render_pair", {
+                "record": {
+                    "schema": "chatgpt-web-hwpx-mcp/p4.17/document-intelligence-record/v1",
+                    "phase": "P4.17",
+                    "product": "0.42.0-p4.17",
+                    "document_sha256": "a" * 64,
+                    "filename": "fixture.hwpx",
+                    "source": {},
+                    "package_features": {},
+                    "archetype": {"archetype": "UNKNOWN"},
+                    "style_grammar": {},
+                    "render_pair": {"status": "ABSENT", "native_visual_authority": False},
+                    "record_sha256": "b" * 64
+                },
+                "pdf_sha256": "c" * 64
+            }))
+            if (
+                not p417_pair
+                or p417_pair.get("native_visual_authority") is not False
+                or (p417_pair.get("render_pair") or {}).get("status") != "PAIRED_UNADJUDICATED"
+            ):
+                raise RuntimeError(f"P4.17 render-pair boundary failed: {p417_pair}")
 
             if RUN_WRITE_TEST:
                 p416_created = _payload(await client.call_tool("create_unified_document_and_deliver", {

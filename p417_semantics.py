@@ -213,6 +213,7 @@ def recover_semantic_structure(path: str | Path) -> dict:
             "ordinal": ordinal,
             "section_index": raw["section_index"],
             "source_part": raw["source_part"],
+            "paragraph_index": raw.get("paragraph_index"),
             "kind": kind,
             "role": role["role"],
             "role_confidence": role["confidence"],

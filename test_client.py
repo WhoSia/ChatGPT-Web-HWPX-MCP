@@ -394,6 +394,11 @@ async def main() -> None:
                 "align_p417_render_pair",
                 "infer_p417_document_archetype",
                 "get_p417_document_intelligence_contract",
+                "infer_p417_corpus_document_schema",
+                "align_p417_semantic_documents",
+                "classify_p417_native_components",
+                "get_p417_semantic_document_graph",
+                "get_p417_semantic_structure_contract",
             }
             missing = expected - set(names)
             if missing:
@@ -436,6 +441,8 @@ async def main() -> None:
                 or "evaluate_p415_release_admission" not in (p2_caps.get("tools_added") or [])
                 or "get_p416_generation_manifest_contract" not in (p2_caps.get("tools_added") or [])
                 or "verify_p416_generation_manifest" not in (p2_caps.get("tools_added") or [])
+                or "get_p417_semantic_structure_contract" not in (p2_caps.get("tools_added") or [])
+                or "get_p417_semantic_document_graph" not in (p2_caps.get("tools_added") or [])
             ):
                 raise RuntimeError(f"p2_capabilities failed: {p2_caps}")
 
@@ -524,6 +531,15 @@ async def main() -> None:
             ):
                 raise RuntimeError(f"P4.17 render-pair boundary failed: {p417_pair}")
 
+            p417_semantic_contract = _payload(await client.call_tool("get_p417_semantic_structure_contract", {}))
+            if (
+                not p417_semantic_contract
+                or p417_semantic_contract.get("phase") != "P4.17"
+                or p417_semantic_contract.get("product") != P417_PRODUCT
+                or p417_semantic_contract.get("authority_ceiling") != "STRUCTURAL_SEMANTIC_HEURISTICS_NOT_NATIVE_VISUAL_TRUTH"
+            ):
+                raise RuntimeError(f"P4.17-P2 semantic structure contract failed: {p417_semantic_contract}")
+
             if RUN_WRITE_TEST:
                 p416_created = _payload(await client.call_tool("create_unified_document_and_deliver", {
                     "spec": {
@@ -548,6 +564,34 @@ async def main() -> None:
                 p416_manifest_record = _payload(await client.call_tool("get_p416_document_generation_manifest", {
                     "document_id": p416_document_id
                 }))
+                p417_graph = _payload(await client.call_tool("get_p417_semantic_document_graph", {
+                    "document_id": p416_document_id
+                }))
+                if (
+                    not p417_graph
+                    or p417_graph.get("schema") != "chatgpt-web-hwpx-mcp/p4.17/semantic-document-graph/v1"
+                    or int(p417_graph.get("block_count", 0)) < 1
+                    or p417_graph.get("native_visual_authority") is not False
+                ):
+                    raise RuntimeError(f"P4.17-P2 owned-document semantic graph failed: {p417_graph}")
+                p417_components = _payload(await client.call_tool("classify_p417_native_components", {
+                    "graph": p417_graph
+                }))
+                if (
+                    not p417_components
+                    or int(p417_components.get("component_count", 0)) < 1
+                ):
+                    raise RuntimeError(f"P4.17-P2 native component classification failed: {p417_components}")
+                p417_schema = _payload(await client.call_tool("infer_p417_corpus_document_schema", {
+                    "graphs": [p417_graph],
+                    "support_threshold": 1.0
+                }))
+                if (
+                    not p417_schema
+                    or p417_schema.get("authority") != "CORPUS_SUPPORT_SCHEMA_INFERENCE_NOT_UNIVERSAL_HWPX_SCHEMA"
+                    or p417_schema.get("generalization_status") != "MULTI_INSTITUTION_REQUIRED_FOR_CROSS_INSTITUTION_AUTHORITY"
+                ):
+                    raise RuntimeError(f"P4.17-P2 schema inference boundary failed: {p417_schema}")
                 manifest = (p416_manifest_record or {}).get("manifest")
                 if (
                     not manifest

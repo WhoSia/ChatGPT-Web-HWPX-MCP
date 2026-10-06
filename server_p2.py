@@ -5239,6 +5239,11 @@ def p2_capabilities() -> dict:
             "mine_p417_style_grammar",
             "align_p417_render_pair",
             "summarize_p417_document_intelligence_dataset",
+            "infer_p417_corpus_document_schema",
+            "align_p417_semantic_documents",
+            "classify_p417_native_components",
+            "get_p417_semantic_document_graph",
+            "get_p417_semantic_structure_contract",
             "get_p412_defect_eradication_contract",
             "localize_p412_native_visual_failure",
             "compile_p412_repaired_visual_payload",
@@ -7196,7 +7201,7 @@ from p416_mcp import register_p416_tools
 P416_DOCUMENT_PROVENANCE = register_p416_tools(core, _owned_document)
 
 from p417_mcp import register_p417_tools
-P417_DOCUMENT_INTELLIGENCE = register_p417_tools(core)
+P417_DOCUMENT_INTELLIGENCE = register_p417_tools(core, _owned_document)
 
 
 if __name__ == "__main__":

@@ -6,7 +6,7 @@ import re
 import zipfile
 from collections import Counter, defaultdict
 from pathlib import Path
-from typing import Any, Iterable, Mapping, Sequence
+from typing import Any, Mapping, Sequence
 from xml.etree import ElementTree as ET
 
 PHASE = "P4.17"
@@ -17,7 +17,7 @@ SCHEMA_INFERENCE_SCHEMA = "chatgpt-web-hwpx-mcp/p4.17/corpus-document-schema/v1"
 
 ROLE_ORDER = (
     "TITLE", "HEADING", "BODY", "CAPTION", "FORM_FIELD", "LIST_ITEM",
-    "TABLE_HEADER", "TABLE_CELL", "EQUATION", "PICTURE", "SHAPE", "EMPTY"
+    "TABLE_HEADER", "TABLE_CELL", "EQUATION", "PICTURE", "SHAPE", "EMPTY",
 )
 COMPONENT_KINDS = {"PARAGRAPH", "TABLE", "EQUATION", "PICTURE", "SHAPE"}
 
@@ -35,10 +35,7 @@ def _local(tag: str) -> str:
 
 
 def _text(elem: ET.Element) -> str:
-    parts = []
-    for node in elem.iter():
-        if node.text and node.text.strip():
-            parts.append(node.text.strip())
+    parts = [node.text.strip() for node in elem.iter() if node.text and node.text.strip()]
     return " ".join(" ".join(parts).split())
 
 
@@ -46,54 +43,60 @@ def _attrs(elem: ET.Element) -> dict[str, str]:
     return {_local(k): str(v) for k, v in elem.attrib.items()}
 
 
-def classify_paragraph_role(text: str, *, index: int, total: int, in_table: bool = False, first_table_row: bool = False) -> dict:
+def _numbered_heading(text: str) -> bool:
+    return bool(
+        re.match(
+            r"^(?:제?\s*\d+\s*[장절항]|"
+            r"[ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩ]+\s*[.\-]|"
+            r"\d+(?:\.\d+){0,3}\.(?:\s+|$)|"
+            r"\d+(?:\.\d+){1,3}(?:\s+|$)|"
+            r"[가-힣]\.\s+)",
+            text,
+        )
+    )
+
+
+def classify_paragraph_role(
+    text: str,
+    *,
+    index: int,
+    total: int,
+    in_table: bool = False,
+    first_table_row: bool = False,
+) -> dict:
     raw = " ".join(str(text or "").split())
     if in_table:
-        role = "TABLE_HEADER" if first_table_row else "TABLE_CELL"
-        return {"role": role, "confidence": "HIGH", "evidence": ["TABLE_CONTEXT"]}
+        return {
+            "role": "TABLE_HEADER" if first_table_row else "TABLE_CELL",
+            "confidence": "HIGH",
+            "evidence": ["TABLE_CONTEXT"],
+        }
     if not raw:
         return {"role": "EMPTY", "confidence": "HIGH", "evidence": ["NO_VISIBLE_TEXT"]}
-
-    evidence: list[str] = []
-    role = "BODY"
-    confidence = "MEDIUM"
-
-    if re.match(r"^\s*(표|그림|figure|table)\s*[\dⅠⅡⅢⅣⅤ가-힣]*[\.\-:：]?\s+", raw, re.I):
-        role, confidence = "CAPTION", "HIGH"
-        evidence.append("CAPTION_PREFIX")
-    elif len(raw) <= 100 and re.match(r"^(제?\s*\d+\s*[장절항]|[ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩ]+\s*[\.\-]|[0-9]+(?:\.[0-9]+){0,3}\s+|[가-힣]\.\s+)", raw):
-        role, confidence = "HEADING", "HIGH"
-        evidence.append("NUMBERED_HEADING_PATTERN")
-    elif len(raw) <= 80 and re.match(r"^[■□●○▶▷◆◇※\-•]\s*", raw):
-        role, confidence = "LIST_ITEM", "HIGH"
-        evidence.append("BULLET_PREFIX")
-    elif index <= 2 and len(raw) <= 120 and not raw.endswith((".", "다.", "요.", "함.")):
-        role, confidence = "TITLE", "MEDIUM"
-        evidence.append("EARLY_SHORT_BLOCK")
-    elif len(raw) <= 80 and re.search(r"[:：]\s*$", raw):
-        role, confidence = "FORM_FIELD", "MEDIUM"
-        evidence.append("FIELD_LABEL_SUFFIX")
-    elif len(raw) <= 80 and re.match(r"^(성명|주소|연락처|전화|이메일|소속|직위|작성일|신청인|담당자)\s*[:：]", raw):
-        role, confidence = "FORM_FIELD", "HIGH"
-        evidence.append("KNOWN_FIELD_LABEL")
-    elif len(raw) <= 80 and not re.search(r"[.!?。다요함]$", raw) and index < max(4, total // 2):
-        role, confidence = "HEADING", "LOW"
-        evidence.append("SHORT_NON_SENTENCE_EARLY_BLOCK")
-    else:
-        evidence.append("DEFAULT_BODY")
-
-    return {"role": role, "confidence": confidence, "evidence": evidence}
+    if re.match(r"^\s*(표|그림|figure|table)\s*[\dⅠⅡⅢⅣⅤ가-힣]*[.\-:：]?\s+", raw, re.I):
+        return {"role": "CAPTION", "confidence": "HIGH", "evidence": ["CAPTION_PREFIX"]}
+    if len(raw) <= 100 and _numbered_heading(raw):
+        return {"role": "HEADING", "confidence": "HIGH", "evidence": ["NUMBERED_HEADING_PATTERN"]}
+    if len(raw) <= 80 and re.match(r"^[■□●○▶▷◆◇※\-•]\s*", raw):
+        return {"role": "LIST_ITEM", "confidence": "HIGH", "evidence": ["BULLET_PREFIX"]}
+    if index <= 2 and len(raw) <= 120 and not raw.endswith((".", "다.", "요.", "함.")):
+        return {"role": "TITLE", "confidence": "MEDIUM", "evidence": ["EARLY_SHORT_BLOCK"]}
+    if len(raw) <= 80 and re.match(r"^(성명|주소|연락처|전화|이메일|소속|직위|작성일|신청인|담당자)\s*[:：]", raw):
+        return {"role": "FORM_FIELD", "confidence": "HIGH", "evidence": ["KNOWN_FIELD_LABEL"]}
+    if len(raw) <= 80 and re.search(r"[:：]\s*$", raw):
+        return {"role": "FORM_FIELD", "confidence": "MEDIUM", "evidence": ["FIELD_LABEL_SUFFIX"]}
+    if len(raw) <= 80 and not re.search(r"[.!?。다요함]$", raw) and index < max(4, total // 2):
+        return {"role": "HEADING", "confidence": "LOW", "evidence": ["SHORT_NON_SENTENCE_EARLY_BLOCK"]}
+    return {"role": "BODY", "confidence": "MEDIUM", "evidence": ["DEFAULT_BODY"]}
 
 
 def _heading_level(text: str) -> int:
     raw = " ".join(str(text or "").split())
-    if re.match(r"^제?\s*\d+\s*장", raw):
-        return 1
-    if re.match(r"^[ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩ]+\s*[\.\-]", raw):
+    if re.match(r"^제?\s*\d+\s*장", raw) or re.match(r"^[ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩ]+\s*[.\-]", raw):
         return 1
     if re.match(r"^\d+\.\s+", raw):
         return 2
-    m = re.match(r"^(\d+(?:\.\d+){1,3})\s+", raw)
+    m = re.match(r"^(\d+(?:\.\d+){1,3})\.?(?:\s+|$)", raw)
     if m:
         return min(4, m.group(1).count(".") + 2)
     if re.match(r"^[가-힣]\.\s+", raw):
@@ -102,23 +105,25 @@ def _heading_level(text: str) -> int:
 
 
 def _component_kind(local: str) -> str | None:
-    l = local.lower()
-    if l in {"p", "para", "paragraph"}:
+    key = local.lower()
+    if key in {"p", "para", "paragraph"}:
         return "PARAGRAPH"
-    if l in {"tbl", "table"}:
+    if key in {"tbl", "table"}:
         return "TABLE"
-    if l in {"equation", "eq"}:
+    if key in {"equation", "eq"}:
         return "EQUATION"
-    if l in {"pic", "picture", "img"}:
+    if key in {"pic", "picture", "img"}:
         return "PICTURE"
-    if l in {"shape", "rect", "ellipse", "line", "drawtext", "textbox"}:
+    if key in {"shape", "rect", "ellipse", "line", "drawtext", "textbox"}:
         return "SHAPE"
     return None
 
 
 def _section_xml_names(names: Sequence[str]) -> list[str]:
-    preferred = [n for n in names if n.lower().endswith(".xml") and ("section" in n.lower() or "/bodytext/" in n.lower())]
-    return sorted(preferred)
+    return sorted(
+        n for n in names
+        if n.lower().endswith(".xml") and ("section" in n.lower() or "/bodytext/" in n.lower())
+    )
 
 
 def recover_semantic_structure(path: str | Path) -> dict:
@@ -128,33 +133,22 @@ def recover_semantic_structure(path: str | Path) -> dict:
 
     raw_blocks: list[dict] = []
     with zipfile.ZipFile(p) as zf:
-        section_names = _section_xml_names(zf.namelist())
-        for section_index, name in enumerate(section_names):
+        for section_index, name in enumerate(_section_xml_names(zf.namelist())):
             try:
                 root = ET.fromstring(zf.read(name))
             except ET.ParseError:
                 continue
-            paragraphs = [e for e in root.iter() if _component_kind(_local(e.tag)) == "PARAGRAPH"]
-            para_position = {id(e): i for i, e in enumerate(paragraphs)}
-            table_depth: dict[int, tuple[bool, bool]] = {}
 
             def walk(elem: ET.Element, *, in_table: bool = False, first_table_row: bool = False) -> None:
                 local = _local(elem.tag)
                 kind = _component_kind(local)
-                now_in_table = in_table or kind == "TABLE"
-                row_first = first_table_row
-                if local.lower() in {"tr", "row"}:
-                    parent_table_rows = [c for c in list(elem.getparent())] if hasattr(elem, "getparent") else []
-                    row_first = False
                 if kind == "PARAGRAPH":
-                    idx = para_position.get(id(elem), len(raw_blocks))
                     raw_blocks.append({
-                        "kind": "PARAGRAPH",
+                        "kind": kind,
                         "section_index": section_index,
                         "source_part": name,
                         "text": _text(elem),
                         "attrs": _attrs(elem),
-                        "paragraph_index": idx,
                         "in_table": in_table,
                         "first_table_row": first_table_row,
                     })
@@ -171,20 +165,20 @@ def recover_semantic_structure(path: str | Path) -> dict:
                 if kind == "TABLE":
                     rows = [c for c in children if _local(c.tag).lower() in {"tr", "row"}]
                     if rows:
-                        for ri, row in enumerate(rows):
-                            walk(row, in_table=True, first_table_row=(ri == 0))
+                        for row_index, row in enumerate(rows):
+                            walk(row, in_table=True, first_table_row=row_index == 0)
                         for child in children:
                             if child not in rows:
                                 walk(child, in_table=True, first_table_row=False)
                         return
                 for child in children:
-                    walk(child, in_table=now_in_table, first_table_row=first_table_row)
+                    walk(child, in_table=in_table or kind == "TABLE", first_table_row=first_table_row)
 
             walk(root)
 
-    total_paragraphs = sum(1 for b in raw_blocks if b["kind"] == "PARAGRAPH")
-    blocks: list[dict] = []
+    total_paragraphs = sum(1 for block in raw_blocks if block["kind"] == "PARAGRAPH")
     para_seen = 0
+    blocks: list[dict] = []
     heading_stack: list[tuple[int, str]] = []
 
     for ordinal, raw in enumerate(raw_blocks):
@@ -200,12 +194,7 @@ def recover_semantic_structure(path: str | Path) -> dict:
             para_seen += 1
         else:
             role = {
-                "role": {
-                    "TABLE": "TABLE_CELL",
-                    "EQUATION": "EQUATION",
-                    "PICTURE": "PICTURE",
-                    "SHAPE": "SHAPE",
-                }[kind],
+                "role": {"TABLE": "TABLE_CELL", "EQUATION": "EQUATION", "PICTURE": "PICTURE", "SHAPE": "SHAPE"}[kind],
                 "confidence": "HIGH",
                 "evidence": ["NATIVE_COMPONENT_TAG"],
             }
@@ -239,24 +228,20 @@ def recover_semantic_structure(path: str | Path) -> dict:
         if role["role"] == "HEADING":
             heading_stack.append((int(level), block["block_id"]))
 
-    hierarchy_edges = [
-        {"parent": b["parent_heading_id"], "child": b["block_id"]}
-        for b in blocks if b.get("parent_heading_id")
-    ]
-    role_counts = Counter(b["role"] for b in blocks)
-    kind_counts = Counter(b["kind"] for b in blocks)
-    layout = discover_repeated_layout_grammar(blocks)
     graph = {
         "schema": GRAPH_SCHEMA,
         "phase": PHASE,
         "product": PRODUCT,
         "document_sha256": hashlib.sha256(p.read_bytes()).hexdigest(),
         "block_count": len(blocks),
-        "role_counts": dict(sorted(role_counts.items())),
-        "component_counts": dict(sorted(kind_counts.items())),
+        "role_counts": dict(sorted(Counter(block["role"] for block in blocks).items())),
+        "component_counts": dict(sorted(Counter(block["kind"] for block in blocks).items())),
         "blocks": blocks,
-        "hierarchy_edges": hierarchy_edges,
-        "repeated_layout_grammar": layout,
+        "hierarchy_edges": [
+            {"parent": block["parent_heading_id"], "child": block["block_id"]}
+            for block in blocks if block.get("parent_heading_id")
+        ],
+        "repeated_layout_grammar": discover_repeated_layout_grammar(blocks),
         "authority": "XML_DERIVED_SEMANTIC_STRUCTURE_WITH_HEURISTIC_ROLE_LABELS",
         "native_visual_authority": False,
     }
@@ -264,25 +249,29 @@ def recover_semantic_structure(path: str | Path) -> dict:
     return graph
 
 
-def discover_repeated_layout_grammar(blocks: Sequence[Mapping[str, Any]], *, min_window: int = 2, max_window: int = 5, min_occurrences: int = 2) -> dict:
-    tokens = [f"{b.get('kind')}:{b.get('role')}" for b in blocks]
+def discover_repeated_layout_grammar(
+    blocks: Sequence[Mapping[str, Any]],
+    *,
+    min_window: int = 2,
+    max_window: int = 5,
+    min_occurrences: int = 2,
+) -> dict:
+    tokens = [f"{block.get('kind')}:{block.get('role')}" for block in blocks]
     patterns: list[dict] = []
     for width in range(max(2, int(min_window)), min(int(max_window), len(tokens)) + 1):
         positions: defaultdict[tuple[str, ...], list[int]] = defaultdict(list)
-        for i in range(0, len(tokens) - width + 1):
-            key = tuple(tokens[i:i + width])
-            positions[key].append(i)
-        for key, starts in positions.items():
-            if len(starts) < min_occurrences:
-                continue
-            patterns.append({
-                "width": width,
-                "signature": list(key),
-                "occurrences": len(starts),
-                "start_ordinals": starts,
-                "pattern_sha256": _sha({"signature": key}),
-            })
-    patterns.sort(key=lambda x: (-x["occurrences"], -x["width"], x["pattern_sha256"]))
+        for start in range(len(tokens) - width + 1):
+            positions[tuple(tokens[start:start + width])].append(start)
+        for signature, starts in positions.items():
+            if len(starts) >= min_occurrences:
+                patterns.append({
+                    "width": width,
+                    "signature": list(signature),
+                    "occurrences": len(starts),
+                    "start_ordinals": starts,
+                    "pattern_sha256": _sha({"signature": signature}),
+                })
+    patterns.sort(key=lambda row: (-row["occurrences"], -row["width"], row["pattern_sha256"]))
     payload = {
         "token_count": len(tokens),
         "pattern_count": len(patterns),
@@ -294,24 +283,23 @@ def discover_repeated_layout_grammar(blocks: Sequence[Mapping[str, Any]], *, min
 
 
 def classify_native_components(graph: Mapping[str, Any]) -> dict:
-    rows = []
-    for block in graph.get("blocks", []):
-        kind = str(block.get("kind") or "")
-        if kind not in COMPONENT_KINDS:
-            continue
-        rows.append({
+    rows = [
+        {
             "block_id": block.get("block_id"),
-            "native_kind": kind,
+            "native_kind": block.get("kind"),
             "semantic_role": block.get("role"),
             "section_index": block.get("section_index"),
             "heading_parent": block.get("parent_heading_id"),
-            "classification": f"{kind}:{block.get('role')}",
-        })
+            "classification": f"{block.get('kind')}:{block.get('role')}",
+        }
+        for block in graph.get("blocks", [])
+        if block.get("kind") in COMPONENT_KINDS
+    ]
     payload = {
         "component_count": len(rows),
         "components": rows,
-        "native_kinds": dict(sorted(Counter(x["native_kind"] for x in rows).items())),
-        "semantic_roles": dict(sorted(Counter(x["semantic_role"] for x in rows).items())),
+        "native_kinds": dict(sorted(Counter(row["native_kind"] for row in rows).items())),
+        "semantic_roles": dict(sorted(Counter(row["semantic_role"] for row in rows).items())),
         "authority": "XML_NATIVE_COMPONENT_PLUS_SEMANTIC_ROLE_CLASSIFICATION",
     }
     payload["classification_sha256"] = _sha(payload)
@@ -319,43 +307,48 @@ def classify_native_components(graph: Mapping[str, Any]) -> dict:
 
 
 def _sequence(graph: Mapping[str, Any]) -> list[str]:
-    return [f"{b.get('kind')}:{b.get('role')}" for b in graph.get("blocks", []) if b.get("role") != "EMPTY"]
+    return [
+        f"{block.get('kind')}:{block.get('role')}"
+        for block in graph.get("blocks", [])
+        if block.get("role") != "EMPTY"
+    ]
 
 
-def _lcs(a: Sequence[str], b: Sequence[str]) -> list[tuple[int, int, str]]:
-    if not a or not b:
-        return []
-    dp = [[0] * (len(b) + 1) for _ in range(len(a) + 1)]
-    for i in range(len(a) - 1, -1, -1):
-        for j in range(len(b) - 1, -1, -1):
-            dp[i][j] = 1 + dp[i + 1][j + 1] if a[i] == b[j] else max(dp[i + 1][j], dp[i][j + 1])
+def _lcs(left: Sequence[str], right: Sequence[str]) -> list[tuple[int, int, str]]:
+    dp = [[0] * (len(right) + 1) for _ in range(len(left) + 1)]
+    for i in range(len(left) - 1, -1, -1):
+        for j in range(len(right) - 1, -1, -1):
+            dp[i][j] = 1 + dp[i + 1][j + 1] if left[i] == right[j] else max(dp[i + 1][j], dp[i][j + 1])
     i = j = 0
-    out = []
-    while i < len(a) and j < len(b):
-        if a[i] == b[j]:
-            out.append((i, j, a[i])); i += 1; j += 1
+    matches: list[tuple[int, int, str]] = []
+    while i < len(left) and j < len(right):
+        if left[i] == right[j]:
+            matches.append((i, j, left[i]))
+            i += 1
+            j += 1
         elif dp[i + 1][j] >= dp[i][j + 1]:
             i += 1
         else:
             j += 1
-    return out
+    return matches
 
 
 def align_semantic_graphs(left: Mapping[str, Any], right: Mapping[str, Any]) -> dict:
-    a, b = _sequence(left), _sequence(right)
-    matches = _lcs(a, b)
-    denom = max(len(a), len(b), 1)
-    score = round(len(matches) / denom, 6)
+    left_seq, right_seq = _sequence(left), _sequence(right)
+    matches = _lcs(left_seq, right_seq)
     payload = {
         "schema": ALIGNMENT_SCHEMA,
         "phase": PHASE,
         "left_graph_sha256": left.get("graph_sha256"),
         "right_graph_sha256": right.get("graph_sha256"),
-        "left_sequence_length": len(a),
-        "right_sequence_length": len(b),
+        "left_sequence_length": len(left_seq),
+        "right_sequence_length": len(right_seq),
         "matched_token_count": len(matches),
-        "structural_similarity": score,
-        "matched_tokens": [{"left": i, "right": j, "token": token} for i, j, token in matches[:500]],
+        "structural_similarity": round(len(matches) / max(len(left_seq), len(right_seq), 1), 6),
+        "matched_tokens": [
+            {"left": i, "right": j, "token": token}
+            for i, j, token in matches[:500]
+        ],
         "authority": "ROLE_COMPONENT_SEQUENCE_ALIGNMENT_NOT_VISUAL_EQUIVALENCE",
         "native_visual_equivalence_claimed": False,
     }
@@ -367,35 +360,40 @@ def infer_corpus_schema(graphs: Sequence[Mapping[str, Any]], *, support_threshol
     if not graphs:
         raise ValueError("at least one semantic graph is required")
     threshold = float(support_threshold)
-    if threshold <= 0 or threshold > 1:
+    if not 0 < threshold <= 1:
         raise ValueError("support_threshold must be in (0,1]")
-    document_count = len(graphs)
-    role_support = Counter()
-    kind_support = Counter()
-    pattern_support = Counter()
+
+    role_support: Counter[Any] = Counter()
+    kind_support: Counter[Any] = Counter()
+    pattern_support: Counter[Any] = Counter()
     for graph in graphs:
         role_support.update(set((graph.get("role_counts") or {}).keys()))
         kind_support.update(set((graph.get("component_counts") or {}).keys()))
-        for p in (graph.get("repeated_layout_grammar") or {}).get("patterns", []):
-            pattern_support.update([tuple(p.get("signature") or [])])
+        pattern_support.update(
+            set(tuple(pattern.get("signature") or []) for pattern in (graph.get("repeated_layout_grammar") or {}).get("patterns", []))
+        )
 
-    def rows(counter: Counter) -> list[dict]:
-        out = []
-        for key, count in counter.items():
-            support = count / document_count
+    def supported(counter: Counter[Any]) -> list[dict]:
+        rows = []
+        for value, count in counter.items():
+            support = count / len(graphs)
             if support >= threshold:
-                out.append({"value": list(key) if isinstance(key, tuple) else key, "document_count": count, "support": round(support, 6)})
-        return sorted(out, key=lambda x: (-x["support"], str(x["value"])))
+                rows.append({
+                    "value": list(value) if isinstance(value, tuple) else value,
+                    "document_count": count,
+                    "support": round(support, 6),
+                })
+        return sorted(rows, key=lambda row: (-row["support"], str(row["value"])))
 
     payload = {
         "schema": SCHEMA_INFERENCE_SCHEMA,
         "phase": PHASE,
         "product": PRODUCT,
-        "document_count": document_count,
+        "document_count": len(graphs),
         "support_threshold": threshold,
-        "required_roles": rows(role_support),
-        "required_component_kinds": rows(kind_support),
-        "recurrent_layout_patterns": rows(pattern_support),
+        "required_roles": supported(role_support),
+        "required_component_kinds": supported(kind_support),
+        "recurrent_layout_patterns": supported(pattern_support),
         "authority": "CORPUS_SUPPORT_SCHEMA_INFERENCE_NOT_UNIVERSAL_HWPX_SCHEMA",
         "generalization_status": "MULTI_INSTITUTION_REQUIRED_FOR_CROSS_INSTITUTION_AUTHORITY",
     }

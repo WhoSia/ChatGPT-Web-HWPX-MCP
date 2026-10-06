@@ -28,9 +28,9 @@ jobs:
       - name: Install dependencies
         run: python -m pip install -r requirements.txt -r requirements-dev.txt
       - name: Compile P4.17 corpus kernel
-        run: python -m py_compile p417_corpus.py p417_mcp.py scripts/p417_acquire_corpus.py
+        run: python -m py_compile p417_corpus.py p417_semantics.py p417_mcp.py scripts/p417_acquire_corpus.py
       - name: P4.17 corpus intelligence tests
-        run: python -m pytest -q test_p417_corpus.py
+        run: python -m pytest -q test_p417_corpus.py test_p417_semantics.py
 
   live-official-corpus:
     runs-on: ubuntu-latest

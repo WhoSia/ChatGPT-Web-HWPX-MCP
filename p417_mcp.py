@@ -13,7 +13,7 @@ from p417_corpus import (
 )
 
 
-def register_p417_tools(core):
+def register_p417_tools(core, owned_document=None):
     read = ToolAnnotations(readOnlyHint=True, destructiveHint=False, openWorldHint=False)
 
     @core.mcp.tool(annotations=read)
@@ -55,6 +55,47 @@ def register_p417_tools(core):
             "native_visual_authority": False,
         }
 
+
+
+    @core.mcp.tool(annotations=read)
+    def get_p417_semantic_structure_contract() -> dict:
+        core._caller_subject()
+        return {"ok": True, **semantic_structure_contract()}
+
+    @core.mcp.tool(annotations=read)
+    def get_p417_semantic_document_graph(document_id: str) -> dict:
+        if owned_document is None:
+            raise RuntimeError("P4.17 semantic graph requires document store binding")
+        metadata, path = owned_document(document_id)
+        graph = recover_semantic_structure(path)
+        return {
+            "ok": True,
+            "document_id": document_id,
+            "revision": int(metadata.get("revision", 1)),
+            **graph,
+        }
+
+    @core.mcp.tool(annotations=read)
+    def classify_p417_native_components(graph: dict) -> dict:
+        core._caller_subject()
+        return {"ok": True, **classify_native_components(graph)}
+
+    @core.mcp.tool(annotations=read)
+    def align_p417_semantic_documents(left_graph: dict, right_graph: dict) -> dict:
+        core._caller_subject()
+        return {"ok": True, **align_semantic_graphs(left_graph, right_graph)}
+
+    @core.mcp.tool(annotations=read)
+    def infer_p417_corpus_document_schema(
+        graphs: list[dict],
+        support_threshold: float = 0.6,
+    ) -> dict:
+        core._caller_subject()
+        return {
+            "ok": True,
+            **infer_corpus_schema(graphs, support_threshold=support_threshold),
+        }
+
     @core.mcp.tool(annotations=read)
     def summarize_p417_document_intelligence_dataset(records: list[dict]) -> dict:
         core._caller_subject()
@@ -70,3 +111,12 @@ def register_p417_tools(core):
         }
 
     return {"phase": PHASE, "product": PRODUCT, "authority": "P417_DOCUMENT_INTELLIGENCE_READ_SURFACE"}
+
+
+from p417_semantics import (
+    align_semantic_graphs,
+    classify_native_components,
+    infer_corpus_schema,
+    recover_semantic_structure,
+    semantic_structure_contract,
+)

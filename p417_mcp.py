@@ -218,7 +218,7 @@ def register_p417_tools(core, owned_document=None, refresh_document=None):
             reference_graph=reference_graph,
             archetype=None,
         )
-        if plan.get("decision") != "SAFE_TO_PLAN":
+        if plan.get("decision") not in {"SAFE_TO_PLAN", "DELEGATE"}:
             return {
                 "ok": False,
                 "document_id": document_id,

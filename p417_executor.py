@@ -132,6 +132,26 @@ def _merge_expected_scopes(*scopes: Mapping[str, Any] | None) -> dict:
     }
 
 
+def _rebind_operations_after_text(operations: list[dict], text_receipt: Mapping[str, Any] | None) -> list[dict]:
+    if not operations or not text_receipt:
+        return operations
+    rebinding = dict(text_receipt.get("locator_rebinding") or {})
+    invalidated = {str(x) for x in rebinding.get("invalidated_revision_bound_locators") or []}
+    mapping = {
+        str(row.get("before_locator")): str(row.get("after_locator"))
+        for row in rebinding.get("bindings") or []
+        if row.get("before_locator") and row.get("after_locator")
+    }
+    out: list[dict] = []
+    for op in operations:
+        target = str(op.get("target") or "")
+        if target in invalidated and target not in mapping:
+            raise ValueError(f"LOCATOR_REACQUIRE_REQUIRED:{target}")
+        rebound = mapping.get(target, target)
+        out.append({**op, "target": rebound})
+    return out
+
+
 def _render_adjudication(render_evidence: Mapping[str, Any] | None) -> dict:
     if not render_evidence:
         return {
@@ -244,20 +264,22 @@ def execute_transformation_atomic(
         text_ops = [op for op in operations if str(op.get("op") or "") in _TEXT_OPS]
         format_ops = [op for op in operations if str(op.get("op") or "") in _FORMAT_OPS]
 
+        text_receipt = None
         if text_ops:
-            receipt = apply_edits_atomic(
+            text_receipt = apply_edits_atomic(
                 candidate,
                 text_ops,
                 expected_revision=1,
                 current_revision=1,
                 validator=None,
             )
-            transcript.append({"lane": "P2_DOCUMENT_EDIT", "operation_count": len(text_ops), "receipt": receipt})
+            transcript.append({"lane": "P2_DOCUMENT_EDIT", "operation_count": len(text_ops), "receipt": text_receipt})
 
         if format_ops:
+            rebound_format_ops = _rebind_operations_after_text(format_ops, text_receipt)
             receipt = apply_formatting_atomic(
                 candidate,
-                format_ops,
+                rebound_format_ops,
                 expected_revision=1,
                 current_revision=1,
                 validator=None,

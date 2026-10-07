@@ -56,6 +56,7 @@ def transformation_execution_contract() -> dict:
         "phase": PHASE,
         "product": PRODUCT,
         "transaction": "COPY_EXECUTE_VERIFY_ATOMIC_REPLACE",
+        "entrypoints": ["PLAN_THEN_EXECUTE", "INTENT_TO_VERIFIED_EXECUTION"],
         "direct_native_lanes": ["P2_DOCUMENT_EDIT", "P2_FORMATTING"],
         "delegate_lanes": [
             "P3.43_CONSTRAINT_PRESERVING_TEMPLATE_TRANSFER",

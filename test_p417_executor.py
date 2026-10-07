@@ -64,7 +64,7 @@ def test_direct_native_execution_commits_with_targeted_footprint(tmp_path):
     assert build_document_map(path)["paragraphs"][0]["text"] == "새 사업 계획서"
 
 
-def test_native_render_receipt_strengthens_only_when_verified_native(tmp_path):
+def test_caller_supplied_render_metadata_cannot_self_authorize_native_pass(tmp_path):
     path = tmp_path / "a.hwpx"
     make_hwpx(path)
     plan = make_plan(path)
@@ -75,8 +75,9 @@ def test_native_render_receipt_strengthens_only_when_verified_native(tmp_path):
         current_revision=1,
         render_evidence={"source": "HANCOM_NATIVE", "verified": True, "sha256": "a" * 64},
     )
-    assert receipt["verdict"] == "VERIFIED_NATIVE_RENDER"
-    assert receipt["render_validation"]["native_visual_authority"] is True
+    assert receipt["verdict"] == "STRUCTURALLY_VERIFIED_NATIVE_RENDER_PENDING"
+    assert receipt["render_validation"]["native_visual_authority"] is False
+    assert receipt["render_validation"]["verdict"] == "TRUSTED_NATIVE_RECEIPT_REQUIRED_FOR_NATIVE_AUTHORITY"
 
 
 def test_stale_revision_fails_before_mutation(tmp_path):

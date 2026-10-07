@@ -2,6 +2,10 @@ from __future__ import annotations
 
 import pytest
 
+from mcp.types import CallToolResult, TextContent
+
+from p418_mcp import _augment
+
 from p418_product import (
     PRODUCT,
     document_agent_contract,
@@ -98,3 +102,33 @@ def test_link_ttl_is_bounded():
         normalize_document_task(
             {"kind": "DELIVER", "document_id": "doc-1", "link_ttl_seconds": 7200}
         )
+
+
+
+def test_product_facade_preserves_call_tool_structured_delivery_payload():
+    original = {
+        "ok": True,
+        "document_id": "doc-1",
+        "revision": 1,
+        "delivery_status": "READY_FOR_DOWNLOAD",
+        "download_url": "https://example.invalid/document.hwpx",
+    }
+    result = CallToolResult(
+        content=[TextContent(type="text", text="delivery")],
+        structuredContent=original,
+        isError=False,
+    )
+    augmented = _augment(
+        result,
+        {
+            "phase": "P4.18",
+            "product": PRODUCT,
+            "p418_task_kind": "CREATE",
+            "p418_route": "P3.37_CREATE_VALIDATE_DELIVER",
+        },
+    )
+    payload = augmented.model_dump(by_alias=True)["structuredContent"]
+    assert payload["document_id"] == "doc-1"
+    assert payload["delivery_status"] == "READY_FOR_DOWNLOAD"
+    assert payload["download_url"].endswith(".hwpx")
+    assert payload["p418_task_kind"] == "CREATE"

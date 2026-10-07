@@ -4,8 +4,8 @@ This file is the single compact repository-level authority note for product phas
 
 ## Current product line
 
-- Product: `0.42.0-p4.17`
-- Active program: **P4.17 — Corpus-Grounded Document Intelligence (CLOSED; next program P4.18)**
+- Product: `0.43.0-p4.18`
+- Active program: **P4.18 — End-User Document Agent Productization**
 - Production authority remains evidence-separated from native Hancom visual authority.
 - Public HWPX acquisition evidence does not imply redistribution permission.
 - Runtime/product code changes require normal exact-head CI; documentation-only hygiene commits do not retroactively change the tested runtime evidence.
@@ -57,3 +57,12 @@ The archive preserves each retired Markdown file verbatim with its Git blob SHA.
 ## Repository hygiene rule
 
 Do not create new phase-specific `*_TEST_LEDGER.md` files in the repository root. Update this file only with compact current authority, boundary changes, and phase closure state. Put detailed phase evidence in CI artifacts, Git history, Notion, and the Project Drive archive.
+
+
+## P4.18 phase state
+
+| Phase | State | Authority |
+| --- | --- | --- |
+| P4.18-P1 — Unified End-User Document Task Facade, One-Call Create/Edit/Template/Deliver/Inspect Workflows, Verified Execution Composition, Native HWPX Handoff, Revision-Safe Delivery Recovery & Production Product Surface | **CLOSED** | Runtime/release authority `8e96c333d610d41fc8a1c0e1c2c9ed371158c83e`. P4.18 CI #7 SUCCESS, full lifecycle #1532 SUCCESS, production boundary #1517 SUCCESS. Render deploy `dep-db2uq3142hec7380cqgg` LIVE. Product `0.43.0-p4.18` exposes one primary typed task facade over verified create, edit-intent, template-fill, deliver and inspect capabilities while preserving revision guards, fail-closed routing, P4.17 execution receipts and native-authority separation. |
+
+P4.18-P1 product rule: normal users should not need to compose the legacy low-level MCP tool graph manually. The facade routes bounded typed tasks onto already verified lower-level capabilities and returns structured HWPX delivery handoffs.

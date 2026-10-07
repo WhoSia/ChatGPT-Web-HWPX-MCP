@@ -135,6 +135,8 @@ def _merge_expected_scopes(*scopes: Mapping[str, Any] | None) -> dict:
 def _rebind_operations_after_text(operations: list[dict], text_receipt: Mapping[str, Any] | None) -> list[dict]:
     if not operations or not text_receipt:
         return operations
+    if not bool(text_receipt.get("structure_changed")):
+        return operations
     rebinding = dict(text_receipt.get("locator_rebinding") or {})
     invalidated = {str(x) for x in rebinding.get("invalidated_revision_bound_locators") or []}
     mapping = {

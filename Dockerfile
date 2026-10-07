@@ -111,7 +111,8 @@ RUN set -eux; \
     python scripts/p413_release_smoke.py; \
     python scripts/p414_release_smoke.py; \
     python scripts/p415_release_smoke.py; \
-    python scripts/p416_release_smoke.py
+    python scripts/p416_release_smoke.py; \
+    python scripts/p418_release_smoke.py
 
 ENV MCP_HOST=0.0.0.0
 ENV MCP_PORT=8000

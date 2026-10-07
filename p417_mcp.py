@@ -1,3 +1,4 @@
+from p2_document import build_document_map
 from __future__ import annotations
 
 from mcp.types import ToolAnnotations
@@ -96,6 +97,47 @@ def register_p417_tools(core, owned_document=None):
             **infer_corpus_schema(graphs, support_threshold=support_threshold),
         }
 
+
+
+    @core.mcp.tool(annotations=read)
+    def get_p417_transformation_planning_contract() -> dict:
+        core._caller_subject()
+        return {"ok": True, **transformation_planning_contract()}
+
+    @core.mcp.tool(annotations=read)
+    def plan_p417_document_transformation(
+        document_id: str,
+        intent: dict,
+        reference_document_id: str = "",
+    ) -> dict:
+        if owned_document is None:
+            raise RuntimeError("P4.17 transformation planning requires document store binding")
+        metadata, path = owned_document(document_id)
+        graph = recover_semantic_structure(path)
+        document_map = build_document_map(path)
+        reference_graph = None
+        if str(reference_document_id or "").strip():
+            _reference_metadata, reference_path = owned_document(str(reference_document_id).strip())
+            reference_graph = recover_semantic_structure(reference_path)
+        plan = plan_document_transformation(
+            intent=intent,
+            semantic_graph=graph,
+            document_map=document_map,
+            reference_graph=reference_graph,
+            archetype=None,
+        )
+        return {
+            "ok": True,
+            "document_id": document_id,
+            "revision": int(metadata.get("revision", 1)),
+            **plan,
+        }
+
+    @core.mcp.tool(annotations=read)
+    def validate_p417_transformation_plan(plan: dict) -> dict:
+        core._caller_subject()
+        return {"ok": True, **validate_transformation_plan(plan)}
+
     @core.mcp.tool(annotations=read)
     def summarize_p417_document_intelligence_dataset(records: list[dict]) -> dict:
         core._caller_subject()
@@ -119,4 +161,11 @@ from p417_semantics import (
     infer_corpus_schema,
     recover_semantic_structure,
     semantic_structure_contract,
+)
+
+
+from p417_planner import (
+    plan_document_transformation,
+    transformation_planning_contract,
+    validate_transformation_plan,
 )

@@ -31,7 +31,7 @@ RUN mkdir -p /out && npx --yes -p typescript@5.9.2 tsc --strict --target ES2022 
 FROM python:3.12-slim
 
 WORKDIR /app
-ENV HWPX_PRODUCT_RELEASE=0.42.0-p4.17
+ENV HWPX_PRODUCT_RELEASE=0.43.0-p4.18
 
 COPY requirements.txt .
 RUN apt-get update && apt-get install -y --no-install-recommends nodejs && rm -rf /var/lib/apt/lists/*
@@ -122,5 +122,5 @@ ENV P1_MAX_TEXT_CHARS=100000
 
 EXPOSE 8000
 
-# P4.17 corpus-grounded document intelligence candidate
+# P4.18 end-user document agent product candidate
 CMD ["python", "server_p2.py"]

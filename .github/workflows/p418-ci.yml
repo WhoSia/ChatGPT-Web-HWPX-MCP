@@ -1,0 +1,48 @@
+name: P4.18 end-user document agent product
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "p418_*.py"
+      - "test_p418_*.py"
+      - "p417_mcp.py"
+      - "server_p2.py"
+      - "test_client.py"
+      - "Dockerfile"
+      - ".github/workflows/p418-ci.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: p418-product-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  product-kernel:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: python -m pip install -r requirements.txt -r requirements-dev.txt
+      - name: Compile P4.18 product facade
+        run: python -m py_compile p418_product.py p418_mcp.py p417_mcp.py server_p2.py
+      - name: P4.18 product task tests
+        run: python -m pytest -q test_p418_product.py test_p417_planner.py test_p417_executor.py
+
+  docker-exact-head:
+    runs-on: ubuntu-latest
+    needs: [product-kernel]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Build exact-head image
+        run: docker build --progress=plain -t hwpx-mcp-p418:${{ github.sha }} .
+      - name: Verify P4.18 product contract and release identity
+        run: docker run --rm --entrypoint python hwpx-mcp-p418:${{ github.sha }} -c "from p418_product import document_agent_contract; c=document_agent_contract(); assert c['phase']=='P4.18' and c['product']=='0.43.0-p4.18' and c['product_goal']=='ONE_PRIMARY_TASK_SURFACE_OVER_VERIFIED_EXISTING_HWPX_CAPABILITIES'; import server_p2; assert server_p2.P2_VERSION=='0.43.0-p4.18' and server_p2.core.PHASE=='P4.18'; print('P4.18 product facade Docker PASS')"

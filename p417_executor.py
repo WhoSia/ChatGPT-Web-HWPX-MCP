@@ -30,6 +30,7 @@ PHASE = "P4.17"
 PRODUCT = "0.42.0-p4.17"
 EXECUTION_SCHEMA = "chatgpt-web-hwpx-mcp/p4.17/transformation-execution/v1"
 CONTRACT_SCHEMA = "chatgpt-web-hwpx-mcp/p4.17/transformation-execution-contract/v1"
+POST_EDIT_RENDER_SCHEMA = "chatgpt-web-hwpx-mcp/p4.17/post-edit-native-authority/v1"
 
 _TEXT_OPS = {
     "replace_paragraph_text",
@@ -389,4 +390,58 @@ def execute_transformation_atomic(
         "authority": "EXECUTED_VERIFIED_NATIVE_TRANSFORMATION_WITH_BOUNDED_VISUAL_AUTHORITY",
     }
     result["execution_receipt_sha256"] = _sha(result)
+    return result
+
+
+
+def compose_post_edit_native_authority(
+    execution_receipt: Mapping[str, Any],
+    native_trust_receipt: Mapping[str, Any],
+) -> dict:
+    if str(execution_receipt.get("schema") or "") != EXECUTION_SCHEMA:
+        raise ValueError("unsupported execution receipt schema")
+    expected_execution_sha = str(execution_receipt.get("execution_receipt_sha256") or "")
+    if not expected_execution_sha:
+        raise ValueError("execution receipt hash is required")
+    unhashed = dict(execution_receipt)
+    unhashed.pop("execution_receipt_sha256", None)
+    if _sha(unhashed) != expected_execution_sha:
+        raise ValueError("execution receipt hash mismatch")
+
+    authority_class = str(native_trust_receipt.get("authority_class") or "")
+    after_sha = str((execution_receipt.get("after") or {}).get("package_sha256") or "")
+    trust_sha = str(native_trust_receipt.get("document_sha256") or "")
+    revision_after = int(execution_receipt.get("revision_after") or 0)
+    trust_revision = int(native_trust_receipt.get("revision") or 0)
+    binding_ok = bool(after_sha) and after_sha == trust_sha and revision_after == trust_revision
+
+    if not binding_ok:
+        verdict = "NATIVE_TRUST_RECEIPT_NOT_BOUND_TO_EXECUTION"
+        native = False
+    elif authority_class == "PER_DOCUMENT_NATIVE_VERIFIED":
+        verdict = "VERIFIED"
+        native = True
+    elif authority_class == "NATIVE_VERIFICATION_FAILED":
+        verdict = "NATIVE_RENDER_FAILED"
+        native = False
+    else:
+        verdict = "STRUCTURALLY_VERIFIED_NATIVE_RENDER_PENDING"
+        native = False
+
+    result = {
+        "schema": POST_EDIT_RENDER_SCHEMA,
+        "phase": PHASE,
+        "product": PRODUCT,
+        "execution_receipt_sha256": expected_execution_sha,
+        "document_id": native_trust_receipt.get("document_id"),
+        "revision": trust_revision,
+        "package_sha256": after_sha,
+        "trust_receipt_sha256": native_trust_receipt.get("trust_receipt_sha256"),
+        "native_authority_class": authority_class or "NATIVE_VERIFICATION_PENDING",
+        "binding_verified": binding_ok,
+        "native_visual_authority": native,
+        "verdict": verdict,
+        "authority": "P417_POST_EDIT_NATIVE_AUTHORITY_COMPOSED_FROM_P414_SIGNED_EVIDENCE",
+    }
+    result["post_edit_authority_sha256"] = _sha(result)
     return result

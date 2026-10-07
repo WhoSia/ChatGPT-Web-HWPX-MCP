@@ -18,7 +18,6 @@ on:
       - "skills/hwpx-authoring/**"
       - "docs/p342-*"
       - "corpus/p342-*"
-      - "P342_TEST_LEDGER.md"
       - "scripts/verify_production_boundary.py"
       - ".github/workflows/p342-ci.yml"
   pull_request:
@@ -38,7 +37,6 @@ on:
       - "skills/hwpx-authoring/**"
       - "docs/p342-*"
       - "corpus/p342-*"
-      - "P342_TEST_LEDGER.md"
       - "scripts/verify_production_boundary.py"
       - ".github/workflows/p342-ci.yml"
 

@@ -14,7 +14,6 @@ on:
       - "Dockerfile"
       - "test_client.py"
       - "skills/hwpx-authoring/**"
-      - "P345_TEST_LEDGER.md"
       - ".github/workflows/p345-ci.yml"
   pull_request:
     branches: [main]

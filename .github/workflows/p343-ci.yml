@@ -2,7 +2,7 @@ name: P3.43 organization/template adaptation validation
 on:
   push:
     branches: [main]
-    paths: ["p343_*","test_p343_*","benchmarks/p343_*","contracts/p343_*","rust/p343_policy_gate/**","scripts/p343_*","scripts/validate_hwpx_authoring_skill.py","server_p2.py","Dockerfile","test_client.py","skills/hwpx-authoring/**","P343_TEST_LEDGER.md",".github/workflows/p343-ci.yml"]
+    paths: ["p343_*","test_p343_*","benchmarks/p343_*","contracts/p343_*","rust/p343_policy_gate/**","scripts/p343_*","scripts/validate_hwpx_authoring_skill.py","server_p2.py","Dockerfile","test_client.py","skills/hwpx-authoring/**",".github/workflows/p343-ci.yml"]
   pull_request:
     branches: [main]
 permissions:

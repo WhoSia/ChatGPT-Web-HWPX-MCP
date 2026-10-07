@@ -19,7 +19,6 @@ on:
       - "test_p345_mcp.py"
       - "Dockerfile"
       - "test_client.py"
-      - "P346_TEST_LEDGER.md"
       - ".github/workflows/p346-ci.yml"
   pull_request:
     branches: [main]

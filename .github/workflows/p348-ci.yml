@@ -13,7 +13,6 @@ on:
       - "Dockerfile"
       - "requirements.txt"
       - "test_client.py"
-      - "P348_TEST_LEDGER.md"
       - ".github/workflows/p348-ci.yml"
   pull_request:
     branches: [main]

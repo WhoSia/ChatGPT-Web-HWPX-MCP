@@ -235,4 +235,6 @@ Keep GitHub product-facing.
 
 Do not add new phase-specific `*_TEST_LEDGER.md` files, historical support packets, or long-form phase diaries to this repository. Store those in the project Drive archive instead.
 
+Current product/phase authority is intentionally compacted into [`PRODUCT_AUTHORITY.md`](PRODUCT_AUTHORITY.md). Historical ledgers are preserved in Project Drive → `90_ARCHIVE` → `Repository Ledger Archive`.
+
 Raw world-contact artifacts should be preserved before adjudication.

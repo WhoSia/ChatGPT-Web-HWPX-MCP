@@ -17,7 +17,6 @@ on:
       - "Dockerfile"
       - "requirements.txt"
       - "test_client.py"
-      - "P347_TEST_LEDGER.md"
       - ".github/workflows/p347-ci.yml"
   pull_request:
     branches: [main]

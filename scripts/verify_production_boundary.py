@@ -19,7 +19,7 @@ def classify(status, body, version, commit=None):
     if (body.get('oauth', {}).get('durable_store_reachable') is not True
             or body.get('documents', {}).get('durable_store_reachable') is not True):
         return 'DURABLE_STORE_UNAVAILABLE'
-    if (version in {'0.39.0-p4.14','0.40.0-p4.15','0.41.0-p4.16','0.42.0-p4.17'}
+    if (version in {'0.39.0-p4.14','0.40.0-p4.15','0.41.0-p4.16','0.42.0-p4.17','0.43.0-p4.18'}
             and body.get('p414_evidence', {}).get('durable_store_reachable') is not True):
         return 'DURABLE_STORE_UNAVAILABLE'
     return 'READY'

@@ -185,8 +185,24 @@ def _compile_direct_action(
             if locator in protected:
                 blocked.append({"code": "PROTECTED_TARGET", "locator": locator, "role": role})
                 continue
-            run_fmt = {k: v for k, v in fmt.items() if k in {"font", "fonts", "size", "bold", "italic", "underline", "color"}}
-            para_fmt = {k: v for k, v in fmt.items() if k in {"align", "space_before", "space_after", "line_spacing", "keep_with_next"}}
+            run_fmt = {k: v for k, v in fmt.items() if k in {"font", "size", "bold", "italic", "underline", "color", "highlight", "strike", "ratio", "letter_spacing", "font_by_script"}}
+            para_aliases = {
+                "align": "alignment",
+                "space_before": "spacing_before_pt",
+                "space_after": "spacing_after_pt",
+                "line_spacing": "line_spacing_percent",
+            }
+            para_keys = {
+                "alignment", "line_spacing_percent", "indent_left_mm", "indent_right_mm",
+                "first_line_indent_mm", "spacing_before_pt", "spacing_after_pt",
+                "outline_level", "keep_with_next", "keep_lines", "page_break_before",
+                "column_break", "bottom_border", "border_color", "border_width",
+            }
+            para_fmt = {
+                para_aliases.get(k, k): v
+                for k, v in fmt.items()
+                if k in para_keys or k in para_aliases
+            }
             if run_fmt:
                 operations.append({"op": "set_run_format", "target": locator, "format": run_fmt})
             if para_fmt:

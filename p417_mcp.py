@@ -184,6 +184,7 @@ def register_p417_tools(core, owned_document=None, refresh_document=None):
             "document_id": document_id,
             "revision_before": current_revision,
             "revision_after": int(refreshed.get("revision", current_revision + 1)),
+            "execution_receipt": receipt,
             **receipt,
         }
 
@@ -250,6 +251,7 @@ def register_p417_tools(core, owned_document=None, refresh_document=None):
             "revision_before": current_revision,
             "revision_after": int(refreshed.get("revision", current_revision + 1)),
             "plan": plan,
+            "execution_receipt": receipt,
             **receipt,
         }
 
@@ -261,8 +263,9 @@ def register_p417_tools(core, owned_document=None, refresh_document=None):
         if owned_document is None:
             raise RuntimeError("P4.17 post-edit native verification requires document-store binding")
         metadata, _path = owned_document(document_id)
+        receipt_payload = dict(execution_receipt.get("execution_receipt") or execution_receipt)
         expected_receipt_sha = str(metadata.get("p417_execution_receipt_sha256") or "")
-        supplied_receipt_sha = str(execution_receipt.get("execution_receipt_sha256") or "")
+        supplied_receipt_sha = str(receipt_payload.get("execution_receipt_sha256") or "")
         if not expected_receipt_sha or supplied_receipt_sha != expected_receipt_sha:
             raise ValueError("P4.17 execution receipt is not bound to current document metadata")
         current_revision = int(metadata.get("revision") or 1)
@@ -289,7 +292,7 @@ def register_p417_tools(core, owned_document=None, refresh_document=None):
         )
         return {
             "ok": True,
-            **compose_post_edit_native_authority(execution_receipt, trust),
+            **compose_post_edit_native_authority(receipt_payload, trust),
             "native_trust_receipt": trust,
         }
 

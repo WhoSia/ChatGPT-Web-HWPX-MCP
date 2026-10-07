@@ -187,6 +187,72 @@ def register_p417_tools(core, owned_document=None, refresh_document=None):
             **receipt,
         }
 
+
+    @core.mcp.tool(annotations=write)
+    def execute_p417_intent_transformation(
+        document_id: str,
+        expected_revision: int,
+        intent: dict,
+        reference_document_id: str = "",
+        reference_transfer: dict | None = None,
+        repair_plan: dict | None = None,
+        render_evidence: dict | None = None,
+        replan_intent: dict | None = None,
+        lease_token: str = "",
+    ) -> dict:
+        if owned_document is None or refresh_document is None:
+            raise RuntimeError("P4.17 intent execution requires document-store bindings")
+        metadata, path = owned_document(document_id)
+        current_revision = int(metadata.get("revision", 1))
+        graph = recover_semantic_structure(path)
+        document_map = build_document_map(path)
+        reference_graph = None
+        if str(reference_document_id or "").strip():
+            _reference_metadata, reference_path = owned_document(str(reference_document_id).strip())
+            reference_graph = recover_semantic_structure(reference_path)
+        plan = plan_document_transformation(
+            intent=intent,
+            semantic_graph=graph,
+            document_map=document_map,
+            reference_graph=reference_graph,
+            archetype=None,
+        )
+        if plan.get("decision") != "SAFE_TO_PLAN":
+            return {
+                "ok": False,
+                "document_id": document_id,
+                "revision": current_revision,
+                "plan": plan,
+                "verdict": str(plan.get("decision") or "ABSTAIN"),
+                "transaction": "NOT_EXECUTED",
+            }
+        ingress = metadata.get("source") == "existing-ingress"
+        receipt = execute_transformation_atomic(
+            path,
+            plan,
+            expected_revision=int(expected_revision),
+            current_revision=current_revision,
+            validator=lambda candidate: core.validate_hwpx_package(candidate, ingress=ingress),
+            reference_transfer=reference_transfer,
+            repair_plan=repair_plan,
+            render_evidence=render_evidence,
+            replan_intent=replan_intent,
+        )
+        metadata["revision"] = current_revision + 1
+        metadata["last_edit_at"] = core._utc_iso()
+        metadata["p417_execution_receipt_sha256"] = receipt["execution_receipt_sha256"]
+        if lease_token:
+            metadata["_commit_lease_token"] = lease_token
+        refreshed = refresh_document(document_id, metadata, path, receipt)
+        return {
+            "ok": True,
+            "document_id": document_id,
+            "revision_before": current_revision,
+            "revision_after": int(refreshed.get("revision", current_revision + 1)),
+            "plan": plan,
+            **receipt,
+        }
+
     @core.mcp.tool(annotations=read)
     def summarize_p417_document_intelligence_dataset(records: list[dict]) -> dict:
         core._caller_subject()

@@ -11,7 +11,12 @@ def _structured(result: Any) -> dict:
     if isinstance(result, dict):
         return dict(result)
     if isinstance(result, CallToolResult):
-        value = getattr(result, "structuredContent", None)
+        value = getattr(result, "structured_content", None)
+        if not isinstance(value, dict):
+            value = getattr(result, "structuredContent", None)
+        if not isinstance(value, dict):
+            dumped = result.model_dump(by_alias=True)
+            value = dumped.get("structuredContent") or dumped.get("structured_content")
         if isinstance(value, dict):
             return dict(value)
     return {}
@@ -22,8 +27,9 @@ def _augment(result: Any, extra: dict) -> Any:
         return {**result, **extra}
     if isinstance(result, CallToolResult):
         payload = result.model_dump(by_alias=True)
+        payload.pop("structured_content", None)
         payload["structuredContent"] = {**_structured(result), **extra}
-        return CallToolResult(**payload)
+        return CallToolResult.model_validate(payload)
     return result
 
 

@@ -279,6 +279,8 @@ def plan_document_transformation(
         "unresolved_binding_count": int(binding.get("unresolved_count") or 0),
     }
 
+    if fidelity and fidelity.get("overall_authority_ceiling") == "UNCLASSIFIED_REQUIRES_REVIEW":
+        blocked.append({"code": "UNCLASSIFIED_NATIVE_OPERATION", "authority_ceiling": "UNCLASSIFIED_REQUIRES_REVIEW"})
     if unknown:
         decision = "ABSTAIN"
     elif blocked:

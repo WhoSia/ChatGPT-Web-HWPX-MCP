@@ -398,6 +398,7 @@ async def main() -> None:
                 "plan_p417_document_transformation",
                 "get_p417_transformation_planning_contract",
                 "execute_p417_document_transformation",
+                "execute_p417_intent_transformation",
                 "get_p417_transformation_execution_contract",
                 "infer_p417_corpus_document_schema",
                 "align_p417_semantic_documents",
@@ -450,6 +451,7 @@ async def main() -> None:
                 or "get_p417_semantic_document_graph" not in (p2_caps.get("tools_added") or [])
                 or "get_p417_transformation_execution_contract" not in (p2_caps.get("tools_added") or [])
                 or "execute_p417_document_transformation" not in (p2_caps.get("tools_added") or [])
+                or "execute_p417_intent_transformation" not in (p2_caps.get("tools_added") or [])
             ):
                 raise RuntimeError(f"p2_capabilities failed: {p2_caps}")
 
@@ -618,10 +620,14 @@ async def main() -> None:
                     or p417_plan_check.get("mutation_footprint_required") is not True
                 ):
                     raise RuntimeError(f"P4.17-P3 plan validation failed: {p417_plan_check}")
-                p417_execution = _payload(await client.call_tool("execute_p417_document_transformation", {
+                p417_execution = _payload(await client.call_tool("execute_p417_intent_transformation", {
                     "document_id": p416_document_id,
                     "expected_revision": int(p417_plan.get("revision", 1)),
-                    "plan": p417_plan
+                    "intent": {
+                        "goal": "replace the document title with minimal mutation",
+                        "actions": [{"action": "replace_role_text", "role": "TITLE", "text": "P4.17 planned title"}],
+                        "preservation": {"required_grade": "TARGETED_PARTS_ONLY"}
+                    }
                 }))
                 if (
                     not p417_execution

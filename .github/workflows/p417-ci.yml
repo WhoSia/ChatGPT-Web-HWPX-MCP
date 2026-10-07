@@ -17,6 +17,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: p417-intelligence-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   corpus-kernel:
     runs-on: ubuntu-latest

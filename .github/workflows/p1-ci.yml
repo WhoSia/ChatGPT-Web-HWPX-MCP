@@ -8,6 +8,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: p1-lifecycle-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   lifecycle:
     runs-on: ubuntu-latest

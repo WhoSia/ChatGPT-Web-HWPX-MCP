@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 from p2_document import build_document_map
-from p417_executor import execute_transformation_atomic, transformation_execution_contract
+from p417_executor import compose_post_edit_native_authority, execute_transformation_atomic, transformation_execution_contract
 from p417_planner import plan_document_transformation
 from p417_semantics import recover_semantic_structure
 
@@ -126,3 +126,57 @@ def test_post_edit_replan_generates_next_plan_without_second_mutation(tmp_path):
     )
     assert receipt["next_plan"]["decision"] == "SAFE_TO_PLAN"
     assert build_document_map(path)["paragraphs"][2]["text"] == "기존 본문입니다."
+
+
+
+def test_trusted_post_edit_native_authority_requires_exact_binding(tmp_path):
+    path = tmp_path / "trusted.hwpx"
+    make_hwpx(path)
+    plan = make_plan(path)
+    receipt = execute_transformation_atomic(
+        path,
+        plan,
+        expected_revision=1,
+        current_revision=1,
+    )
+    trust = {
+        "document_id": "doc-1",
+        "revision": receipt["revision_after"],
+        "document_sha256": receipt["after"]["package_sha256"],
+        "authority_class": "PER_DOCUMENT_NATIVE_VERIFIED",
+        "trust_receipt_sha256": "b" * 64,
+    }
+    composed = compose_post_edit_native_authority(receipt, trust)
+    assert composed["binding_verified"] is True
+    assert composed["native_visual_authority"] is True
+    assert composed["verdict"] == "VERIFIED"
+
+    mismatched = compose_post_edit_native_authority(
+        receipt,
+        {**trust, "document_sha256": "0" * 64},
+    )
+    assert mismatched["binding_verified"] is False
+    assert mismatched["native_visual_authority"] is False
+    assert mismatched["verdict"] == "NATIVE_TRUST_RECEIPT_NOT_BOUND_TO_EXECUTION"
+
+
+def test_native_failure_receipt_never_promotes_execution(tmp_path):
+    path = tmp_path / "failed-native.hwpx"
+    make_hwpx(path)
+    receipt = execute_transformation_atomic(
+        path,
+        make_plan(path),
+        expected_revision=4,
+        current_revision=4,
+    )
+    trust = {
+        "document_id": "doc-2",
+        "revision": receipt["revision_after"],
+        "document_sha256": receipt["after"]["package_sha256"],
+        "authority_class": "NATIVE_VERIFICATION_FAILED",
+        "trust_receipt_sha256": "c" * 64,
+    }
+    composed = compose_post_edit_native_authority(receipt, trust)
+    assert composed["binding_verified"] is True
+    assert composed["native_visual_authority"] is False
+    assert composed["verdict"] == "NATIVE_RENDER_FAILED"

@@ -139,14 +139,13 @@ def _render_adjudication(render_evidence: Mapping[str, Any] | None) -> dict:
             "verdict": "NATIVE_RENDER_PENDING",
         }
     source = str(render_evidence.get("source") or "").strip().upper()
-    verified = bool(render_evidence.get("verified", False))
-    native = source in {"HANCOM_NATIVE", "HANCOM_HANGUL_NATIVE"} and verified
     return {
-        "status": "VERIFIED" if verified else "UNVERIFIED",
+        "status": "EVIDENCE_PRESENT_UNADJUDICATED",
         "source": source or "UNSPECIFIED",
         "evidence_sha256": render_evidence.get("sha256"),
-        "native_visual_authority": native,
-        "verdict": "NATIVE_RENDER_VERIFIED" if native else "NON_NATIVE_OR_UNVERIFIED_RENDER_EVIDENCE",
+        "native_visual_authority": False,
+        "verdict": "TRUSTED_NATIVE_RECEIPT_REQUIRED_FOR_NATIVE_AUTHORITY",
+        "authority_boundary": "CALLER_SUPPLIED_RENDER_METADATA_CANNOT_SELF_AUTHORIZE_NATIVE_PASS",
     }
 
 
@@ -324,9 +323,7 @@ def execute_transformation_atomic(
     structure_changed = before_doc.get("structure_sha256") != after_doc.get("structure_sha256")
     package_sha_after = hashlib.sha256(path.read_bytes()).hexdigest()
 
-    if render["native_visual_authority"]:
-        verdict = "VERIFIED_NATIVE_RENDER"
-    elif repair_receipt is not None:
+    if repair_receipt is not None:
         verdict = "REPAIRED_AND_STRUCTURALLY_VERIFIED_NATIVE_RENDER_PENDING"
     else:
         verdict = "STRUCTURALLY_VERIFIED_NATIVE_RENDER_PENDING"

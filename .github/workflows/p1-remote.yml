@@ -20,7 +20,7 @@ jobs:
         with:
           python-version: '3.12'
       - name: Exact release and protected-resource boundary
-        run: python scripts/verify_production_boundary.py --base-url https://chatgpt-web-hwpx-mcp-p0.onrender.com --version "0.42.0-p4.17" --commit "${{ github.sha }}"
+        run: python scripts/verify_production_boundary.py --base-url https://chatgpt-web-hwpx-mcp-p0.onrender.com --version "0.43.0-p4.18" --commit "${{ github.sha }}"
       - uses: actions/upload-artifact@v4
         if: always()
         with:

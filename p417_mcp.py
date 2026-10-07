@@ -15,8 +15,9 @@ from p417_corpus import (
 )
 
 
-def register_p417_tools(core, owned_document=None):
+def register_p417_tools(core, owned_document=None, refresh_document=None):
     read = ToolAnnotations(readOnlyHint=True, destructiveHint=False, openWorldHint=False)
+    write = ToolAnnotations(readOnlyHint=False, destructiveHint=False, openWorldHint=False)
 
     @core.mcp.tool(annotations=read)
     def get_p417_document_intelligence_contract() -> dict:
@@ -139,6 +140,53 @@ def register_p417_tools(core, owned_document=None):
         core._caller_subject()
         return {"ok": True, **validate_transformation_plan(plan)}
 
+
+    @core.mcp.tool(annotations=read)
+    def get_p417_transformation_execution_contract() -> dict:
+        core._caller_subject()
+        return {"ok": True, **transformation_execution_contract()}
+
+    @core.mcp.tool(annotations=write)
+    def execute_p417_document_transformation(
+        document_id: str,
+        expected_revision: int,
+        plan: dict,
+        reference_transfer: dict | None = None,
+        repair_plan: dict | None = None,
+        render_evidence: dict | None = None,
+        replan_intent: dict | None = None,
+        lease_token: str = "",
+    ) -> dict:
+        if owned_document is None or refresh_document is None:
+            raise RuntimeError("P4.17 transformation execution requires document-store bindings")
+        metadata, path = owned_document(document_id)
+        current_revision = int(metadata.get("revision", 1))
+        ingress = metadata.get("source") == "existing-ingress"
+        receipt = execute_transformation_atomic(
+            path,
+            plan,
+            expected_revision=int(expected_revision),
+            current_revision=current_revision,
+            validator=lambda candidate: core.validate_hwpx_package(candidate, ingress=ingress),
+            reference_transfer=reference_transfer,
+            repair_plan=repair_plan,
+            render_evidence=render_evidence,
+            replan_intent=replan_intent,
+        )
+        metadata["revision"] = current_revision + 1
+        metadata["last_edit_at"] = core._utc_iso()
+        metadata["p417_execution_receipt_sha256"] = receipt["execution_receipt_sha256"]
+        if lease_token:
+            metadata["_commit_lease_token"] = lease_token
+        refreshed = refresh_document(document_id, metadata, path, receipt)
+        return {
+            "ok": True,
+            "document_id": document_id,
+            "revision_before": current_revision,
+            "revision_after": int(refreshed.get("revision", current_revision + 1)),
+            **receipt,
+        }
+
     @core.mcp.tool(annotations=read)
     def summarize_p417_document_intelligence_dataset(records: list[dict]) -> dict:
         core._caller_subject()
@@ -169,4 +217,10 @@ from p417_planner import (
     plan_document_transformation,
     transformation_planning_contract,
     validate_transformation_plan,
+)
+
+
+from p417_executor import (
+    execute_transformation_atomic,
+    transformation_execution_contract,
 )

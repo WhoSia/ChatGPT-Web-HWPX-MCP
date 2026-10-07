@@ -127,3 +127,33 @@ def test_contract_routes_safety_to_existing_native_stack():
     assert contract["style_transfer_routing"] == "P3.43_CONSTRAINT_PRESERVING_TEMPLATE_TRANSFER"
     assert contract["repair_routing"] == "P3.40_PLAN_PLUS_P3.42_MUTATION_FOOTPRINT"
     assert contract["authority_ceiling"] == "PLAN_AND_ROUTING_AUTHORITY_ONLY_UNTIL_EXECUTION_RECEIPTS"
+
+
+def test_style_role_compiles_user_aliases_to_native_keys(tmp_path):
+    path = tmp_path / "a.hwpx"
+    make_hwpx(path)
+    graph, mapped = graph_and_map(path)
+    plan = plan_document_transformation(
+        intent={
+            "actions": [{
+                "action": "style_role",
+                "role": "TITLE",
+                "format": {
+                    "bold": True,
+                    "align": "CENTER",
+                    "space_after": 6,
+                },
+            }],
+        },
+        semantic_graph=graph,
+        document_map=mapped,
+    )
+    assert plan["decision"] == "SAFE_TO_PLAN"
+    ops = plan["operations"]
+    assert any(op["op"] == "set_run_format" and op["format"].get("bold") is True for op in ops)
+    assert any(
+        op["op"] == "set_paragraph_format"
+        and op["format"].get("alignment") == "CENTER"
+        and op["format"].get("spacing_after_pt") == 6
+        for op in ops
+    )

@@ -206,7 +206,8 @@ def execute_transformation_atomic(
         raise ValueError(f"Stale revision: expected {expected_revision}, current {current_revision}")
     if str(plan.get("schema") or "") != PLAN_SCHEMA:
         raise ValueError("unsupported transformation plan schema")
-    if str(plan.get("decision") or "") != "SAFE_TO_PLAN":
+    plan_decision = str(plan.get("decision") or "")
+    if plan_decision not in {"SAFE_TO_PLAN", "DELEGATE"}:
         raise ValueError(f"transformation plan is not executable: {plan.get('decision')}")
     operations = [dict(x) for x in (plan.get("operations") or [])]
     delegates = [dict(x) for x in (plan.get("delegates") or [])]

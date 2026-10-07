@@ -254,6 +254,46 @@ def register_p417_tools(core, owned_document=None, refresh_document=None):
         }
 
     @core.mcp.tool(annotations=read)
+    def verify_p417_post_edit_native_authority(
+        document_id: str,
+        execution_receipt: dict,
+    ) -> dict:
+        if owned_document is None:
+            raise RuntimeError("P4.17 post-edit native verification requires document-store binding")
+        metadata, _path = owned_document(document_id)
+        expected_receipt_sha = str(metadata.get("p417_execution_receipt_sha256") or "")
+        supplied_receipt_sha = str(execution_receipt.get("execution_receipt_sha256") or "")
+        if not expected_receipt_sha or supplied_receipt_sha != expected_receipt_sha:
+            raise ValueError("P4.17 execution receipt is not bound to current document metadata")
+        current_revision = int(metadata.get("revision") or 1)
+        document_sha256 = str(metadata.get("sha256") or "")
+        store = getattr(core, "P414_EVIDENCE_STORE", None)
+        evidence = None
+        if store is not None:
+            evidence = store.receipt_for_document(
+                document_id=document_id,
+                revision=current_revision,
+                document_sha256=document_sha256,
+            )
+        release_head = (
+            __import__("os").environ.get("P414_RELEASE_EXACT_HEAD")
+            or __import__("os").environ.get("RENDER_GIT_COMMIT")
+            or "PENDING_EXACT_HEAD"
+        )
+        trust = document_native_trust_receipt(
+            document_id=document_id,
+            revision=current_revision,
+            sha256=document_sha256,
+            evidence=evidence,
+            release_head=release_head,
+        )
+        return {
+            "ok": True,
+            **compose_post_edit_native_authority(execution_receipt, trust),
+            "native_trust_receipt": trust,
+        }
+
+    @core.mcp.tool(annotations=read)
     def summarize_p417_document_intelligence_dataset(records: list[dict]) -> dict:
         core._caller_subject()
         dataset = build_dataset(records)
@@ -267,7 +307,7 @@ def register_p417_tools(core, owned_document=None, refresh_document=None):
             "authority": dataset["authority"],
         }
 
-    return {"phase": PHASE, "product": PRODUCT, "authority": "P417_DOCUMENT_INTELLIGENCE_READ_SURFACE"}
+    return {"phase": PHASE, "product": PRODUCT, "authority": "P417_DOCUMENT_INTELLIGENCE_AND_VERIFIED_EXECUTION_SURFACE"}
 
 
 from p417_semantics import (
@@ -287,6 +327,10 @@ from p417_planner import (
 
 
 from p417_executor import (
+    compose_post_edit_native_authority,
     execute_transformation_atomic,
     transformation_execution_contract,
 )
+
+
+from p414_evidence_service import document_native_trust_receipt

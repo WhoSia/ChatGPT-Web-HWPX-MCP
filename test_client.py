@@ -24,6 +24,7 @@ from p414_evidence_service import PRODUCT as P414_PRODUCT, SCHEMA as P414_SCHEMA
 from p415_authority import PRODUCT as P415_PRODUCT
 from p416_generation_manifest import PRODUCT as P416_PRODUCT
 from p417_corpus import PRODUCT as P417_PRODUCT
+from p418_product import PRODUCT as P418_PRODUCT
 
 URL = os.environ.get("MCP_URL", "http://127.0.0.1:8000/mcp")
 RUN_WRITE_TEST = os.environ.get(
@@ -393,6 +394,9 @@ async def main() -> None:
                 "mine_p417_style_grammar",
                 "align_p417_render_pair",
                 "infer_p417_document_archetype",
+                "get_p418_document_agent_contract",
+                "prepare_p418_document_task",
+                "run_p418_document_task",
                 "get_p417_document_intelligence_contract",
                 "validate_p417_transformation_plan",
                 "plan_p417_document_transformation",
@@ -433,13 +437,13 @@ async def main() -> None:
                 )
 
             read_payload = _payload(await client.call_tool("probe_read", {"message": "P4.17 OAuth smoke test"}))
-            if not read_payload or not read_payload.get("ok") or read_payload.get("version") != P417_PRODUCT:
-                raise RuntimeError(f"probe_read did not expose current P4.17 product version: {read_payload}")
+            if not read_payload or not read_payload.get("ok") or read_payload.get("version") != P418_PRODUCT:
+                raise RuntimeError(f"probe_read did not expose current P4.18 product version: {read_payload}")
 
             p2_caps = _payload(await client.call_tool("p2_capabilities", {}))
             if (
                 not p2_caps
-                or p2_caps.get("phase") != "P4.17"
+                or p2_caps.get("phase") != "P4.18"
                 or "get_p413_release_manifest" not in (p2_caps.get("tools_added") or [])
                 or "get_p413_document_visual_authority_receipt" not in (p2_caps.get("tools_added") or [])
                 or "ingest_p414_signed_evidence_receipt" not in (p2_caps.get("tools_added") or [])
@@ -448,6 +452,9 @@ async def main() -> None:
                 or "evaluate_p415_release_admission" not in (p2_caps.get("tools_added") or [])
                 or "get_p416_generation_manifest_contract" not in (p2_caps.get("tools_added") or [])
                 or "verify_p416_generation_manifest" not in (p2_caps.get("tools_added") or [])
+                or "get_p418_document_agent_contract" not in (p2_caps.get("tools_added") or [])
+                or "prepare_p418_document_task" not in (p2_caps.get("tools_added") or [])
+                or "run_p418_document_task" not in (p2_caps.get("tools_added") or [])
                 or "get_p417_semantic_structure_contract" not in (p2_caps.get("tools_added") or [])
                 or "get_p417_semantic_document_graph" not in (p2_caps.get("tools_added") or [])
                 or "get_p417_transformation_execution_contract" not in (p2_caps.get("tools_added") or [])
@@ -475,6 +482,16 @@ async def main() -> None:
                 or p416_contract.get("raw_private_inputs_stored_by_default") is not False
             ):
                 raise RuntimeError(f"P4.16 generation-manifest contract failed: {p416_contract}")
+
+            p418_contract = _payload(await client.call_tool("get_p418_document_agent_contract", {}))
+            if (
+                not p418_contract
+                or p418_contract.get("phase") != "P4.18"
+                or p418_contract.get("product") != P418_PRODUCT
+                or p418_contract.get("product_goal") != "ONE_PRIMARY_TASK_SURFACE_OVER_VERIFIED_EXISTING_HWPX_CAPABILITIES"
+                or "EDIT_INTENT" not in (p418_contract.get("task_kinds") or [])
+            ):
+                raise RuntimeError(f"P4.18 document-agent contract failed: {p418_contract}")
 
             p417_contract = _payload(await client.call_tool("get_p417_document_intelligence_contract", {}))
             if (
@@ -670,6 +687,57 @@ async def main() -> None:
                     )
                 ):
                     raise RuntimeError(f"P4.17-P4 execution read-back failed: {p417_after_graph}")
+                p418_prepared = _payload(await client.call_tool("prepare_p418_document_task", {
+                    "task": {
+                        "kind": "EDIT_INTENT",
+                        "document_id": p416_document_id,
+                        "expected_revision": int(p417_execution["revision_after"]),
+                        "intent": {
+                            "goal": "replace the title and return the edited native HWPX",
+                            "actions": [
+                                {"action": "replace_role_text", "role": "TITLE", "text": "P4.18 product title"}
+                            ],
+                            "preservation": {"required_grade": "TARGETED_PARTS_ONLY"}
+                        },
+                        "link_ttl_seconds": 120
+                    }
+                }))
+                if (
+                    not p418_prepared
+                    or p418_prepared.get("route") != "P4.17_INTENT_PLAN_EXECUTE_VERIFY_THEN_DELIVER"
+                    or p418_prepared.get("mutation_expected") is not True
+                ):
+                    raise RuntimeError(f"P4.18 task preparation failed: {p418_prepared}")
+                p418_task = _payload(await client.call_tool("run_p418_document_task", {
+                    "task": p418_prepared["task"]
+                }))
+                if (
+                    not p418_task
+                    or p418_task.get("p418_task_kind") != "EDIT_INTENT"
+                    or p418_task.get("p418_outcome") != "EDIT_EXECUTED_VERIFIED_AND_DELIVERED"
+                    or not p418_task.get("download_url")
+                    or not (p418_task.get("p418_execution") or {}).get("execution_receipt_sha256")
+                    or (p418_task.get("p418_execution") or {}).get("revision_after") != int(p417_execution["revision_after"]) + 1
+                ):
+                    raise RuntimeError(f"P4.18 edit-intent task failed: {p418_task}")
+                p418_inspect = _payload(await client.call_tool("run_p418_document_task", {
+                    "task": {
+                        "kind": "INSPECT",
+                        "document_id": p416_document_id,
+                        "views": ["SUMMARY", "SEMANTIC_GRAPH", "DOCUMENT_MAP"]
+                    }
+                }))
+                if (
+                    not p418_inspect
+                    or p418_inspect.get("p418_task_kind") != "INSPECT"
+                    or p418_inspect.get("views", {}).get("SUMMARY", {}).get("revision")
+                        != (p418_task.get("p418_execution") or {}).get("revision_after")
+                    or not any(
+                        block.get("text") == "P4.18 product title"
+                        for block in (p418_inspect.get("views", {}).get("SEMANTIC_GRAPH", {}).get("blocks") or [])
+                    )
+                ):
+                    raise RuntimeError(f"P4.18 product inspection failed: {p418_inspect}")
                 if (
                     not p417_graph
                     or p417_graph.get("schema") != "chatgpt-web-hwpx-mcp/p4.17/semantic-document-graph/v1"

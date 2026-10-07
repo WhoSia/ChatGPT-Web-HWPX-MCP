@@ -588,6 +588,89 @@ async def main() -> None:
                 raise RuntimeError(f"P4.17-P4 execution contract failed: {p417_p4_contract}")
 
             if RUN_WRITE_TEST:
+                p418_created = _payload(await client.call_tool("run_p418_document_task", {
+                    "task": {
+                        "kind": "CREATE",
+                        "plan": {
+                            "preset": "school-report",
+                            "blocks": [
+                                {"type": "title", "text": "P4.18 실제 제품 문서"},
+                                {"type": "paragraph", "text": "성명: {{name}}"}
+                            ]
+                        },
+                        "filename": "p418-product-create.hwpx",
+                        "request_id": "p418-ci-create",
+                        "design_mode": "",
+                        "link_ttl_seconds": 120
+                    }
+                }))
+                if (
+                    not p418_created
+                    or p418_created.get("p418_task_kind") != "CREATE"
+                    or p418_created.get("delivery_status") != "READY_FOR_DOWNLOAD"
+                    or not p418_created.get("document_id")
+                    or not p418_created.get("download_url")
+                ):
+                    raise RuntimeError(f"P4.18 create task failed: {p418_created}")
+                p418_template_id = p418_created["document_id"]
+
+                p418_filled = _payload(await client.call_tool("run_p418_document_task", {
+                    "task": {
+                        "kind": "TEMPLATE_FILL",
+                        "template_document_id": p418_template_id,
+                        "values": {"{{name}}": "김우준"},
+                        "filename": "p418-product-filled.hwpx",
+                        "request_id": "p418-ci-fill",
+                        "require_unique": True,
+                        "link_ttl_seconds": 120
+                    }
+                }))
+                if (
+                    not p418_filled
+                    or p418_filled.get("p418_task_kind") != "TEMPLATE_FILL"
+                    or p418_filled.get("delivery_status") != "READY_FOR_DOWNLOAD"
+                    or not p418_filled.get("document_id")
+                    or p418_filled.get("document_id") == p418_template_id
+                ):
+                    raise RuntimeError(f"P4.18 template-fill task failed: {p418_filled}")
+                p418_filled_id = p418_filled["document_id"]
+
+                p418_filled_inspect = _payload(await client.call_tool("run_p418_document_task", {
+                    "task": {
+                        "kind": "INSPECT",
+                        "document_id": p418_filled_id,
+                        "views": ["SUMMARY", "DOCUMENT_MAP"]
+                    }
+                }))
+                if (
+                    not p418_filled_inspect
+                    or "성명: 김우준" not in (p418_filled_inspect.get("views", {}).get("DOCUMENT_MAP", {}).get("text") or "")
+                ):
+                    raise RuntimeError(f"P4.18 filled-document inspection failed: {p418_filled_inspect}")
+
+                p418_redelivered = _payload(await client.call_tool("run_p418_document_task", {
+                    "task": {
+                        "kind": "DELIVER",
+                        "document_id": p418_filled_id,
+                        "revision": int(p418_filled_inspect.get("views", {}).get("SUMMARY", {}).get("revision", 1)),
+                        "link_ttl_seconds": 120
+                    }
+                }))
+                if (
+                    not p418_redelivered
+                    or p418_redelivered.get("p418_task_kind") != "DELIVER"
+                    or p418_redelivered.get("document_id") != p418_filled_id
+                    or not p418_redelivered.get("download_url")
+                ):
+                    raise RuntimeError(f"P4.18 delivery recovery failed: {p418_redelivered}")
+
+                for p418_cleanup_id in (p418_filled_id, p418_template_id):
+                    p418_deleted = _payload(await client.call_tool("delete_document", {
+                        "document_id": p418_cleanup_id
+                    }))
+                    if not p418_deleted or not p418_deleted.get("deleted"):
+                        raise RuntimeError(f"P4.18 lifecycle cleanup failed: {p418_cleanup_id}: {p418_deleted}")
+
                 p416_created = _payload(await client.call_tool("create_unified_document_and_deliver", {
                     "spec": {
                         "rich_plan": {

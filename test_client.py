@@ -394,6 +394,9 @@ async def main() -> None:
                 "align_p417_render_pair",
                 "infer_p417_document_archetype",
                 "get_p417_document_intelligence_contract",
+                "validate_p417_transformation_plan",
+                "plan_p417_document_transformation",
+                "get_p417_transformation_planning_contract",
                 "infer_p417_corpus_document_schema",
                 "align_p417_semantic_documents",
                 "classify_p417_native_components",
@@ -540,6 +543,15 @@ async def main() -> None:
             ):
                 raise RuntimeError(f"P4.17-P2 semantic structure contract failed: {p417_semantic_contract}")
 
+            p417_p3_contract = _payload(await client.call_tool("get_p417_transformation_planning_contract", {}))
+            if (
+                not p417_p3_contract
+                or p417_p3_contract.get("phase") != "P4.17"
+                or p417_p3_contract.get("product") != P417_PRODUCT
+                or p417_p3_contract.get("authority_ceiling") != "PLAN_AND_ROUTING_AUTHORITY_ONLY_UNTIL_EXECUTION_RECEIPTS"
+            ):
+                raise RuntimeError(f"P4.17-P3 planning contract failed: {p417_p3_contract}")
+
             if RUN_WRITE_TEST:
                 p416_created = _payload(await client.call_tool("create_unified_document_and_deliver", {
                     "spec": {
@@ -567,6 +579,31 @@ async def main() -> None:
                 p417_graph = _payload(await client.call_tool("get_p417_semantic_document_graph", {
                     "document_id": p416_document_id
                 }))
+                p417_plan = _payload(await client.call_tool("plan_p417_document_transformation", {
+                    "document_id": p416_document_id,
+                    "intent": {
+                        "goal": "replace the document title with minimal mutation",
+                        "actions": [{"action": "replace_role_text", "role": "TITLE", "text": "P4.17 planned title"}],
+                        "preservation": {"required_grade": "TARGETED_PARTS_ONLY"}
+                    }
+                }))
+                if (
+                    not p417_plan
+                    or p417_plan.get("decision") != "SAFE_TO_PLAN"
+                    or len(p417_plan.get("operations") or []) != 1
+                    or (p417_plan.get("operations") or [{}])[0].get("op") != "replace_paragraph_text"
+                    or p417_plan.get("execution_authority") != "PLAN_ONLY_NO_MUTATION_PERFORMED"
+                ):
+                    raise RuntimeError(f"P4.17-P3 owned-document planning failed: {p417_plan}")
+                p417_plan_check = _payload(await client.call_tool("validate_p417_transformation_plan", {
+                    "plan": p417_plan
+                }))
+                if (
+                    not p417_plan_check
+                    or p417_plan_check.get("decision") != "SAFE_TO_PLAN"
+                    or p417_plan_check.get("mutation_footprint_required") is not True
+                ):
+                    raise RuntimeError(f"P4.17-P3 plan validation failed: {p417_plan_check}")
                 if (
                     not p417_graph
                     or p417_graph.get("schema") != "chatgpt-web-hwpx-mcp/p4.17/semantic-document-graph/v1"

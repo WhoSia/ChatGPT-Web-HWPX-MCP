@@ -195,10 +195,10 @@ from common_ir import (
     slice_common_ir,
 )
 
-P2_VERSION = "0.42.0-p4.17"
+P2_VERSION = "0.43.0-p4.18"
 # P4.16 closure candidate: exact-head CI rerun after attribution-history rewrite.
 core.VERSION = P2_VERSION
-core.PHASE = "P4.17"
+core.PHASE = "P4.18"
 
 _original_metadata = core._metadata
 
@@ -5254,6 +5254,9 @@ def p2_capabilities() -> dict:
             "get_p416_document_generation_manifest",
             "get_p416_minimal_generation_witness",
             "compare_p416_generation_reproduction",
+            "get_p418_document_agent_contract",
+            "prepare_p418_document_task",
+            "run_p418_document_task",
             "get_p417_document_intelligence_contract",
             "infer_p417_document_archetype",
             "mine_p417_style_grammar",
@@ -7227,8 +7230,85 @@ P415_SELF_VERIFYING_RELEASE_AUTHORITY = register_p415_tools(core)
 from p416_mcp import register_p416_tools
 P416_DOCUMENT_PROVENANCE = register_p416_tools(core, _owned_document)
 
-from p417_mcp import register_p417_tools
+from p417_mcp import register_p417_tools, execute_owned_intent_transformation
 P417_DOCUMENT_INTELLIGENCE = register_p417_tools(core, _owned_document, _refresh_p417_execution)
+
+from p417_semantics import recover_semantic_structure
+from p418_mcp import register_p418_tools
+
+
+def _p418_create_adapter(
+    plan: dict,
+    filename: str,
+    request_id: str,
+    design_mode: str,
+    explicit_tokens: dict | None,
+    link_ttl_seconds: int,
+):
+    return _product_create_impl(
+        plan,
+        filename,
+        request_id,
+        design_mode,
+        explicit_tokens,
+        int(link_ttl_seconds),
+        "P418_CREATE_TASK",
+    )
+
+
+def _p418_edit_intent_adapter(**kwargs):
+    return execute_owned_intent_transformation(
+        core,
+        _owned_document,
+        _refresh_p417_execution,
+        **kwargs,
+    )
+
+
+def _p418_inspect_adapter(document_id: str) -> dict:
+    metadata, _path = _owned_document(document_id)
+    return {
+        "ok": True,
+        "document_id": document_id,
+        "revision": int(metadata.get("revision", 1)),
+        "filename": metadata.get("filename"),
+        "sha256": metadata.get("sha256"),
+        "bytes": metadata.get("bytes"),
+        "semantic_sha256": metadata.get("semantic_sha256"),
+        "structure_sha256": metadata.get("structure_sha256"),
+    }
+
+
+def _p418_semantic_graph_adapter(document_id: str) -> dict:
+    metadata, path = _owned_document(document_id)
+    return {
+        "ok": True,
+        "document_id": document_id,
+        "revision": int(metadata.get("revision", 1)),
+        **recover_semantic_structure(path),
+    }
+
+
+def _p418_document_map_adapter(document_id: str) -> dict:
+    metadata, path = _owned_document(document_id)
+    return {
+        "ok": True,
+        "document_id": document_id,
+        "revision": int(metadata.get("revision", 1)),
+        **build_document_map(path),
+    }
+
+
+P418_DOCUMENT_AGENT = register_p418_tools(
+    core,
+    create_adapter=_p418_create_adapter,
+    edit_intent_adapter=_p418_edit_intent_adapter,
+    template_fill_adapter=fill_template_and_deliver,
+    deliver_adapter=deliver_document,
+    inspect_adapter=_p418_inspect_adapter,
+    semantic_graph_adapter=_p418_semantic_graph_adapter,
+    document_map_adapter=_p418_document_map_adapter,
+)
 
 
 if __name__ == "__main__":

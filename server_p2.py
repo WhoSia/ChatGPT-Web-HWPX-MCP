@@ -261,6 +261,26 @@ def _refresh_metadata(
     return metadata
 
 
+def _refresh_p417_execution(document_id: str, metadata: dict, path: Path, receipt: dict) -> dict:
+    validation = receipt.get("package_validation")
+    if not isinstance(validation, dict):
+        validation = core.validate_hwpx_package(
+            path,
+            ingress=metadata.get("source") == "existing-ingress",
+        )
+    return _refresh_metadata(
+        document_id,
+        metadata,
+        validation,
+        build_document_map(path),
+        build_formatting_map(path),
+        build_inline_map(path),
+        build_table_map(path),
+        build_object_map(path),
+        build_equation_map(path),
+    )
+
+
 @core.mcp.tool()
 def acquire_document_lease(
     document_id: str,
@@ -7204,7 +7224,7 @@ from p416_mcp import register_p416_tools
 P416_DOCUMENT_PROVENANCE = register_p416_tools(core, _owned_document)
 
 from p417_mcp import register_p417_tools
-P417_DOCUMENT_INTELLIGENCE = register_p417_tools(core, _owned_document)
+P417_DOCUMENT_INTELLIGENCE = register_p417_tools(core, _owned_document, _refresh_p417_execution)
 
 
 if __name__ == "__main__":

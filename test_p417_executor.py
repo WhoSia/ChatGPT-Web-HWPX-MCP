@@ -5,6 +5,18 @@ from pathlib import Path
 
 import pytest
 
+from p340_feedback_loop import apply_nested_paragraph_alignment_atomic
+
+from p335_atlas import _sha as atlas_sha
+
+from p321_document_composer import compose_document_plan
+
+from p28_tables import build_table_map
+
+from p22_formatting import build_formatting_map
+
+from hwpx import HwpxDocument
+
 from p2_document import build_document_map
 from p417_executor import compose_post_edit_native_authority, execute_transformation_atomic, transformation_execution_contract
 from p417_planner import plan_document_transformation
@@ -180,3 +192,215 @@ def test_native_failure_receipt_never_promotes_execution(tmp_path):
     assert composed["binding_verified"] is True
     assert composed["native_visual_authority"] is False
     assert composed["verdict"] == "NATIVE_RENDER_FAILED"
+
+
+
+def _p417_reference_fixture(path: Path) -> tuple[str, str]:
+    doc = HwpxDocument.new()
+    doc.add_paragraph("기관 제목")
+    doc.add_paragraph("본문 기준 문장")
+    doc.save_to_path(path)
+    doc.close()
+    rows = [
+        row
+        for row in build_formatting_map(path)["paragraphs"]
+        if row.get("direct_text_length")
+    ]
+    return rows[0]["locator"], rows[1]["locator"]
+
+
+def _p417_reference_template() -> dict:
+    row = {
+        "schema": "hwpx-template-candidate/v1",
+        "source_corpus_sha256": "1" * 64,
+        "synthesis_mode": "EXPLICIT_EXEMPLAR",
+        "role_presets": {
+            "title": {
+                "run_format": {"font": "Arial", "size": 15.0, "color": "112233"},
+                "paragraph_format": {"alignment": "CENTER", "spacing_after_pt": 6.0},
+            },
+            "body": {
+                "run_format": {"font": "Arial", "size": 10.5, "color": "112233"},
+                "paragraph_format": {"alignment": "LEFT", "line_spacing_percent": 160},
+            },
+        },
+        "support": {"documents": 1},
+        "source_ids": ["official-a"],
+        "source_receipts": {"official-a": "2" * 64},
+        "institutions": ["기관A"],
+        "dimension_provenance": {},
+        "unresolved_dimensions": [],
+        "compatibility_notes": "P4.17 delegate-only fixture",
+        "authority": "EVIDENCE_GUIDED_TEMPLATE_CANDIDATE",
+    }
+    row["template_sha256"] = atlas_sha(row)
+    row["template_id"] = "tpl_" + row["template_sha256"][:24]
+    return row
+
+
+def _p417_reference_policy() -> dict:
+    return {
+        "organization_id": "org-a",
+        "policy_id": "brand-2026",
+        "hard": {
+            "allowed_fonts": ["Arial"],
+            "allowed_colors": ["112233"],
+            "min_size_pt": 9,
+            "max_size_pt": 18,
+            "required_roles": ["title", "body"],
+            "required_literal_text": ["기관 제목"],
+            "allowed_template_institutions": ["기관A"],
+            "required_preservation_grade": "TARGETED_PARTS_ONLY",
+        },
+        "soft": {
+            "preferred_fonts": ["Arial"],
+            "preferred_colors": ["112233"],
+        },
+    }
+
+
+def test_delegate_only_reference_transfer_executes_atomically(tmp_path):
+    path = tmp_path / "reference-only.hwpx"
+    title, body = _p417_reference_fixture(path)
+    before = build_document_map(path)
+    graph = recover_semantic_structure(path)
+    plan = plan_document_transformation(
+        intent={
+            "goal": "reference-conditioned styling only",
+            "actions": [
+                {
+                    "action": "reference_style_transfer",
+                    "roles": ["TITLE", "BODY"],
+                }
+            ],
+            "preservation": {"required_grade": "TARGETED_PARTS_ONLY"},
+        },
+        semantic_graph=graph,
+        document_map=before,
+        reference_graph=graph,
+    )
+    assert plan["decision"] == "DELEGATE"
+    receipt = execute_transformation_atomic(
+        path,
+        plan,
+        expected_revision=1,
+        current_revision=1,
+        reference_transfer={
+            "template": _p417_reference_template(),
+            "targets_by_role": {"title": [title], "body": [body]},
+            "policy": _p417_reference_policy(),
+        },
+    )
+    after = build_document_map(path)
+    assert receipt["reference_transfer_applied"] is True
+    assert receipt["repair_applied"] is False
+    assert receipt["preservation_enforcement"]["passed"] is True
+    assert before["semantic_sha256"] == after["semantic_sha256"]
+    assert before["structure_sha256"] == after["structure_sha256"]
+
+
+def test_delegate_only_repair_executes_with_outer_footprint(tmp_path):
+    path = tmp_path / "repair-only.hwpx"
+    compose_document_plan(
+        path,
+        {
+            "preset": "polished-report",
+            "blocks": [
+                {"id": "title", "type": "title", "text": "P4.17 repair"},
+                {
+                    "id": "table",
+                    "type": "table",
+                    "rows": 2,
+                    "cols": 2,
+                    "first_row_header": True,
+                    "cells": [
+                        ["항목", "설명"],
+                        ["A", "장문 표 문단의 정렬을 국소적으로 수정합니다."],
+                    ],
+                },
+            ],
+        },
+    )
+    mapped = build_document_map(path)
+    nested = next(
+        row["locator"]
+        for row in mapped["paragraphs"]
+        if "장문 표 문단" in row["text"] and row["body_global_index"] is None
+    )
+    apply_nested_paragraph_alignment_atomic(path, [nested], alignment="CENTER")
+    graph = recover_semantic_structure(path)
+    plan = plan_document_transformation(
+        intent={
+            "goal": "repair visual defect only",
+            "actions": [
+                {
+                    "action": "repair_visual_defects",
+                    "roles": ["TABLE_CELL"],
+                }
+            ],
+            "preservation": {"required_grade": "TARGETED_PARTS_ONLY"},
+        },
+        semantic_graph=graph,
+        document_map=build_document_map(path),
+    )
+    assert plan["decision"] == "DELEGATE"
+    repair_plan = {
+        "repair_plan_sha256": "9" * 64,
+        "actions": [
+            {
+                "action": "LEFT_ALIGN_LONG_TABLE_TEXT",
+                "status": "EXECUTABLE",
+                "reason": "TABLE_LONG_TEXT_CENTERED",
+                "operation": {
+                    "op": "align_nested_table_paragraphs",
+                    "targets": [nested],
+                    "alignment": "LEFT",
+                },
+            }
+        ],
+    }
+    receipt = execute_transformation_atomic(
+        path,
+        plan,
+        expected_revision=1,
+        current_revision=1,
+        repair_plan=repair_plan,
+    )
+    assert receipt["repair_applied"] is True
+    assert receipt["reference_transfer_applied"] is False
+    assert receipt["preservation_enforcement"]["passed"] is True
+    assert receipt["verdict"].startswith("REPAIRED_AND_STRUCTURALLY_VERIFIED")
+    after = next(
+        row
+        for row in build_formatting_map(path)["paragraphs"]
+        if row["locator"] == nested
+    )
+    assert str(
+        (after["paragraph_property"]["alignment"] or {}).get("horizontal")
+    ).upper() == "LEFT"
+
+
+def test_replan_is_bounded_to_next_plan_without_recursive_mutation(tmp_path):
+    path = tmp_path / "bounded-replan.hwpx"
+    make_hwpx(path)
+    first = make_plan(path, "첫 실행 제목")
+    receipt = execute_transformation_atomic(
+        path,
+        first,
+        expected_revision=7,
+        current_revision=7,
+        replan_intent={
+            "goal": "plan the next title change only",
+            "actions": [
+                {
+                    "action": "replace_role_text",
+                    "role": "TITLE",
+                    "text": "다음 계획 제목",
+                }
+            ],
+        },
+    )
+    assert build_document_map(path)["paragraphs"][0]["text"] == "첫 실행 제목"
+    assert receipt["next_plan"]["decision"] == "SAFE_TO_PLAN"
+    assert receipt["next_plan"]["operations"][0]["text"] == "다음 계획 제목"
+    assert receipt["revision_after"] == 8

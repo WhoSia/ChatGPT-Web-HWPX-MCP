@@ -397,6 +397,8 @@ async def main() -> None:
                 "validate_p417_transformation_plan",
                 "plan_p417_document_transformation",
                 "get_p417_transformation_planning_contract",
+                "execute_p417_document_transformation",
+                "get_p417_transformation_execution_contract",
                 "infer_p417_corpus_document_schema",
                 "align_p417_semantic_documents",
                 "classify_p417_native_components",
@@ -446,6 +448,8 @@ async def main() -> None:
                 or "verify_p416_generation_manifest" not in (p2_caps.get("tools_added") or [])
                 or "get_p417_semantic_structure_contract" not in (p2_caps.get("tools_added") or [])
                 or "get_p417_semantic_document_graph" not in (p2_caps.get("tools_added") or [])
+                or "get_p417_transformation_execution_contract" not in (p2_caps.get("tools_added") or [])
+                or "execute_p417_document_transformation" not in (p2_caps.get("tools_added") or [])
             ):
                 raise RuntimeError(f"p2_capabilities failed: {p2_caps}")
 
@@ -552,6 +556,16 @@ async def main() -> None:
             ):
                 raise RuntimeError(f"P4.17-P3 planning contract failed: {p417_p3_contract}")
 
+            p417_p4_contract = _payload(await client.call_tool("get_p417_transformation_execution_contract", {}))
+            if (
+                not p417_p4_contract
+                or p417_p4_contract.get("phase") != "P4.17"
+                or p417_p4_contract.get("product") != P417_PRODUCT
+                or p417_p4_contract.get("transaction") != "COPY_EXECUTE_VERIFY_ATOMIC_REPLACE"
+                or p417_p4_contract.get("authority") != "EXECUTION_RECEIPT_AUTHORITY_NOT_NATIVE_VISUAL_TRUTH"
+            ):
+                raise RuntimeError(f"P4.17-P4 execution contract failed: {p417_p4_contract}")
+
             if RUN_WRITE_TEST:
                 p416_created = _payload(await client.call_tool("create_unified_document_and_deliver", {
                     "spec": {
@@ -604,6 +618,32 @@ async def main() -> None:
                     or p417_plan_check.get("mutation_footprint_required") is not True
                 ):
                     raise RuntimeError(f"P4.17-P3 plan validation failed: {p417_plan_check}")
+                p417_execution = _payload(await client.call_tool("execute_p417_document_transformation", {
+                    "document_id": p416_document_id,
+                    "expected_revision": int(p417_plan.get("revision", 1)),
+                    "plan": p417_plan
+                }))
+                if (
+                    not p417_execution
+                    or p417_execution.get("verdict") != "STRUCTURALLY_VERIFIED_NATIVE_RENDER_PENDING"
+                    or p417_execution.get("revision_after") != int(p417_plan.get("revision", 1)) + 1
+                    or (p417_execution.get("preservation_enforcement") or {}).get("passed") is not True
+                    or (p417_execution.get("render_validation") or {}).get("native_visual_authority") is not False
+                    or not p417_execution.get("execution_receipt_sha256")
+                ):
+                    raise RuntimeError(f"P4.17-P4 execution failed: {p417_execution}")
+                p417_after_graph = _payload(await client.call_tool("get_p417_semantic_document_graph", {
+                    "document_id": p416_document_id
+                }))
+                if (
+                    not p417_after_graph
+                    or p417_after_graph.get("revision") != p417_execution.get("revision_after")
+                    or not any(
+                        block.get("text") == "P4.17 planned title"
+                        for block in (p417_after_graph.get("blocks") or [])
+                    )
+                ):
+                    raise RuntimeError(f"P4.17-P4 execution read-back failed: {p417_after_graph}")
                 if (
                     not p417_graph
                     or p417_graph.get("schema") != "chatgpt-web-hwpx-mcp/p4.17/semantic-document-graph/v1"

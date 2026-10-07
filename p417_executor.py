@@ -15,8 +15,14 @@ from p342_mutation_footprint import (
     build_mutation_footprint,
     enforce_preservation_grade,
 )
-from p343_design_system import apply_constraint_preserving_template_migration_atomic
-from p342_mutation_footprint import apply_document_design_repairs_with_footprint_atomic
+from p343_design_system import (
+    apply_constraint_preserving_template_migration_atomic,
+    plan_constraint_preserving_style_transfer,
+)
+from p342_mutation_footprint import (
+    apply_document_design_repairs_with_footprint_atomic,
+    expected_scope_for_design_repair,
+)
 from p417_planner import PLAN_SCHEMA, plan_document_transformation
 from p417_semantics import recover_semantic_structure
 
@@ -98,6 +104,33 @@ def _expected_scope(path: Path, operations: list[dict], *, delegate_changes_head
     }
 
 
+def _merge_expected_scopes(*scopes: Mapping[str, Any] | None) -> dict:
+    changed: set[str] = set()
+    added: set[str] = set()
+    removed: set[str] = set()
+    required: set[str] = set()
+    require_metadata = False
+    labels: list[str] = []
+    for scope in scopes:
+        if not scope:
+            continue
+        changed.update(str(x) for x in scope.get("changed_parts") or [])
+        added.update(str(x) for x in scope.get("added_parts") or [])
+        removed.update(str(x) for x in scope.get("removed_parts") or [])
+        required.update(str(x) for x in scope.get("required_changed_parts") or [])
+        require_metadata = require_metadata or bool(scope.get("require_untouched_record_metadata"))
+        if scope.get("label"):
+            labels.append(str(scope.get("label")))
+    return {
+        "changed_parts": sorted(changed),
+        "added_parts": sorted(added),
+        "removed_parts": sorted(removed),
+        "required_changed_parts": sorted(required),
+        "require_untouched_record_metadata": require_metadata,
+        "label": " + ".join(labels)[:240] or "P4.17_VERIFIED_TRANSFORMATION_TARGET_PARTS",
+    }
+
+
 def _render_adjudication(render_evidence: Mapping[str, Any] | None) -> dict:
     if not render_evidence:
         return {
@@ -175,11 +208,28 @@ def execute_transformation_atomic(
     if repair_requested and not repair_plan:
         raise ValueError("repair delegate requires repair_plan payload")
 
-    expected_scope = _expected_scope(
+    direct_scope = _expected_scope(
         path,
         operations,
-        delegate_changes_header=bool(reference_requested or repair_requested),
+        delegate_changes_header=False,
     )
+    reference_scope = None
+    if reference_requested:
+        payload = dict(reference_transfer or {})
+        reference_preview = plan_constraint_preserving_style_transfer(
+            path,
+            dict(payload.get("template") or {}),
+            dict(payload.get("targets_by_role") or {}),
+            dict(payload.get("policy") or {}),
+            expected_revision=1,
+        )
+        reference_scope = reference_preview.get("expected_scope")
+    repair_scope = (
+        expected_scope_for_design_repair(path, dict(repair_plan or {}))
+        if repair_requested
+        else None
+    )
+    expected_scope = _merge_expected_scopes(direct_scope, reference_scope, repair_scope)
 
     fd, tmp_name = tempfile.mkstemp(prefix=path.stem + ".p417-exec-", suffix=".hwpx", dir=str(path.parent))
     os.close(fd)

@@ -5264,6 +5264,7 @@ def p2_capabilities() -> dict:
             "plan_p417_document_transformation",
             "get_p417_transformation_planning_contract",
             "execute_p417_document_transformation",
+            "execute_p417_intent_transformation",
             "get_p417_transformation_execution_contract",
             "align_p417_semantic_documents",
             "classify_p417_native_components",

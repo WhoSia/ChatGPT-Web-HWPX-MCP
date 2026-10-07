@@ -139,14 +139,20 @@ def recover_semantic_structure(path: str | Path) -> dict:
             except ET.ParseError:
                 continue
 
+            paragraph_index = 0
+
             def walk(elem: ET.Element, *, in_table: bool = False, first_table_row: bool = False) -> None:
+                nonlocal paragraph_index
                 local = _local(elem.tag)
                 kind = _component_kind(local)
                 if kind == "PARAGRAPH":
+                    current_paragraph_index = paragraph_index
+                    paragraph_index += 1
                     raw_blocks.append({
                         "kind": kind,
                         "section_index": section_index,
                         "source_part": name,
+                        "paragraph_index": current_paragraph_index,
                         "text": _text(elem),
                         "attrs": _attrs(elem),
                         "in_table": in_table,

@@ -5,7 +5,7 @@ This file is the single compact repository-level authority note for product phas
 ## Current product line
 
 - Product: `0.42.0-p4.17`
-- Active program: **P4.17 — Corpus-Grounded Document Intelligence**
+- Active program: **P4.17 — Corpus-Grounded Document Intelligence (CLOSED; next program P4.18)**
 - Production authority remains evidence-separated from native Hancom visual authority.
 - Public HWPX acquisition evidence does not imply redistribution permission.
 - Runtime/product code changes require normal exact-head CI; documentation-only hygiene commits do not retroactively change the tested runtime evidence.
@@ -18,6 +18,8 @@ This file is the single compact repository-level authority note for product phas
 | P4.17-P2 — Semantic Structure Recovery, Section/Role Hierarchy Induction, Repeated Layout Grammar Discovery, Native Component Classification, Cross-Document Structural Alignment & Corpus-Grounded Document Schema Inference | **CLOSED** | Semantic graph, hierarchy recovery, repeated-layout grammar, component classification, alignment and schema inference integrated with MCP/lifecycle. |
 | P4.17-P3 — Intent-Aware Document Transformation Planning, Semantic-Graph-to-Native Edit Compilation, Reference-Conditioned Structure & Style Transfer, Constraint-Preserving Minimal Mutation, Template/Archetype Adaptation, Cross-Document Pattern Reuse, Repair-Aware Plan Validation & Corpus-Grounded Authoring Decision Engine | **CLOSED** | Code authority `3805680899e96e4492efb7d465230ee861110dca`: P4.17 corpus-kernel PASS, exact-head Docker PASS, full lifecycle PASS, Windows PASS. Remaining live-official-corpus failure belongs to the frozen P1 HOLD-CLOSED lane. |
 
+| P4.17-P4 — Verified Native Transformation Execution, Transactional Semantic-to-HWPX Mutation, Constraint-Enforced Plan Realization, Mutation-Footprint & Fidelity Receipt Composition, Render-Grounded Post-Edit Validation, Automatic Repair/Replan Loops, Reference-Conditioned Authoring Execution & End-to-End Intent→Plan→Edit→Verify Document Intelligence | **CLOSED** | Runtime/code authority `25383e5c5f343a45a411ed24977da4d1923c691c`; release/production authority `27d63035d05cac2f44e4ef77489aae43a3db4289`. P4.17 CI #59 SUCCESS, full lifecycle #1512 SUCCESS, Windows SUCCESS, production boundary #1497 SUCCESS, Render deploy `dep-db2u41h42hec73ftvqmg` LIVE. Direct native edits, delegate-only reference/repair execution, bounded replanning, mutation-footprint/fidelity/semantic receipts, and P4.14-bound post-edit native authority composition are implemented. Caller-supplied render metadata cannot self-authorize native PASS. |
+
 ## Active authority boundaries
 
 `RELEASE_AUTHORITY != DOCUMENT_AUTHORITY`
@@ -29,6 +31,8 @@ This file is the single compact repository-level authority note for product phas
 `STRUCTURAL_SEMANTIC_INFERENCE != NATIVE_VISUAL_TRUTH`
 
 `PLAN_AUTHORITY != EXECUTION_AUTHORITY`
+
+`EXECUTION_AUTHORITY != NATIVE_VISUAL_AUTHORITY`
 
 Transformation planning must fail closed or delegate when the existing native edit stack cannot support an operation. P3.17 fidelity classification, P3.42 mutation-footprint evidence, and P3.43 constraint-preserving style transfer remain reusable lower-level authority layers.
 

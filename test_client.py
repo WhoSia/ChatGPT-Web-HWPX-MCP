@@ -599,14 +599,17 @@ async def main() -> None:
                     "document_id": p416_document_id,
                     "intent": {
                         "goal": "replace the document title with minimal mutation",
-                        "actions": [{"action": "replace_role_text", "role": "TITLE", "text": "P4.17 planned title"}],
+                        "actions": [
+                            {"action": "replace_role_text", "role": "TITLE", "text": "P4.17 planned title"},
+                            {"action": "style_role", "role": "TITLE", "format": {"bold": True}}
+                        ],
                         "preservation": {"required_grade": "TARGETED_PARTS_ONLY"}
                     }
                 }))
                 if (
                     not p417_plan
                     or p417_plan.get("decision") != "SAFE_TO_PLAN"
-                    or len(p417_plan.get("operations") or []) != 1
+                    or len(p417_plan.get("operations") or []) != 2
                     or (p417_plan.get("operations") or [{}])[0].get("op") != "replace_paragraph_text"
                     or p417_plan.get("execution_authority") != "PLAN_ONLY_NO_MUTATION_PERFORMED"
                 ):
@@ -625,7 +628,10 @@ async def main() -> None:
                     "expected_revision": int(p417_plan.get("revision", 1)),
                     "intent": {
                         "goal": "replace the document title with minimal mutation",
-                        "actions": [{"action": "replace_role_text", "role": "TITLE", "text": "P4.17 planned title"}],
+                        "actions": [
+                            {"action": "replace_role_text", "role": "TITLE", "text": "P4.17 planned title"},
+                            {"action": "style_role", "role": "TITLE", "format": {"bold": True}}
+                        ],
                         "preservation": {"required_grade": "TARGETED_PARTS_ONLY"}
                     }
                 }))

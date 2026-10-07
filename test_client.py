@@ -399,6 +399,7 @@ async def main() -> None:
                 "get_p417_transformation_planning_contract",
                 "execute_p417_document_transformation",
                 "execute_p417_intent_transformation",
+                "verify_p417_post_edit_native_authority",
                 "get_p417_transformation_execution_contract",
                 "infer_p417_corpus_document_schema",
                 "align_p417_semantic_documents",
@@ -452,6 +453,7 @@ async def main() -> None:
                 or "get_p417_transformation_execution_contract" not in (p2_caps.get("tools_added") or [])
                 or "execute_p417_document_transformation" not in (p2_caps.get("tools_added") or [])
                 or "execute_p417_intent_transformation" not in (p2_caps.get("tools_added") or [])
+                or "verify_p417_post_edit_native_authority" not in (p2_caps.get("tools_added") or [])
             ):
                 raise RuntimeError(f"p2_capabilities failed: {p2_caps}")
 
@@ -644,6 +646,18 @@ async def main() -> None:
                     or not p417_execution.get("execution_receipt_sha256")
                 ):
                     raise RuntimeError(f"P4.17-P4 execution failed: {p417_execution}")
+                p417_post_edit_native = _payload(await client.call_tool("verify_p417_post_edit_native_authority", {
+                    "document_id": p416_document_id,
+                    "execution_receipt": p417_execution.get("execution_receipt") or p417_execution
+                }))
+                if (
+                    not p417_post_edit_native
+                    or p417_post_edit_native.get("binding_verified") is not True
+                    or p417_post_edit_native.get("native_visual_authority") is not False
+                    or p417_post_edit_native.get("verdict") != "STRUCTURALLY_VERIFIED_NATIVE_RENDER_PENDING"
+                    or (p417_post_edit_native.get("native_trust_receipt") or {}).get("authority_class") != "NATIVE_VERIFICATION_PENDING"
+                ):
+                    raise RuntimeError(f"P4.17-P4 post-edit native authority verification failed: {p417_post_edit_native}")
                 p417_after_graph = _payload(await client.call_tool("get_p417_semantic_document_graph", {
                     "document_id": p416_document_id
                 }))

@@ -5263,6 +5263,8 @@ def p2_capabilities() -> dict:
             "validate_p417_transformation_plan",
             "plan_p417_document_transformation",
             "get_p417_transformation_planning_contract",
+            "execute_p417_document_transformation",
+            "get_p417_transformation_execution_contract",
             "align_p417_semantic_documents",
             "classify_p417_native_components",
             "get_p417_semantic_document_graph",

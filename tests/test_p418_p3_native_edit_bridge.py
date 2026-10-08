@@ -166,3 +166,83 @@ def test_reject_untrusted_kind_without_claim():
     with pytest.raises(AdmissionError, match="only admits one EDIT_INTENT"):
         execute_host_approved_native_edit(**opts)
     assert opts["ledger"].claim_calls == 0
+
+
+def test_real_hwpx_native_title_edit_commits_and_does_not_repeat(tmp_path):
+    """Runs the native P4.17 engine on actual HWPX ZIP bytes, not a mock edit."""
+    import hashlib
+    import zipfile
+    from p417_mcp import execute_owned_intent_transformation
+    from p2_document import build_document_map
+
+    path = tmp_path / "actual.hwpx"
+    body = """<?xml version="1.0" encoding="UTF-8"?>
+<section xmlns="http://www.hancom.co.kr/hwpml/2011/section">
+  <p id="1"><run><t>원본 문서 제목</t></run></p>
+  <p id="2"><run><t>1. 개요</t></run></p>
+  <p id="3"><run><t>원본 본문은 보존합니다.</t></run></p>
+</section>"""
+    with zipfile.ZipFile(path, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr("Contents/section0.xml", body)
+        zf.writestr("mimetype", "application/hwp+zip")
+    before_bytes = path.read_bytes()
+    initial_sha = hashlib.sha256(before_bytes).hexdigest()
+    core, ledger = Core(), Ledger()
+    core.metadata["doc1"]["sha256"] = initial_sha
+    snapshot = {"documents": [{
+        "role": "document_id", "document_id": "doc1",
+        "revision": 4, "sha256": initial_sha,
+    }]}
+    task = {
+        "kind": "EDIT_INTENT", "document_id": "doc1", "expected_revision": 4,
+        "intent": {
+            "goal": "제목만 수정",
+            "actions": [{"action": "replace_role_text", "role": "TITLE", "text": "승인된 새 제목"}],
+            "preservation": {"required_grade": "TARGETED_PARTS_ONLY"},
+        },
+    }
+    draft = compile_workflow({"steps": [{"task": task}]}, [{"document_id": "doc1", "revision": 4}])
+    core._utc_iso = lambda: "2026-10-08T00:00:00Z"
+    core.validate_hwpx_package = lambda target, ingress=False: {
+        "sha256": hashlib.sha256(target.read_bytes()).hexdigest(),
+        "bytes": target.stat().st_size,
+    }
+    native_calls = []
+
+    def refresh_document(document_id, metadata, changed_path, receipt):
+        data = changed_path.read_bytes()
+        sha = hashlib.sha256(data).hexdigest()
+        core.metadata[document_id] = {**metadata, "sha256": sha}
+        core.DOCUMENT_STORE.commits[(document_id, 5)] = {
+            "document_id": document_id, "revision": 5, "expected_revision": 4,
+            "sha256": sha, "receipt_id": "native-real-file-commit",
+            "audit_hash": hashlib.sha256((sha + ":native").encode()).hexdigest(),
+        }
+        return core.metadata[document_id]
+
+    def native_adapter(**kwargs):
+        native_calls.append(1)
+        return execute_owned_intent_transformation(
+            core,
+            lambda doc_id: (core._load_metadata(doc_id), path),
+            refresh_document,
+            **kwargs,
+        )
+
+    opts = {
+        "core": core, "ledger": ledger, "workflow_id": "real-file-edit",
+        "approval_key": "host-approval", "draft": draft,
+        "preview": preview_workflow(draft),
+        "bound_inputs": snapshot, "execution_key": "real-native-file-execution-key",
+        "native_edit_adapter": native_adapter,
+    }
+    result = execute_host_approved_native_edit(**opts)
+    assert result["state"] == "COMMITTED"
+    assert result["result"]["receipt_id"] == "native-real-file-commit"
+    assert path.read_bytes() != before_bytes
+    mapped = build_document_map(path)
+    assert mapped["paragraphs"][0]["text"] == "승인된 새 제목"
+    assert mapped["paragraphs"][2]["text"] == "원본 본문은 보존합니다."
+    replay = execute_host_approved_native_edit(**opts)
+    assert replay["delivery_only"] and not replay["mutation_executed"]
+    assert len(native_calls) == 1

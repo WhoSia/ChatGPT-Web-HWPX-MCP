@@ -3,7 +3,7 @@ from __future__ import annotations
 import copy
 import pytest
 
-from p418_p2_workflow import compile_workflow
+from hwpx_mcp.orchestration.p418_p2_workflow import compile_workflow
 
 DOCS = [
     {"document_id": "target", "revision": 3},

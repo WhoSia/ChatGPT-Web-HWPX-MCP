@@ -9,9 +9,11 @@ returns a client-provided replacement as evidence.
 from __future__ import annotations
 
 import hashlib
+import hmac
 import json
 import os
 from collections.abc import Mapping
+from datetime import datetime, timezone
 from functools import lru_cache
 from typing import Any
 
@@ -50,6 +52,64 @@ class DurableNativeReviewStore:
                     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
                 )
             """)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS hwpx_p418_host_auth_attempt (
+                    workflow_id TEXT PRIMARY KEY
+                        REFERENCES hwpx_p418_workflow_admission(workflow_id)
+                        ON DELETE CASCADE,
+                    failure_count INTEGER NOT NULL DEFAULT 0,
+                    locked_until TIMESTAMPTZ,
+                    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                )
+            """)
+
+    def verify_host_passphrase(self, *, owner: str, workflow_id: str,
+                               supplied: str, expected: str) -> bool:
+        """Transactionally bound, lockout-protected independent human reauth.
+
+        At 5 failed checks the workflow is locked for the remaining approval
+        attempt. This table never stores plaintext or a reusable password
+        verifier, and unknown/expired workflows never disclose their presence.
+        """
+        if not isinstance(owner, str) or not owner or not isinstance(workflow_id, str) or not workflow_id:
+            return False
+        if not isinstance(supplied, str) or not isinstance(expected, str) or len(expected) < 24:
+            return False
+        if len(supplied) > 1024:
+            return False
+        ok = hmac.compare_digest(
+            hashlib.sha256(supplied.encode("utf-8")).digest(),
+            hashlib.sha256(expected.encode("utf-8")).digest(),
+        )
+        with self._connect() as conn, conn.cursor() as cur:
+            cur.execute("""
+                SELECT workflow_id FROM hwpx_p418_workflow_admission
+                 WHERE workflow_id=%s AND owner_subject=%s
+                   AND state='STAGED' AND expires_at>NOW() FOR UPDATE
+            """, (workflow_id, owner))
+            if cur.fetchone() is None:
+                return False
+            cur.execute("""
+                SELECT failure_count,locked_until FROM hwpx_p418_host_auth_attempt
+                 WHERE workflow_id=%s FOR UPDATE
+            """, (workflow_id,))
+            row = cur.fetchone()
+            if row and (row[0] >= 5 or (row[1] is not None and row[1] > datetime.now(timezone.utc))):
+                return False
+            if ok:
+                cur.execute("""
+                    DELETE FROM hwpx_p418_host_auth_attempt WHERE workflow_id=%s
+                """, (workflow_id,))
+                return True
+            cur.execute("""
+                INSERT INTO hwpx_p418_host_auth_attempt
+                    (workflow_id,failure_count,updated_at)
+                VALUES (%s,1,NOW())
+                ON CONFLICT (workflow_id)
+                DO UPDATE SET failure_count=hwpx_p418_host_auth_attempt.failure_count+1,
+                              updated_at=NOW()
+            """, (workflow_id,))
+            return False
 
     @staticmethod
     def _aad(owner: str, workflow_id: str) -> bytes:

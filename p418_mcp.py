@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from typing import Any, Callable
 
 from mcp.types import CallToolResult, ToolAnnotations
@@ -163,7 +164,20 @@ def register_p418_tools(
             except Exception:
                 ledger.abort_unclaimed(owner=owner, workflow_id=record["workflow_id"])
                 raise
+        host_ready = (
+            task["kind"] == "EDIT_INTENT"
+            and len(os.environ.get("P418_HOST_REVIEW_PASSPHRASE", "")) >= 24
+            and len(os.environ.get("P418_HOST_APPROVAL_SIGNING_SECRET", "")) >= 32
+        )
+        review_url = (
+            str(getattr(core, "PUBLIC_BASE_URL", "")).rstrip("/")
+            + "/p418/host/review?workflow_id=" + record["workflow_id"]
+            if host_ready and str(getattr(core, "PUBLIC_BASE_URL", "")).startswith("https://")
+            else None
+        )
         return {"ok": True, **record,
+                "human_review_url": review_url,
+                "human_approval_enabled": review_url is not None,
                 "authority": "SERVER_VERIFIED_STAGING_ONLY_NO_APPROVAL_OR_EXECUTION"}
 
     @core.mcp.tool(annotations=write)

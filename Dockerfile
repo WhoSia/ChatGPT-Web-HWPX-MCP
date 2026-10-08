@@ -54,6 +54,7 @@ ENV P348_TS_RUNTIME=/app/runtime/scripts/p348_marketplace_cli.js
 ENV P349_TS_RUNTIME=/app/runtime/scripts/p349_composition_cli.js
 
 COPY *.py p414_evidence_store.sql ./
+COPY hwpx_mcp/ hwpx_mcp/
 COPY scripts/ scripts/
 COPY benchmarks/ benchmarks/
 COPY corpus/ corpus/

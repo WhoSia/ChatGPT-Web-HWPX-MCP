@@ -34,6 +34,8 @@ def verify_owned_hwp_commit(
     receipt = store.get_commit_receipt(document_id, revision)
     if not isinstance(receipt, Mapping):
         return False
+    if result.get("expected_revision") != expected_revision:
+        return False
     for field in ("document_id", "revision", "expected_revision"):
         if receipt.get(field) != {"document_id": document_id,
                                  "revision": revision,

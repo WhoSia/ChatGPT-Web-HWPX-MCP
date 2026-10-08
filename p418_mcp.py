@@ -8,6 +8,7 @@ from p418_product import PHASE, PRODUCT, document_agent_contract, prepare_docume
 from hwpx_mcp.orchestration.p418_p2_workflow import compile_workflow
 from hwpx_mcp.orchestration.p418_p2_preview import preview_workflow, correct_workflow
 from hwpx_mcp.orchestration.p418_p2_admission import get_durable_approval_ledger, AdmissionError
+from hwpx_mcp.orchestration.p418_p3_review_store import get_native_review_store
 
 
 def _structured(result: Any) -> dict:
@@ -140,11 +141,28 @@ def register_p418_tools(
         url = getattr(store, "database_url", None)
         if not url:
             raise AdmissionError("PostgreSQL durable custody required for workflow admission")
-        record = get_durable_approval_ledger(url).stage(
+        # P3 supports a trusted host review only when the exact normalized
+        # effect can survive a server restart in encrypted durable custody.
+        # Do not strand an executable approval without its reviewed payload.
+        secret = getattr(core, "STATE_SECRET", "")
+        if task["kind"] == "EDIT_INTENT" and (not isinstance(secret, str) or len(secret) < 32):
+            raise AdmissionError("encrypted server-side review secret required")
+        ledger = get_durable_approval_ledger(url)
+        staged_bindings = {"documents": identity_rows}
+        record = ledger.stage(
             owner=owner, draft_sha256=draft["draft_sha256"],
             preview_sha256=verified_preview["preview_sha256"],
-            bound_inputs={"documents": identity_rows},
+            bound_inputs=staged_bindings,
             effect_scope=task["kind"])
+        if task["kind"] == "EDIT_INTENT":
+            try:
+                get_native_review_store(url, secret).persist_staged(
+                    owner=owner, workflow_id=record["workflow_id"],
+                    draft=draft, preview=verified_preview,
+                    bound_inputs=staged_bindings)
+            except Exception:
+                ledger.abort_unclaimed(owner=owner, workflow_id=record["workflow_id"])
+                raise
         return {"ok": True, **record,
                 "authority": "SERVER_VERIFIED_STAGING_ONLY_NO_APPROVAL_OR_EXECUTION"}
 

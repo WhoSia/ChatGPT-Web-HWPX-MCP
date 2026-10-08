@@ -39,7 +39,8 @@ def claim(ledger, input_, staged, granted, **kw):
              approval_key=granted["approval_key"],
              draft_sha256=input_["draft_sha256"],
              preview_sha256=input_["preview_sha256"], bound_inputs=input_["bound_inputs"],
-             effect_scope=input_["effect_scope"], execution_key="stable-key-" + staged["workflow_id"])
+             effect_scope=input_["effect_scope"], execution_key="stable-key-" + staged["workflow_id"],
+             verify_live_bindings=lambda owner, bindings: owner == input_["owner"] and bindings == input_["bound_inputs"])
     d.update(kw)
     return ledger.claim(**d)
 
@@ -161,3 +162,12 @@ def test_unknown_outcome_can_be_reconciled_without_mutation_replay():
     assert resolved["mutation_replayed"] is False
     assert db.recover(owner=inputs["owner"], workflow_id=staged["workflow_id"])["recovery_route"] == "EXACT_REVISION_DELIVERY_ONLY"
     assert claim(db, inputs, staged, granted)["replay"] is True
+
+
+def test_live_revision_revalidation_blocks_stale_claim():
+    db = new_ledger()
+    inputs, staged = stage(db)
+    grant = approve(db, inputs, staged)
+    with pytest.raises(AdmissionError, match="live owner and revision"):
+        claim(db, inputs, staged, grant, verify_live_bindings=lambda *_: False)
+    assert db.recover(owner=inputs["owner"], workflow_id=staged["workflow_id"])["state"] == "APPROVED"

@@ -114,7 +114,7 @@ def test_staging_without_explicit_role_binding_still_supported(monkeypatch):
             assert url == "postgresql://unreached"
         def stage(self, **kwargs):
             return {"workflow_id": "fresh", "state": "STAGED", "approval_granted": False}
-    monkeypatch.setattr(p418_mcp, "DurableApprovalLedger", StubStore)
+    monkeypatch.setattr(p418_mcp, "get_durable_approval_ledger", lambda url: StubStore(url))
     draft, preview = sample()
     assert draft["resolved_inputs"] == {}
     result = core.mcp.tools["stage_p418_document_workflow"](draft, preview)

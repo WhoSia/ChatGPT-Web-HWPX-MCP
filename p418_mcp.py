@@ -38,6 +38,35 @@ def _augment(result: Any, extra: dict) -> Any:
     return result
 
 
+
+def _p418_public_compile_reason(exc: Exception) -> str:
+    """Only fixed public validation categories; never echo caller data."""
+    cause = str(exc)
+    categories = (
+        ("specification must be an object", "SPECIFICATION_NOT_OBJECT"),
+        ("unsupported workflow specification fields", "UNSUPPORTED_SPECIFICATION_FIELDS"),
+        ("steps must contain", "INVALID_STEP_COUNT"),
+        ("documents must be a sequence", "INVALID_DOCUMENT_CATALOG"),
+        ("document catalog exceeds", "DOCUMENT_CATALOG_TOO_LARGE"),
+        ("catalog entries must be objects", "INVALID_CATALOG_ENTRY"),
+        ("document IDs must be nonempty and unique", "INVALID_DOCUMENT_IDENTIFIERS"),
+        ("catalog revision must be", "INVALID_CATALOG_REVISION"),
+        ("input_bindings must be", "INVALID_INPUT_BINDINGS"),
+        ("unsupported input binding roles", "INVALID_BINDING_ROLE"),
+        ("must identify a catalog document", "UNKNOWN_BINDING_DOCUMENT"),
+        ("must contain only a typed task", "INVALID_STEP_SHAPE"),
+        ("task must be an object", "TASK_NOT_OBJECT"),
+        ("requires explicit TARGET selection", "MISSING_TARGET_BINDING"),
+        ("requires expected_revision", "MISSING_EXPECTED_REVISION"),
+        ("target missing or stale in catalog", "MISSING_OR_STALE_TARGET"),
+        ("multiple mutations require", "MULTIPLE_MUTATIONS_UNSUPPORTED"),
+        ("kind must be one of", "INVALID_TASK_KIND"),
+        ("intent must be", "INVALID_INTENT"),
+    )
+    return next((category for fragment, category in categories if fragment in cause),
+                "INVALID_WORKFLOW_INPUT")
+
+
 def register_p418_tools(
     core,
     *,
@@ -66,7 +95,14 @@ def register_p418_tools(
     def compile_p418_document_workflow(specification: dict, documents: list[dict]) -> dict:
         """Non-mutating workflow draft; caller catalog grants no ownership or approval."""
         core._caller_subject()
-        return {"ok": True, **compile_workflow(specification, documents)}
+        try:
+            return {"ok": True, **compile_workflow(specification, documents)}
+        except (ValueError, TypeError, KeyError, OverflowError) as exc:
+            # No caller content, secrets, or traces in public error replies.
+            return {"ok": False, "code": "WORKFLOW_COMPILATION_REJECTED",
+                    "error_type": type(exc).__name__,
+                    "reason": _p418_public_compile_reason(exc),
+                    "mutation_executed": False, "stage_created": False}
 
     @core.mcp.tool(annotations=read)
     def preview_p418_document_workflow(draft: dict) -> dict:

@@ -90,6 +90,15 @@ def execute_exact_approved_draft(
         raise AdmissionError("executed task differs from normalized approved task")
     if not callable(execute_normalized_task):
         raise AdmissionError("trusted normalized-task executor required")
+    if task["kind"] == "EDIT_INTENT":
+        document_id, before = task["document_id"], task["expected_revision"]
+        original_verify = verify_durable_commit
+        def verify_durable_commit(subject, receipt):
+            if not isinstance(receipt, Mapping):
+                return False
+            if receipt.get("document_id") != document_id or receipt.get("revision") != before + 1:
+                return False
+            return original_verify(subject, receipt)
     return execute_approved_once(
         ledger=ledger, owner=owner, workflow_id=workflow_id,
         approval_key=approval_key,

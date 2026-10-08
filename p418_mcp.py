@@ -6,6 +6,7 @@ from mcp.types import CallToolResult, ToolAnnotations
 
 from p418_product import PHASE, PRODUCT, document_agent_contract, prepare_document_task
 from hwpx_mcp.orchestration.p418_p2_workflow import compile_workflow
+from hwpx_mcp.orchestration.p418_p2_preview import preview_workflow, correct_workflow
 
 
 def _structured(result: Any) -> dict:
@@ -63,6 +64,18 @@ def register_p418_tools(
         """Non-mutating workflow draft; caller catalog grants no ownership or approval."""
         core._caller_subject()
         return {"ok": True, **compile_workflow(specification, documents)}
+
+    @core.mcp.tool(annotations=read)
+    def preview_p418_document_workflow(draft: dict) -> dict:
+        """Informational preview only; never produces approval or mutation authority."""
+        core._caller_subject()
+        return {"ok": True, **preview_workflow(draft)}
+
+    @core.mcp.tool(annotations=read)
+    def correct_p418_document_workflow(specification: dict, corrections: list[dict], documents: list[dict]) -> dict:
+        """Correct draft input and invalidate any prior preview or approval."""
+        core._caller_subject()
+        return {"ok": True, **correct_workflow(specification, corrections, documents)}
 
     @core.mcp.tool(annotations=write)
     def run_p418_document_task(task: dict):

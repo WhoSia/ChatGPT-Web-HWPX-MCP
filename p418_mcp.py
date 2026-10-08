@@ -7,6 +7,7 @@ from mcp.types import CallToolResult, ToolAnnotations
 from p418_product import PHASE, PRODUCT, document_agent_contract, prepare_document_task
 from hwpx_mcp.orchestration.p418_p2_workflow import compile_workflow
 from hwpx_mcp.orchestration.p418_p2_preview import preview_workflow, correct_workflow
+from hwpx_mcp.orchestration.p418_p2_admission import DurableApprovalLedger, AdmissionError
 
 
 def _structured(result: Any) -> dict:
@@ -76,6 +77,57 @@ def register_p418_tools(
         """Correct draft input and invalidate any prior preview or approval."""
         core._caller_subject()
         return {"ok": True, **correct_workflow(specification, corrections, documents)}
+
+    @core.mcp.tool(annotations=write)
+    def stage_p418_document_workflow(draft: dict, preview: dict) -> dict:
+        """Persist an unapproved workflow with server-verified document custody.
+
+        This does not approve or execute a mutation. A future trusted host
+        confirmation channel is required to turn STAGED into APPROVED.
+        """
+        owner = core._caller_subject()
+        verified_preview = preview_workflow(draft)
+        if not isinstance(preview, dict) or preview != verified_preview:
+            raise AdmissionError("preview does not match canonical server preflight")
+        mutation_steps = [s for s in draft["steps"] if s["effect"] == "MUTATION"]
+        if len(mutation_steps) != 1:
+            raise AdmissionError("exactly one mutation required for admission")
+        task = mutation_steps[0]["task"]
+        identity_rows = []
+        for field in ("document_id", "template_document_id", "reference_document_id"):
+            document_id = task.get(field)
+            if not document_id:
+                continue
+            metadata = core._load_metadata(document_id)
+            core._require_owner(metadata)
+            expected = task.get("expected_revision") if field == "document_id" else None
+            if expected is not None and int(metadata["revision"]) != expected:
+                raise AdmissionError("server-owned document revision changed")
+            identity_rows.append({"role": field, "document_id": document_id,
+                                  "revision": int(metadata["revision"]),
+                                  "sha256": str(metadata.get("sha256", ""))})
+        store = getattr(core, "DOCUMENT_STORE", None)
+        url = getattr(store, "database_url", None)
+        if not url:
+            raise AdmissionError("PostgreSQL durable custody required for workflow admission")
+        record = DurableApprovalLedger(url).stage(
+            owner=owner, draft_sha256=draft["draft_sha256"],
+            preview_sha256=verified_preview["preview_sha256"],
+            bound_inputs={"documents": identity_rows},
+            effect_scope=task["kind"])
+        return {"ok": True, **record,
+                "authority": "SERVER_VERIFIED_STAGING_ONLY_NO_APPROVAL_OR_EXECUTION"}
+
+    @core.mcp.tool(annotations=read)
+    def recover_p418_document_workflow(workflow_id: str) -> dict:
+        """Return durable recovery disposition; never replay a mutation."""
+        owner = core._caller_subject()
+        store = getattr(core, "DOCUMENT_STORE", None)
+        url = getattr(store, "database_url", None)
+        if not url:
+            raise AdmissionError("PostgreSQL durable custody required for recovery")
+        return {"ok": True, **DurableApprovalLedger(url).recover(
+            owner=owner, workflow_id=workflow_id)}
 
     @core.mcp.tool(annotations=write)
     def run_p418_document_task(task: dict):

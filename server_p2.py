@@ -7311,6 +7311,43 @@ P418_DOCUMENT_AGENT = register_p418_tools(
 )
 
 
+# P4.18-P3 HOST ONLY: this is a Python server integration hook, not an MCP tool
+# and not a public HTTP route. The independent interactive host must authenticate
+# the human and obtain the scoped one-time approval before invoking it.
+from hwpx_mcp.orchestration.p418_p2_admission import (
+    AdmissionError as P418AdmissionError,
+    get_durable_approval_ledger,
+)
+from hwpx_mcp.orchestration.p418_p3_native_edit_bridge import (
+    execute_host_approved_native_edit,
+)
+
+
+def _p418_execute_after_trusted_host_confirmation(
+    *, workflow_id: str, approval_key: str, draft: dict, preview: dict,
+    bound_inputs: dict, execution_key: str,
+) -> dict:
+    """Internal connection: approved EDIT_INTENT -> native edit -> durable receipt.
+
+    Deliberately unregistered. Independent host approval UI and origin
+    authentication remain required before this can be used in production.
+    """
+    url = getattr(core.DOCUMENT_STORE, "database_url", None)
+    if not url:
+        raise P418AdmissionError("durable PostgreSQL custody required")
+    return execute_host_approved_native_edit(
+        core=core,
+        ledger=get_durable_approval_ledger(url),
+        workflow_id=workflow_id,
+        approval_key=approval_key,
+        draft=draft,
+        preview=preview,
+        bound_inputs=bound_inputs,
+        execution_key=execution_key,
+        native_edit_adapter=_p418_edit_intent_adapter,
+    )
+
+
 if __name__ == "__main__":
     host = os.environ.get("MCP_HOST", "0.0.0.0")
     port = int(os.environ.get("PORT", os.environ.get("MCP_PORT", "8000")))

@@ -91,3 +91,34 @@ def test_staging_rejects_modified_preview_and_wrong_owner():
     core.documents["doc1"]["owner"] = "other"
     with pytest.raises(PermissionError, match="not owner"):
         core.mcp.tools["stage_p418_document_workflow"](draft, preview)
+
+
+def test_staging_rejects_self_hashed_forged_normalized_task():
+    from copy import deepcopy
+    from hwpx_mcp.orchestration.p418_p2_workflow import _digest
+    core = registered()
+    draft, _ = sample()
+    forged = deepcopy(draft)
+    forged["steps"][0]["task"]["intent"]["actions"][0]["text"] = "Unauthorized"
+    forged["steps"][0]["task"]["task_sha256"] = _digest(
+        {k: v for k, v in forged["steps"][0]["task"].items() if k != "task_sha256"}
+    )
+    forged.pop("draft_sha256")
+    forged["draft_sha256"] = _digest(forged)
+    forged_preview = preview_workflow(forged)
+    with pytest.raises(AdmissionError, match="canonically compiled"):
+        core.mcp.tools["stage_p418_document_workflow"](forged, forged_preview)
+
+
+def test_staging_without_explicit_role_binding_still_supported(monkeypatch):
+    core = registered()
+    class StubStore:
+        def __init__(self, url):
+            assert url == "postgresql://unreached"
+        def stage(self, **kwargs):
+            return {"workflow_id": "fresh", "state": "STAGED", "approval_granted": False}
+    monkeypatch.setattr(p418_mcp, "DurableApprovalLedger", StubStore)
+    draft, preview = sample()
+    assert draft["resolved_inputs"] == {}
+    result = core.mcp.tools["stage_p418_document_workflow"](draft, preview)
+    assert result["state"] == "STAGED"

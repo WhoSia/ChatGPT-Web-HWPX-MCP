@@ -41,9 +41,9 @@ jobs:
       - name: Install dependencies
         run: python -m pip install -r requirements.txt -r requirements-dev.txt
       - name: Compile P4.18 product facade
-        run: python -m py_compile p418_product.py p418_mcp.py hwpx_mcp/orchestration/p418_p2_workflow.py hwpx_mcp/orchestration/p418_p2_preview.py hwpx_mcp/orchestration/p418_p2_admission.py hwpx_mcp/orchestration/p418_p3_host_consent.py hwpx_mcp/orchestration/p418_p3_execution.py hwpx_mcp/orchestration/p418_p3_commit_verifier.py hwpx_mcp/orchestration/p418_p3_release_gate.py p417_mcp.py server_p2.py
+        run: python -m py_compile p418_product.py p418_mcp.py hwpx_mcp/orchestration/p418_p2_workflow.py hwpx_mcp/orchestration/p418_p2_preview.py hwpx_mcp/orchestration/p418_p2_admission.py hwpx_mcp/orchestration/p418_p3_host_consent.py hwpx_mcp/orchestration/p418_p3_execution.py hwpx_mcp/orchestration/p418_p3_commit_verifier.py hwpx_mcp/orchestration/p418_p3_release_gate.py hwpx_mcp/orchestration/p418_p3_owned_commit_bridge.py p417_mcp.py server_p2.py
       - name: P4.18 product task tests
-        run: python -m pytest -q test_p418_product.py tests/test_p418_p2_workflow.py tests/test_p418_p2_preview.py tests/test_p418_p2_staging.py tests/test_p418_p3_host_consent.py tests/test_p418_p3_execution.py tests/test_p418_p3_commit_verifier.py tests/test_p418_p3_release_gate.py test_p417_planner.py test_p417_executor.py
+        run: python -m pytest -q test_p418_product.py tests/test_p418_p2_workflow.py tests/test_p418_p2_preview.py tests/test_p418_p2_staging.py tests/test_p418_p3_host_consent.py tests/test_p418_p3_execution.py tests/test_p418_p3_commit_verifier.py tests/test_p418_p3_release_gate.py tests/test_p418_p3_owned_commit_bridge.py test_p417_planner.py test_p417_executor.py
 
   p2-postgres-admission:
     runs-on: ubuntu-latest

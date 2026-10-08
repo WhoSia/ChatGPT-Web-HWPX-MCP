@@ -88,3 +88,53 @@ def test_missing_trusted_host_callbacks_fail_without_claim():
     with pytest.raises(AdmissionError, match="trusted host"):
         invoke(db, lambda: {}, verify_live_bindings=None)
     assert db.calls == 0
+
+
+def test_exact_draft_executes_only_reviewed_task():
+    from hwpx_mcp.orchestration.p418_p2_workflow import compile_workflow
+    from hwpx_mcp.orchestration.p418_p2_preview import preview_workflow
+    from hwpx_mcp.orchestration.p418_p3_execution import execute_exact_approved_draft
+    db = Ledger()
+    specification = {"steps": [{"task": {
+        "kind": "EDIT_INTENT", "document_id": "target", "expected_revision": 2,
+        "intent": {"actions": [{"action": "replace_role_text", "role": "TITLE", "text": "Approved"}]}
+    }}]}
+    draft = compile_workflow(specification, [{"document_id": "target", "revision": 2}])
+    preview = preview_workflow(draft)
+    seen = []
+    kwargs = dict(ledger=db, owner="owner", workflow_id="w", approval_key="host-key",
+                  draft=draft, preview=preview, bound_inputs={"revision": 2},
+                  execution_key="stable",
+                  verify_live_bindings=lambda *_: True,
+                  execute_normalized_task=lambda task: (
+                      seen.append(task["intent"]["actions"][0]["text"]) or
+                      {"commit_receipt": "verified", "revision": 3}),
+                  verify_durable_commit=lambda _who, result: result.get("commit_receipt") == "verified")
+    first = execute_exact_approved_draft(**kwargs)
+    second = execute_exact_approved_draft(**kwargs)
+    assert first["mutation_executed"] is True
+    assert second["delivery_only"] is True
+    assert seen == ["Approved"]
+
+
+def test_edited_approved_draft_is_rejected_before_claim():
+    from copy import deepcopy
+    from hwpx_mcp.orchestration.p418_p2_workflow import compile_workflow
+    from hwpx_mcp.orchestration.p418_p2_preview import preview_workflow
+    from hwpx_mcp.orchestration.p418_p3_execution import execute_exact_approved_draft
+    db = Ledger()
+    draft = compile_workflow({"steps": [{"task": {
+        "kind": "EDIT_INTENT", "document_id": "target", "expected_revision": 2,
+        "intent": {"actions": [{"action": "replace_role_text", "role": "TITLE", "text": "Approved"}]}
+    }}]}, [{"document_id": "target", "revision": 2}])
+    original_preview = preview_workflow(draft)
+    altered = deepcopy(draft)
+    altered["steps"][0]["task"]["intent"]["actions"][0]["text"] = "Not approved"
+    with pytest.raises(ValueError, match="integrity"):
+        execute_exact_approved_draft(
+            ledger=db, owner="owner", workflow_id="w", approval_key="key",
+            draft=altered, preview=original_preview, bound_inputs={"revision": 2},
+            execution_key="stable", verify_live_bindings=lambda *_: True,
+            execute_normalized_task=lambda task: {"commit_receipt": "verified"},
+            verify_durable_commit=lambda *_: True)
+    assert db.calls == 0

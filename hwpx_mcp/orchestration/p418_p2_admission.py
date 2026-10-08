@@ -170,6 +170,32 @@ class DurableApprovalLedger:
                 raise AdmissionError("claim not found or already reconciled")
         return {"state": "COMMITTED", "result": payload}
 
+    def reconcile_uncertain(self, *, owner: str, workflow_id: str,
+                            execution_key: str, result: Mapping[str, Any],
+                            verify_commit: Callable[..., bool]) -> dict:
+        """Record *verified* external commit; never re-executes the mutation.
+
+        Requires a trusted verifier that checks durable revision, SHA and
+        owner custody against the underlying document commit ledger.
+        """
+        if not isinstance(result, Mapping):
+            raise AdmissionError("durable commit receipt object required")
+        if not callable(verify_commit) or not verify_commit(owner, result):
+            raise AdmissionError("independent durable commit verification required")
+        with self._connect() as conn, conn.cursor() as cur:
+            cur.execute("""
+                UPDATE hwpx_p418_workflow_admission
+                   SET state='COMMITTED',result_json=%s::jsonb,updated_at=NOW()
+                 WHERE workflow_id=%s AND owner_subject=%s AND
+                       execution_key=%s AND state='UNCERTAIN'
+                RETURNING workflow_id
+            """, (json.dumps(dict(result), ensure_ascii=False),
+                  workflow_id, owner, execution_key))
+            if cur.fetchone() is None:
+                raise AdmissionError("matching uncertain claim not found")
+        return {"state": "COMMITTED", "result": dict(result),
+                "mutation_replayed": False, "route": "VERIFIED_EXISTING_COMMIT_ONLY"}
+
     def recover(self, *, owner: str, workflow_id: str) -> dict:
         with self._connect() as conn, conn.cursor() as cur:
             cur.execute("""

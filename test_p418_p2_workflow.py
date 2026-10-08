@@ -77,3 +77,25 @@ def test_invalid_workflow_input_fails_closed(change):
     original.update(change)
     with pytest.raises(ValueError):
         compile_workflow(original, DOCS)
+
+
+def test_explicit_target_cannot_override_selected_binding():
+    with pytest.raises(ValueError, match="target binding conflicts"):
+        compile_workflow(spec(edit_task(document_id="target", expected_revision=3), {"TARGET": "template"}), DOCS)
+
+
+def test_template_binding_cannot_be_overridden():
+    with pytest.raises(ValueError, match="template binding conflicts"):
+        compile_workflow(spec({"kind": "TEMPLATE_FILL", "template_document_id": "target", "values": {"x": 1}}, {"TEMPLATE": "template"}), DOCS)
+
+
+def test_reference_must_exist_and_match_binding():
+    with pytest.raises(ValueError, match="reference missing"):
+        compile_workflow(spec(edit_task(document_id="target", expected_revision=3, reference_document_id="unknown")), DOCS)
+    with pytest.raises(ValueError, match="reference binding conflicts"):
+        compile_workflow(spec(edit_task(document_id="target", expected_revision=3, reference_document_id="target"), {"REFERENCE": "template"}), DOCS)
+
+
+def test_read_only_document_must_exist():
+    with pytest.raises(ValueError, match="document missing"):
+        compile_workflow(spec({"kind": "INSPECT", "document_id": "missing"}), DOCS)

@@ -110,10 +110,13 @@ def register_p418_tools(
             candidate_catalog.append({
                 "document_id": doc_id, "revision": int(metadata["revision"])
             })
-        reconstructed = compile_workflow(
-            {"steps": [{"task": dict(step["task"])} for step in supplied_steps],
-             "input_bindings": {role: row["document_id"] for role, row in supplied_bindings.items()}},
-            candidate_catalog)
+        try:
+            reconstructed = compile_workflow(
+                {"steps": [{"task": dict(step["task"])} for step in supplied_steps],
+                 "input_bindings": {role: row["document_id"] for role, row in supplied_bindings.items()}},
+                candidate_catalog)
+        except ValueError as exc:
+            raise AdmissionError("server-owned document revision changed or draft invalid") from exc
         if reconstructed != draft:
             raise AdmissionError("submitted draft was not canonically compiled")
         mutation_steps = [s for s in draft["steps"] if s["effect"] == "MUTATION"]

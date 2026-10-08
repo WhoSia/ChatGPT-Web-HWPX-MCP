@@ -43,9 +43,11 @@ if "HWPX 변경 내용 확인" not in body or "변경 내용 보기" not in body
     raise SystemExit("Human-review login form missing")
 if "approval_key" in body or "lease_token" in body:
     raise SystemExit("Unexpected internal credential marker on public review page")
-if "no-store" not in headers.get("Cache-Control", "").lower():
+normalized_headers = {name.lower(): value for name, value in headers.items()}
+if "no-store" not in normalized_headers.get("cache-control", "").lower():
     raise SystemExit("No-store protection absent")
-if "frame-ancestors 'none'" not in headers.get("Content-Security-Policy", ""):
+if "frame-ancestors 'none'" not in normalized_headers.get("content-security-policy", ""):
+    print("Observed response header names:", sorted(normalized_headers))
     raise SystemExit("Frame protection absent")
 print("Public P4.18 independent review GET/caching/CSP PASS")
 print("This is READ-ONLY reachability; human approval and native document E2E remain unverified.")

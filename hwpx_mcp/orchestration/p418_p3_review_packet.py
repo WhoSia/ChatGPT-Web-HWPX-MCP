@@ -22,12 +22,15 @@ _SHA = re.compile(r"^[0-9a-f]{64}$")
 
 
 def prepare_native_edit_review_packet(
-    *, owner: str, draft: Mapping[str, Any], preview: Mapping[str, Any],
+    *, owner: str, workflow_id: str, ledger: Any,
+    draft: Mapping[str, Any], preview: Mapping[str, Any],
     staged_bindings: Mapping[str, Any],
 ) -> dict[str, Any]:
     """Preserve *all* user-visible effects and full normalized task payload."""
     if not isinstance(owner, str) or not owner.strip():
         raise AdmissionError("authenticated host review owner required")
+    if not isinstance(workflow_id, str) or not workflow_id or not callable(getattr(ledger, "get_staged_review_identity", None)):
+        raise AdmissionError("server-owned staged review ledger and workflow required")
     try:
         canonical = preview_workflow(draft)
         if not isinstance(preview, Mapping) or canonical != dict(preview):
@@ -60,8 +63,18 @@ def prepare_native_edit_review_packet(
                 raise AdmissionError("review requires committed source SHA-256")
         if rows[0]["revision"] != task["expected_revision"]:
             raise AdmissionError("review source revision differs from task")
+        staged_identity = ledger.get_staged_review_identity(owner=owner, workflow_id=workflow_id)
+        expected_identity = {
+            "draft_sha256": draft["draft_sha256"],
+            "preview_sha256": canonical["preview_sha256"],
+            "binding_sha256": canonical_sha(staged_bindings),
+            "effect_scope": "EDIT_INTENT",
+        }
+        if staged_identity != expected_identity:
+            raise AdmissionError("review does not match server-owned staged identity")
         packet = {
             "schema": "chatgpt-web-hwpx-mcp/p4.18-p3/native-edit-review/v1",
+            "workflow_id": workflow_id,
             "owner": owner,
             "draft_sha256": draft["draft_sha256"],
             "preview_sha256": canonical["preview_sha256"],

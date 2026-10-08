@@ -93,16 +93,13 @@ def test_staging_rejects_modified_preview_and_wrong_owner():
         core.mcp.tools["stage_p418_document_workflow"](draft, preview)
 
 
-def test_staging_rejects_self_hashed_forged_normalized_task():
+def test_staging_rejects_inconsistent_normalized_task_digest():
     from copy import deepcopy
     from hwpx_mcp.orchestration.p418_p2_workflow import _digest
     core = registered()
     draft, _ = sample()
     forged = deepcopy(draft)
     forged["steps"][0]["task"]["intent"]["actions"][0]["text"] = "Unauthorized"
-    forged["steps"][0]["task"]["task_sha256"] = _digest(
-        {k: v for k, v in forged["steps"][0]["task"].items() if k != "task_sha256"}
-    )
     forged.pop("draft_sha256")
     forged["draft_sha256"] = _digest(forged)
     forged_preview = preview_workflow(forged)

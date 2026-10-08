@@ -82,5 +82,8 @@ jobs:
           fetch-depth: 0
       - name: Build exact-head image
         run: docker build --progress=plain -t hwpx-mcp-p418:${{ github.sha }} .
+      - name: Verify packaged production host imports
+        run: |
+          docker run --rm --entrypoint python hwpx-mcp-p418:${{ github.sha }} -c "import hwpx_mcp.orchestration.p418_p2_workflow; import hwpx_mcp.orchestration.p418_p3_review_store; import hwpx_mcp.orchestration.p418_p3_host_approval; import hwpx_mcp.orchestration.p418_p3_host_routes; import p418_mcp; print('P4.18 production host Python imports PASS')"
       - name: Verify P4.18 product contract and release identity
         run: docker run --rm --entrypoint python hwpx-mcp-p418:${{ github.sha }} -c "from pathlib import Path; from p418_product import document_agent_contract; c=document_agent_contract(); assert c['phase']=='P4.18' and c['product']=='0.43.0-p4.18' and c['product_goal']=='ONE_PRIMARY_TASK_SURFACE_OVER_VERIFIED_EXISTING_HWPX_CAPABILITIES'; s=Path('/app/server_p2.py').read_text(encoding='utf-8'); assert 'P2_VERSION = \"0.43.0-p4.18\"' in s and 'core.PHASE = \"P4.18\"' in s; print('P4.18 product facade Docker PASS')"

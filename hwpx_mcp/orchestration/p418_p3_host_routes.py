@@ -19,7 +19,7 @@ _WORKFLOW = re.compile(r"^[A-Za-z0-9_-]{16,96}$")
 _HEADERS = {
     "Cache-Control": "no-store, max-age=0",
     "Pragma": "no-cache",
-    "Referrer-Policy": "no-referrer",
+    "Referrer-Policy": "same-origin",
     "X-Content-Type-Options": "nosniff",
     "X-Frame-Options": "DENY",
     "Content-Security-Policy":
@@ -127,7 +127,22 @@ def register_host_review_route(core, *, host_factory):
         expected_origin = f"{base.scheme}://{base.netloc}"
         if not expected_origin.startswith(("https://", "http://127.0.0.1:", "http://localhost:")):
             return _html("<h1>서버 origin 구성이 잘못되었습니다.</h1>", status=503)
-        if request.headers.get("origin", "") != expected_origin:
+        received_origin = request.headers.get("origin", "")
+        if received_origin:
+            # A stated foreign/null Origin always fails, irrespective of Referer.
+            same_origin = received_origin == expected_origin
+        else:
+            # Same-origin HTML form navigation may omit Origin. Fall back only
+            # when BOTH the same-origin Referer and browser fetch metadata
+            # positively establish a same-origin navigation.
+            referer = urlsplit(request.headers.get("referer", ""))
+            referer_origin = f"{referer.scheme}://{referer.netloc}"
+            same_origin = (
+                referer_origin == expected_origin
+                and request.headers.get("sec-fetch-site", "") == "same-origin"
+                and request.headers.get("sec-fetch-mode", "") == "navigate"
+            )
+        if not same_origin:
             return _html("<h1>승인 origin 검증 실패</h1>", status=403)
         content_type = request.headers.get("content-type", "").split(";", 1)[0].strip().lower()
         if content_type != "application/x-www-form-urlencoded":

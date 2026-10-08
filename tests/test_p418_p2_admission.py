@@ -1,0 +1,109 @@
+from __future__ import annotations
+
+import os
+import uuid
+
+import pytest
+
+from hwpx_mcp.orchestration.p418_p2_admission import (
+    AdmissionError, DurableApprovalLedger, canonical_sha,
+)
+
+DATABASE_URL = os.getenv("P418_P2_TEST_DATABASE_URL")
+pytestmark = pytest.mark.skipif(not DATABASE_URL, reason="P418_P2_TEST_DATABASE_URL required for PostgreSQL integration")
+
+
+def new_ledger():
+    return DurableApprovalLedger(DATABASE_URL)
+
+
+def stage(ledger, **overrides):
+    data = dict(owner="test-owner-" + uuid.uuid4().hex, draft_sha256="a" * 64,
+                preview_sha256="b" * 64, bound_inputs={"target": "doc1", "revision": 4},
+                effect_scope="EDIT_INTENT", ttl_seconds=600)
+    data.update(overrides)
+    staged = ledger.stage(**data)
+    return data, staged
+
+
+def approve(ledger, input_, staged):
+    return ledger.approve(owner=input_["owner"], workflow_id=staged["workflow_id"],
+                          trusted_confirmation={"host_event": "confirmed"},
+                          verify_confirmation=lambda owner, wid, receipt: (
+                              owner == input_["owner"] and wid == staged["workflow_id"]
+                              and receipt == {"host_event": "confirmed"}))
+
+
+def claim(ledger, input_, staged, granted, **kw):
+    d = dict(owner=input_["owner"], workflow_id=staged["workflow_id"],
+             approval_key=granted["approval_key"],
+             draft_sha256=input_["draft_sha256"],
+             preview_sha256=input_["preview_sha256"], bound_inputs=input_["bound_inputs"],
+             effect_scope=input_["effect_scope"], execution_key="stable-key-" + staged["workflow_id"])
+    d.update(kw)
+    return ledger.claim(**d)
+
+
+def test_confirmation_is_required_and_cross_owner_is_denied():
+    db = new_ledger()
+    inputs, staged = stage(db)
+    with pytest.raises(AdmissionError, match="trusted host"):
+        db.approve(owner=inputs["owner"], workflow_id=staged["workflow_id"],
+                   trusted_confirmation=True, verify_confirmation=lambda *_: False)
+    grant = approve(db, inputs, staged)
+    with pytest.raises(AdmissionError, match="not found for caller"):
+        claim(db, inputs, staged, grant, owner="another-caller")
+
+
+def test_changed_preview_revision_or_scope_cannot_use_grant():
+    db = new_ledger()
+    inputs, staged = stage(db)
+    grant = approve(db, inputs, staged)
+    for alteration in [
+        {"preview_sha256": "f" * 64},
+        {"bound_inputs": {"target": "doc1", "revision": 5}},
+        {"effect_scope": "CREATE"},
+        {"approval_key": "forged"},
+    ]:
+        with pytest.raises(AdmissionError, match="no longer matches"):
+            claim(db, inputs, staged, grant, **alteration)
+
+
+def test_double_submission_never_replays_mutation():
+    db = new_ledger()
+    inputs, staged = stage(db)
+    grant = approve(db, inputs, staged)
+    first = claim(db, inputs, staged, grant)
+    second = claim(db, inputs, staged, grant)
+    assert first["state"] == "CLAIMED" and first["replay"] is False
+    assert second["state"] == "UNCERTAIN" and second["replay"] is False
+    assert db.recover(owner=inputs["owner"], workflow_id=staged["workflow_id"])["state"] == "UNCERTAIN"
+
+
+def test_verified_commit_is_delivery_only_on_retry_and_restart():
+    db = new_ledger()
+    inputs, staged = stage(db)
+    grant = approve(db, inputs, staged)
+    key = "stable-key-" + staged["workflow_id"]
+    claim(db, inputs, staged, grant)
+    result = {"document_id": "doc1", "revision": 5, "sha256": "f" * 64}
+    with pytest.raises(AdmissionError, match="verified durable"):
+        db.committed(owner=inputs["owner"], workflow_id=staged["workflow_id"],
+                     execution_key=key, result=result, verify_commit=lambda *_: False)
+    db.committed(owner=inputs["owner"], workflow_id=staged["workflow_id"],
+                 execution_key=key, result=result, verify_commit=lambda owner, receipt: receipt == result)
+    restarted = new_ledger()
+    replay = claim(restarted, inputs, staged, grant)
+    assert replay["state"] == "COMMITTED" and replay["replay"] is True
+    recovered = restarted.recover(owner=inputs["owner"], workflow_id=staged["workflow_id"])
+    assert recovered["recovery_route"] == "EXACT_REVISION_DELIVERY_ONLY"
+    assert recovered["replay_allowed"] is False
+
+
+def test_staging_bounds_are_enforced():
+    db = new_ledger()
+    with pytest.raises(AdmissionError, match="lifetime"):
+        stage(db, ttl_seconds=86400)
+    with pytest.raises(AdmissionError, match="effect scope"):
+        stage(db, effect_scope="DELETE")
+    assert canonical_sha({"a": 1, "b": 2}) == canonical_sha({"b": 2, "a": 1})

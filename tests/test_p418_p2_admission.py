@@ -141,3 +141,23 @@ def test_rejected_commit_cannot_change_state():
                      execution_key="wrong-execution", result={"revision": 5},
                      verify_commit=lambda *_: True)
     assert db.recover(owner=inputs["owner"], workflow_id=staged["workflow_id"])["state"] == "UNCERTAIN"
+
+
+def test_unknown_outcome_can_be_reconciled_without_mutation_replay():
+    db = new_ledger()
+    inputs, staged = stage(db)
+    granted = approve(db, inputs, staged)
+    key = "stable-key-" + staged["workflow_id"]
+    claim(db, inputs, staged, granted)
+    assert db.recover(owner=inputs["owner"], workflow_id=staged["workflow_id"])["state"] == "UNCERTAIN"
+    receipt = {"document_id": "doc1", "revision": 5, "sha256": "c" * 64}
+    with pytest.raises(AdmissionError, match="independent durable"):
+        db.reconcile_uncertain(owner=inputs["owner"], workflow_id=staged["workflow_id"],
+                               execution_key=key, result=receipt, verify_commit=lambda *_: False)
+    assert db.recover(owner=inputs["owner"], workflow_id=staged["workflow_id"])["state"] == "UNCERTAIN"
+    resolved = db.reconcile_uncertain(owner=inputs["owner"], workflow_id=staged["workflow_id"],
+                                      execution_key=key, result=receipt,
+                                      verify_commit=lambda owner, payload: payload == receipt)
+    assert resolved["mutation_replayed"] is False
+    assert db.recover(owner=inputs["owner"], workflow_id=staged["workflow_id"])["recovery_route"] == "EXACT_REVISION_DELIVERY_ONLY"
+    assert claim(db, inputs, staged, granted)["replay"] is True

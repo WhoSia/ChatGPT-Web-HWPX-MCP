@@ -5,6 +5,7 @@ from typing import Any, Callable
 from mcp.types import CallToolResult, ToolAnnotations
 
 from p418_product import PHASE, PRODUCT, document_agent_contract, prepare_document_task
+from hwpx_mcp.orchestration.p418_p2_workflow import compile_workflow
 
 
 def _structured(result: Any) -> dict:
@@ -56,6 +57,12 @@ def register_p418_tools(
     def prepare_p418_document_task(task: dict) -> dict:
         core._caller_subject()
         return {"ok": True, **prepare_document_task(task)}
+
+    @core.mcp.tool(annotations=read)
+    def compile_p418_document_workflow(specification: dict, documents: list[dict]) -> dict:
+        """Non-mutating workflow draft; caller catalog grants no ownership or approval."""
+        core._caller_subject()
+        return {"ok": True, **compile_workflow(specification, documents)}
 
     @core.mcp.tool(annotations=write)
     def run_p418_document_task(task: dict):

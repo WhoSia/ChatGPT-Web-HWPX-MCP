@@ -7348,6 +7348,96 @@ def _p418_execute_after_trusted_host_confirmation(
     )
 
 
+# P4.18-P3: browser confirmation is NOT an MCP tool. Its origin, passphrase,
+# review snapshot and signing key are server-owned, never client-controlled.
+from oauth_provider import SUBJECT as _P418_HOST_OWNER
+from hwpx_mcp.orchestration.p418_p3_review_store import get_native_review_store
+from hwpx_mcp.orchestration.p418_p3_host_approval import TrustedNativeEditApprovalHost
+from hwpx_mcp.orchestration.p418_p3_host_routes import register_host_review_route
+
+
+class _P418AuthenticatedHostCore:
+    """Owner-scoped native executor for a separately reauthenticated browser.
+
+    The normal MCP _caller_subject() requires a bearer token unavailable to
+    browser confirmation requests. This host wrapper instead uses the single
+    fixed OAuth owner AFTER explicit independent passphrase verification.
+    """
+    DOCUMENT_STORE = core.DOCUMENT_STORE
+    validate_hwpx_package = staticmethod(core.validate_hwpx_package)
+    _utc_iso = staticmethod(core._utc_iso)
+
+    @staticmethod
+    def _caller_subject():
+        return _P418_HOST_OWNER
+
+    @staticmethod
+    def _load_metadata(document_id):
+        return core._load_metadata(document_id)
+
+    @staticmethod
+    def _require_owner(metadata):
+        if metadata.get("owner_subject") != _P418_HOST_OWNER:
+            raise PermissionError("document does not belong to trusted host principal")
+        return _P418_HOST_OWNER
+
+
+def _p418_host_owned_document(document_id):
+    metadata = _P418AuthenticatedHostCore._load_metadata(document_id)
+    _P418AuthenticatedHostCore._require_owner(metadata)
+    path, _ = core._paths(document_id)
+    return metadata, path
+
+
+def _p418_trusted_host_native_adapter(**kwargs):
+    return execute_owned_intent_transformation(
+        _P418AuthenticatedHostCore,
+        _p418_host_owned_document,
+        _refresh_p417_execution,
+        **kwargs,
+    )
+
+
+def _p418_execute_as_authenticated_host(
+    *, owner: str, workflow_id: str, approval_key: str,
+    draft: dict, preview: dict, bound_inputs: dict, execution_key: str,
+):
+    if owner != _P418_HOST_OWNER:
+        raise P418AdmissionError("trusted host owner mismatch")
+    url = getattr(core.DOCUMENT_STORE, "database_url", None)
+    if not url:
+        raise P418AdmissionError("durable PostgreSQL custody required")
+    return execute_host_approved_native_edit(
+        core=_P418AuthenticatedHostCore,
+        ledger=get_durable_approval_ledger(url),
+        workflow_id=workflow_id, approval_key=approval_key,
+        draft=draft, preview=preview,
+        bound_inputs=bound_inputs, execution_key=execution_key,
+        native_edit_adapter=_p418_trusted_host_native_adapter,
+    )
+
+
+def _p418_trusted_review_host_factory():
+    import os
+    url = getattr(core.DOCUMENT_STORE, "database_url", None)
+    if not url:
+        raise P418AdmissionError("durable PostgreSQL custody required")
+    secret = str(getattr(core, "STATE_SECRET", "") or "")
+    if len(secret) < 32:
+        raise P418AdmissionError("review encryption key not configured")
+    return TrustedNativeEditApprovalHost(
+        ledger=get_durable_approval_ledger(url),
+        reviews=get_native_review_store(url, secret),
+        owner=_P418_HOST_OWNER,
+        review_passphrase=os.environ.get("P418_HOST_REVIEW_PASSPHRASE", ""),
+        signing_secret=os.environ.get("P418_HOST_APPROVAL_SIGNING_SECRET", "").encode(),
+        native_executor=_p418_execute_as_authenticated_host,
+    )
+
+
+register_host_review_route(core, host_factory=_p418_trusted_review_host_factory)
+
+
 if __name__ == "__main__":
     host = os.environ.get("MCP_HOST", "0.0.0.0")
     port = int(os.environ.get("PORT", os.environ.get("MCP_PORT", "8000")))

@@ -108,7 +108,7 @@ def test_exact_draft_executes_only_reviewed_task():
                   verify_live_bindings=lambda *_: True,
                   execute_normalized_task=lambda task: (
                       seen.append(task["intent"]["actions"][0]["text"]) or
-                      {"commit_receipt": "verified", "revision": 3}),
+                      {"commit_receipt": "verified", "document_id": "target", "revision": 3}),
                   verify_durable_commit=lambda _who, result: result.get("commit_receipt") == "verified")
     first = execute_exact_approved_draft(**kwargs)
     second = execute_exact_approved_draft(**kwargs)
@@ -147,3 +147,24 @@ def test_delivery_replay_requires_durable_receipt_readback():
         invoke(db, lambda: {"commit_receipt": "verified"},
                verify_durable_commit=lambda *_: False)
     assert db.state == "COMMITTED"
+
+
+def test_exact_edit_rejects_success_receipt_for_different_document():
+    from hwpx_mcp.orchestration.p418_p2_workflow import compile_workflow
+    from hwpx_mcp.orchestration.p418_p2_preview import preview_workflow
+    from hwpx_mcp.orchestration.p418_p3_execution import execute_exact_approved_draft
+    db = Ledger()
+    draft = compile_workflow({"steps": [{"task": {
+        "kind": "EDIT_INTENT", "document_id": "target", "expected_revision": 2,
+        "intent": {"actions": [{"action": "replace_role_text", "role": "TITLE", "text": "Safe"}]}
+    }}]}, [{"document_id": "target", "revision": 2}])
+    with pytest.raises(AdmissionError, match="not verified"):
+        execute_exact_approved_draft(
+            ledger=db, owner="owner", workflow_id="w", approval_key="secret",
+            draft=draft, preview=preview_workflow(draft),
+            bound_inputs={"revision": 2}, execution_key="stable",
+            verify_live_bindings=lambda *_: True,
+            execute_normalized_task=lambda _: {
+                "document_id": "other", "revision": 3, "commit_receipt": "verified"},
+            verify_durable_commit=lambda *_: True)
+    assert db.state == "UNCERTAIN"

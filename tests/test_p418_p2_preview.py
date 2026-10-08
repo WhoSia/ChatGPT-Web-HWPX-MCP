@@ -51,3 +51,25 @@ def test_stale_correction_fails_when_catalog_revision_changes():
     with pytest.raises(ValueError, match="stale"):
         correct_workflow(SPEC, [{"path": ["steps", 0, "task", "expected_revision"], "value": 7}],
                          [{"document_id": "owned", "revision": 8}])
+
+
+def test_self_hashed_forged_effect_cannot_pass_preview():
+    from hwpx_mcp.orchestration.p418_p2_workflow import _digest
+    draft = compile_workflow(SPEC, DOCS)
+    forged = copy.deepcopy(draft)
+    forged["steps"][0]["effect"] = "READ_ONLY"
+    forged.pop("draft_sha256")
+    forged["draft_sha256"] = _digest(forged)
+    with pytest.raises(ValueError, match="effect mismatch"):
+        preview_workflow(forged)
+
+
+def test_self_hashed_forged_count_cannot_pass_preview():
+    from hwpx_mcp.orchestration.p418_p2_workflow import _digest
+    draft = compile_workflow(SPEC, DOCS)
+    forged = copy.deepcopy(draft)
+    forged["mutation_count"] = 0
+    forged.pop("draft_sha256")
+    forged["draft_sha256"] = _digest(forged)
+    with pytest.raises(ValueError, match="mutation count"):
+        preview_workflow(forged)

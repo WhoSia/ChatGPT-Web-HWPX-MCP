@@ -89,6 +89,28 @@ def register_p418_tools(
         verified_preview = preview_workflow(draft)
         if not isinstance(preview, dict) or preview != verified_preview:
             raise AdmissionError("preview does not match canonical server preflight")
+        # Recompile the submitted tasks against the supplied snapshot before
+        # reading authoritative server custody. A caller-created SHA proves
+        # neither authenticity nor that a normalized task is internally valid.
+        from hwpx_mcp.orchestration.p418_p2_workflow import compile_workflow
+        supplied_steps = draft["steps"]
+        supplied_bindings = draft.get("resolved_inputs", {})
+        candidate_catalog = list({
+            row["document_id"]: dict(row)
+            for row in supplied_bindings.values()
+        }.values())
+        # Explicit target references may not be present as role bindings.
+        for step in supplied_steps:
+            for field in ("document_id", "template_document_id", "reference_document_id"):
+                doc_id = step["task"].get(field)
+                if doc_id and doc_id not in {d["document_id"] for d in candidate_catalog}:
+                    raise AdmissionError("mutation inputs require explicit catalog binding")
+        reconstructed = compile_workflow(
+            {"steps": [{"task": dict(step["task"])} for step in supplied_steps],
+             "input_bindings": {role: row["document_id"] for role, row in supplied_bindings.items()}},
+            candidate_catalog)
+        if reconstructed != draft:
+            raise AdmissionError("submitted draft was not canonically compiled")
         mutation_steps = [s for s in draft["steps"] if s["effect"] == "MUTATION"]
         if len(mutation_steps) != 1:
             raise AdmissionError("exactly one mutation required for admission")

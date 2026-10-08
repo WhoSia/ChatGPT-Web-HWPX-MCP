@@ -1,0 +1,24 @@
+name: P4.18 P3 Public Human Approval Read-Only Smoke
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "scripts/p418_p3_public_readonly_smoke.py"
+      - ".github/workflows/p418-p3-public-smoke.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  public-readonly-host-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Verify Public Health and Human Review GET Only
+        run: python scripts/p418_p3_public_readonly_smoke.py

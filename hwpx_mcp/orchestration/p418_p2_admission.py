@@ -201,6 +201,20 @@ class DurableApprovalLedger:
         return {"state": "COMMITTED", "result": dict(result),
                 "mutation_replayed": False, "route": "VERIFIED_EXISTING_COMMIT_ONLY"}
 
+    def abort_unclaimed(self, *, owner: str, workflow_id: str) -> dict:
+        """Cancel only a workflow that has never started mutation."""
+        with self._connect() as conn, conn.cursor() as cur:
+            cur.execute("""
+                UPDATE hwpx_p418_workflow_admission
+                   SET state='ABORTED',approval_key_hash=NULL,updated_at=NOW()
+                 WHERE workflow_id=%s AND owner_subject=%s
+                   AND state IN ('STAGED','APPROVED')
+                RETURNING workflow_id
+            """, (workflow_id, owner))
+            if cur.fetchone() is None:
+                raise AdmissionError("workflow cannot be aborted after claim or by other owner")
+        return {"state": "ABORTED", "execution_allowed": False}
+
     def recover(self, *, owner: str, workflow_id: str) -> dict:
         with self._connect() as conn, conn.cursor() as cur:
             cur.execute("""

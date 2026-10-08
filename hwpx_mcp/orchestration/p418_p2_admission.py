@@ -117,7 +117,10 @@ class DurableApprovalLedger:
 
     def claim(self, *, owner: str, workflow_id: str, approval_key: str,
               draft_sha256: str, preview_sha256: str, bound_inputs: Mapping[str, Any],
-              effect_scope: str, execution_key: str) -> dict:
+              effect_scope: str, execution_key: str,
+              verify_live_bindings: Callable[..., bool]) -> dict:
+        if not callable(verify_live_bindings) or not verify_live_bindings(owner, bound_inputs):
+            raise AdmissionError("live owner and revision binding verification required")
         if not isinstance(execution_key, str) or not 16 <= len(execution_key) <= 160:
             raise AdmissionError("stable execution key required")
         binding_hash = canonical_sha(bound_inputs)

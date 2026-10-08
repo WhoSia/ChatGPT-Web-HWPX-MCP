@@ -293,3 +293,20 @@ def test_p3_postgres_unknown_commit_requires_manual_reconciliation():
         execute_approved_once(**args)
     assert execute_approved_once(**{**args, "ledger": new_ledger()})["state"] == "UNCERTAIN"
     assert effects == ["MAYBE_COMMITTED"]
+
+
+def test_authoritative_staged_review_readback_is_owner_and_expiry_bound():
+    db = new_ledger()
+    inputs, staged = stage(db)
+    identity = db.get_staged_review_identity(owner=inputs["owner"], workflow_id=staged["workflow_id"])
+    assert identity == {
+        "draft_sha256": inputs["draft_sha256"],
+        "preview_sha256": inputs["preview_sha256"],
+        "binding_sha256": canonical_sha(inputs["bound_inputs"]),
+        "effect_scope": inputs["effect_scope"],
+    }
+    with pytest.raises(AdmissionError, match="unavailable"):
+        db.get_staged_review_identity(owner="foreign-owner", workflow_id=staged["workflow_id"])
+    db.abort_unclaimed(owner=inputs["owner"], workflow_id=staged["workflow_id"])
+    with pytest.raises(AdmissionError, match="unavailable"):
+        db.get_staged_review_identity(owner=inputs["owner"], workflow_id=staged["workflow_id"])

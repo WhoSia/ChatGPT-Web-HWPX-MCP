@@ -138,3 +138,12 @@ def test_edited_approved_draft_is_rejected_before_claim():
             execute_normalized_task=lambda task: {"commit_receipt": "verified"},
             verify_durable_commit=lambda *_: True)
     assert db.calls == 0
+
+
+def test_delivery_replay_requires_durable_receipt_readback():
+    db = Ledger()
+    invoke(db, lambda: {"commit_receipt": "verified", "revision": 3})
+    with pytest.raises(AdmissionError, match="delivery replay requires"):
+        invoke(db, lambda: {"commit_receipt": "verified"},
+               verify_durable_commit=lambda *_: False)
+    assert db.state == "COMMITTED"

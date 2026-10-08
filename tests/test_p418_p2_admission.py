@@ -202,3 +202,36 @@ def test_abort_is_owner_scoped_and_only_before_claim():
     claim(db, inputs2, staged2, granted)
     with pytest.raises(AdmissionError, match="cannot be aborted"):
         db.abort_unclaimed(owner=inputs2["owner"], workflow_id=staged2["workflow_id"])
+
+
+def test_host_signed_consent_is_one_shot_and_scope_bound():
+    import base64, hashlib, hmac, json, time
+    db = new_ledger()
+    inputs, staged = stage(db)
+    host_secret = b"isolated-host-secret-" + b"s" * 40
+    now = int(time.time())
+    payload = {
+        "version": "p418-p3-host-consent-v1", "subject": inputs["owner"],
+        "workflow_id": staged["workflow_id"],
+        "draft_sha256": inputs["draft_sha256"],
+        "preview_sha256": inputs["preview_sha256"],
+        "effect_scope": inputs["effect_scope"],
+        "issued_at": now, "expires_at": now + 45,
+        "decision": "APPROVE",
+    }
+    raw = json.dumps(payload, sort_keys=True, ensure_ascii=False,
+                     separators=(",", ":"), allow_nan=False).encode()
+    signature = base64.urlsafe_b64encode(
+        hmac.new(host_secret, b"p418-p3-consent-v1\0" + raw, hashlib.sha256).digest()
+    ).decode().rstrip("=")
+    envelope = {"payload": payload, "signature": signature}
+    altered = {"payload": {**payload, "effect_scope": "CREATE"}, "signature": signature}
+    with pytest.raises(AdmissionError, match="host assertion"):
+        db.approve_host_assertion(owner=inputs["owner"], workflow_id=staged["workflow_id"],
+                                  envelope=altered, host_secret=host_secret)
+    approved = db.approve_host_assertion(owner=inputs["owner"], workflow_id=staged["workflow_id"],
+                                         envelope=envelope, host_secret=host_secret)
+    assert approved["state"] == "APPROVED"
+    with pytest.raises(AdmissionError, match="unavailable"):
+        db.approve_host_assertion(owner=inputs["owner"], workflow_id=staged["workflow_id"],
+                                  envelope=envelope, host_secret=host_secret)

@@ -1,0 +1,75 @@
+name: HWPX Full Git History Backup
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/git-full-history-backup.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  verify-git-object-backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout complete repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Fetch every branch and tag including rewritten archive histories
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          git -c http.extraheader="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)" fetch --no-tags origin \
+            '+refs/heads/*:refs/remotes/origin/*' \
+            '+refs/tags/*:refs/tags/*'
+          git show-ref --verify refs/remotes/origin/archive/pre-bot-attribution-cleanup-20261002
+          git show-ref --verify refs/remotes/origin/archive/pre-final-bot-purge-20261003
+
+      - name: Build complete self-contained history bundle and restore-check
+        run: |
+          set -euo pipefail
+          mkdir -p git-history-backup
+          git bundle create git-history-backup/hwpx-complete-repository.bundle --all
+          git bundle verify git-history-backup/hwpx-complete-repository.bundle
+          git bundle list-heads git-history-backup/hwpx-complete-repository.bundle \
+            > git-history-backup/bundle-heads.txt
+          git show-ref | LC_ALL=C sort > git-history-backup/source-refs.txt
+          git clone --mirror git-history-backup/hwpx-complete-repository.bundle \
+            git-history-backup/restored-mirror.git
+          for ref in \
+            refs/remotes/origin/archive/pre-bot-attribution-cleanup-20261002 \
+            refs/remotes/origin/archive/pre-final-bot-purge-20261003 \
+            refs/remotes/origin/main
+          do
+            expected="$(git rev-parse "$ref")"
+            git -C git-history-backup/restored-mirror.git cat-file -e "${expected}^{commit}"
+            grep -Fq "$expected $ref" git-history-backup/bundle-heads.txt
+            printf '%s %s VERIFIED\n' "$ref" "$expected"
+          done | tee git-history-backup/restore-verification.txt
+          git -C git-history-backup/restored-mirror.git fsck --full --no-reflogs
+          (
+            cd git-history-backup
+            sha256sum hwpx-complete-repository.bundle > bundle.sha256
+            wc -c hwpx-complete-repository.bundle > bundle-size.txt
+          )
+          rm -rf git-history-backup/restored-mirror.git
+          printf 'Git archive backup of all fetched remote branches and tags.\n' \
+            > git-history-backup/README.txt
+          printf 'No history was rewritten or any branch deleted.\n' \
+            >> git-history-backup/README.txt
+
+      - name: Upload verified git bundle and manifest (no git credentials)
+        uses: actions/upload-artifact@v4
+        with:
+          name: hwpx-verified-full-git-history-${{ github.run_id }}
+          path: git-history-backup/
+          retention-days: 30
+          if-no-files-found: error
+          compression-level: 0

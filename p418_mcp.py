@@ -118,9 +118,9 @@ def register_p418_tools(
         return {"ok": True, **record,
                 "authority": "SERVER_VERIFIED_STAGING_ONLY_NO_APPROVAL_OR_EXECUTION"}
 
-    @core.mcp.tool(annotations=read)
+    @core.mcp.tool(annotations=write)
     def recover_p418_document_workflow(workflow_id: str) -> dict:
-        """Return durable recovery disposition; never replay a mutation."""
+        """Quarantine an unresolved claimed mutation and return recovery disposition."""
         owner = core._caller_subject()
         store = getattr(core, "DOCUMENT_STORE", None)
         url = getattr(store, "database_url", None)

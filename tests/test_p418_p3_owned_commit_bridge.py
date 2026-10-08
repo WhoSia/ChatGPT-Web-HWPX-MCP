@@ -22,6 +22,8 @@ class FakeCore:
         self.DOCUMENT_STORE = FakeStore(receipt)
         self.owner = owner
         self.current_revision = current_revision
+    def _caller_subject(self):
+        return "owner"
     def _load_metadata(self, document_id):
         assert document_id == "docA"
         return {"revision": self.current_revision, "owner": self.owner}

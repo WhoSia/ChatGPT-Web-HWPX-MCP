@@ -25,6 +25,7 @@ class FakeCore:
     def __init__(self):
         self.mcp = FakeMCP()
         self.DOCUMENT_STORE = SimpleNamespace(database_url="postgresql://unreached")
+        self.STATE_SECRET = "test-server-state-secret-" + "x" * 40
         self.documents = {"doc1": {"revision": 4, "sha256": "abc", "owner": "subject"}}
 
     def _caller_subject(self):
@@ -68,9 +69,14 @@ def test_staging_never_returns_approval(monkeypatch):
             assert kwargs["bound_inputs"]["documents"][0]["revision"] == 4
             return {"workflow_id": "w", "state": "STAGED", "approval_granted": False}
     monkeypatch.setattr(p418_mcp, "get_durable_approval_ledger", lambda url: StubStore(url))
+    saved = []
+    monkeypatch.setattr(p418_mcp, "get_native_review_store", lambda *_:
+                        SimpleNamespace(persist_staged=lambda **kw: saved.append(kw)))
     draft, preview = sample()
     response = core.mcp.tools["stage_p418_document_workflow"](draft, preview)
     assert response["approval_granted"] is False
+    assert len(saved) == 1 and saved[0]["workflow_id"] == "w"
+    assert saved[0]["draft"] == draft
     assert response["authority"] == "SERVER_VERIFIED_STAGING_ONLY_NO_APPROVAL_OR_EXECUTION"
 
 
@@ -115,7 +121,37 @@ def test_staging_without_explicit_role_binding_still_supported(monkeypatch):
         def stage(self, **kwargs):
             return {"workflow_id": "fresh", "state": "STAGED", "approval_granted": False}
     monkeypatch.setattr(p418_mcp, "get_durable_approval_ledger", lambda url: StubStore(url))
+    monkeypatch.setattr(p418_mcp, "get_native_review_store", lambda *_:
+                        SimpleNamespace(persist_staged=lambda **kw: None))
     draft, preview = sample()
     assert draft["resolved_inputs"] == {}
     result = core.mcp.tools["stage_p418_document_workflow"](draft, preview)
     assert result["state"] == "STAGED"
+
+
+def test_review_custody_failure_aborts_staging(monkeypatch):
+    core = registered()
+    aborted = []
+    class StubStore:
+        def stage(self, **kwargs):
+            return {"workflow_id": "abort-on-failure", "state": "STAGED"}
+        def abort_unclaimed(self, **kwargs):
+            aborted.append(kwargs)
+            return {"state": "ABORTED"}
+    monkeypatch.setattr(p418_mcp, "get_durable_approval_ledger", lambda _: StubStore())
+    def fail(**kwargs):
+        raise RuntimeError("encrypted custody unavailable")
+    monkeypatch.setattr(p418_mcp, "get_native_review_store", lambda *_:
+                        SimpleNamespace(persist_staged=fail))
+    draft, preview = sample()
+    with pytest.raises(RuntimeError, match="encrypted custody unavailable"):
+        core.mcp.tools["stage_p418_document_workflow"](draft, preview)
+    assert aborted == [{"owner": "subject", "workflow_id": "abort-on-failure"}]
+
+
+def test_missing_server_state_secret_blocks_new_native_approval(monkeypatch):
+    core = registered()
+    core.STATE_SECRET = ""
+    draft, preview = sample()
+    with pytest.raises(AdmissionError, match="encrypted server-side review secret"):
+        core.mcp.tools["stage_p418_document_workflow"](draft, preview)

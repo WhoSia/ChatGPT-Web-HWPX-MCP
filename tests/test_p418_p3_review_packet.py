@@ -2,7 +2,7 @@ from copy import deepcopy
 
 import pytest
 
-from hwpx_mcp.orchestration.p418_p2_admission import AdmissionError
+from hwpx_mcp.orchestration.p418_p2_admission import AdmissionError, canonical_sha
 from hwpx_mcp.orchestration.p418_p2_preview import preview_workflow
 from hwpx_mcp.orchestration.p418_p2_workflow import compile_workflow, _digest
 from hwpx_mcp.orchestration.p418_p3_review_packet import prepare_native_edit_review_packet
@@ -21,14 +21,29 @@ def prepared():
         },
     }}]}
     draft = compile_workflow(spec, [{"document_id": "document-1", "revision": 3}])
+    preview = preview_workflow(draft)
+    staged_bindings = {"documents": [{
+        "role": "document_id", "document_id": "document-1",
+        "revision": 3, "sha256": "a" * 64,
+    }]}
+    identity = {
+        "draft_sha256": draft["draft_sha256"],
+        "preview_sha256": preview["preview_sha256"],
+        "binding_sha256": canonical_sha(staged_bindings),
+        "effect_scope": "EDIT_INTENT",
+    }
+    class StagedLedger:
+        def get_staged_review_identity(self, *, owner, workflow_id):
+            assert owner == "authenticated-owner"
+            assert workflow_id == "staged-workflow"
+            return identity.copy()
     return {
         "owner": "authenticated-owner",
+        "workflow_id": "staged-workflow",
+        "ledger": StagedLedger(),
         "draft": draft,
-        "preview": preview_workflow(draft),
-        "staged_bindings": {"documents": [{
-            "role": "document_id", "document_id": "document-1",
-            "revision": 3, "sha256": "a" * 64,
-        }]},
+        "preview": preview,
+        "staged_bindings": staged_bindings,
     }
 
 
@@ -77,5 +92,5 @@ def test_invalid_approval_lookalike_task_rejected():
     forged["draft_sha256"] = _digest(forged)
     args["draft"] = forged
     args["preview"] = preview_workflow(forged)
-    with pytest.raises(AdmissionError, match="noncanonical task"):
+    with pytest.raises(AdmissionError, match="server-owned staged identity"):
         prepare_native_edit_review_packet(**args)

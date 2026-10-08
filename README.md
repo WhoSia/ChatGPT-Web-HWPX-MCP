@@ -1,5 +1,9 @@
 # ChatGPT Web HWPX MCP
 
+**Start here:** [Product authority](PRODUCT_AUTHORITY.md) · [Server entrypoint](server_p2.py) · [P2 orchestration source](hwpx_mcp/orchestration/) · [Tests](tests/) · [CI](.github/workflows/) · [Operational scripts](scripts/)
+
+The repository is undergoing a compatibility-preserving package migration. Core legacy modules remain at the root until import, Docker, and Windows dependencies can be migrated with exact-head regression evidence. New orchestration code belongs in `hwpx_mcp/orchestration/`, not beside `server_p2.py`. The P4.18-P2 `compile_p418_document_workflow` tool is read-only and never grants approval to execute.
+
 Remote Streamable-HTTP MCP for authenticated HWPX document creation, custody, validation, structured introspection, revision-safe editing, legacy HWP read/promotion, and fidelity testing from ChatGPT Web.
 
 ## What this repository contains

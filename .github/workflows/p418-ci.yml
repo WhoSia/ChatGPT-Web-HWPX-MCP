@@ -38,9 +38,9 @@ jobs:
       - name: Install dependencies
         run: python -m pip install -r requirements.txt -r requirements-dev.txt
       - name: Compile P4.18 product facade
-        run: python -m py_compile p418_product.py p418_mcp.py hwpx_mcp/orchestration/p418_p2_workflow.py p417_mcp.py server_p2.py
+        run: python -m py_compile p418_product.py p418_mcp.py hwpx_mcp/orchestration/p418_p2_workflow.py hwpx_mcp/orchestration/p418_p2_preview.py p417_mcp.py server_p2.py
       - name: P4.18 product task tests
-        run: python -m pytest -q test_p418_product.py tests/test_p418_p2_workflow.py test_p417_planner.py test_p417_executor.py
+        run: python -m pytest -q test_p418_product.py tests/test_p418_p2_workflow.py tests/test_p418_p2_preview.py test_p417_planner.py test_p417_executor.py
 
   docker-exact-head:
     runs-on: ubuntu-latest

@@ -72,6 +72,10 @@ def prepare_native_edit_review_packet(
         }
         if staged_identity != expected_identity:
             raise AdmissionError("review does not match server-owned staged identity")
+        # A lease token is a server-side capability and must NEVER be
+        # disclosed to an interactive browser, even to the document owner.
+        displayed_task = deepcopy(dict(task))
+        token_is_present = bool(displayed_task.pop("lease_token", ""))
         packet = {
             "schema": "chatgpt-web-hwpx-mcp/p4.18-p3/native-edit-review/v1",
             "workflow_id": workflow_id,
@@ -88,7 +92,8 @@ def prepare_native_edit_review_packet(
             "references": deepcopy([dict(row) for row in rows[1:]]),
             # Do not show only a summary: the host must display these complete
             # normalized effects before any human confirmation is accepted.
-            "complete_task": deepcopy(dict(task)),
+            "complete_task": displayed_task,
+            "lease_credential_present": token_is_present,
             "requested_actions": deepcopy(task["intent"].get("actions", [])),
             "preservation": deepcopy(task["intent"].get("preservation", {})),
             "decision": "AWAITING_INDEPENDENT_HUMAN_CONFIRMATION",

@@ -131,3 +131,32 @@ def test_duplicate_form_keys_and_wrong_content_type_fail_closed(monkeypatch):
     wrong.headers["content-type"] = "application/json"
     assert asyncio.run(route(wrong)).status_code == 415
     assert host.calls == []
+
+
+def test_missing_origin_requires_same_origin_referer_and_fetch_metadata(monkeypatch):
+    route, host = setup(monkeypatch)
+    fields = {"mode": "inspect", "workflow_id": WID, "passphrase": "p" * 35}
+    same = FakeRequest("POST", fields, origin="")
+    same.headers["referer"] = "https://example.org/p418/host/review?workflow_id=" + WID
+    same.headers["sec-fetch-site"] = "same-origin"
+    same.headers["sec-fetch-mode"] = "navigate"
+    response = asyncio.run(route(same))
+    assert response.status_code == 200
+    assert host.calls[0][0] == "inspect"
+
+    for missing in ("referer", "sec-fetch-site", "sec-fetch-mode"):
+        request = FakeRequest("POST", fields, origin="")
+        request.headers.update(same.headers)
+        request.headers.pop(missing)
+        assert asyncio.run(route(request)).status_code == 403
+
+    spoofed = FakeRequest("POST", fields, origin="https://attacker.example")
+    spoofed.headers.update({k: v for k, v in same.headers.items() if k != "origin"})
+    assert asyncio.run(route(spoofed)).status_code == 403
+
+    foreign = FakeRequest("POST", fields, origin="")
+    foreign.headers["referer"] = "https://attacker.example/path"
+    foreign.headers["sec-fetch-site"] = "cross-site"
+    foreign.headers["sec-fetch-mode"] = "navigate"
+    assert asyncio.run(route(foreign)).status_code == 403
+    assert len(host.calls) == 1

@@ -41,6 +41,8 @@ def execute_approved_once(
         bound_inputs=bound_inputs, effect_scope=effect_scope,
         execution_key=execution_key, verify_live_bindings=verify_live_bindings)
     if claim["state"] == "COMMITTED":
+        if not isinstance(claim.get("result"), Mapping) or not verify_durable_commit(owner, claim["result"]):
+            raise AdmissionError("delivery replay requires surviving verified durable commit")
         return {"state": "COMMITTED", "mutation_executed": False,
                 "delivery_only": True, "result": claim["result"]}
     if claim["state"] != "CLAIMED":

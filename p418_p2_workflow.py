@@ -92,11 +92,23 @@ def compile_workflow(
             payload["expected_revision"] = resolved["TARGET"]["revision"]
         task = normalize_document_task(payload)
         if kind == "EDIT_INTENT":
+            if "TARGET" in resolved and task["document_id"] != resolved["TARGET"]["document_id"]:
+                raise ValueError("target binding conflicts with explicit task")
             found = catalog.get(task["document_id"])
             if found is None or found["revision"] != task["expected_revision"]:
                 raise ValueError("target missing or stale in catalog")
-        if kind == "TEMPLATE_FILL" and task["template_document_id"] not in catalog:
-            raise ValueError("template missing in catalog")
+        if kind == "TEMPLATE_FILL":
+            if "TEMPLATE" in resolved and task["template_document_id"] != resolved["TEMPLATE"]["document_id"]:
+                raise ValueError("template binding conflicts with explicit task")
+            if task["template_document_id"] not in catalog:
+                raise ValueError("template missing in catalog")
+        if kind == "EDIT_INTENT" and task.get("reference_document_id"):
+            if task["reference_document_id"] not in catalog:
+                raise ValueError("reference missing in catalog")
+            if "REFERENCE" in resolved and task["reference_document_id"] != resolved["REFERENCE"]["document_id"]:
+                raise ValueError("reference binding conflicts with explicit task")
+        if kind in {"DELIVER", "INSPECT"} and task["document_id"] not in catalog:
+            raise ValueError("document missing in catalog")
         if kind in MUTATING:
             mutations += 1
         compiled.append({"ordinal": index, "task": task, "effect": "MUTATION" if kind in MUTATING else "READ_ONLY"})

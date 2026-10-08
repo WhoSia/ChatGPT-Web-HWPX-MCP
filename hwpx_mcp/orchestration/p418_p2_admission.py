@@ -95,6 +95,29 @@ class DurableApprovalLedger:
         return {"workflow_id": workflow_id, "state": "STAGED", "expires_at": expires_at.isoformat(),
                 "approval_granted": False}
 
+    def get_staged_review_identity(self, *, owner: str, workflow_id: str) -> dict:
+        """Host-only readback of the authoritative staged review fingerprints.
+
+        Never returns approval keys, mutations or secrets. A client-supplied
+        digest cannot replace this server-owned PostgreSQL read.
+        """
+        if not isinstance(owner, str) or not owner.strip() or not isinstance(workflow_id, str) or not workflow_id:
+            raise AdmissionError("authenticated staged review identity required")
+        with self._connect() as conn, conn.cursor() as cur:
+            cur.execute("""
+                SELECT draft_sha256,preview_sha256,binding_sha256,effect_scope
+                  FROM hwpx_p418_workflow_admission
+                 WHERE owner_subject=%s AND workflow_id=%s
+                   AND state='STAGED' AND expires_at>NOW()
+            """, (owner, workflow_id))
+            row = cur.fetchone()
+        if row is None:
+            raise AdmissionError("staged review unavailable or expired")
+        return {
+            "draft_sha256": row[0], "preview_sha256": row[1],
+            "binding_sha256": row[2], "effect_scope": row[3],
+        }
+
     def approve(self, *, owner: str, workflow_id: str,
                 trusted_confirmation: Any, verify_confirmation: Callable[..., bool]) -> dict:
         """Requires host-owned verification, not MCP agent-supplied approval."""

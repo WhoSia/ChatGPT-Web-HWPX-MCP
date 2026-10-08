@@ -33,9 +33,12 @@ def verify_server_owned_edit_commit(
     def verify_owner(subject: str, target_id: str) -> bool:
         if subject != owner or target_id != document_id:
             return False
-        metadata = core._load_metadata(target_id)
-        core._require_owner(metadata)
-        return int(metadata.get("revision", -1)) >= expected + 1
+        try:
+            metadata = core._load_metadata(target_id)
+            core._require_owner(metadata)
+            return int(metadata.get("revision", -1)) >= expected + 1
+        except (PermissionError, FileNotFoundError, KeyError, ValueError, TypeError):
+            return False
 
     return verify_owned_hwp_commit(
         owner=owner, result=receipt, store=store,

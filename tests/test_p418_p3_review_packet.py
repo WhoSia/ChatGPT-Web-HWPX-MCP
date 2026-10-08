@@ -94,3 +94,31 @@ def test_invalid_approval_lookalike_task_rejected():
     args["preview"] = preview_workflow(forged)
     with pytest.raises(AdmissionError, match="server-owned staged identity"):
         prepare_native_edit_review_packet(**args)
+
+
+def test_host_review_never_discloses_durable_lease_credential():
+    args = prepared()
+    raw_task = deepcopy(args["draft"]["steps"][0]["task"])
+    raw_task.pop("task_sha256")
+    raw_task["lease_token"] = "HIDDEN-OPAQUE-LEASE-CREDENTIAL-NEVER-DISPLAY"
+    draft = compile_workflow(
+        {"steps": [{"task": raw_task}]},
+        [{"document_id": "document-1", "revision": 3}],
+    )
+    preview = preview_workflow(draft)
+    bindings = args["staged_bindings"]
+    expected_identity = {
+        "draft_sha256": draft["draft_sha256"],
+        "preview_sha256": preview["preview_sha256"],
+        "binding_sha256": canonical_sha(bindings),
+        "effect_scope": "EDIT_INTENT",
+    }
+    class SignedStage:
+        def get_staged_review_identity(self, *, owner, workflow_id):
+            return expected_identity
+    args.update(draft=draft, preview=preview, ledger=SignedStage())
+    packet = prepare_native_edit_review_packet(**args)
+    assert packet["lease_credential_present"] is True
+    assert "lease_token" not in packet["complete_task"]
+    assert "HIDDEN-OPAQUE-LEASE-CREDENTIAL" not in str(packet)
+    assert packet["complete_task"]["task_sha256"] == draft["steps"][0]["task"]["task_sha256"]

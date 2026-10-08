@@ -132,7 +132,11 @@ def register_host_review_route(core, *, host_factory):
         content_type = request.headers.get("content-type", "").split(";", 1)[0].strip().lower()
         if content_type != "application/x-www-form-urlencoded":
             return _html("<h1>지원되지 않는 제출 형식입니다.</h1>", status=415)
-        if int(request.headers.get("content-length", "0") or "0") > 4096:
+        try:
+            advertised_length = int(request.headers.get("content-length", "0") or "0")
+        except ValueError:
+            return _html("<h1>유효하지 않은 요청 크기입니다.</h1>", status=400)
+        if advertised_length < 0 or advertised_length > 4096:
             return _html("<h1>요청 크기 제한 초과</h1>", status=413)
         raw = await request.body()
         if len(raw) > 4096:
@@ -145,6 +149,13 @@ def register_host_review_route(core, *, host_factory):
         password = form.get("passphrase", [""])[0]
         if not _WORKFLOW.fullmatch(wid) or mode not in {"inspect", "approve", "deny"}:
             return _html("<h1>유효하지 않은 승인 요청입니다.</h1>", status=400)
+        allowed_fields = (
+            {"mode", "workflow_id", "passphrase"}
+            if mode == "inspect"
+            else {"mode", "workflow_id", "passphrase", "review_sha256"}
+        )
+        if set(form) != allowed_fields:
+            return _html("<h1>확인되지 않은 제출 항목입니다.</h1>", status=400)
         try:
             host = host_factory()
             if mode == "inspect":

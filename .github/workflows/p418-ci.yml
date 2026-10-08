@@ -6,7 +6,8 @@ on:
     paths:
       - "p418_*.py"
       - "test_p418_*.py"
-      - "tests/test_p418_p2_workflow.py"
+      - "tests/test_p418_p2_*.py"
+      - "tests/test_p418_p3_*.py"
       - "hwpx_mcp/**"
       - "p417_mcp.py"
       - "server_p2.py"

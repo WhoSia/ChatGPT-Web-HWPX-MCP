@@ -119,8 +119,8 @@ class DurableApprovalLedger:
               draft_sha256: str, preview_sha256: str, bound_inputs: Mapping[str, Any],
               effect_scope: str, execution_key: str,
               verify_live_bindings: Callable[..., bool]) -> dict:
-        if not callable(verify_live_bindings) or not verify_live_bindings(owner, bound_inputs):
-            raise AdmissionError("live owner and revision binding verification required")
+        if not callable(verify_live_bindings):
+            raise AdmissionError("trusted live binding verifier required")
         if not isinstance(execution_key, str) or not 16 <= len(execution_key) <= 160:
             raise AdmissionError("stable execution key required")
         binding_hash = canonical_sha(bound_inputs)
@@ -146,6 +146,8 @@ class DurableApprovalLedger:
                         "reason": "MUTATION_OUTCOME_REQUIRES_DURABLE_RECONCILIATION"}
             if r[6] != "APPROVED" or r[7] <= datetime.now(timezone.utc):
                 raise AdmissionError("approval expired or no longer admissible")
+            if not verify_live_bindings(owner, bound_inputs):
+                raise AdmissionError("live owner and revision binding verification required")
             cur.execute("""
                 UPDATE hwpx_p418_workflow_admission
                    SET state='CLAIMED',execution_key=%s,updated_at=NOW()

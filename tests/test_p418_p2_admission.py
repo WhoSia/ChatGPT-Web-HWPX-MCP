@@ -171,3 +171,19 @@ def test_live_revision_revalidation_blocks_stale_claim():
     with pytest.raises(AdmissionError, match="live owner and revision"):
         claim(db, inputs, staged, grant, verify_live_bindings=lambda *_: False)
     assert db.recover(owner=inputs["owner"], workflow_id=staged["workflow_id"])["state"] == "APPROVED"
+
+
+def test_committed_replay_does_not_require_old_current_revision():
+    db = new_ledger()
+    inputs, staged = stage(db)
+    grant = approve(db, inputs, staged)
+    key = "stable-key-" + staged["workflow_id"]
+    claim(db, inputs, staged, grant)
+    receipt = {"document_id": "doc1", "revision": 5, "sha256": "e" * 64}
+    db.committed(owner=inputs["owner"], workflow_id=staged["workflow_id"],
+                 execution_key=key, result=receipt, verify_commit=lambda *_: True)
+    replay = claim(db, inputs, staged, grant,
+                   verify_live_bindings=lambda *_: False)
+    assert replay["state"] == "COMMITTED"
+    assert replay["replay"] is True
+    assert replay["result"]["revision"] == 5

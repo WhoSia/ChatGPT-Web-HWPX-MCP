@@ -58,3 +58,42 @@ def execute_approved_once(
         # A mutation might already have been committed. Quarantine; do not retry.
         ledger.recover(owner=owner, workflow_id=workflow_id)
         raise
+
+
+def execute_exact_approved_draft(
+    *, ledger: DurableApprovalLedger, owner: str, workflow_id: str,
+    approval_key: str, draft: Mapping[str, Any], preview: Mapping[str, Any],
+    bound_inputs: Mapping[str, Any], execution_key: str,
+    verify_live_bindings: Callable[[str, Mapping], bool],
+    execute_normalized_task: Callable[[Mapping[str, Any]], Mapping[str, Any]],
+    verify_durable_commit: Callable[[str, Mapping], bool],
+) -> dict[str, Any]:
+    """Bind the executed semantic task to the exact displayed approved draft.
+
+    Never expose this function to arbitrary MCP clients; authorization and
+    execution callbacks belong to the trusted independent host.
+    """
+    from p418_product import normalize_document_task
+    from hwpx_mcp.orchestration.p418_p2_preview import preview_workflow
+    canonical_preview = preview_workflow(draft)
+    if not isinstance(preview, Mapping) or dict(preview) != canonical_preview:
+        raise AdmissionError("approved preview differs from canonical draft")
+    steps = draft["steps"]
+    mutations = [s for s in steps if s["effect"] == "MUTATION"]
+    if len(mutations) != 1:
+        raise AdmissionError("a single approved mutation is required")
+    task = mutations[0]["task"]
+    if not isinstance(task, Mapping) or normalize_document_task(task) != task:
+        raise AdmissionError("executed task differs from normalized approved task")
+    if not callable(execute_normalized_task):
+        raise AdmissionError("trusted normalized-task executor required")
+    return execute_approved_once(
+        ledger=ledger, owner=owner, workflow_id=workflow_id,
+        approval_key=approval_key,
+        draft_sha256=draft["draft_sha256"],
+        preview_sha256=canonical_preview["preview_sha256"],
+        bound_inputs=bound_inputs, effect_scope=task["kind"],
+        execution_key=execution_key,
+        verify_live_bindings=verify_live_bindings,
+        perform_authorized_effect=lambda: execute_normalized_task(dict(task)),
+        verify_durable_commit=verify_durable_commit)

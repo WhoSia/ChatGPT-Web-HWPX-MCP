@@ -107,3 +107,37 @@ def test_staging_bounds_are_enforced():
     with pytest.raises(AdmissionError, match="effect scope"):
         stage(db, effect_scope="DELETE")
     assert canonical_sha({"a": 1, "b": 2}) == canonical_sha({"b": 2, "a": 1})
+
+
+def test_approval_expiration_is_fail_closed():
+    db = new_ledger()
+    inputs, staged = stage(db)
+    with db._connect() as conn, conn.cursor() as cur:
+        cur.execute("UPDATE hwpx_p418_workflow_admission SET expires_at=NOW()-INTERVAL '1 second' WHERE workflow_id=%s",
+                    (staged["workflow_id"],))
+    with pytest.raises(AdmissionError, match="stale"):
+        approve(db, inputs, staged)
+
+
+def test_parallel_claims_allow_only_one_mutation_start():
+    from concurrent.futures import ThreadPoolExecutor
+    db = new_ledger()
+    inputs, staged = stage(db)
+    grant = approve(db, inputs, staged)
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        states = list(pool.map(lambda _: claim(new_ledger(), inputs, staged, grant), range(4)))
+    assert sum(x["state"] == "CLAIMED" for x in states) == 1
+    assert sum(x["state"] == "UNCERTAIN" for x in states) == 3
+    assert all(x["replay"] is False for x in states)
+
+
+def test_rejected_commit_cannot_change_state():
+    db = new_ledger()
+    inputs, staged = stage(db)
+    grant = approve(db, inputs, staged)
+    claim(db, inputs, staged, grant)
+    with pytest.raises(AdmissionError, match="claim not found"):
+        db.committed(owner=inputs["owner"], workflow_id=staged["workflow_id"],
+                     execution_key="wrong-execution", result={"revision": 5},
+                     verify_commit=lambda *_: True)
+    assert db.recover(owner=inputs["owner"], workflow_id=staged["workflow_id"])["state"] == "UNCERTAIN"

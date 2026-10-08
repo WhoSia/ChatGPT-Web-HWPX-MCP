@@ -42,4 +42,7 @@ def test_expiry_future_signature_and_invalid_encoding_fail():
     assert not verify(signed(issued_at=9000, expires_at=9040))
     assert not verify(signed(issued_at=1000, expires_at=1600))
     assert not verify({"payload": signed()["payload"], "signature": "!"})
-    assert not verify(signed(), secret=b"short")
+    from hwpx_mcp.orchestration.p418_p3_host_consent import ConfirmationError
+    import pytest
+    with pytest.raises(ConfirmationError):
+        verify(signed(), secret=b"short")

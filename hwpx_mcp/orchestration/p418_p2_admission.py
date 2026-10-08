@@ -16,6 +16,7 @@ import json
 import secrets
 from collections.abc import Callable, Mapping
 from datetime import datetime, timedelta, timezone
+from functools import lru_cache
 from typing import Any
 
 import psycopg
@@ -258,3 +259,14 @@ class DurableApprovalLedger:
                 "recovery_route": "EXACT_REVISION_DELIVERY_ONLY" if state == "COMMITTED"
                                   else "MANUAL_DURABLE_COMMIT_RECONCILIATION" if state == "UNCERTAIN"
                                   else "NO_MUTATION_REPLAY"}
+
+
+@lru_cache(maxsize=4)
+def get_durable_approval_ledger(database_url: str) -> DurableApprovalLedger:
+    """Reuse immutable PostgreSQL ledger configuration per host process.
+
+    Schema initialization is performed once per cached URL instead of on every
+    preview staging/recovery call. Each transactional method still acquires a
+    fresh database connection; no transaction or approval state is cached.
+    """
+    return DurableApprovalLedger(database_url)

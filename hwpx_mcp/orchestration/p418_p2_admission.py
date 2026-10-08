@@ -115,6 +115,30 @@ class DurableApprovalLedger:
         return {"workflow_id": workflow_id, "approval_key": key, "state": "APPROVED",
                 "effect_scope": row[2], "draft_sha256": row[0], "preview_sha256": row[1]}
 
+    def approve_host_assertion(self, *, owner: str, workflow_id: str,
+                               envelope: Mapping[str, Any], host_secret: bytes) -> dict:
+        """Host-origin only. No MCP endpoint issues signed assertions."""
+        from hwpx_mcp.orchestration.p418_p3_host_consent import verify_host_confirmation
+        with self._connect() as conn, conn.cursor() as cur:
+            cur.execute("""
+                SELECT draft_sha256,preview_sha256,effect_scope,state,expires_at
+                  FROM hwpx_p418_workflow_admission
+                 WHERE workflow_id=%s AND owner_subject=%s
+            """, (workflow_id, owner))
+            row = cur.fetchone()
+        if row is None or row[3] != "STAGED" or row[4] <= datetime.now(timezone.utc):
+            raise AdmissionError("workflow unavailable or expired")
+        if not verify_host_confirmation(
+            secret=host_secret, envelope=envelope, owner=owner,
+            workflow_id=workflow_id, draft_sha256=row[0],
+            preview_sha256=row[1], effect_scope=row[2]):
+            raise AdmissionError("host assertion did not authorize exact workflow")
+        return self.approve(
+            owner=owner, workflow_id=workflow_id,
+            trusted_confirmation=envelope,
+            verify_confirmation=lambda subject, wid, ev: (
+                subject == owner and wid == workflow_id and ev is envelope))
+
     def claim(self, *, owner: str, workflow_id: str, approval_key: str,
               draft_sha256: str, preview_sha256: str, bound_inputs: Mapping[str, Any],
               effect_scope: str, execution_key: str,

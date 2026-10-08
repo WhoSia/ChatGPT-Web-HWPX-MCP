@@ -9,7 +9,7 @@ from copy import deepcopy
 from collections.abc import Mapping, Sequence
 from typing import Any
 
-from hwpx_mcp.orchestration.p418_p2_workflow import _digest, compile_workflow
+from hwpx_mcp.orchestration.p418_p2_workflow import _digest, compile_workflow, MUTATING, SCHEMA
 
 PREVIEW_SCHEMA = "chatgpt-web-hwpx-mcp/p4.18-p2/preview/v1"
 MAX_CORRECTIONS = 16
@@ -25,18 +25,28 @@ def preview_workflow(draft: Mapping[str, Any]) -> dict[str, Any]:
         raise ValueError("draft integrity check failed")
     if body.get("executable") is not False:
         raise ValueError("draft cannot be executable")
+    if body.get("schema") != SCHEMA or body.get("authority") != "NON_MUTATING_CALLER_CATALOG_PREFLIGHT_ONLY":
+        raise ValueError("unrecognized draft schema or authority")
     steps = body.get("steps")
     if not isinstance(steps, list) or not steps:
         raise ValueError("draft steps required")
     effects = []
-    for step in steps:
+    for ordinal, step in enumerate(steps):
         if not isinstance(step, dict) or step.get("effect") not in {"MUTATION", "READ_ONLY"}:
             raise ValueError("invalid step effect")
         task = step.get("task")
         if not isinstance(task, dict) or "kind" not in task:
             raise ValueError("invalid normalized task")
+        if step.get("ordinal") != ordinal or not isinstance(task["kind"], str):
+            raise ValueError("step ordering or kind invalid")
+        if (step["effect"] == "MUTATION") != (task["kind"] in MUTATING):
+            raise ValueError("task and effect mismatch")
         effects.append({"ordinal": step["ordinal"], "kind": task["kind"], "effect": step["effect"],
                         "document_id": task.get("document_id") or task.get("template_document_id") or ""})
+    if sum(effect["effect"] == "MUTATION" for effect in effects) != body.get("mutation_count"):
+        raise ValueError("mutation count mismatch")
+    if body["mutation_count"] > 1:
+        raise ValueError("multi-mutation admission prohibited")
     receipt = {
         "schema": PREVIEW_SCHEMA,
         "draft_sha256": digest,

@@ -15,6 +15,9 @@ def verify_server_owned_edit_commit(
     receipt: Mapping[str, Any],
 ) -> bool:
     """Require exact owner, revision and persisted commit proof."""
+    caller = getattr(core, "_caller_subject", None)
+    if not callable(caller) or caller() != owner:
+        return False
     if not isinstance(task, Mapping) or task.get("kind") != "EDIT_INTENT":
         return False
     document_id = task.get("document_id")

@@ -187,3 +187,18 @@ def test_committed_replay_does_not_require_old_current_revision():
     assert replay["state"] == "COMMITTED"
     assert replay["replay"] is True
     assert replay["result"]["revision"] == 5
+
+
+def test_abort_is_owner_scoped_and_only_before_claim():
+    db = new_ledger()
+    inputs, staged = stage(db)
+    with pytest.raises(AdmissionError, match="cannot be aborted"):
+        db.abort_unclaimed(owner="someone-else", workflow_id=staged["workflow_id"])
+    assert db.abort_unclaimed(owner=inputs["owner"], workflow_id=staged["workflow_id"])["state"] == "ABORTED"
+    with pytest.raises(AdmissionError, match="stale"):
+        approve(db, inputs, staged)
+    inputs2, staged2 = stage(db)
+    granted = approve(db, inputs2, staged2)
+    claim(db, inputs2, staged2, granted)
+    with pytest.raises(AdmissionError, match="cannot be aborted"):
+        db.abort_unclaimed(owner=inputs2["owner"], workflow_id=staged2["workflow_id"])

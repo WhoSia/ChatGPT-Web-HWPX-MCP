@@ -7,6 +7,7 @@ document bindings, and a deterministic commit-receipt verifier.
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping
+from copy import deepcopy
 from typing import Any
 
 from hwpx_mcp.orchestration.p418_p2_admission import AdmissionError, DurableApprovalLedger
@@ -95,5 +96,5 @@ def execute_exact_approved_draft(
         bound_inputs=bound_inputs, effect_scope=task["kind"],
         execution_key=execution_key,
         verify_live_bindings=verify_live_bindings,
-        perform_authorized_effect=lambda: execute_normalized_task(dict(task)),
+        perform_authorized_effect=lambda: execute_normalized_task(deepcopy(dict(task))),
         verify_durable_commit=verify_durable_commit)

@@ -67,7 +67,7 @@ def test_staging_never_returns_approval(monkeypatch):
             assert kwargs["owner"] == "subject"
             assert kwargs["bound_inputs"]["documents"][0]["revision"] == 4
             return {"workflow_id": "w", "state": "STAGED", "approval_granted": False}
-    monkeypatch.setattr(p418_mcp, "DurableApprovalLedger", StubStore)
+    monkeypatch.setattr(p418_mcp, "get_durable_approval_ledger", lambda url: StubStore(url))
     draft, preview = sample()
     response = core.mcp.tools["stage_p418_document_workflow"](draft, preview)
     assert response["approval_granted"] is False
@@ -114,7 +114,7 @@ def test_staging_without_explicit_role_binding_still_supported(monkeypatch):
             assert url == "postgresql://unreached"
         def stage(self, **kwargs):
             return {"workflow_id": "fresh", "state": "STAGED", "approval_granted": False}
-    monkeypatch.setattr(p418_mcp, "DurableApprovalLedger", StubStore)
+    monkeypatch.setattr(p418_mcp, "get_durable_approval_ledger", lambda url: StubStore(url))
     draft, preview = sample()
     assert draft["resolved_inputs"] == {}
     result = core.mcp.tools["stage_p418_document_workflow"](draft, preview)

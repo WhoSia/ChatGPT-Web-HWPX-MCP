@@ -7,7 +7,7 @@ from mcp.types import CallToolResult, ToolAnnotations
 from p418_product import PHASE, PRODUCT, document_agent_contract, prepare_document_task
 from hwpx_mcp.orchestration.p418_p2_workflow import compile_workflow
 from hwpx_mcp.orchestration.p418_p2_preview import preview_workflow, correct_workflow
-from hwpx_mcp.orchestration.p418_p2_admission import DurableApprovalLedger, AdmissionError
+from hwpx_mcp.orchestration.p418_p2_admission import get_durable_approval_ledger, AdmissionError
 
 
 def _structured(result: Any) -> dict:
@@ -140,7 +140,7 @@ def register_p418_tools(
         url = getattr(store, "database_url", None)
         if not url:
             raise AdmissionError("PostgreSQL durable custody required for workflow admission")
-        record = DurableApprovalLedger(url).stage(
+        record = get_durable_approval_ledger(url).stage(
             owner=owner, draft_sha256=draft["draft_sha256"],
             preview_sha256=verified_preview["preview_sha256"],
             bound_inputs={"documents": identity_rows},
@@ -156,7 +156,7 @@ def register_p418_tools(
         url = getattr(store, "database_url", None)
         if not url:
             raise AdmissionError("PostgreSQL durable custody required for recovery")
-        return {"ok": True, **DurableApprovalLedger(url).recover(
+        return {"ok": True, **get_durable_approval_ledger(url).recover(
             owner=owner, workflow_id=workflow_id)}
 
     @core.mcp.tool(annotations=write)

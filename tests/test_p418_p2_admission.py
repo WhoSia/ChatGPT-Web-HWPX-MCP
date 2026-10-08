@@ -235,3 +235,61 @@ def test_host_signed_consent_is_one_shot_and_scope_bound():
     with pytest.raises(AdmissionError, match="unavailable"):
         db.approve_host_assertion(owner=inputs["owner"], workflow_id=staged["workflow_id"],
                                   envelope=envelope, host_secret=host_secret)
+
+
+def test_p3_host_approved_execution_crosses_real_postgres_and_restarts():
+    import base64, hashlib, hmac, json, time
+    from hwpx_mcp.orchestration.p418_p3_execution import execute_approved_once
+    db = new_ledger()
+    inputs, staged = stage(db)
+    now = int(time.time())
+    secret = b"trusted-independent-host-secret-" + b"t" * 32
+    payload = {
+        "version": "p418-p3-host-consent-v1", "subject": inputs["owner"],
+        "workflow_id": staged["workflow_id"],
+        "draft_sha256": inputs["draft_sha256"],
+        "preview_sha256": inputs["preview_sha256"],
+        "effect_scope": inputs["effect_scope"],
+        "issued_at": now, "expires_at": now + 90, "decision": "APPROVE",
+    }
+    raw = json.dumps(payload, sort_keys=True, ensure_ascii=False,
+                     separators=(",", ":"), allow_nan=False).encode()
+    sig = hmac.new(secret, b"p418-p3-consent-v1\0" + raw, hashlib.sha256).digest()
+    envelope = {"payload": payload, "signature": base64.urlsafe_b64encode(sig).decode().rstrip("=")}
+    approval = db.approve_host_assertion(owner=inputs["owner"],
+        workflow_id=staged["workflow_id"], envelope=envelope, host_secret=secret)
+    effects = []
+    kwargs = dict(owner=inputs["owner"], workflow_id=staged["workflow_id"],
+        approval_key=approval["approval_key"], draft_sha256=inputs["draft_sha256"],
+        preview_sha256=inputs["preview_sha256"], bound_inputs=inputs["bound_inputs"],
+        effect_scope=inputs["effect_scope"], execution_key="P3-host-integration-" + staged["workflow_id"],
+        verify_live_bindings=lambda who, bound: who == inputs["owner"] and bound == inputs["bound_inputs"],
+        perform_authorized_effect=lambda: (effects.append("ONE") or {"commit_receipt": "verified", "revision": 5}),
+        verify_durable_commit=lambda who, receipt: who == inputs["owner"] and receipt.get("commit_receipt") == "verified")
+    first = execute_approved_once(ledger=db, **kwargs)
+    second = execute_approved_once(ledger=new_ledger(), **kwargs)
+    assert first["state"] == "COMMITTED" and first["mutation_executed"]
+    assert second["delivery_only"] and not second["mutation_executed"]
+    assert effects == ["ONE"]
+
+
+def test_p3_postgres_unknown_commit_requires_manual_reconciliation():
+    from hwpx_mcp.orchestration.p418_p3_execution import execute_approved_once
+    db = new_ledger()
+    inputs, staged = stage(db)
+    approval = approve(db, inputs, staged)
+    effects = []
+    def ambiguous():
+        effects.append("MAYBE_COMMITTED")
+        raise RuntimeError("network failure after possible commit")
+    args = dict(ledger=db, owner=inputs["owner"], workflow_id=staged["workflow_id"],
+        approval_key=approval["approval_key"], draft_sha256=inputs["draft_sha256"],
+        preview_sha256=inputs["preview_sha256"], bound_inputs=inputs["bound_inputs"],
+        effect_scope=inputs["effect_scope"], execution_key="P3-uncertain-" + staged["workflow_id"],
+        verify_live_bindings=lambda *_: True,
+        perform_authorized_effect=ambiguous,
+        verify_durable_commit=lambda *_: True)
+    with pytest.raises(RuntimeError):
+        execute_approved_once(**args)
+    assert execute_approved_once(**{**args, "ledger": new_ledger()})["state"] == "UNCERTAIN"
+    assert effects == ["MAYBE_COMMITTED"]

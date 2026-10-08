@@ -95,16 +95,21 @@ def register_p418_tools(
         from hwpx_mcp.orchestration.p418_p2_workflow import compile_workflow
         supplied_steps = draft["steps"]
         supplied_bindings = draft.get("resolved_inputs", {})
-        candidate_catalog = list({
-            row["document_id"]: dict(row)
-            for row in supplied_bindings.values()
-        }.values())
-        # Explicit target references may not be present as role bindings.
+        document_ids = {
+            row["document_id"] for row in supplied_bindings.values()
+        }
         for step in supplied_steps:
             for field in ("document_id", "template_document_id", "reference_document_id"):
                 doc_id = step["task"].get(field)
-                if doc_id and doc_id not in {d["document_id"] for d in candidate_catalog}:
-                    raise AdmissionError("mutation inputs require explicit catalog binding")
+                if doc_id:
+                    document_ids.add(doc_id)
+        candidate_catalog = []
+        for doc_id in sorted(document_ids):
+            metadata = core._load_metadata(doc_id)
+            core._require_owner(metadata)
+            candidate_catalog.append({
+                "document_id": doc_id, "revision": int(metadata["revision"])
+            })
         reconstructed = compile_workflow(
             {"steps": [{"task": dict(step["task"])} for step in supplied_steps],
              "input_bindings": {role: row["document_id"] for role, row in supplied_bindings.items()}},

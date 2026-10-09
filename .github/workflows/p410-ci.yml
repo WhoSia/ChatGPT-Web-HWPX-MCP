@@ -32,7 +32,7 @@ jobs:
           python-version: "3.12"
           cache: pip
       - run: pip install -r requirements.txt -r requirements-dev.txt
-      - run: python -m compileall -q hwpx_mcp/quality/p410_closure.py tests/test_p410_closure.py tests/test_p410_native_closure_pack.py scripts/p410_release_smoke.py scripts/p410_materialize_native_closure_pack.py p49_visual_conformance.py hwpx_mcp/quality/p49_equation_witnesses.py
+      - run: python -m compileall -q hwpx_mcp/quality/p410_closure.py tests/test_p410_closure.py tests/test_p410_native_closure_pack.py scripts/p410_release_smoke.py scripts/p410_materialize_native_closure_pack.py hwpx_mcp/quality/p49_visual_conformance.py hwpx_mcp/quality/p49_equation_witnesses.py
       - run: python -m pytest -q tests/test_p410_closure.py tests/test_p410_native_closure_pack.py tests/test_p49_visual_conformance.py tests/test_p49_equation_witnesses.py tests/test_p49_capture_contract.py
       - run: python scripts/p49_release_smoke.py
       - run: python scripts/p410_release_smoke.py

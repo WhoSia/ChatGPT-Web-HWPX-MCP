@@ -18,7 +18,7 @@ from p210_equations import build_equation_map
 from hwpx_mcp.rendering.p47_native_authoring import compile_unified_authoring_plan
 from hwpx_mcp.rendering.p48_components import ARCHETYPES, compile_document_components
 from hwpx_mcp.interfaces.p48_mcp import _execute_visual_plans
-from p49_visual_conformance import audit_materialized_visuals, certify_visual_plans
+from hwpx_mcp.quality.p49_visual_conformance import audit_materialized_visuals, certify_visual_plans
 from p411_visual_oracle import structural_region_provenance_from_audit
 from p412_native_repair import audit_repaired_visuals
 

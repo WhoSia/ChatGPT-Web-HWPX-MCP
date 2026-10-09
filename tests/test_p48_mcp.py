@@ -15,7 +15,7 @@ from p326_drawing_style import build_drawing_style_map
 from hwpx_mcp.rendering.p47_native_authoring import compile_unified_authoring_plan
 from hwpx_mcp.rendering.p48_components import compile_document_components
 from hwpx_mcp.interfaces.p48_mcp import _execute_visual_plans, register_p48_tools
-from p49_visual_conformance import audit_materialized_visuals
+from hwpx_mcp.quality.p49_visual_conformance import audit_materialized_visuals
 from p412_native_repair import audit_repaired_visuals
 
 

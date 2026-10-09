@@ -64,6 +64,30 @@ This is a **product engineering** roadmap, not an evidence claim. Each released
 feature still requires exact-head CI and real operational verification. GitHub
 Actions builds and tests but must not author commits as `github-actions[bot]`.
 
+## Source layout and migration contract (P4.19)
+
+The repository now separates **runtime source**, **tests**, **operations** and
+**archived evidence** instead of adding a root-level Python file for every
+phase. Product-facing runtime integration remains in `server_p2.py` while the
+new P4.19 workspace and title-change staging functions live together under
+`hwpx_mcp/orchestration/p419_product.py`. Tests are under `tests/`; CI and
+compatibility probes use the new paths.
+
+Root-level functional modules from earlier phases are **not presumed obsolete**.
+Their import names, scripting interfaces and fidelity/regression consumers must
+be inventoried before further relocation. Do not merge unrelated algorithms
+just because their filenames carry neighboring phase numbers. Subsequent
+refactors should replace private implementation imports with package imports
+while keeping deliberate compatibility shims only where a supported public
+entrypoint actually needs one.
+
+Source cleanup is a behavior-preserving refactor, **not a release promotion**:
+each move requires tracked backlinks, exact-head Python import and test
+verification, Docker packaging, Windows/lifecycle CI and an intentional
+deployment. `github-actions[bot]` must not author source commits, and branches
+are not automatically deleted. Historical evidence belongs in Drive only
+after preservation has been verified.
+
 ## What this repository contains
 
 The GitHub repository is intentionally runtime-facing.

@@ -3,6 +3,16 @@ name: HWPX MCP lifecycle and fidelity CI
 on:
   push:
     branches: [main]
+  pull_request:
+    branches: [main]
+    paths:
+      - "tests/**"
+      - "hwpx_mcp/**"
+      - "scripts/**"
+      - ".github/workflows/**"
+      - "server.py"
+      - "server_p2.py"
+      - "p418_mcp.py"
   workflow_dispatch:
 
 permissions:

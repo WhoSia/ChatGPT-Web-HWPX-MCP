@@ -21,7 +21,7 @@ def workspace_overview(core, owned_document, document_id: str, *, now: float | N
         raise RuntimeError("Durable current-revision receipt mismatch")
     if not any(int(item["revision"]) == revision and item["sha256"] == metadata["sha256"] for item in versions):
         raise RuntimeError("Current revision missing from durable history")
-    urgency = "EXPIRING_SOON" if seconds < 900 else "ACTIVE"
+    urgency = "EXPIRING_SOON" if seconds <= 900 else "ACTIVE"
     return {
         "ok": True,
         "schema": "chatgpt-web-hwpx-mcp/p4.19/workspace-overview/v1",
@@ -43,7 +43,7 @@ def workspace_overview(core, owned_document, document_id: str, *, now: float | N
         "delivery": {"status": "NOT_YET_VERIFIED",
                      "next_tool": "export_document",
                      "note": "A signed link is not proof that the client downloaded and opened the HWPX."},
-        "next_actions": (["Export and verify document before expiration"] if seconds < 900
+        "next_actions": (["Export and verify document before expiration"] if seconds <= 900
                          else ["Review document", "Export when ready"]),
         "authority": "OWNER_SCOPED_READ_ONLY_WORKSPACE_OVERVIEW",
     }

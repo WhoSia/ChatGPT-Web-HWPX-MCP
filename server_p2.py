@@ -7233,7 +7233,7 @@ P416_DOCUMENT_PROVENANCE = register_p416_tools(core, _owned_document)
 from hwpx_mcp.interfaces.p417_mcp import register_p417_tools, execute_owned_intent_transformation
 P417_DOCUMENT_INTELLIGENCE = register_p417_tools(core, _owned_document, _refresh_p417_execution)
 
-from p417_semantics import recover_semantic_structure
+from hwpx_mcp.orchestration.p417_semantics import recover_semantic_structure
 from hwpx_mcp.interfaces.p418_mcp import register_p418_tools
 
 

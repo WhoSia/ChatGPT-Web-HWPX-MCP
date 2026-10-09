@@ -19,8 +19,8 @@ from hwpx import HwpxDocument
 
 from p2_document import build_document_map
 from p417_executor import compose_post_edit_native_authority, execute_transformation_atomic, transformation_execution_contract
-from p417_planner import plan_document_transformation
-from p417_semantics import recover_semantic_structure
+from hwpx_mcp.orchestration.p417_planner import plan_document_transformation
+from hwpx_mcp.orchestration.p417_semantics import recover_semantic_structure
 
 
 def make_hwpx(path: Path) -> None:

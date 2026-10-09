@@ -4,13 +4,13 @@ import zipfile
 from pathlib import Path
 
 from p2_document import build_document_map
-from p417_planner import (
+from hwpx_mcp.orchestration.p417_planner import (
     bind_semantic_graph_to_document_map,
     plan_document_transformation,
     transformation_planning_contract,
     validate_transformation_plan,
 )
-from p417_semantics import recover_semantic_structure
+from hwpx_mcp.orchestration.p417_semantics import recover_semantic_structure
 
 
 def make_hwpx(path: Path) -> None:

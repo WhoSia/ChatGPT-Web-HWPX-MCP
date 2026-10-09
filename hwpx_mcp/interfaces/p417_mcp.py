@@ -344,7 +344,7 @@ def register_p417_tools(core, owned_document=None, refresh_document=None):
     return {"phase": PHASE, "product": PRODUCT, "authority": "P417_DOCUMENT_INTELLIGENCE_AND_VERIFIED_EXECUTION_SURFACE"}
 
 
-from p417_semantics import (
+from hwpx_mcp.orchestration.p417_semantics import (
     align_semantic_graphs,
     classify_native_components,
     infer_corpus_schema,
@@ -353,7 +353,7 @@ from p417_semantics import (
 )
 
 
-from p417_planner import (
+from hwpx_mcp.orchestration.p417_planner import (
     plan_document_transformation,
     transformation_planning_contract,
     validate_transformation_plan,

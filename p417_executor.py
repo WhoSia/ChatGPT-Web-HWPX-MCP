@@ -23,8 +23,8 @@ from p342_mutation_footprint import (
     apply_document_design_repairs_with_footprint_atomic,
     expected_scope_for_design_repair,
 )
-from p417_planner import PLAN_SCHEMA, plan_document_transformation
-from p417_semantics import recover_semantic_structure
+from hwpx_mcp.orchestration.p417_planner import PLAN_SCHEMA, plan_document_transformation
+from hwpx_mcp.orchestration.p417_semantics import recover_semantic_structure
 
 PHASE = "P4.17"
 PRODUCT = "0.42.0-p4.17"

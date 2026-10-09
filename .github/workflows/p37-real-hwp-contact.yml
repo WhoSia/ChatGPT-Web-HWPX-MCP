@@ -55,6 +55,17 @@ jobs:
       - name: Install project dependencies
         run: pip install -r requirements.txt
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Build required P3.45 TypeScript runtime
+        run: |
+          set -euo pipefail
+          mkdir -p .tmp/p345-ts
+          npx --yes -p typescript@5.9.2 tsc --strict --target ES2022 --module commonjs --rootDir . --outDir .tmp/p345-ts contracts/p345_runtime.ts contracts/p345_extension_sdk.ts scripts/p345_runtime_cli.ts
+          node .tmp/p345-ts/scripts/p345_runtime_cli.js contract | grep -q '"phase":"P3.45"'
+
       - name: Download nested-flow HWP fixtures ephemerally
         env:
           HEADER_HWP_URL: "https://raw.githubusercontent.com/myeolinmalchi/hangulang/main/tests/fixtures/headerfooter/pic-in-head-01.hwp"

@@ -7212,16 +7212,16 @@ P47_RENDER_GROUNDED_AUTHORING = register_p47_tools(core, _refresh_metadata, _del
 from p48_mcp import register_p48_tools
 P48_COMPONENT_AUTHORING = register_p48_tools(core, _refresh_metadata, _delivery_after_commit)
 
-from p411_mcp import register_p411_tools
+from hwpx_mcp.interfaces.p411_mcp import register_p411_tools
 P411_NATIVE_RENDER_ORACLE = register_p411_tools(core)
 
-from p412_mcp import register_p412_tools
+from hwpx_mcp.interfaces.p412_mcp import register_p412_tools
 P412_NATIVE_VISUAL_REPAIR = register_p412_tools(core)
 
-from p413_mcp import register_p413_tools
+from hwpx_mcp.interfaces.p413_mcp import register_p413_tools
 P413_HANCOM_EVIDENCE_TRUST = register_p413_tools(core)
 
-from p414_mcp import register_p414_tools
+from hwpx_mcp.interfaces.p414_mcp import register_p414_tools
 P414_DISTRIBUTED_NATIVE_EVIDENCE = register_p414_tools(core)
 
 from p415_mcp import register_p415_tools

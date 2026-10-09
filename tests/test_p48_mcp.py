@@ -11,7 +11,7 @@ from hwpx.tools.package_validator import validate_editor_open_safety
 
 from p321_document_composer import compose_document_plan
 from hwpx_mcp.document.p325_drawing_layer import build_drawing_layer_map
-from p326_drawing_style import build_drawing_style_map
+from hwpx_mcp.document.p326_drawing_style import build_drawing_style_map
 from hwpx_mcp.rendering.p47_native_authoring import compile_unified_authoring_plan
 from hwpx_mcp.rendering.p48_components import compile_document_components
 from hwpx_mcp.interfaces.p48_mcp import _execute_visual_plans, register_p48_tools

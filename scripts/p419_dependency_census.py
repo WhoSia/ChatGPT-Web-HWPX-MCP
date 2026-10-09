@@ -57,13 +57,14 @@ def census(root: Path = ROOT) -> dict:
         if source.suffix == ".py":
             # Syntax errors must fail the audit, never silently drop a backlink.
             text = source.read_text(encoding="utf-8")
-            for name in _python_references(text, module_names):
+            direct_refs = _python_references(text, module_names)
+            for name in direct_refs:
                 if relative != name + ".py":
                     backlinks[name].add(relative)
             # Literal string usage may be dynamic path resolution, CLI, or
             # documentation; flag separately and do not treat as zero-risk.
             for name in module_names:
-                if name in text and name not in _python_references(text, module_names):
+                if name in text and name not in direct_refs:
                     if relative != name + ".py":
                         dynamic_candidates[name].add(relative)
         elif source.suffix in _TEXT_CONFIG_SUFFIXES or source.name == "Dockerfile":

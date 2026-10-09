@@ -324,3 +324,14 @@ Do not add new phase-specific `*_TEST_LEDGER.md` files, historical support packe
 Current product/phase authority is intentionally compacted into [`PRODUCT_AUTHORITY.md`](PRODUCT_AUTHORITY.md). Historical ledgers are preserved in Project Drive → `90_ARCHIVE` → `Repository Ledger Archive`.
 
 Raw world-contact artifacts should be preserved before adjudication.
+
+### Native regression corpus package (P4.19)
+
+P3.17–P3.32 native HWPX regression builders now live under
+`hwpx_mcp/corpus/`, while the established `scripts/p3*_materialize_regression_corpus.py`
+command entrypoints stay available. This is a lossless move of sixteen original
+source blobs, not a deletion of capabilities or a claim that their distinct
+fixture builders can be combined into one implementation without semantic review.
+All imports, CLI entrypoints and lifecycle compilation checks must resolve to
+the packaged modules; the root layout audit enforces a 134-file maximum.
+

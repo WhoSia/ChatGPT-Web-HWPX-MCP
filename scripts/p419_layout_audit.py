@@ -41,8 +41,14 @@ def audit() -> dict:
 
     # Prevent newly added phase files from undoing the root cleanup.
     root_python = sorted(ROOT.glob("*.py"))
-    if len(root_python) > 150:
-        raise AssertionError(f"Root Python module budget regressed: {len(root_python)} > 150")
+    if len(root_python) > 134:
+        raise AssertionError(f"Root Python module budget regressed: {len(root_python)} > 134")
+
+    corpus = ROOT / "hwpx_mcp" / "corpus"
+    expected_corpus = ["p317_regression_corpus","p318_regression_corpus","p319_regression_corpus","p320_regression_corpus","p321_regression_corpus","p322_regression_corpus","p323_regression_corpus","p324_regression_corpus","p325_regression_corpus","p326_regression_corpus","p327_regression_corpus","p328_regression_corpus","p329_regression_corpus","p330_regression_corpus","p331_regression_corpus","p332_regression_corpus"]
+    for name in expected_corpus:
+        if (ROOT / (name + ".py")).is_file() or not (corpus / (name + ".py")).is_file():
+            raise AssertionError("Regression corpus package placement mismatch: " + name)
 
     return {"root_python": len(root_python), "root_test_python": 0,
             "tests_collected_files": len(tests),

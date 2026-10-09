@@ -5,7 +5,7 @@ import json
 from collections import Counter, defaultdict
 from pathlib import Path
 
-from p335_paragraph import build_role_aware_style_exemplars
+from hwpx_mcp.corpus.p335_paragraph import build_role_aware_style_exemplars
 
 
 def _stable(value) -> str:

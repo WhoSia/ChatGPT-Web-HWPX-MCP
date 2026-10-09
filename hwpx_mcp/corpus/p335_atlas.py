@@ -2,9 +2,9 @@
 from collections import Counter, defaultdict
 import math
 
-from p335_corpus import _sha, _stable
-from p335_registry import registry_snapshot
-from p335_paragraph import build_style_transfer_operations
+from hwpx_mcp.corpus.p335_corpus import _sha, _stable
+from hwpx_mcp.corpus.p335_registry import registry_snapshot
+from hwpx_mcp.corpus.p335_paragraph import build_style_transfer_operations
 
 
 def _distribution(rows, weight):

@@ -5,7 +5,7 @@ import re
 from datetime import datetime
 from pathlib import Path
 
-from p335_corpus import _sha
+from hwpx_mcp.corpus.p335_corpus import _sha
 
 
 def _hash(value):

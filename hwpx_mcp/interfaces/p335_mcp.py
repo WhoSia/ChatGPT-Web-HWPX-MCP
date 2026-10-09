@@ -1,9 +1,9 @@
 """R4 MCP surface; all paths and owner identities come from trusted custody."""
 import tempfile
 from pathlib import Path
-from p335_registry import PostgresCorpusRegistry, intake_source, registry_snapshot, seal_source
-from p335_atlas import build_style_atlas, synthesize_templates, compile_template
-from p335_visual import control_descriptor, validate_annotation, native_patterns, compare_controls
+from hwpx_mcp.corpus.p335_registry import PostgresCorpusRegistry, intake_source, registry_snapshot, seal_source
+from hwpx_mcp.corpus.p335_atlas import build_style_atlas, synthesize_templates, compile_template
+from hwpx_mcp.corpus.p335_visual import control_descriptor, validate_annotation, native_patterns, compare_controls
 
 
 def register_corpus_tools(core, owned_document):

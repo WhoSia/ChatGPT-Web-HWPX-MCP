@@ -13,7 +13,7 @@ from hwpx import HwpxDocument
 
 from p2_document import build_document_map
 from p27_tables import _save_document
-from p42_migration import semantic_page_geometry
+from hwpx_mcp.operations.p42_migration import semantic_page_geometry
 
 
 SETUP_SCHEMA = "chatgpt-web-hwpx-mcp/document-setup/p3.18/v1"

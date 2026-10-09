@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from p42_migration import adjudicate_upgrade, migration_contract, normalize_list_number_format, semantic_page_geometry
+from hwpx_mcp.operations.p42_migration import adjudicate_upgrade, migration_contract, normalize_list_number_format, semantic_page_geometry
 
 def test_page_geometry_normalizes_66_and_legacy_65_to_same_semantics():
     modern=semantic_page_geometry(59528,84189,"NARROWLY")

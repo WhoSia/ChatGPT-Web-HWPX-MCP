@@ -12,7 +12,7 @@ if str(ROOT) not in sys.path:sys.path.insert(0,str(ROOT))
 
 from hwpx import HwpxDocument
 from hwpx_mcp.operations.p41_operational import profile_operations
-from p42_migration import PRODUCT
+from hwpx_mcp.operations.p42_migration import PRODUCT
 
 FROZEN_P41 = {
     "python_hwpx_create_and_package_validate": 298.197,

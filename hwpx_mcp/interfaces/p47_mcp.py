@@ -16,7 +16,7 @@ from p338_rich_builder import evaluate_preview_readiness
 from p321_document_composer import compose_document_plan
 from hwpx_mcp.rendering.p46_native_authoring import compile_native_authoring_bundle
 from hwpx_mcp.evidence.p416_generation_manifest import build_authoring_generation_manifest
-from p47_native_authoring import (
+from hwpx_mcp.rendering.p47_native_authoring import (
     adjudicate_equation_render_evidence as adjudicate_equation_render_evidence_kernel,
     authoring_v2_contract,
     compile_unified_authoring_plan as compile_unified_authoring_plan_kernel,

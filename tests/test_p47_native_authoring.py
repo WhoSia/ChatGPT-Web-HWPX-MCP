@@ -1,4 +1,4 @@
-from p47_native_authoring import (
+from hwpx_mcp.rendering.p47_native_authoring import (
     adjudicate_equation_render_evidence,
     authoring_v2_contract,
     compile_unified_authoring_plan,

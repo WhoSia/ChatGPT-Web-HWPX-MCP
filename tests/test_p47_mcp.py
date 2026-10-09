@@ -3,7 +3,7 @@ import tempfile
 from pathlib import Path
 
 from hwpx_mcp.interfaces.p47_mcp import register_p47_tools
-from p47_native_authoring import equation_render_frontier
+from hwpx_mcp.rendering.p47_native_authoring import equation_render_frontier
 
 
 class MCP:

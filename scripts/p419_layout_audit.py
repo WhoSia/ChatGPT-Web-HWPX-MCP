@@ -40,6 +40,25 @@ def audit() -> dict:
         if "hwpx_mcp.orchestration.p419_product" not in imports:
             raise AssertionError(f"P4.19 public import still points outside its package: {path.name}")
 
+    # Inspect implementation shape beyond the top-level file count.
+    # This is diagnostic until an explicit, independently verified budget
+    # has been set; moving files must not manufacture a green architecture gate.
+    package_modules = sorted((ROOT / "hwpx_mcp").rglob("*.py"))
+    package_modules = [p for p in package_modules if p.name != "__init__.py"]
+    module_sizes = {
+        str(p.relative_to(ROOT)): len(p.read_bytes())
+        for p in package_modules
+    }
+    oversized_modules = sorted(
+        ((name, size) for name, size in module_sizes.items() if size > 50_000),
+        key=lambda item: (-item[1], item[0]),
+    )
+    launcher_sizes = {
+        name: (ROOT / name).stat().st_size
+        for name in ("server.py", "server_p2.py")
+        if (ROOT / name).is_file()
+    }
+
     # Prevent newly added phase files from undoing the root cleanup.
     root_python = sorted(ROOT.glob("*.py"))
     if len(root_python) > 34:
@@ -120,6 +139,9 @@ def audit() -> dict:
     return {"root_python": len(root_python), "root_test_python": 0,
             "tests_collected_files": len(tests),
             "p419_product_package": str(module.relative_to(ROOT)),
+            "package_implementation_modules": len(package_modules),
+            "oversized_packaged_modules_bytes_gt_50000": oversized_modules,
+            "launcher_sizes_bytes": launcher_sizes,
             "result": "LAYOUT_CONTRACT_PASS"}
 
 

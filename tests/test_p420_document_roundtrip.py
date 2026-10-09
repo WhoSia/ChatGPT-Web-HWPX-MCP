@@ -7,19 +7,21 @@ import unittest
 import zipfile
 from pathlib import Path
 
-import server
+from hwpx import HwpxDocument
 from hwpx_mcp.document.p2_document import build_document_map, apply_text_edits_atomic
 from hwpx_mcp.document.p22_formatting import build_formatting_map
+from hwpx_mcp.document.p334r2_package_validation import validate_hwpx_package_light
 
 
 class P420NativeDocumentRoundTrip(unittest.TestCase):
     def test_create_edit_reopen_validate_and_preserve_structure(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "publication.hwpx"
-            server.materialize_hwpx(
-                path, "초록: 원문 검증\n실험 결과 및 논의\n출처 보존", "연구 보고서"
-            )
-            self.assertTrue(server.validate_hwpx_package(path))
+            document = HwpxDocument.new()
+            for paragraph in ("연구 보고서", "초록: 원문 검증", "실험 결과 및 논의", "출처 보존"):
+                document.add_paragraph(paragraph)
+            document.save_to_path(str(path))
+            self.assertTrue(validate_hwpx_package_light(path)["valid"])
             initial = build_document_map(path)
             self.assertGreaterEqual(initial["paragraph_count"], 4)
             original_hash = hashlib.sha256(path.read_bytes()).hexdigest()
@@ -30,10 +32,10 @@ class P420NativeDocumentRoundTrip(unittest.TestCase):
                   "text": "실험 결과, 관찰 및 한계"}],
                 expected_revision=1,
                 current_revision=1,
-                validator=server.validate_hwpx_package,
+                validator=lambda candidate: validate_hwpx_package_light(candidate)["valid"],
             )
             self.assertFalse(receipt["no_op"])
-            self.assertTrue(server.validate_hwpx_package(path))
+            self.assertTrue(validate_hwpx_package_light(path))
             self.assertNotEqual(original_hash, hashlib.sha256(path.read_bytes()).hexdigest())
             with zipfile.ZipFile(path) as archive:
                 self.assertIsNone(archive.testzip())

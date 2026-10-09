@@ -9,7 +9,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from p323_regression_corpus import materialize_p323_regression_corpus
+from hwpx_mcp.corpus.p323_regression_corpus import materialize_p323_regression_corpus
 
 
 def main() -> int:

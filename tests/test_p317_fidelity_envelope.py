@@ -8,7 +8,7 @@ from p317_fidelity_envelope import (
     assess_edit_fidelity_envelope,
     production_fidelity_contract,
 )
-from p317_regression_corpus import materialize_p317_regression_corpus
+from hwpx_mcp.corpus.p317_regression_corpus import materialize_p317_regression_corpus
 
 
 class P317FidelityEnvelopeTests(unittest.TestCase):

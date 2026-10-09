@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from p325_drawing_layer import HP, _find_node, _mutate_section, build_drawing_layer_map
-from p328_high_level_diagrams import build_high_level_diagram_map
+from hwpx_mcp.document.p328_high_level_diagrams import build_high_level_diagram_map
 from p329_diagram_lifecycle import (
     NODE_KINDS,
     _line_endpoints,

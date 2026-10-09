@@ -16,7 +16,7 @@ from p325_drawing_layer import (
 )
 from p326_drawing_style import build_drawing_style_map
 from p327_diagram_composition import _position_xy, _set_xy, _size, _resolve_top
-from p328_high_level_diagrams import (
+from hwpx_mcp.document.p328_high_level_diagrams import (
     NODE_DEFAULTS,
     NODE_KINDS,
     _insert_labeled_node,

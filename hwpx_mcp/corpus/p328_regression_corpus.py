@@ -6,7 +6,7 @@ from pathlib import Path
 from hwpx import HwpxDocument
 
 from p2_document import build_document_map
-from p328_high_level_diagrams import apply_high_level_diagrams_atomic, build_high_level_diagram_map
+from hwpx_mcp.document.p328_high_level_diagrams import apply_high_level_diagrams_atomic, build_high_level_diagram_map
 
 FIXTURES = [
     "labeled-rect",

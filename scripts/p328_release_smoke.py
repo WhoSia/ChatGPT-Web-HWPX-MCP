@@ -11,7 +11,7 @@ if str(ROOT) not in sys.path:
 from hwpx import HwpxDocument
 
 from p2_document import build_document_map
-from p328_high_level_diagrams import apply_high_level_diagrams_atomic, build_high_level_diagram_map
+from hwpx_mcp.document.p328_high_level_diagrams import apply_high_level_diagrams_atomic, build_high_level_diagram_map
 
 
 with tempfile.TemporaryDirectory() as tmp:

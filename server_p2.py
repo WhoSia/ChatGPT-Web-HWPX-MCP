@@ -79,7 +79,7 @@ from p327_diagram_composition import (
     build_diagram_composition_map,
     apply_diagram_composition_atomic,
 )
-from p328_high_level_diagrams import (
+from hwpx_mcp.document.p328_high_level_diagrams import (
     high_level_diagram_contract,
     validate_diagram_plan as validate_p328_diagram_plan,
     build_high_level_diagram_map,

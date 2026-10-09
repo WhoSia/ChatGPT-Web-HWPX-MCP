@@ -8,7 +8,7 @@ from pathlib import Path
 from hwpx import HwpxDocument
 
 from p2_document import build_document_map
-from p328_high_level_diagrams import _insert_labeled_node, _insert_pointer_line
+from hwpx_mcp.document.p328_high_level_diagrams import _insert_labeled_node, _insert_pointer_line
 from p327_diagram_composition import _position_xy, _resolve_top, _size
 from p329_diagram_lifecycle import apply_diagram_lifecycle_atomic, build_diagram_lifecycle_map
 from hwpx_mcp.document.p332_brownfield_diagrams import (
@@ -120,7 +120,7 @@ class BrownfieldDiagramTests(unittest.TestCase):
             left, _right = self._legacy_pair(path, anchor)
             candidate = build_brownfield_diagram_map(path)["candidates"][0]
             plan = plan_diagram_adoption(path, candidate["candidate_id"], "adopted")
-            from p328_high_level_diagrams import _set_existing_shape_text
+            from hwpx_mcp.document.p328_high_level_diagrams import _set_existing_shape_text
             _set_existing_shape_text(path, {"drawing": left, "text": "Changed"})
             with self.assertRaisesRegex(ValueError, "stale"):
                 promote_diagram_candidate_atomic(

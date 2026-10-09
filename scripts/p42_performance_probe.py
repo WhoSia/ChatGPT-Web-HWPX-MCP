@@ -11,7 +11,7 @@ ROOT=Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:sys.path.insert(0,str(ROOT))
 
 from hwpx import HwpxDocument
-from p41_operational import profile_operations
+from hwpx_mcp.operations.p41_operational import profile_operations
 from p42_migration import PRODUCT
 
 FROZEN_P41 = {

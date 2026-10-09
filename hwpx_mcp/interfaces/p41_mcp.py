@@ -4,7 +4,7 @@ import tempfile
 from pathlib import Path
 from mcp.types import ToolAnnotations
 
-from p41_operational import (
+from hwpx_mcp.operations.p41_operational import (
     DEFAULT_MIGRATION_CANDIDATE,
     diagnose_failure,
     evaluate_upgrade_candidate,

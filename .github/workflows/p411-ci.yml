@@ -8,7 +8,7 @@ on:
       - "test_p411_*"
       - "scripts/p411_*"
       - "benchmarks/p411_*"
-      - "p48_mcp.py"
+      - "hwpx_mcp/interfaces/p48_mcp.py"
       - "scripts/p48_component_benchmark.py"
       - "server_p2.py"
       - "tests/test_client.py"

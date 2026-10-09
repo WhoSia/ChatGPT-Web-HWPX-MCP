@@ -9,7 +9,7 @@ on:
       - "scripts/p410_*"
       - "p49_*"
       - "scripts/p49_*"
-      - "p48_mcp.py"
+      - "hwpx_mcp/interfaces/p48_mcp.py"
       - "server_p2.py"
       - "tests/test_client.py"
       - "Dockerfile"

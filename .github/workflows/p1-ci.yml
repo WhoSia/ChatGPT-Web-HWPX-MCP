@@ -12,7 +12,7 @@ on:
       - ".github/workflows/**"
       - "server.py"
       - "server_p2.py"
-      - "p418_mcp.py"
+      - "hwpx_mcp/interfaces/p418_mcp.py"
   workflow_dispatch:
 
 permissions:

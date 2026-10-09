@@ -9,7 +9,7 @@ on:
       - ".github/workflows/**"
       - "hwpx_mcp/**"
       - "server_p2.py"
-      - "p418_mcp.py"
+      - "hwpx_mcp/interfaces/p418_mcp.py"
       - "README.md"
   push:
     branches: [main]
@@ -19,7 +19,7 @@ on:
       - ".github/workflows/p419-layout-ci.yml"
       - "hwpx_mcp/**"
       - "server_p2.py"
-      - "p418_mcp.py"
+      - "hwpx_mcp/interfaces/p418_mcp.py"
   workflow_dispatch:
 
 permissions:
@@ -43,7 +43,7 @@ jobs:
         run: python -m compileall -q tests hwpx_mcp/orchestration/p419_product.py scripts/p419_layout_audit.py
       - name: Audit Root Module Backlinks And Dynamic Import Literals
         run: |
-          python -m unittest discover -s tests -p test_p419_dependency_census.py -v
+          python -m unittest discover -s tests -p tests/test_p419_dependency_census.py -v
           python scripts/p419_dependency_census.py --out /tmp/p419-root-dependency-census.json
       - name: Publish Architecture Census
         uses: actions/upload-artifact@v4

@@ -17,7 +17,7 @@ from p329_diagram_lifecycle import (
     build_diagram_lifecycle_map,
 )
 from p326_drawing_style import build_drawing_style_map
-from p330_diagram_design_system import (
+from hwpx_mcp.document.p330_diagram_design_system import (
     LAYOUT_POLICIES,
     THEMES,
     apply_diagram_design_system_atomic,

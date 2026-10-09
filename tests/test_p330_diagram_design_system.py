@@ -8,7 +8,7 @@ from hwpx import HwpxDocument
 
 from p2_document import build_document_map
 from p329_diagram_lifecycle import apply_diagram_lifecycle_atomic
-from p330_diagram_design_system import (
+from hwpx_mcp.document.p330_diagram_design_system import (
     apply_diagram_design_system_atomic,
     build_diagram_design_system_map,
     diagram_design_system_contract,

@@ -7,7 +7,7 @@ import tempfile
 from pathlib import Path
 from typing import Any, Callable
 
-from p330_diagram_design_system import (
+from hwpx_mcp.document.p330_diagram_design_system import (
     THEMES,
     LAYOUT_POLICIES,
     build_diagram_design_system_map,

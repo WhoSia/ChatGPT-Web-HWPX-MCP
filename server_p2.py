@@ -90,19 +90,19 @@ from p329_diagram_lifecycle import (
     build_diagram_lifecycle_map,
     apply_diagram_lifecycle_atomic,
 )
-from p330_diagram_design_system import (
+from hwpx_mcp.document.p330_diagram_design_system import (
     diagram_design_system_contract,
     build_diagram_design_system_map,
     apply_diagram_design_system_atomic,
 )
-from p331_diagram_quality_assurance import (
+from hwpx_mcp.document.p331_diagram_quality_assurance import (
     diagram_quality_assurance_contract,
     validate_diagram_quality as validate_p331_diagram_quality,
     build_diagram_quality_map,
     plan_diagram_repairs as plan_p331_diagram_repairs,
     apply_diagram_repairs_atomic,
 )
-from p332_brownfield_diagrams import (
+from hwpx_mcp.document.p332_brownfield_diagrams import (
     brownfield_diagram_contract,
     build_brownfield_diagram_map,
     plan_diagram_adoption as plan_p332_diagram_adoption,

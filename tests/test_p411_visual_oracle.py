@@ -1,4 +1,4 @@
-from p411_visual_oracle import (
+from hwpx_mcp.rendering.p411_visual_oracle import (
     adjudicate_repair_candidate,
     calibration_summary,
     DEFECT_KPI_CONTAINER_COLLAPSE,

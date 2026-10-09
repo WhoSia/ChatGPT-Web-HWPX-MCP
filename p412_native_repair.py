@@ -8,7 +8,7 @@ from typing import Any
 
 from p2_document import apply_edits_atomic, build_document_map
 from hwpx_mcp.evidence.p411_release_service import evaluate_release_candidate
-from p411_visual_oracle import evaluate_visual_slo
+from hwpx_mcp.rendering.p411_visual_oracle import evaluate_visual_slo
 
 PHASE="P4.12"
 PRODUCT="0.37.0-p4.12"

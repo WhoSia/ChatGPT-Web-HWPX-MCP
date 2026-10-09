@@ -29,7 +29,7 @@ jobs:
       - uses: actions/setup-python@v5
         with: {python-version: "3.12", cache: pip}
       - run: pip install -r requirements.txt -r requirements-dev.txt
-      - run: python -m compileall -q p411_visual_oracle.py hwpx_mcp/custody/p411_capture_protocol.py hwpx_mcp/evidence/p411_release_service.py hwpx_mcp/interfaces/p411_mcp.py tests/test_p411_visual_oracle.py tests/test_p411_capture_protocol.py tests/test_p411_release_service.py scripts/p411_release_smoke.py scripts/p411_shadow_gate.py scripts/p411_materialize_golden_registry.py scripts/p411_materialize_capture_request.py
+      - run: python -m compileall -q hwpx_mcp/rendering/p411_visual_oracle.py hwpx_mcp/custody/p411_capture_protocol.py hwpx_mcp/evidence/p411_release_service.py hwpx_mcp/interfaces/p411_mcp.py tests/test_p411_visual_oracle.py tests/test_p411_capture_protocol.py tests/test_p411_release_service.py scripts/p411_release_smoke.py scripts/p411_shadow_gate.py scripts/p411_materialize_golden_registry.py scripts/p411_materialize_capture_request.py
       - run: python -m pytest -q tests/test_p411_visual_oracle.py tests/test_p411_capture_protocol.py tests/test_p411_release_service.py
       - run: python scripts/p411_release_smoke.py
       - run: python scripts/p411_shadow_gate.py

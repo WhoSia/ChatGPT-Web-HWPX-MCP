@@ -10,6 +10,10 @@ def attach_capture_runtime(pack: Path):
     destination=pack/'runtime'
     paths=[p for p in repo.glob('*.py') if not p.name.startswith('test')]
     paths += [p for p in (repo/'scripts').rglob('*') if p.suffix in {'.py','.ps1'} and '__pycache__' not in p.parts]
+    # The standalone native capture pack must carry the actual package tree.
+    # Copying only top-level modules silently broke imports after P4.19/P4.20
+    # relocated implementations under hwpx_mcp/.
+    paths += [p for p in (repo/'hwpx_mcp').rglob('*.py') if '__pycache__' not in p.parts]
     paths += [repo/name for name in ('requirements.txt','requirements-capture.txt','requirements-dev.txt')]
     manifest=[]
     for source in sorted(paths):

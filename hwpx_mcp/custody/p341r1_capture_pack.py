@@ -57,7 +57,7 @@ FIXTURES = (
 )
 
 RUNNER_INPUTS = (
-    "p341r1_capture_pack.py",
+    "hwpx_mcp/custody/p341r1_capture_pack.py",
     "scripts/p341r1_materialize_capture_pack.py",
     "scripts/p341r1_capture_pdf.py",
     "scripts/p341r1_finalize_capture_pack.py",

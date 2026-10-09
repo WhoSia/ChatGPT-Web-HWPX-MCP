@@ -8,7 +8,7 @@ import subprocess
 from pathlib import Path
 from typing import Any, Mapping
 
-ROOT = Path(__file__).resolve().parent
+ROOT = Path(__file__).resolve().parents[2]
 CONTRACT_SCHEMA = "chatgpt-web-hwpx-mcp/p3.45/runtime-contract/v1"
 
 

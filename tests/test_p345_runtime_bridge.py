@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from p345_runtime_bridge import (
+from hwpx_mcp.runtime.p345_runtime_bridge import (
     compile_ir,
     create_run,
     observability,

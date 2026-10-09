@@ -3,7 +3,7 @@ from __future__ import annotations
 import secrets
 from typing import Any, Callable, Mapping
 
-from p345_runtime_bridge import (
+from hwpx_mcp.runtime.p345_runtime_bridge import (
     compile_ir,
     create_run,
     host_receipt_sha256,

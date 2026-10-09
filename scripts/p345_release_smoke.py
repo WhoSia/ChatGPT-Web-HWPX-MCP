@@ -7,7 +7,7 @@ ROOT=Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0,str(ROOT))
 
-from p345_runtime_bridge import compile_ir,create_run,runtime_contract,transition,verify_replay
+from hwpx_mcp.runtime.p345_runtime_bridge import compile_ir,create_run,runtime_contract,transition,verify_replay
 
 contract=runtime_contract()
 assert contract["phase"]=="P3.45"

@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 
 from hwpx_mcp.interfaces import p346_mcp
-from p345_runtime_bridge import host_receipt_sha256
+from hwpx_mcp.runtime.p345_runtime_bridge import host_receipt_sha256
 from hwpx_mcp.interfaces.p346_mcp import AdapterRegistry, register_p346_tools
 
 

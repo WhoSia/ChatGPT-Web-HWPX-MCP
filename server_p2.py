@@ -7085,7 +7085,7 @@ P344_AUTONOMOUS_AUTHORING = register_p344_tools(
 )
 
 
-from p345_runtime_bridge import host_receipt_sha256 as _p345_host_sha
+from hwpx_mcp.runtime.p345_runtime_bridge import host_receipt_sha256 as _p345_host_sha
 
 
 def _p345_snapshot_adapter(*, document_id: str, current_revision: int, inputs: dict, lease_token: str = "") -> dict:

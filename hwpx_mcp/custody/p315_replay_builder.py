@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from p315_cross_version import (
+from hwpx_mcp.custody.p315_cross_version import (
     SCHEMA,
     adjudicate_cross_version_replay,
     normalize_font_file_custody,

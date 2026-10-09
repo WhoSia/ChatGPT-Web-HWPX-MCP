@@ -5,7 +5,7 @@ import json
 import unittest
 from pathlib import Path
 
-from p314_capture_intake import adjudicate_first_hancom_world_contact
+from hwpx_mcp.custody.p314_capture_intake import adjudicate_first_hancom_world_contact
 
 
 ROOT = Path(__file__).resolve().parents[1]

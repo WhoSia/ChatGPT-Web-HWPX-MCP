@@ -6,8 +6,8 @@ import unittest
 from pathlib import Path
 
 from p313r1_fixture_pack import materialize_pre_hancom_pack
-from p316_stability_builder import build_structural_consolidation
-from p316_version_indexed import adjudicate_version_indexed_stability
+from hwpx_mcp.custody.p316_stability_builder import build_structural_consolidation
+from hwpx_mcp.custody.p316_version_indexed import adjudicate_version_indexed_stability
 
 
 def record(*, raster="a" * 64, font="c" * 64) -> dict:

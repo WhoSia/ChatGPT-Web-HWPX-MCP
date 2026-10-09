@@ -17,7 +17,7 @@ from hwpx_mcp.document.p39_textbox import inject_textbox, build_textbox_map
 from p210_equations import apply_equation_edits_atomic, build_equation_map
 from p22_formatting import build_formatting_map
 from p313r1_fixture_pack import _validate_minimal_hwpx
-from p316_version_indexed import build_structural_oracle, compare_structural_oracles
+from hwpx_mcp.custody.p316_version_indexed import build_structural_oracle, compare_structural_oracles
 from p317_page_geometry import apply_page_geometry_edits_atomic, build_page_geometry_map
 
 

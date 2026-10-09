@@ -170,7 +170,7 @@ from p341_page_composition import (
     plan_render_guided_layout_policy as p341_plan_render_guided_layout_policy,
     compare_page_composition_diagnostics as p341_compare_page_composition_diagnostics,
 )
-from p313_capture_custody import (
+from hwpx_mcp.custody.p313_capture_custody import (
     near_wrap_positive_sensitivity_spec,
     validate_artifact_custody,
     verify_custody_chain,

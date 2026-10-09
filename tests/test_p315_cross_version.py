@@ -3,7 +3,7 @@ from __future__ import annotations
 import copy
 import unittest
 
-from p315_cross_version import adjudicate_cross_version_replay
+from hwpx_mcp.custody.p315_cross_version import adjudicate_cross_version_replay
 
 
 def version_record(version: str, exe: str, *, baseline_raster: str = "a" * 64) -> dict:

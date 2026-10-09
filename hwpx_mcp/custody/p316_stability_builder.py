@@ -5,8 +5,8 @@ import json
 from pathlib import Path
 from typing import Any
 
-from p315_replay_builder import build_version_record
-from p316_version_indexed import (
+from hwpx_mcp.custody.p315_replay_builder import build_version_record
+from hwpx_mcp.custody.p316_version_indexed import (
     SCHEMA,
     adjudicate_version_indexed_stability,
     build_structural_oracle,

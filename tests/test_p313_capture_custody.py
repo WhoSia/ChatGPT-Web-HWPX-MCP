@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import unittest
 
-from p313_capture_custody import (
+from hwpx_mcp.custody.p313_capture_custody import (
     CAPTURE_SCHEMA,
     RUNNER_SCHEMA,
     adjudicate_cross_version_replay,

@@ -1,5 +1,5 @@
 import os,uuid,pytest
-from p44_health_store import DurableHealthIntelligenceStore
+from hwpx_mcp.quality.p44_health_store import DurableHealthIntelligenceStore
 DB=os.environ.get("P44_TEST_DATABASE_URL","")
 @pytest.mark.skipif(not DB,reason="P44_TEST_DATABASE_URL not configured")
 def test_store_append_only_idempotent():

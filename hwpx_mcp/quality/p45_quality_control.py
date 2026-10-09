@@ -6,7 +6,7 @@ import json
 from datetime import datetime, timezone
 from typing import Any, Mapping, Sequence
 
-from p44_health_intelligence import (
+from hwpx_mcp.quality.p44_health_intelligence import (
     canonical_corpus_provenance,
     canonical_release_observation,
     detect_longitudinal_drift,

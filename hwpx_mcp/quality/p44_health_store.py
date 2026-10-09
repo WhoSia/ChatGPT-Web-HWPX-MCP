@@ -3,8 +3,8 @@ import json,os
 from pathlib import Path
 from typing import Any,Mapping
 import psycopg
-from p44_health_intelligence import canonical_corpus_provenance,canonical_release_observation
-ROOT=Path(__file__).resolve().parent
+from hwpx_mcp.quality.p44_health_intelligence import canonical_corpus_provenance,canonical_release_observation
+ROOT=Path(__file__).resolve().parents[2]
 class DurableHealthIntelligenceStore:
     def __init__(self,database_url:str)->None:
         if not database_url:raise RuntimeError("P44 health intelligence requires Postgres")

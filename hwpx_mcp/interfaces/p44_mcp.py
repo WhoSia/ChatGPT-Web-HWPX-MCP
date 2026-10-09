@@ -1,7 +1,7 @@
 from __future__ import annotations
 from mcp.types import ToolAnnotations
-from p44_health_intelligence import attribute_hwpx_feature_families,build_operator_dashboard,build_support_bundle,detect_longitudinal_drift,health_intelligence_contract,route_native_render_escalation
-from p44_health_store import DurableHealthIntelligenceStore,default_database_url
+from hwpx_mcp.quality.p44_health_intelligence import attribute_hwpx_feature_families,build_operator_dashboard,build_support_bundle,detect_longitudinal_drift,health_intelligence_contract,route_native_render_escalation
+from hwpx_mcp.quality.p44_health_store import DurableHealthIntelligenceStore,default_database_url
 def register_p44_tools(core,store=None):
     read=ToolAnnotations(readOnlyHint=True,destructiveHint=False,openWorldHint=False);append=ToolAnnotations(readOnlyHint=False,destructiveHint=False,openWorldHint=False)
     if store is None:store=DurableHealthIntelligenceStore(default_database_url());store.bootstrap()

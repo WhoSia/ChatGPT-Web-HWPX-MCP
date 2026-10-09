@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import pytest
 
-import p347_mcp
-from p347_mcp import CertifiedPackageRegistry, register_p347_tools
+from hwpx_mcp.interfaces import p347_mcp
+from hwpx_mcp.interfaces.p347_mcp import CertifiedPackageRegistry, register_p347_tools
 
 
 class _MCP:

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import pytest
-import p348_mcp
+from hwpx_mcp.interfaces import p348_mcp
 
 
 class _MCP:

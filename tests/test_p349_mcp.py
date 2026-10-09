@@ -1,5 +1,5 @@
 from __future__ import annotations
-import p349_mcp
+from hwpx_mcp.interfaces import p349_mcp
 class MCP:
     def __init__(self):self.tools={}
     def tool(self,*,annotations=None):

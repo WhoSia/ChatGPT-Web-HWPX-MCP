@@ -7,7 +7,7 @@ on:
       - "scripts/p349_*"
       - "p349_*"
       - "test_p349_*"
-      - "p347_mcp.py"
+      - "hwpx_mcp/interfaces/p347_mcp.py"
       - "server_p2.py"
       - "Dockerfile"
       - "tests/test_client.py"
@@ -44,8 +44,8 @@ jobs:
       - env:
           P349_TS_RUNTIME: .tmp/p349-ts/scripts/p349_composition_cli.js
         run: |
-          python -m compileall -q p349_composition.py p349_mcp.py tests/test_p349_composition.py tests/test_p349_mcp.py scripts/p349_release_smoke.py
-          python -m pytest -q tests/test_p349_composition.py tests/test_p349_mcp.py
+          python -m compileall -q p349_composition.py hwpx_mcp/interfaces/p349_mcp.py tests/test_p349_composition.py tests/test_hwpx_mcp/interfaces/p349_mcp.py scripts/p349_release_smoke.py
+          python -m pytest -q tests/test_p349_composition.py tests/test_hwpx_mcp/interfaces/p349_mcp.py
           python scripts/p349_release_smoke.py
   docker-image:
     needs: [composition-kernel]

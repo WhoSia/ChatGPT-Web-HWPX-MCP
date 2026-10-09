@@ -41,8 +41,8 @@ def audit() -> dict:
 
     # Prevent newly added phase files from undoing the root cleanup.
     root_python = sorted(ROOT.glob("*.py"))
-    if len(root_python) > 126:
-        raise AssertionError(f"Root Python module budget regressed: {len(root_python)} > 126")
+    if len(root_python) > 122:
+        raise AssertionError(f"Root Python module budget regressed: {len(root_python)} > 122")
 
     corpus = ROOT / "hwpx_mcp" / "corpus"
     expected_corpus = ["p317_regression_corpus","p318_regression_corpus","p319_regression_corpus","p320_regression_corpus","p321_regression_corpus","p322_regression_corpus","p323_regression_corpus","p324_regression_corpus","p325_regression_corpus","p326_regression_corpus","p327_regression_corpus","p328_regression_corpus","p329_regression_corpus","p330_regression_corpus","p331_regression_corpus","p332_regression_corpus"]
@@ -50,7 +50,7 @@ def audit() -> dict:
         if (ROOT / (name + ".py")).is_file() or not (corpus / (name + ".py")).is_file():
             raise AssertionError("Regression corpus package placement mismatch: " + name)
 
-    expected_interfaces = ["p411_mcp","p412_mcp","p413_mcp","p414_mcp","p415_mcp","p416_mcp","p417_mcp","p343_mcp"]
+    expected_interfaces = ["p411_mcp","p412_mcp","p413_mcp","p414_mcp","p415_mcp","p416_mcp","p417_mcp","p343_mcp", "p346_mcp", "p347_mcp", "p348_mcp", "p349_mcp"]
     for module_name in expected_interfaces:
         if (ROOT / (module_name + ".py")).exists() or not (ROOT / "hwpx_mcp" / "interfaces" / (module_name + ".py")).is_file():
             raise AssertionError("MCP facade package placement mismatch: " + module_name)

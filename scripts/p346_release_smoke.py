@@ -7,7 +7,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from p346_mcp import AdapterRegistry
+from hwpx_mcp.interfaces.p346_mcp import AdapterRegistry
 from p346_platform_bridge import (
     platform_contract,
     project_tools,

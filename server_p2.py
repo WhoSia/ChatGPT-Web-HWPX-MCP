@@ -7149,7 +7149,7 @@ P346_HOST_ADAPTERS = {
     "DOCUMENT_DESIGN_REPAIR": _p345_design_repair_adapter,
 }
 
-from p346_mcp import AdapterRegistry, register_p346_tools
+from hwpx_mcp.interfaces.p346_mcp import AdapterRegistry, register_p346_tools
 P346_ADAPTER_REGISTRY = AdapterRegistry(P346_HOST_ADAPTERS)
 
 from p345_mcp import register_p345_tools
@@ -7166,7 +7166,7 @@ P346_DEVELOPER_PLATFORM = register_p346_tools(
     P346_ADAPTER_REGISTRY,
 )
 
-from p347_mcp import CertifiedPackageRegistry, register_p347_tools
+from hwpx_mcp.interfaces.p347_mcp import CertifiedPackageRegistry, register_p347_tools
 P347_CERTIFIED_PACKAGE_REGISTRY = CertifiedPackageRegistry()
 P347_EXTENSION_ECOSYSTEM = register_p347_tools(
     core,
@@ -7174,14 +7174,14 @@ P347_EXTENSION_ECOSYSTEM = register_p347_tools(
     P347_CERTIFIED_PACKAGE_REGISTRY,
 )
 
-from p348_mcp import register_p348_tools
+from hwpx_mcp.interfaces.p348_mcp import register_p348_tools
 P348_PUBLIC_EXTENSION_MARKETPLACE = register_p348_tools(
     core,
     _owned_document,
     P347_CERTIFIED_PACKAGE_REGISTRY,
 )
 
-from p349_mcp import register_p349_tools
+from hwpx_mcp.interfaces.p349_mcp import register_p349_tools
 P349_EXTENSION_COMPOSITION = register_p349_tools(
     core,
     _owned_document,

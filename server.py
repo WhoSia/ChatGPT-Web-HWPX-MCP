@@ -25,7 +25,7 @@ from starlette.responses import FileResponse, HTMLResponse, JSONResponse, PlainT
 
 from auth_store import DurableOAuthStore
 from document_store import DurableDocumentStore
-from durable_health import probe_durable_stores
+from hwpx_mcp.operations.durable_health import probe_durable_stores
 from hwpx_mcp.evidence.p414_evidence_store import P414EvidenceStore, default_database_url as p414_default_database_url
 from oauth_provider import HWPX_SCOPE, SUBJECT, SingleUserOAuthProvider, build_auth_settings
 

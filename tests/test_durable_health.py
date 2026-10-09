@@ -1,6 +1,6 @@
 import unittest
 
-from durable_health import probe_durable_stores
+from hwpx_mcp.operations.durable_health import probe_durable_stores
 
 
 class _Connection:

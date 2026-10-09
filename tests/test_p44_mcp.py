@@ -1,4 +1,4 @@
-import p44_mcp
+from hwpx_mcp.interfaces import p44_mcp
 class MCP:
  def __init__(self):self.tools={}
  def tool(self,*,annotations=None):

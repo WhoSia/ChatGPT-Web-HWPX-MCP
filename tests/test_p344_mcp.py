@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from p344_mcp import register_p344_tools
+from hwpx_mcp.interfaces.p344_mcp import register_p344_tools
 
 
 class MCP:

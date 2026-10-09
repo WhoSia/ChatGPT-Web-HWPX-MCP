@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import p42_mcp
+from hwpx_mcp.interfaces import p42_mcp
 
 class MCP:
     def __init__(self):

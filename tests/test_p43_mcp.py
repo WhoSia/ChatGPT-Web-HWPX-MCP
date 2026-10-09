@@ -1,5 +1,5 @@
 from __future__ import annotations
-import p43_mcp
+from hwpx_mcp.interfaces import p43_mcp
 
 class MCP:
     def __init__(self):self.tools={}

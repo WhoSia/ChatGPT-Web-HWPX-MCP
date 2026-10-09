@@ -7067,13 +7067,13 @@ def _apply_p343_migration(*, document_id: str, template: dict, targets_by_role: 
 from hwpx_mcp.interfaces.p335_mcp import register_corpus_tools
 CORPUS_REGISTRY = register_corpus_tools(core, _owned_document)
 
-from p342_mcp import register_p342_tools
+from hwpx_mcp.interfaces.p342_mcp import register_p342_tools
 P342_EVIDENCE = register_p342_tools(core, _owned_document, CORPUS_REGISTRY)
 
 from hwpx_mcp.interfaces.p343_mcp import register_p343_tools
 P343_DESIGN_SYSTEM = register_p343_tools(core, _owned_document, CORPUS_REGISTRY, _apply_p343_migration)
 
-from p344_mcp import register_p344_tools
+from hwpx_mcp.interfaces.p344_mcp import register_p344_tools
 P344_AUTONOMOUS_AUTHORING = register_p344_tools(
     core,
     compile_rich_plan=p338_compile_rich_document_plan,
@@ -7189,27 +7189,27 @@ P349_EXTENSION_COMPOSITION = register_p349_tools(
     P346_ADAPTER_REGISTRY,
 )
 
-from p41_mcp import register_p41_tools
+from hwpx_mcp.interfaces.p41_mcp import register_p41_tools
 P41_OPERATIONAL_READINESS = register_p41_tools(core)
 
-from p42_mcp import register_p42_tools
+from hwpx_mcp.interfaces.p42_mcp import register_p42_tools
 P42_MIGRATION = register_p42_tools(core)
 
-from p43_mcp import register_p43_tools
+from hwpx_mcp.interfaces.p43_mcp import register_p43_tools
 P43_PRODUCT_HEALTH = register_p43_tools(core)
 
-from p44_mcp import register_p44_tools
+from hwpx_mcp.interfaces.p44_mcp import register_p44_tools
 P44_HEALTH_INTELLIGENCE = register_p44_tools(core)
-from p45_mcp import register_p45_tools
+from hwpx_mcp.interfaces.p45_mcp import register_p45_tools
 P45_QUALITY_CONTROL = register_p45_tools(core)
 
-from p46_mcp import register_p46_tools
+from hwpx_mcp.interfaces.p46_mcp import register_p46_tools
 P46_NATIVE_AUTHORING = register_p46_tools(core, _owned_document, _refresh_metadata)
 
-from p47_mcp import register_p47_tools
+from hwpx_mcp.interfaces.p47_mcp import register_p47_tools
 P47_RENDER_GROUNDED_AUTHORING = register_p47_tools(core, _refresh_metadata, _delivery_after_commit)
 
-from p48_mcp import register_p48_tools
+from hwpx_mcp.interfaces.p48_mcp import register_p48_tools
 P48_COMPONENT_AUTHORING = register_p48_tools(core, _refresh_metadata, _delivery_after_commit)
 
 from hwpx_mcp.interfaces.p411_mcp import register_p411_tools
@@ -7234,7 +7234,7 @@ from hwpx_mcp.interfaces.p417_mcp import register_p417_tools, execute_owned_inte
 P417_DOCUMENT_INTELLIGENCE = register_p417_tools(core, _owned_document, _refresh_p417_execution)
 
 from p417_semantics import recover_semantic_structure
-from p418_mcp import register_p418_tools
+from hwpx_mcp.interfaces.p418_mcp import register_p418_tools
 
 
 def _p418_create_adapter(

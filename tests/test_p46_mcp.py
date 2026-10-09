@@ -5,7 +5,7 @@ from pathlib import Path
 
 from hwpx import HwpxDocument
 
-import p46_mcp
+from hwpx_mcp.interfaces import p46_mcp
 
 
 class MCP:

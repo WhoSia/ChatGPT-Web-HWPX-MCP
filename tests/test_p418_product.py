@@ -4,7 +4,7 @@ import pytest
 
 from mcp.types import CallToolResult, TextContent
 
-from p418_mcp import _augment
+from hwpx_mcp.interfaces.p418_mcp import _augment
 
 from p418_product import (
     PRODUCT,

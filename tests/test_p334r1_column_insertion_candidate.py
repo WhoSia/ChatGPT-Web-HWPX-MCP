@@ -5,7 +5,7 @@ from hwpx import HwpxDocument
 
 from p27_tables import _save_document
 from p323_advanced_tables import build_advanced_table_map
-from p334r1_column_insertion import apply_bounded_column_insertion, column_insertion_contract
+from hwpx_mcp.document.p334r1_column_insertion import apply_bounded_column_insertion, column_insertion_contract
 
 
 def _build(path: Path, *, widths=None, merged=False, prefix="T"):

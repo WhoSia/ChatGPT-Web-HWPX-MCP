@@ -110,7 +110,7 @@ from p332_brownfield_diagrams import (
     plan_legacy_diagram_refactor as plan_p332_legacy_refactor,
     apply_legacy_diagram_refactor_atomic,
 )
-from p334_rare_feature_registry import (
+from hwpx_mcp.document.p334_rare_feature_registry import (
     rare_feature_registry,
     evaluate_rare_feature as evaluate_p334_rare_feature,
     plan_rare_feature_promotion as plan_p334_rare_feature_promotion,

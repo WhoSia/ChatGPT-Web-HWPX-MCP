@@ -12,7 +12,7 @@ from hwpx import HwpxDocument
 
 from p2_document import build_document_map
 from p27_tables import _save_document
-from p334r2_tracked_resolution import resolve_all_tracked_changes
+from hwpx_mcp.document.p334r2_tracked_resolution import resolve_all_tracked_changes
 
 
 SCHEMA = "chatgpt-web-hwpx-mcp/review-workflow/p3.22/v1"

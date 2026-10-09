@@ -1,4 +1,4 @@
-from p334_rare_feature_registry import (
+from hwpx_mcp.document.p334_rare_feature_registry import (
     EVIDENCE_KEYS,
     evaluate_rare_feature,
     plan_rare_feature_promotion,

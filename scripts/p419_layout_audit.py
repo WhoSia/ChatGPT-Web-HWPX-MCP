@@ -42,8 +42,8 @@ def audit() -> dict:
 
     # Prevent newly added phase files from undoing the root cleanup.
     root_python = sorted(ROOT.glob("*.py"))
-    if len(root_python) > 110:
-        raise AssertionError(f"Root Python module budget regressed: {len(root_python)} > 110")
+    if len(root_python) > 95:
+        raise AssertionError(f"Root Python module budget regressed: {len(root_python)} > 95")
 
     corpus = ROOT / "hwpx_mcp" / "corpus"
     expected_corpus = ["p317_regression_corpus","p318_regression_corpus","p319_regression_corpus","p320_regression_corpus","p321_regression_corpus","p322_regression_corpus","p323_regression_corpus","p324_regression_corpus","p325_regression_corpus","p326_regression_corpus","p327_regression_corpus","p328_regression_corpus","p329_regression_corpus","p330_regression_corpus","p331_regression_corpus","p332_regression_corpus", "p335_atlas", "p335_corpus", "p335_paragraph", "p335_registry", "p335_typography", "p335_visual"]
@@ -62,6 +62,13 @@ def audit() -> dict:
             raise AssertionError("Native probe package placement mismatch: " + probe)
     if (ROOT / "p39_textbox.py").exists() or not (ROOT / "hwpx_mcp/document/p39_textbox.py").is_file():
         raise AssertionError("Native textbox parser package placement mismatch")
+
+    # P3.34 native operations retain independent implementations in document/.
+    p334_native = ("p334_rare_feature_registry", "p334r1_column_insertion",
+                   "p334r2_tracked_resolution", "p334r3_existing_group")
+    for name in p334_native:
+        if (ROOT / (name + ".py")).is_file() or not (ROOT / "hwpx_mcp/document" / (name + ".py")).is_file():
+            raise AssertionError("P3.34 native document module misplaced: " + name)
 
     # Detect stale imports across every checked-in Python source before CI
     # reaches an unrelated production or Hancom workflow.

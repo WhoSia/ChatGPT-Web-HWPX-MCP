@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import hwpx_mcp.operations.p41_operational as p41_operational as op
+import hwpx_mcp.operations.p41_operational as op
 
 def test_contract_and_runtime_matrix_are_product_scoped():
     contract = op.operational_readiness_contract()

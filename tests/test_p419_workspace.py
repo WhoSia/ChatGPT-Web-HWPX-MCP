@@ -2,7 +2,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from p419_workspace import workspace_overview
+from hwpx_mcp.orchestration.p419_product import workspace_overview
 
 
 class Store:

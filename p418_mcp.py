@@ -225,7 +225,7 @@ def register_p418_tools(
         Includes server-side compile, preview and durable staging. It does not
         approve or mutate the HWPX; only the separate human browser can.
         """
-        from p419_change_flow import stage_title_change
+        from hwpx_mcp.orchestration.p419_product import stage_title_change
         core._caller_subject()
         return stage_title_change(
             core, document_id=document_id, expected_revision=expected_revision,

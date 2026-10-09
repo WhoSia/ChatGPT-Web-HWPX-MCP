@@ -2,7 +2,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from p419_change_flow import stage_title_change
+from hwpx_mcp.orchestration.p419_product import stage_title_change
 
 
 DOCUMENT_ID = "doc_test-123456789012"

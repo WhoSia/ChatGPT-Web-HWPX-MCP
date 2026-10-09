@@ -7350,7 +7350,7 @@ def _p418_execute_after_trusted_host_confirmation(
 
 
 # P4.19: owner-scoped product workspace, independent of mutation/approval.
-from p419_workspace import workspace_overview as _p419_workspace_overview
+from hwpx_mcp.orchestration.p419_product import workspace_overview as _p419_workspace_overview
 
 
 @core.mcp.tool()

@@ -9,7 +9,7 @@ on:
       - "scripts/p413_*"
       - "benchmarks/p412_native_requalification.json"
       - "server_p2.py"
-      - "test_client.py"
+      - "tests/test_client.py"
       - "Dockerfile"
       - "scripts/verify_production_boundary.py"
       - ".github/workflows/p413-ci.yml"
@@ -29,8 +29,8 @@ jobs:
           python-version: "3.12"
           cache: pip
       - run: pip install -r requirements.txt -r requirements-dev.txt
-      - run: python -m compileall -q p413_evidence_service.py p413_mcp.py test_p413_evidence_service.py scripts/p413_release_smoke.py scripts/p413_materialize_release_evidence.py
-      - run: python -m pytest -q test_p413_evidence_service.py
+      - run: python -m compileall -q p413_evidence_service.py p413_mcp.py tests/test_p413_evidence_service.py scripts/p413_release_smoke.py scripts/p413_materialize_release_evidence.py
+      - run: python -m pytest -q tests/test_p413_evidence_service.py
       - run: python scripts/p413_release_smoke.py
       - run: python scripts/p413_materialize_release_evidence.py --out /tmp/p413-release-evidence --exact-head ${{ github.sha }}
       - uses: actions/upload-artifact@v4

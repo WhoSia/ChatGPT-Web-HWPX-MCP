@@ -13,7 +13,7 @@ from xml.etree import ElementTree
 
 from p22_formatting import build_formatting_map
 from p323_advanced_tables import build_advanced_table_map
-from p336_corpus import inspect_native_style
+from hwpx_mcp.corpus.p336_corpus import inspect_native_style
 
 
 SCHEMA = "chatgpt-web-hwpx-mcp/p3.36-r2/design-quality/v1"

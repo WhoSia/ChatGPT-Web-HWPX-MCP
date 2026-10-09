@@ -12,7 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from hwpx import HwpxDocument
 from hwpx.tools.package_validator import validate_editor_open_safety
 
-from p49_equation_witnesses import alignment_witness_contract
+from hwpx_mcp.quality.p49_equation_witnesses import alignment_witness_contract
 
 
 def _save_fixture(path: Path, label: str, script: str) -> dict:

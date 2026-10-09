@@ -4,7 +4,7 @@ import unittest
 import zipfile
 from pathlib import Path
 
-from p336_corpus import (
+from hwpx_mcp.corpus.p336_corpus import (
     blind_source_stem,
     build_native_style_census,
     canonical_pair_key,

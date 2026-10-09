@@ -67,6 +67,13 @@ jobs:
           npx --yes -p typescript@5.9.2 tsc --strict --target ES2022 --module commonjs --rootDir . --outDir .tmp/p345-ts contracts/p345_runtime.ts contracts/p345_extension_sdk.ts scripts/p345_runtime_cli.ts
           node .tmp/p345-ts/scripts/p345_runtime_cli.js contract | grep -q '"phase":"P3.45"'
 
+      - name: Build required P3.46 TypeScript platform kernel
+        run: |
+          set -euo pipefail
+          mkdir -p .tmp/p346-ts
+          npx --yes -p typescript@5.9.2 tsc --strict --target ES2022 --module commonjs --rootDir . --outDir .tmp/p346-ts contracts/p346_capability_kernel.ts contracts/p346_extension_sdk.ts scripts/p346_platform_cli.ts
+          node .tmp/p346-ts/scripts/p346_platform_cli.js contract | grep -q '"phase":"P3.46"'
+
       - name: Download real HWP fixtures ephemerally
         env:
           OFFICIAL_HWP_URL: "https://cdn.hancom.com/link/docs/%ED%95%9C%EA%B8%80%EB%AC%B8%EC%84%9C%ED%8C%8C%EC%9D%BC%ED%98%95%EC%8B%9D_5.0_revision1.3.hwp"

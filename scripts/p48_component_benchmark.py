@@ -20,7 +20,7 @@ from hwpx_mcp.rendering.p48_components import ARCHETYPES, compile_document_compo
 from hwpx_mcp.interfaces.p48_mcp import _execute_visual_plans
 from hwpx_mcp.quality.p49_visual_conformance import audit_materialized_visuals, certify_visual_plans
 from hwpx_mcp.rendering.p411_visual_oracle import structural_region_provenance_from_audit
-from p412_native_repair import audit_repaired_visuals
+from hwpx_mcp.rendering.p412_native_repair import audit_repaired_visuals
 
 
 def _scenario(archetype: str) -> dict:

@@ -19,7 +19,7 @@ from hwpx_mcp.rendering.p46_native_authoring import compile_native_authoring_bun
 from hwpx_mcp.rendering.p47_native_authoring import compile_unified_authoring_plan as compile_unified_authoring_plan_kernel
 from hwpx_mcp.quality.p49_visual_conformance import audit_materialized_visuals, certify_visual_plans
 from hwpx_mcp.rendering.p411_visual_oracle import structural_region_provenance_from_audit
-from p412_native_repair import audit_repaired_visuals, execute_repaired_visual_plans
+from hwpx_mcp.rendering.p412_native_repair import audit_repaired_visuals, execute_repaired_visual_plans
 from hwpx_mcp.evidence.p416_generation_manifest import build_authoring_generation_manifest
 from hwpx_mcp.rendering.p48_components import (
     component_authoring_contract,

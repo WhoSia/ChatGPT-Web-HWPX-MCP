@@ -4,7 +4,7 @@ from pathlib import Path
 from p321_document_composer import compose_document_plan
 from hwpx_mcp.rendering.p47_native_authoring import compile_unified_authoring_plan
 from hwpx_mcp.rendering.p48_components import compile_document_components
-from p412_native_repair import (
+from hwpx_mcp.rendering.p412_native_repair import (
     SAFE_NATIVE_FAMILY,
     audit_repaired_visuals,
     causal_localization,

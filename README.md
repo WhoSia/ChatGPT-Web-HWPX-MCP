@@ -48,7 +48,9 @@ ChatGPT-Web-HWPX-MCP/
 ├── hwpx_mcp/
 │   ├── orchestration/               # Agent workflows, preview, staging
 │   ├── interfaces/                  # MCP tool registration facades
-│   └── corpus/                      # Reusable corpus & style intelligence
+│   ├── corpus/                      # Reusable corpus & style intelligence
+│   ├── document/                    # Native document parsing primitives
+│   └── probes/                      # Bounded external world-contact test CLIs
 ├── tests/                            # Regression and boundary tests
 ├── scripts/                          # Operational / compatibility tools
 ├── benchmarks/, corpus/, fixtures/   # Evaluation and materialization inputs
@@ -56,7 +58,7 @@ ChatGPT-Web-HWPX-MCP/
 └── .github/workflows/                # Human-authored CI; no bot commits
 ```
 
-P4.19 is **migration-in-progress**: 115 Python modules remain at repository root in the current PR snapshot. These are mostly legacy feature implementations under active migration, **not retired functionality**. Move modules by ownership and import graph; do not merge semantically unrelated parsers, edit engines or renderer gates into a single monolithic file simply to reduce the count. See [Architecture and migration policy](docs/ARCHITECTURE.md).
+P4.19 is **migration-in-progress**: 110 Python modules remain at repository root in the current PR snapshot. These are mostly legacy feature implementations under active migration, **not retired functionality**. Move modules by ownership and import graph; do not merge semantically unrelated parsers, edit engines or renderer gates into a single monolithic file simply to reduce the count. See [Architecture and migration policy](docs/ARCHITECTURE.md).
 
 ## Development and verification
 

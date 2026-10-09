@@ -42,8 +42,8 @@ def audit() -> dict:
 
     # Prevent newly added phase files from undoing the root cleanup.
     root_python = sorted(ROOT.glob("*.py"))
-    if len(root_python) > 115:
-        raise AssertionError(f"Root Python module budget regressed: {len(root_python)} > 115")
+    if len(root_python) > 110:
+        raise AssertionError(f"Root Python module budget regressed: {len(root_python)} > 110")
 
     corpus = ROOT / "hwpx_mcp" / "corpus"
     expected_corpus = ["p317_regression_corpus","p318_regression_corpus","p319_regression_corpus","p320_regression_corpus","p321_regression_corpus","p322_regression_corpus","p323_regression_corpus","p324_regression_corpus","p325_regression_corpus","p326_regression_corpus","p327_regression_corpus","p328_regression_corpus","p329_regression_corpus","p330_regression_corpus","p331_regression_corpus","p332_regression_corpus", "p335_atlas", "p335_corpus", "p335_paragraph", "p335_registry", "p335_typography", "p335_visual"]
@@ -56,9 +56,16 @@ def audit() -> dict:
         if (ROOT / (module_name + ".py")).exists() or not (ROOT / "hwpx_mcp" / "interfaces" / (module_name + ".py")).is_file():
             raise AssertionError("MCP facade package placement mismatch: " + module_name)
 
+    expected_probes = ["p36_real_hwp_probe", "p36_rich_fixture_probe", "p37_equivalence_probe", "p37_nested_flow_probe"]
+    for probe in expected_probes:
+        if (ROOT / (probe + ".py")).exists() or not (ROOT / "hwpx_mcp/probes" / (probe + ".py")).is_file():
+            raise AssertionError("Native probe package placement mismatch: " + probe)
+    if (ROOT / "p39_textbox.py").exists() or not (ROOT / "hwpx_mcp/document/p39_textbox.py").is_file():
+        raise AssertionError("Native textbox parser package placement mismatch")
+
     # Detect stale imports across every checked-in Python source before CI
     # reaches an unrelated production or Hancom workflow.
-    retired = set(expected_corpus) | set(expected_interfaces)
+    retired = set(expected_corpus) | set(expected_interfaces) | set(expected_probes) | {"p39_textbox"}
     for source in ROOT.rglob("*.py"):
         if any(part in {".git", ".venv", "__pycache__", "artifacts"} for part in source.parts):
             continue

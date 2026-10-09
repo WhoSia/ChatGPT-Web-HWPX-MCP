@@ -6,6 +6,7 @@ This guard checks location contracts, not native Hancom fidelity.
 from __future__ import annotations
 
 import ast
+import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -72,6 +73,20 @@ def audit() -> dict:
             bad = retired.intersection(references)
             if bad:
                 raise AssertionError(f"Stale root import {sorted(bad)} in {source.relative_to(ROOT)}")
+
+    # Moved test files must be referenced by their real paths in ALL workflow
+    # invocations, not a mechanical replacement of implementation paths.
+    # This catches the P3.46–P3.49 failure where
+    # tests/test_hwpx_mcp/interfaces/p347_mcp.py was invented.
+    missing_test_paths = []
+    for workflow in sorted((ROOT / ".github/workflows").glob("*.yml")):
+        text = workflow.read_text(encoding="utf-8")
+        for match in re.finditer(r"(?<![A-Za-z0-9_/])tests/test_[A-Za-z0-9_./-]+\\.py\\b", text):
+            candidate = match.group(0)
+            if not (ROOT / candidate).is_file():
+                missing_test_paths.append((workflow.name, candidate))
+    if missing_test_paths:
+        raise AssertionError(f"Workflow references missing test modules: {missing_test_paths[:12]}")
 
     return {"root_python": len(root_python), "root_test_python": 0,
             "tests_collected_files": len(tests),

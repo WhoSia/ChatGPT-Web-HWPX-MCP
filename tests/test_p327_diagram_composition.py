@@ -49,7 +49,7 @@ class DiagramCompositionTests(unittest.TestCase):
             current_revision=2,
         )
         # Give the three objects distinct x positions.
-        from p325_drawing_layer import _mutate_section, _find_node, HP
+        from hwpx_mcp.document.p325_drawing_layer import _mutate_section, _find_node, HP
         refreshed = build_diagram_composition_map(path)
         for index, locator in enumerate(locs):
             item = next(x for x in refreshed["top_level_objects"] if x["locator"] == locator)

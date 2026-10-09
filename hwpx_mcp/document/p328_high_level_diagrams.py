@@ -13,7 +13,7 @@ from hwpx import HwpxDocument
 
 from p28_tables import _save_document
 from p29_objects import _resolve_paragraph
-from p325_drawing_layer import HP, build_drawing_layer_map, _bounded_int
+from hwpx_mcp.document.p325_drawing_layer import HP, build_drawing_layer_map, _bounded_int
 from p326_drawing_style import _color
 from hwpx_mcp.document.p327_diagram_composition import (
     _position_xy,

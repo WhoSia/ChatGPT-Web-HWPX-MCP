@@ -6,8 +6,8 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from types import SimpleNamespace
 from document_store import DurableDocumentStore
-from p335_registry import PostgresCorpusRegistry, intake_source, seal_source
-from p335_mcp import register_corpus_tools
+from hwpx_mcp.corpus.p335_registry import PostgresCorpusRegistry, intake_source, seal_source
+from hwpx_mcp.interfaces.p335_mcp import register_corpus_tools
 from test_p335_registry_atlas import metadata, fixture
 
 

@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from p335_registry import intake_source
+from hwpx_mcp.corpus.p335_registry import intake_source
 from p342_mcp import register_p342_tools
 
 

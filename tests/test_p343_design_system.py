@@ -6,7 +6,7 @@ from hwpx import HwpxDocument
 from p2_document import build_document_map
 from p22_formatting import build_formatting_map
 from p334r2_package_validation import validate_hwpx_package_light
-from p335_atlas import _sha as atlas_sha
+from hwpx_mcp.corpus.p335_atlas import _sha as atlas_sha
 from p343_design_system import (
     adjudicate_policy_gate, apply_constraint_preserving_template_migration_atomic,
     build_cross_template_generalization_ledger, normalize_organization_policy,

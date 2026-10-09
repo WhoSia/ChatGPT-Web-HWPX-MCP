@@ -7,7 +7,7 @@ import pytest
 
 from p340_feedback_loop import apply_nested_paragraph_alignment_atomic
 
-from p335_atlas import _sha as atlas_sha
+from hwpx_mcp.corpus.p335_atlas import _sha as atlas_sha
 
 from p321_document_composer import compose_document_plan
 

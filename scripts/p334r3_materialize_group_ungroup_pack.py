@@ -11,7 +11,7 @@ from p2_document import build_document_map
 from hwpx_mcp.document.p325_drawing_layer import apply_drawing_layer_atomic, build_drawing_layer_map
 from hwpx_mcp.document.p326_drawing_style import apply_drawing_style_atomic
 from hwpx_mcp.document.p327_diagram_composition import apply_diagram_composition_atomic, build_diagram_composition_map
-from p334r2_package_validation import validate_hwpx_package_light
+from hwpx_mcp.document.p334r2_package_validation import validate_hwpx_package_light
 
 def anchor(path:Path)->str:
     return next(p["locator"] for p in build_document_map(path)["paragraphs"] if p["text"]=="R3 anchor")

@@ -29,7 +29,7 @@ from p317_fidelity_envelope import (
     production_fidelity_contract,
     assess_edit_fidelity_envelope,
 )
-from p317_page_geometry import (
+from hwpx_mcp.document.p317_page_geometry import (
     build_page_geometry_map,
     apply_page_geometry_edits_atomic,
 )

@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from p344_autonomous_authoring import (
+from hwpx_mcp.orchestration.p344_autonomous_authoring import (
     autonomous_authoring_contract,
     diagnostic_summary,
     evaluate_runtime_gate,

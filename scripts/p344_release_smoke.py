@@ -8,7 +8,7 @@ ROOT=Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0,str(ROOT))
 
-from p344_autonomous_authoring import autonomous_authoring_contract,evaluate_runtime_gate,new_run,verify_run
+from hwpx_mcp.orchestration.p344_autonomous_authoring import autonomous_authoring_contract,evaluate_runtime_gate,new_run,verify_run
 
 contract=autonomous_authoring_contract()
 assert contract["phase"]=="P3.44"

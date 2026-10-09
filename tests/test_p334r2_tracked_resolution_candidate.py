@@ -9,7 +9,7 @@ import pytest
 from lxml import etree
 from hwpx import HwpxDocument
 
-from p334r2_package_validation import validate_hwpx_package_light
+from hwpx_mcp.document.p334r2_package_validation import validate_hwpx_package_light
 from p2_document import build_document_map
 from hwpx_mcp.document.p322_review_workflow import apply_review_workflow_atomic, build_review_workflow_map
 

@@ -50,7 +50,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - run: pip install -r requirements.txt -r requirements-capture.txt -r requirements-dev.txt
       - run: cargo build --release --manifest-path rust/p344_gate/Cargo.toml
-      - run: python -m compileall -q p344_autonomous_authoring.py hwpx_mcp/interfaces/p344_mcp.py tests/test_p344_autonomous_authoring.py benchmarks/authorbench_p344_materialize.py scripts/p344_capture_pdf.py scripts/p344_release_smoke.py server_p2.py tests/test_client.py
+      - run: python -m compileall -q hwpx_mcp/orchestration/p344_autonomous_authoring.py hwpx_mcp/interfaces/p344_mcp.py tests/test_p344_autonomous_authoring.py benchmarks/authorbench_p344_materialize.py scripts/p344_capture_pdf.py scripts/p344_release_smoke.py server_p2.py tests/test_client.py
       - run: python -m pytest -q tests/test_p344_autonomous_authoring.py tests/test_p340_feedback_loop.py tests/test_p342_mutation_footprint.py tests/test_p343_design_system.py
       - run: P344_GATE_BIN="$PWD/rust/p344_gate/target/release/p344-gate" P344_REQUIRE_RUST_GATE=1 python scripts/p344_release_smoke.py
       - run: python scripts/validate_hwpx_authoring_skill.py

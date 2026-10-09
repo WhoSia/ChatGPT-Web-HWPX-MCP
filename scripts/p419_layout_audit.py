@@ -113,8 +113,8 @@ def audit() -> dict:
 
     # Prevent newly added phase files from undoing the root cleanup.
     root_python = sorted(ROOT.glob("*.py"))
-    if len(root_python) > 34:
-        raise AssertionError(f"Root Python module budget regressed: {len(root_python)} > 34")
+    if len(root_python) > 30:
+        raise AssertionError(f"Root Python module budget regressed: {len(root_python)} > 30")
 
     corpus = ROOT / "hwpx_mcp" / "corpus"
     expected_corpus = ["p317_regression_corpus","p318_regression_corpus","p319_regression_corpus","p320_regression_corpus","p321_regression_corpus","p322_regression_corpus","p323_regression_corpus","p324_regression_corpus","p325_regression_corpus","p326_regression_corpus","p327_regression_corpus","p328_regression_corpus","p329_regression_corpus","p330_regression_corpus","p331_regression_corpus","p332_regression_corpus", "p335_atlas", "p335_corpus", "p335_paragraph", "p335_registry", "p335_typography", "p335_visual"]

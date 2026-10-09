@@ -8,7 +8,7 @@ from p2_document import build_document_map
 from p22_formatting import apply_formatting_atomic
 from p23_richtext import apply_rich_formatting_atomic
 from hwpx_mcp.corpus.p335_typography import build_typography_profile, compare_typography_profiles, typography_contract
-from p334r2_package_validation import validate_hwpx_package_light
+from hwpx_mcp.document.p334r2_package_validation import validate_hwpx_package_light
 
 
 def _loc(path: Path, text: str) -> str:

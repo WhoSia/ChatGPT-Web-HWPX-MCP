@@ -4,7 +4,7 @@ import json
 import sys
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
-from p335_registry import intake_source, registry_snapshot
+from hwpx_mcp.corpus.p335_registry import intake_source, registry_snapshot
 
 def main():
     p=argparse.ArgumentParser();p.add_argument('--metadata',type=Path,required=True);p.add_argument('--source-dir',type=Path);p.add_argument('--out',type=Path,required=True)

@@ -9,8 +9,8 @@ from hwpx import HwpxDocument
 from p2_document import build_document_map
 from p22_formatting import apply_formatting_atomic, build_formatting_map
 from p334r2_package_validation import validate_hwpx_package_light
-from p335_corpus import build_corpus_style_profile, build_style_library
-from p335_paragraph import (
+from hwpx_mcp.corpus.p335_corpus import build_corpus_style_profile, build_style_library
+from hwpx_mcp.corpus.p335_paragraph import (
     build_document_style_exemplar,
     build_paragraph_geometry_profile,
     build_role_aware_style_exemplars,

@@ -116,12 +116,12 @@ from p334_rare_feature_registry import (
     plan_rare_feature_promotion as plan_p334_rare_feature_promotion,
     ux_regression_contract as p334_ux_regression_contract,
 )
-from p335_typography import (
+from hwpx_mcp.corpus.p335_typography import (
     typography_contract as p335_typography_contract,
     build_typography_profile,
     compare_typography_profiles,
 )
-from p335_paragraph import (
+from hwpx_mcp.corpus.p335_paragraph import (
     paragraph_geometry_contract as p335_paragraph_geometry_contract,
     build_paragraph_geometry_profile,
     compare_paragraph_geometry_profiles,
@@ -129,7 +129,7 @@ from p335_paragraph import (
     build_role_aware_style_exemplars,
     build_style_transfer_operations,
 )
-from p335_corpus import build_corpus_style_profile, build_style_library
+from hwpx_mcp.corpus.p335_corpus import build_corpus_style_profile, build_style_library
 from p336r2_design import (
     design_quality_contract as p336r2_design_quality_contract,
     compile_design_plan as p336r2_compile_design_plan,
@@ -7064,7 +7064,7 @@ def _apply_p343_migration(*, document_id: str, template: dict, targets_by_role: 
     _refresh_metadata(document_id,metadata,validation,build_document_map(path),build_formatting_map(path),build_inline_map(path),build_table_map(path),build_object_map(path),build_equation_map(path))
     return {"ok":True,"document_id":document_id,"revision_before":current,"revision_after":int(metadata["revision"]),"sha256":validation["sha256"],"migration":migration,"validation":validation,"transaction":"COMMITTED","authority":"P3.43_ORGANIZATION_CONSTRAINED_TEMPLATE_MIGRATION"}
 
-from p335_mcp import register_corpus_tools
+from hwpx_mcp.interfaces.p335_mcp import register_corpus_tools
 CORPUS_REGISTRY = register_corpus_tools(core, _owned_document)
 
 from p342_mcp import register_p342_tools

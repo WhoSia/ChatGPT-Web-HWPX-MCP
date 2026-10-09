@@ -5,10 +5,10 @@ import tempfile
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 from hwpx import HwpxDocument
-from p335_registry import intake_source, registry_snapshot
-from p335_atlas import build_style_atlas, synthesize_templates, compile_template
-from p335_visual import control_descriptor, native_patterns
-import p335_mcp
+from hwpx_mcp.corpus.p335_registry import intake_source, registry_snapshot
+from hwpx_mcp.corpus.p335_atlas import build_style_atlas, synthesize_templates, compile_template
+from hwpx_mcp.corpus.p335_visual import control_descriptor, native_patterns
+from hwpx_mcp.interfaces import p335_mcp
 
 def main():
     with tempfile.TemporaryDirectory() as tmp:

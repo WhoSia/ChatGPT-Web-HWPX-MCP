@@ -12,7 +12,7 @@ from p2_document import build_document_map
 from p22_formatting import apply_formatting_atomic, build_formatting_map
 from p23_richtext import apply_rich_formatting_atomic
 from p334r2_package_validation import validate_hwpx_package_light
-from p335_paragraph import build_document_style_exemplar, build_paragraph_geometry_profile
+from hwpx_mcp.corpus.p335_paragraph import build_document_style_exemplar, build_paragraph_geometry_profile
 
 
 def paragraph_locator(path: Path, text: str) -> str:

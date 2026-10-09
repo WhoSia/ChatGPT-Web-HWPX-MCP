@@ -9,7 +9,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from p335_registry import intake_source
+from hwpx_mcp.corpus.p335_registry import intake_source
 from p342_corpus_evidence import build_corpus_coverage_ledger
 
 DEFAULT_METADATA = ROOT / "corpus" / "p342-public-corpus-metadata.json"

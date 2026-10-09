@@ -3,9 +3,9 @@ from __future__ import annotations
 from collections import Counter, defaultdict
 from typing import Any, Iterable, Mapping
 
-from p335_atlas import build_style_atlas
-from p335_corpus import _sha
-from p335_registry import registry_snapshot
+from hwpx_mcp.corpus.p335_atlas import build_style_atlas
+from hwpx_mcp.corpus.p335_corpus import _sha
+from hwpx_mcp.corpus.p335_registry import registry_snapshot
 
 SCHEMA = "chatgpt-web-hwpx-mcp/p3.42/corpus-coverage-ledger/v1"
 GENERALIZATION_SCHEMA = "chatgpt-web-hwpx-mcp/p3.42/design-generalization/v1"

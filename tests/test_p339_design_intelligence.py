@@ -4,9 +4,9 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from p321_document_composer import compose_document_plan
-from p338_rich_builder import compile_rich_document_plan
-from p339_design_intelligence import (
+from hwpx_mcp.document.p321_document_composer import compose_document_plan
+from hwpx_mcp.orchestration.p338_rich_builder import compile_rich_document_plan
+from hwpx_mcp.orchestration.p339_design_intelligence import (
     design_intelligence_contract,
     diagnose_document_design,
     plan_design_repairs,

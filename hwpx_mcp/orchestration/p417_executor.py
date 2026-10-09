@@ -8,9 +8,9 @@ import tempfile
 from pathlib import Path
 from typing import Any, Callable, Mapping
 
-from p2_document import apply_edits_atomic, build_document_map
-from p22_formatting import apply_formatting_atomic
-from p317_fidelity_envelope import assess_edit_fidelity_envelope
+from hwpx_mcp.document.p2_document import apply_edits_atomic, build_document_map
+from hwpx_mcp.document.p22_formatting import apply_formatting_atomic
+from hwpx_mcp.quality.p317_fidelity_envelope import assess_edit_fidelity_envelope
 from hwpx_mcp.custody.p342_mutation_footprint import (
     build_mutation_footprint,
     enforce_preservation_grade,

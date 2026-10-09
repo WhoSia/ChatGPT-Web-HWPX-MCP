@@ -6,10 +6,10 @@ import statistics
 from pathlib import Path
 from typing import Any
 
-from p22_formatting import build_formatting_map
-from p28_tables import build_table_map
-from p336r2_design import paragraph_features_from_hwpx, infer_presentation_roles
-from p338_rich_builder import evaluate_preview_readiness
+from hwpx_mcp.document.p22_formatting import build_formatting_map
+from hwpx_mcp.document.p28_tables import build_table_map
+from hwpx_mcp.orchestration.p336r2_design import paragraph_features_from_hwpx, infer_presentation_roles
+from hwpx_mcp.orchestration.p338_rich_builder import evaluate_preview_readiness
 
 
 SCHEMA = "chatgpt-web-hwpx-mcp/p3.39/design-intelligence/v1"

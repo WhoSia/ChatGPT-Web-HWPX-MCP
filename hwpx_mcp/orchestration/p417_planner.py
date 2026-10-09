@@ -5,7 +5,7 @@ import json
 from collections import Counter
 from typing import Any, Mapping, Sequence
 
-from p317_fidelity_envelope import assess_edit_fidelity_envelope
+from hwpx_mcp.quality.p317_fidelity_envelope import assess_edit_fidelity_envelope
 
 PHASE = "P4.17"
 PRODUCT = "0.42.0-p4.17"

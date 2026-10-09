@@ -9,9 +9,9 @@ import zipfile
 from pathlib import Path
 from typing import Any, Callable, Mapping
 
-from p2_document import build_document_map
-from p28_tables import build_table_map
-from p340_feedback_loop import apply_document_design_repairs_atomic
+from hwpx_mcp.document.p2_document import build_document_map
+from hwpx_mcp.document.p28_tables import build_table_map
+from hwpx_mcp.orchestration.p340_feedback_loop import apply_document_design_repairs_atomic
 
 SCHEMA = "chatgpt-web-hwpx-mcp/p3.42/mutation-footprint-certificate/v1"
 CONTRACT_SCHEMA = "chatgpt-web-hwpx-mcp/p3.42/mutation-footprint-contract/v1"

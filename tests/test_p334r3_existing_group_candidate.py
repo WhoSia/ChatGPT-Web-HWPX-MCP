@@ -4,7 +4,7 @@ from pathlib import Path
 
 from hwpx import HwpxDocument
 
-from p2_document import build_document_map
+from hwpx_mcp.document.p2_document import build_document_map
 from hwpx_mcp.document.p325_drawing_layer import apply_drawing_layer_atomic, build_drawing_layer_map
 from hwpx_mcp.document.p326_drawing_style import apply_drawing_style_atomic
 from hwpx_mcp.document.p327_diagram_composition import apply_diagram_composition_atomic, build_diagram_composition_map

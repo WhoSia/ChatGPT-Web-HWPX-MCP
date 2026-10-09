@@ -9,9 +9,9 @@ from pathlib import Path
 from typing import Callable
 from xml.etree import ElementTree
 
-from p2_document import _local, _paragraph_nodes, build_document_map
-from p24_inline import _public_scan, _scan_paragraph, build_inline_map
-from p25_controls import (
+from hwpx_mcp.document.p2_document import _local, _paragraph_nodes, build_document_map
+from hwpx_mcp.document.p24_inline import _public_scan, _scan_paragraph, build_inline_map
+from hwpx_mcp.document.p25_controls import (
     _apply_operation as _apply_p25_operation,
     _clear_layout_cache,
     _field_runs,

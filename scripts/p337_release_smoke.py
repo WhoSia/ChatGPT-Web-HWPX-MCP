@@ -11,9 +11,9 @@ if str(ROOT) not in sys.path:
 
 from hwpx import HwpxDocument
 
-from p2_document import build_document_map
-from p321_document_composer import compose_document_plan
-from p337_product_workflow import (
+from hwpx_mcp.document.p2_document import build_document_map
+from hwpx_mcp.document.p321_document_composer import compose_document_plan
+from hwpx_mcp.orchestration.p337_product_workflow import (
     fill_template_atomic,
     product_workflow_contract,
     sniff_hangul_payload,

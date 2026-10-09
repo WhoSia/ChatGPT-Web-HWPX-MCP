@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Callable
 from xml.etree import ElementTree
 
-from p2_document import _local, _paragraph_nodes, build_document_map
+from hwpx_mcp.document.p2_document import _local, _paragraph_nodes, build_document_map
 
 VISIBLE_SPECIALS = {
     "tab": "\t",

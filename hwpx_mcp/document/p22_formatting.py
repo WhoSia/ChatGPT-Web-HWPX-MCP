@@ -12,7 +12,7 @@ from xml.etree import ElementTree
 
 from hwpx import HwpxDocument
 
-from p2_document import _local, _paragraph_nodes, build_document_map
+from hwpx_mcp.document.p2_document import _local, _paragraph_nodes, build_document_map
 
 HEADER_NAME = "Contents/header.xml"
 

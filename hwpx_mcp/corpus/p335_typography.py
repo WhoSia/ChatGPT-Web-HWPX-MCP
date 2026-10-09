@@ -5,7 +5,7 @@ import json
 from collections import Counter, defaultdict
 from pathlib import Path
 
-from p22_formatting import build_formatting_map
+from hwpx_mcp.document.p22_formatting import build_formatting_map
 
 SCRIPTS = ("hangul","latin","hanja","japanese","other","symbol","user")
 

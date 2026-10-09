@@ -6,7 +6,7 @@ on:
       - "benchmarks/authorbench_a1.py"
       - "benchmarks/authorbench_a1_human_review.json"
       - "benchmarks/authorbench_a1_p339_diagnostic.py"
-      - "p339_design_intelligence.py"
+      - "hwpx_mcp/orchestration/p339_design_intelligence.py"
       - ".github/workflows/authorbench-a1.yml"
   workflow_dispatch:
 

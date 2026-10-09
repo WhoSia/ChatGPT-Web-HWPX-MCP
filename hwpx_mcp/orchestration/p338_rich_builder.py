@@ -8,16 +8,16 @@ import tempfile
 from pathlib import Path
 from typing import Any, Callable
 
-from p2_document import build_document_map
-from p24_inline import apply_inline_edits_atomic, build_inline_map
-from p27_tables import apply_table_edits_atomic
-from p28_tables import build_table_map
-from p29_objects import build_object_map
-from p210_equations import build_equation_map
-from p318_document_setup import build_document_setup_map
-from p321_document_composer import validate_document_plan
+from hwpx_mcp.document.p2_document import build_document_map
+from hwpx_mcp.document.p24_inline import apply_inline_edits_atomic, build_inline_map
+from hwpx_mcp.document.p27_tables import apply_table_edits_atomic
+from hwpx_mcp.document.p28_tables import build_table_map
+from hwpx_mcp.document.p29_objects import build_object_map
+from hwpx_mcp.document.p210_equations import build_equation_map
+from hwpx_mcp.document.p318_document_setup import build_document_setup_map
+from hwpx_mcp.document.p321_document_composer import validate_document_plan
 from hwpx_mcp.document.p323_advanced_tables import build_advanced_table_map
-from p336r2_design import evaluate_generated_document
+from hwpx_mcp.orchestration.p336r2_design import evaluate_generated_document
 
 
 SCHEMA = "chatgpt-web-hwpx-mcp/p3.38/rich-builder/v1"

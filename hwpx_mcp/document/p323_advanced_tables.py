@@ -9,8 +9,8 @@ from typing import Callable
 
 from hwpx import HwpxDocument
 
-from p27_tables import _resolve_table, _save_document
-from p28_tables import (
+from hwpx_mcp.document.p27_tables import _resolve_table, _save_document
+from hwpx_mcp.document.p28_tables import (
     apply_table_edits_atomic as apply_p28_table_edits_atomic,
     build_table_map as build_p28_table_map,
 )

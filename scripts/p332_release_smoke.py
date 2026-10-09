@@ -10,7 +10,7 @@ if str(ROOT) not in sys.path:
 
 from hwpx import HwpxDocument
 
-from p2_document import build_document_map
+from hwpx_mcp.document.p2_document import build_document_map
 from hwpx_mcp.document.p328_high_level_diagrams import _insert_labeled_node, _insert_pointer_line
 from hwpx_mcp.document.p327_diagram_composition import _position_xy, _resolve_top, _size
 from hwpx_mcp.document.p329_diagram_lifecycle import build_diagram_lifecycle_map

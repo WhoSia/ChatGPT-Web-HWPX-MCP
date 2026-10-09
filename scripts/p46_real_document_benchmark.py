@@ -11,9 +11,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from hwpx import HwpxDocument
 from hwpx.tools.package_validator import validate_editor_open_safety
 
-from p2_document import build_document_map
-from p28_tables import apply_table_edits_atomic, build_table_map
-from p210_equations import apply_equation_edits_atomic, build_equation_map
+from hwpx_mcp.document.p2_document import build_document_map
+from hwpx_mcp.document.p28_tables import apply_table_edits_atomic, build_table_map
+from hwpx_mcp.document.p210_equations import apply_equation_edits_atomic, build_equation_map
 from hwpx_mcp.document.p325_drawing_layer import apply_drawing_layer_atomic, build_drawing_layer_map
 from hwpx_mcp.rendering.p46_native_authoring import audit_equation_latex, equation_capability_matrix
 

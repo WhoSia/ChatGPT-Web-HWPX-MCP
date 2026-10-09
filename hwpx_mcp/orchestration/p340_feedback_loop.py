@@ -12,12 +12,12 @@ from pathlib import Path
 from typing import Any, Callable
 from xml.etree import ElementTree
 
-from p2_document import _local, _paragraph_nodes, build_document_map
-from p22_formatting import apply_formatting_atomic, build_formatting_map
-from p28_tables import apply_table_edits_atomic, build_table_map
+from hwpx_mcp.document.p2_document import _local, _paragraph_nodes, build_document_map
+from hwpx_mcp.document.p22_formatting import apply_formatting_atomic, build_formatting_map
+from hwpx_mcp.document.p28_tables import apply_table_edits_atomic, build_table_map
 from hwpx_mcp.custody.p312_render_harness import validate_capture
-from p336r2_design import paragraph_features_from_hwpx, infer_presentation_roles
-from p339_design_intelligence import (
+from hwpx_mcp.orchestration.p336r2_design import paragraph_features_from_hwpx, infer_presentation_roles
+from hwpx_mcp.orchestration.p339_design_intelligence import (
     diagnose_document_design as p339_diagnose_document_design,
     plan_design_repairs as p339_plan_design_repairs,
     prepare_authoring_strategy,

@@ -7,7 +7,7 @@ from pathlib import Path
 from hwpx import HwpxDocument
 
 import server
-from p2_document import build_document_map
+from hwpx_mcp.document.p2_document import build_document_map
 from hwpx_mcp.document.p322_review_workflow import apply_review_workflow_atomic, build_review_workflow_map
 
 

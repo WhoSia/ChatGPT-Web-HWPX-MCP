@@ -14,7 +14,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from hwpx_mcp.document.p334r2_package_validation import validate_hwpx_package_light
-from p2_document import build_document_map
+from hwpx_mcp.document.p2_document import build_document_map
 from hwpx_mcp.document.p322_review_workflow import build_review_workflow_map
 
 

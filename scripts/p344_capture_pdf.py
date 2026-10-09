@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from p341_page_composition import diagnose_page_composition
+from hwpx_mcp.orchestration.p341_page_composition import diagnose_page_composition
 from scripts.p313r1_pdf_capture import page_capture
 
 SCHEMA = "authorbench/p3.44/native-render-receipt/v1"

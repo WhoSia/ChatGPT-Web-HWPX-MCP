@@ -11,8 +11,8 @@ from hwpx import HwpxDocument
 
 import server as core
 import server_p2 as api
-from p2_document import build_document_map
-from p337_product_workflow import (
+from hwpx_mcp.document.p2_document import build_document_map
+from hwpx_mcp.orchestration.p337_product_workflow import (
     HWP5_CFBF_MAGIC,
     fill_template_atomic,
     plan_literal_placeholder_fill,

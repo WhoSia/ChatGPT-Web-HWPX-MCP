@@ -17,7 +17,7 @@ from hwpx_mcp.custody.p340r1_capture_pack import (
     utc_now,
     write_json,
 )
-from p341_page_composition import diagnose_page_composition
+from hwpx_mcp.orchestration.p341_page_composition import diagnose_page_composition
 
 SCHEMA = "authorbench/p341r1-hancom-capture-pack/v1"
 PHASE = "P3.41-R1"

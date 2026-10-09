@@ -14,7 +14,7 @@ if str(REPO_ROOT) not in sys.path:
 from hwpx import HwpxDocument
 
 from hwpx_mcp.document.p334r2_package_validation import validate_hwpx_package_light
-from p2_document import build_document_map
+from hwpx_mcp.document.p2_document import build_document_map
 from hwpx_mcp.document.p322_review_workflow import apply_review_workflow_atomic, build_review_workflow_map
 
 
@@ -69,7 +69,7 @@ def main() -> int:
     root = Path(args.out)
     root.mkdir(parents=True, exist_ok=True)
 
-    from capture_runtime import attach_capture_runtime
+    from hwpx_mcp.custody.capture_runtime import attach_capture_runtime
     attach_capture_runtime(root)
 
     manifest = {

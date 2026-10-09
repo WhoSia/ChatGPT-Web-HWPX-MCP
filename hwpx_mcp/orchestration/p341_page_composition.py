@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from hwpx_mcp.custody.p312_render_harness import validate_capture
-from p340_feedback_loop import diagnose_document_with_render
+from hwpx_mcp.orchestration.p340_feedback_loop import diagnose_document_with_render
 
 SCHEMA = "chatgpt-web-hwpx-mcp/p3.41/page-composition/v1"
 PPM = 1_000_000

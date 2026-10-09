@@ -14,20 +14,20 @@ from typing import Any, Callable
 from hwpx import HwpxDocument
 from hwpx.equation import latex_to_eqedit
 
-from p2_document import build_document_map
-from p22_formatting import build_formatting_map
-from p23_richtext import apply_rich_formatting_atomic
-from p27_tables import _save_document
-from p28_tables import build_table_map
+from hwpx_mcp.document.p2_document import build_document_map
+from hwpx_mcp.document.p22_formatting import build_formatting_map
+from hwpx_mcp.document.p23_richtext import apply_rich_formatting_atomic
+from hwpx_mcp.document.p27_tables import _save_document
+from hwpx_mcp.document.p28_tables import build_table_map
 from hwpx_mcp.document.p323_advanced_tables import build_advanced_table_map, apply_advanced_table_edits_atomic
-from p29_objects import build_object_map
-from p210_equations import build_equation_map
-from p318_document_setup import apply_document_setup_atomic, build_document_setup_map
-from p319_structured_publishing import (
+from hwpx_mcp.document.p29_objects import build_object_map
+from hwpx_mcp.document.p210_equations import build_equation_map
+from hwpx_mcp.document.p318_document_setup import apply_document_setup_atomic, build_document_setup_map
+from hwpx_mcp.document.p319_structured_publishing import (
     apply_structured_publishing_atomic,
     build_structured_publishing_map,
 )
-from p320_annotation_apparatus import (
+from hwpx_mcp.document.p320_annotation_apparatus import (
     apply_annotation_apparatus_atomic,
     build_annotation_apparatus_map,
 )

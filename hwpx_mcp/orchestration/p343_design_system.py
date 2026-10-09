@@ -8,8 +8,8 @@ import tempfile
 from pathlib import Path
 from typing import Any, Callable, Mapping
 
-from p22_formatting import apply_formatting_atomic
-from p2_document import build_document_map
+from hwpx_mcp.document.p22_formatting import apply_formatting_atomic
+from hwpx_mcp.document.p2_document import build_document_map
 from hwpx_mcp.corpus.p335_atlas import compile_template
 from hwpx_mcp.custody.p342_mutation_footprint import build_mutation_footprint, enforce_preservation_grade
 

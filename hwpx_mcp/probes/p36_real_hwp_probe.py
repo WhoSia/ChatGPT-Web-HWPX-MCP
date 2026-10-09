@@ -5,8 +5,8 @@ import json
 import os
 from pathlib import Path
 
-from hwp5_reader import extract_hwp5_binary_assets, parse_hwp5_bytes
-from common_ir import hwp5_to_common_ir, extract_common_ir, search_common_ir
+from hwpx_mcp.document.hwp5_reader import extract_hwp5_binary_assets, parse_hwp5_bytes
+from hwpx_mcp.document.common_ir import hwp5_to_common_ir, extract_common_ir, search_common_ir
 
 SOURCE = Path(os.environ.get("P36_REAL_HWP", "/tmp/hancom-hwp5-spec.hwp"))
 

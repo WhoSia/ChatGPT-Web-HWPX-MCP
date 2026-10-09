@@ -8,10 +8,10 @@ from typing import Any
 
 from hwpx import HwpxDocument
 
-from p2_document import build_document_map
-from p28_tables import apply_table_edits_atomic, build_table_map
-from p313r1_fixture_pack import _validate_minimal_hwpx
-from p319_structured_publishing import (
+from hwpx_mcp.document.p2_document import build_document_map
+from hwpx_mcp.document.p28_tables import apply_table_edits_atomic, build_table_map
+from hwpx_mcp.custody.p313r1_fixture_pack import _validate_minimal_hwpx
+from hwpx_mcp.document.p319_structured_publishing import (
     apply_structured_publishing_atomic,
     build_structured_publishing_map,
 )

@@ -54,7 +54,7 @@ def test_stale_or_forged_graph_fails():
 def test_wrong_parent_ancestry_fails():
     graph = machine_graph()
     graph["nodes"][1] = make_node("GIT_ANCESTRY", "ancestry", "PASS", subject=subject(graph["exact_head"]), evidence={"ancestor": "9" * 40})
-    graph["graph_sha256"] = __import__("p415_authority").canonical_sha256({k: v for k, v in graph.items() if k != "graph_sha256"})
+    graph["graph_sha256"] = __import__("hwpx_mcp.evidence.p415_authority", fromlist=["canonical_sha256"]).canonical_sha256({k: v for k, v in graph.items() if k != "graph_sha256"})
     result = verify_graph(graph)
     assert any(x["code"] == "PARENT_ANCESTRY_NOT_PROVEN" for x in result["issues"])
 

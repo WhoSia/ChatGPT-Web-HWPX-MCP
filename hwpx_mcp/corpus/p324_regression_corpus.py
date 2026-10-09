@@ -7,7 +7,7 @@ from typing import Any
 
 from hwpx import HwpxDocument
 
-from p313r1_fixture_pack import _validate_minimal_hwpx
+from hwpx_mcp.custody.p313r1_fixture_pack import _validate_minimal_hwpx
 from hwpx_mcp.document.p324_story_layer import apply_story_layer_atomic, build_story_layer_map
 
 

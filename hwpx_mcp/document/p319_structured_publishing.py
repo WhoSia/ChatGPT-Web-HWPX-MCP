@@ -20,12 +20,12 @@ from hwpx.tools.toc_author import (
     ensure_body_styles_not_collected,
 )
 
-from p2_document import build_document_map
-from p27_tables import _save_document
-from p28_tables import build_table_map, _resolve_table
+from hwpx_mcp.document.p2_document import build_document_map
+from hwpx_mcp.document.p27_tables import _save_document
+from hwpx_mcp.document.p28_tables import build_table_map, _resolve_table
 from hwpx_mcp.operations.p42_migration import normalize_list_number_format
-from p29_objects import build_object_map, _resolve_picture, _pictures
-from p210_equations import build_equation_map, _resolve_equation, _equations
+from hwpx_mcp.document.p29_objects import build_object_map, _resolve_picture, _pictures
+from hwpx_mcp.document.p210_equations import build_equation_map, _resolve_equation, _equations
 
 
 SCHEMA = "chatgpt-web-hwpx-mcp/structured-publishing/p3.19/v1"

@@ -7,7 +7,7 @@ from typing import Any
 
 from hwpx import HwpxDocument
 
-from p313r1_fixture_pack import _validate_minimal_hwpx
+from hwpx_mcp.custody.p313r1_fixture_pack import _validate_minimal_hwpx
 from hwpx_mcp.document.p323_advanced_tables import apply_advanced_table_edits_atomic, build_advanced_table_map
 
 

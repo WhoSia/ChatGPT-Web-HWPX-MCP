@@ -15,7 +15,7 @@ ROOT=Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:sys.path.insert(0,str(ROOT))
 
 from hwpx import HwpxDocument
-from p318_document_setup import build_document_setup_map
+from hwpx_mcp.document.p318_document_setup import build_document_setup_map
 
 def download(url: str, target: Path)->bytes:
     req=urllib.request.Request(url,headers={"User-Agent":"ChatGPT-Web-HWPX-MCP-P4.2/1.0"})

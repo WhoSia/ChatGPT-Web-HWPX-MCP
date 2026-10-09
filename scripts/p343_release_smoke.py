@@ -7,7 +7,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from hwpx import HwpxDocument
-from p22_formatting import build_formatting_map
+from hwpx_mcp.document.p22_formatting import build_formatting_map
 from hwpx_mcp.document.p334r2_package_validation import validate_hwpx_package_light
 from hwpx_mcp.corpus.p335_atlas import _sha
 from hwpx_mcp.orchestration.p343_design_system import apply_constraint_preserving_template_migration_atomic, design_system_adaptation_contract

@@ -4,7 +4,7 @@ import hashlib
 import json
 from typing import Any
 
-from p338_rich_builder import compile_rich_document_plan
+from hwpx_mcp.orchestration.p338_rich_builder import compile_rich_document_plan
 
 PHASE = "P4.7"
 PRODUCT = "0.33.0-p4.7"

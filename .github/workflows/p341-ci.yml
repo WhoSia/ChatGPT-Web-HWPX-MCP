@@ -4,16 +4,16 @@ on:
   push:
     branches: [main]
     paths:
-      - "p341_page_composition.py"
+      - "hwpx_mcp/orchestration/p341_page_composition.py"
       - "hwpx_mcp/custody/p341r1_capture_pack.py"
       - "tests/test_p341r1_capture_pack.py"
       - "hwpx_mcp/custody/p341r1_adjudicate.py"
       - "tests/test_p341r1_adjudicate.py"
-      - "p321_document_composer.py"
+      - "hwpx_mcp/document/p321_document_composer.py"
       - "tests/test_p321_document_composer.py"
-      - "p339_design_intelligence.py"
+      - "hwpx_mcp/orchestration/p339_design_intelligence.py"
       - "tests/test_p339_design_intelligence.py"
-      - "p340_feedback_loop.py"
+      - "hwpx_mcp/orchestration/p340_feedback_loop.py"
       - "tests/test_p340_feedback_loop.py"
       - "tests/test_p341_page_composition.py"
       - "benchmarks/p341_*"
@@ -35,16 +35,16 @@ on:
   pull_request:
     branches: [main]
     paths:
-      - "p341_page_composition.py"
+      - "hwpx_mcp/orchestration/p341_page_composition.py"
       - "hwpx_mcp/custody/p341r1_capture_pack.py"
       - "tests/test_p341r1_capture_pack.py"
       - "hwpx_mcp/custody/p341r1_adjudicate.py"
       - "tests/test_p341r1_adjudicate.py"
-      - "p321_document_composer.py"
+      - "hwpx_mcp/document/p321_document_composer.py"
       - "tests/test_p321_document_composer.py"
-      - "p339_design_intelligence.py"
+      - "hwpx_mcp/orchestration/p339_design_intelligence.py"
       - "tests/test_p339_design_intelligence.py"
-      - "p340_feedback_loop.py"
+      - "hwpx_mcp/orchestration/p340_feedback_loop.py"
       - "tests/test_p340_feedback_loop.py"
       - "tests/test_p341_page_composition.py"
       - "benchmarks/p341_*"
@@ -82,7 +82,7 @@ jobs:
       - name: Install Python dependencies
         run: pip install -r requirements.txt -r requirements-capture.txt -r requirements-dev.txt
       - name: Compile P3.41 product surface
-        run: python -m compileall -q p321_document_composer.py p339_design_intelligence.py p340_feedback_loop.py p341_page_composition.py hwpx_mcp/custody/p341r1_capture_pack.py hwpx_mcp/custody/p341r1_adjudicate.py tests/test_p321_document_composer.py tests/test_p339_design_intelligence.py tests/test_p340_feedback_loop.py tests/test_p341_page_composition.py tests/test_p341r1_capture_pack.py tests/test_p341r1_adjudicate.py tests/test_p341r1_adjudicate.py server_p2.py tests/test_client.py benchmarks/authorbench_a3.py benchmarks/authorbench_a3_p341_evaluation.py scripts/validate_hwpx_authoring_skill.py scripts/p341_release_smoke.py scripts/p341r1_materialize_capture_pack.py scripts/p341r1_capture_pdf.py scripts/p341r1_finalize_capture_pack.py scripts/p341r1_verify_frozen_a3.py scripts/p341r1_adjudicate_capture.py
+        run: python -m compileall -q hwpx_mcp/document/p321_document_composer.py hwpx_mcp/orchestration/p339_design_intelligence.py hwpx_mcp/orchestration/p340_feedback_loop.py hwpx_mcp/orchestration/p341_page_composition.py hwpx_mcp/custody/p341r1_capture_pack.py hwpx_mcp/custody/p341r1_adjudicate.py tests/test_p321_document_composer.py tests/test_p339_design_intelligence.py tests/test_p340_feedback_loop.py tests/test_p341_page_composition.py tests/test_p341r1_capture_pack.py tests/test_p341r1_adjudicate.py tests/test_p341r1_adjudicate.py server_p2.py tests/test_client.py benchmarks/authorbench_a3.py benchmarks/authorbench_a3_p341_evaluation.py scripts/validate_hwpx_authoring_skill.py scripts/p341_release_smoke.py scripts/p341r1_materialize_capture_pack.py scripts/p341r1_capture_pdf.py scripts/p341r1_finalize_capture_pack.py scripts/p341r1_verify_frozen_a3.py scripts/p341r1_adjudicate_capture.py
       - name: Python P3.41 regression
         run: python -m pytest -q tests/test_p339_design_intelligence.py tests/test_p340_feedback_loop.py tests/test_p341_page_composition.py tests/test_p341r1_capture_pack.py tests/test_p341r1_adjudicate.py
       - name: HWPX authoring skill structural contract

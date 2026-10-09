@@ -6,7 +6,7 @@ from pathlib import Path
 
 
 def attach_capture_runtime(pack: Path):
-    repo=Path(__file__).resolve().parent
+    repo=Path(__file__).resolve().parents[2]
     destination=pack/'runtime'
     paths=[p for p in repo.glob('*.py') if not p.name.startswith('test')]
     paths += [p for p in (repo/'scripts').rglob('*') if p.suffix in {'.py','.ps1'} and '__pycache__' not in p.parts]

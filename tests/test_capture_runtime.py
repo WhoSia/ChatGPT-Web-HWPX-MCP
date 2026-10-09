@@ -10,7 +10,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-import capture_runtime
+import hwpx_mcp.custody.capture_runtime as capture_runtime
 
 
 class PortableCaptureRuntimeTests(unittest.TestCase):

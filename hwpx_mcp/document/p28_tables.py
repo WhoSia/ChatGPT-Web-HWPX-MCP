@@ -10,7 +10,7 @@ from typing import Callable
 from hwpx import HwpxDocument
 from hwpx.table_patch import apply_table_ops
 
-from p27_tables import (
+from hwpx_mcp.document.p27_tables import (
     _cell_index,
     _resolve_cell,
     _resolve_table,

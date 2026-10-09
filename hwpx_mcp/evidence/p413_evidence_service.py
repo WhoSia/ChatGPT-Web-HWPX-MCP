@@ -8,7 +8,7 @@ from typing import Any
 PHASE="P4.13"
 PRODUCT="0.38.0-p4.13"
 SCHEMA="chatgpt-web-hwpx-mcp/p413/continuous-hancom-evidence-service/v1"
-BASELINE_PATH=Path(__file__).resolve().parent/"benchmarks"/"p412_native_requalification.json"
+BASELINE_PATH=Path(__file__).resolve().parents[2]/"benchmarks"/"p412_native_requalification.json"
 
 def _sha(value: Any) -> str:
     return hashlib.sha256(

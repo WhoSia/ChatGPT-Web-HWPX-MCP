@@ -7,7 +7,7 @@ from urllib.parse import urlencode
 
 from pydantic import AnyHttpUrl
 
-from auth_store import DurableOAuthStore
+from hwpx_mcp.security.auth_store import DurableOAuthStore
 from mcp.server.auth.provider import (
     AccessToken,
     AuthorizationCode,

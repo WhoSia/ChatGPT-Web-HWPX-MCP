@@ -3,7 +3,7 @@ from __future__ import annotations
 import zipfile
 from pathlib import Path
 
-from p2_document import build_document_map
+from hwpx_mcp.document.p2_document import build_document_map
 from hwpx_mcp.orchestration.p417_planner import (
     bind_semantic_graph_to_document_map,
     plan_document_transformation,

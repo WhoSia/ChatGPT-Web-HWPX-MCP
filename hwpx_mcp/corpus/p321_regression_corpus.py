@@ -9,8 +9,8 @@ from typing import Any
 
 from hwpx import HwpxDocument
 
-from p313r1_fixture_pack import _validate_minimal_hwpx
-from p321_document_composer import compose_document_plan
+from hwpx_mcp.custody.p313r1_fixture_pack import _validate_minimal_hwpx
+from hwpx_mcp.document.p321_document_composer import compose_document_plan
 
 
 SCHEMA = "chatgpt-web-hwpx-mcp/document-composition-regression/p3.21/v1"

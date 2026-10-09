@@ -6,7 +6,7 @@ from pathlib import Path
 
 from hwpx import HwpxDocument
 
-from p2_document import build_document_map
+from hwpx_mcp.document.p2_document import build_document_map
 from hwpx_mcp.document.p329_diagram_lifecycle import apply_diagram_lifecycle_atomic
 from hwpx_mcp.document.p330_diagram_design_system import (
     apply_diagram_design_system_atomic,

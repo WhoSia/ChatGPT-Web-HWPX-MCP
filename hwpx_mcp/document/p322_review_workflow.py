@@ -10,8 +10,8 @@ from typing import Any, Callable
 
 from hwpx import HwpxDocument
 
-from p2_document import build_document_map
-from p27_tables import _save_document
+from hwpx_mcp.document.p2_document import build_document_map
+from hwpx_mcp.document.p27_tables import _save_document
 from hwpx_mcp.document.p334r2_tracked_resolution import resolve_all_tracked_changes
 
 

@@ -11,8 +11,8 @@ from typing import Any, Callable
 from lxml import etree
 from hwpx import HwpxDocument
 
-from p2_document import build_document_map
-from p27_tables import _save_document
+from hwpx_mcp.document.p2_document import build_document_map
+from hwpx_mcp.document.p27_tables import _save_document
 from hwpx_mcp.operations.p42_migration import semantic_page_geometry
 
 

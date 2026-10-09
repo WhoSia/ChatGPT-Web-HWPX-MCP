@@ -11,8 +11,8 @@ from hwpx import HwpxDocument
 from hwpx.equation import estimate_equation_size, latex_to_eqedit
 from hwpx.oxml.paragraph import HwpxOxmlParagraph
 
-from p2_document import build_document_map
-from p28_tables import _save_document
+from hwpx_mcp.document.p2_document import build_document_map
+from hwpx_mcp.document.p28_tables import _save_document
 
 HP = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
 MAX_LATEX_CHARS = 8192

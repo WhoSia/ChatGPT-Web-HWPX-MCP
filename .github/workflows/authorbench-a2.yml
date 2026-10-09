@@ -13,10 +13,10 @@ on:
       - "scripts/p340r1_*.py"
       - "scripts/p340r1_*.ps1"
       - ".github/workflows/authorbench-a2.yml"
-      - "p340_feedback_loop.py"
-      - "p339_design_intelligence.py"
-      - "p321_document_composer.py"
-      - "p338_rich_builder.py"
+      - "hwpx_mcp/orchestration/p340_feedback_loop.py"
+      - "hwpx_mcp/orchestration/p339_design_intelligence.py"
+      - "hwpx_mcp/document/p321_document_composer.py"
+      - "hwpx_mcp/orchestration/p338_rich_builder.py"
   workflow_dispatch:
 
 permissions:

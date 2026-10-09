@@ -9,8 +9,8 @@ on:
       - "hwpx_mcp/probes/p37_equivalence_probe.py"
       - "hwpx_mcp/document/p39_textbox.py"
       - "hwpx_mcp/probes/p36_rich_fixture_probe.py"
-      - "hwp5_reader.py"
-      - "common_ir.py"
+      - "hwpx_mcp/document/hwp5_reader.py"
+      - "hwpx_mcp/document/common_ir.py"
       - "server_p2.py"
   pull_request:
     branches: [main]

@@ -10,8 +10,8 @@ import zipfile
 from pathlib import Path
 from typing import Any, Callable
 
-from p24_inline import apply_inline_edits_atomic, build_inline_map
-from p2_document import build_document_map
+from hwpx_mcp.document.p24_inline import apply_inline_edits_atomic, build_inline_map
+from hwpx_mcp.document.p2_document import build_document_map
 
 
 SCHEMA = "chatgpt-web-hwpx-mcp/p3.37/product-workflow/v1"

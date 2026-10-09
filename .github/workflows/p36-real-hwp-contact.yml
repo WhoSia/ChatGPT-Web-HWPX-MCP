@@ -8,8 +8,8 @@ on:
       - ".github/workflows/p36-real-hwp-contact.yml"
       - "hwpx_mcp/probes/p36_real_hwp_probe.py"
       - "hwpx_mcp/probes/p36_rich_fixture_probe.py"
-      - "hwp5_reader.py"
-      - "common_ir.py"
+      - "hwpx_mcp/document/hwp5_reader.py"
+      - "hwpx_mcp/document/common_ir.py"
       - "server_p2.py"
   pull_request:
     branches: [main]

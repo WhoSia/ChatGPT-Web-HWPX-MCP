@@ -6,7 +6,7 @@ REPO_ROOT=Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path: sys.path.insert(0,str(REPO_ROOT))
 
 from hwpx import HwpxDocument
-from p2_document import build_document_map
+from hwpx_mcp.document.p2_document import build_document_map
 from hwpx_mcp.document.p325_drawing_layer import apply_drawing_layer_atomic, build_drawing_layer_map
 from hwpx_mcp.document.p326_drawing_style import apply_drawing_style_atomic
 from hwpx_mcp.document.p327_diagram_composition import apply_diagram_composition_atomic, build_diagram_composition_map
@@ -44,7 +44,7 @@ def snapshot(path:Path)->dict:
 def main()->int:
     ap=argparse.ArgumentParser();ap.add_argument("--out",default="artifacts/p334r3-candidate-roundtrip-pack");args=ap.parse_args()
     root=Path(args.out);root.mkdir(parents=True,exist_ok=True)
-    from capture_runtime import attach_capture_runtime
+    from hwpx_mcp.custody.capture_runtime import attach_capture_runtime
     attach_capture_runtime(root)
     cases=[]
 

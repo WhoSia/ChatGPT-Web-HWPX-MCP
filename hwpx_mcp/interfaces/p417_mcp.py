@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from p2_document import build_document_map
+from hwpx_mcp.document.p2_document import build_document_map
 
 from mcp.types import ToolAnnotations
 

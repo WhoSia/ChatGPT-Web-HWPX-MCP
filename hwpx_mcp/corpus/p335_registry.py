@@ -15,7 +15,7 @@ from hwpx_mcp.corpus.p335_corpus import _sha, _stable
 from hwpx_mcp.corpus.p335_paragraph import build_role_aware_style_exemplars, build_paragraph_geometry_profile
 from hwpx_mcp.corpus.p335_typography import build_typography_profile
 from hwpx_mcp.document.p334r2_package_validation import validate_hwpx_package_light
-from p318_document_setup import build_document_setup_map
+from hwpx_mcp.document.p318_document_setup import build_document_setup_map
 
 SCHEMA = 'hwpx-corpus-source/v1'
 MAX_SOURCES = 500

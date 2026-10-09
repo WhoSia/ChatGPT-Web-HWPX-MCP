@@ -11,8 +11,8 @@ from xml.etree import ElementTree
 
 from hwpx import HwpxDocument
 
-from p2_document import _local, _paragraph_nodes, build_document_map
-from p22_formatting import (
+from hwpx_mcp.document.p2_document import _local, _paragraph_nodes, build_document_map
+from hwpx_mcp.document.p22_formatting import (
     PARAGRAPH_FORMAT_KEYS,
     RUN_FORMAT_KEYS,
     _ensure_run_style,

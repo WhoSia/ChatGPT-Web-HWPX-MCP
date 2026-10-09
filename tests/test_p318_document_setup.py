@@ -6,8 +6,8 @@ from pathlib import Path
 
 from hwpx import HwpxDocument
 
-from p2_document import build_document_map
-from p318_document_setup import (
+from hwpx_mcp.document.p2_document import build_document_map
+from hwpx_mcp.document.p318_document_setup import (
     apply_document_setup_atomic,
     build_document_setup_map,
 )

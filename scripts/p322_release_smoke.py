@@ -10,7 +10,7 @@ if str(REPO_ROOT) not in sys.path:
 
 from hwpx import HwpxDocument
 
-from p2_document import build_document_map
+from hwpx_mcp.document.p2_document import build_document_map
 from hwpx_mcp.document.p322_review_workflow import apply_review_workflow_atomic, build_review_workflow_map
 
 

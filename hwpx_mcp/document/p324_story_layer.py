@@ -9,7 +9,7 @@ from typing import Any, Callable
 
 from hwpx import HwpxDocument
 
-from p27_tables import _save_document
+from hwpx_mcp.document.p27_tables import _save_document
 
 HP = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
 SCHEMA = "chatgpt-web-hwpx-mcp/story-layer/p3.24/v1"

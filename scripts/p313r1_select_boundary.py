@@ -9,7 +9,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from p313r1_fixture_pack import select_boundary_candidate
+from hwpx_mcp.custody.p313r1_fixture_pack import select_boundary_candidate
 
 
 def collect(root: Path, family: str) -> list[dict]:

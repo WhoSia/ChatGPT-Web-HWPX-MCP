@@ -6,7 +6,7 @@ import unittest
 import zipfile
 from pathlib import Path
 
-from p313r1_fixture_pack import (
+from hwpx_mcp.custody.p313r1_fixture_pack import (
     _validate_minimal_hwpx,
     materialize_pre_hancom_pack,
     select_boundary_candidate,

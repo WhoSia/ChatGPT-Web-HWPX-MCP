@@ -15,17 +15,17 @@ from pathlib import Path
 
 import server as core
 from hwpx import HwpxDocument
-from p2_document import apply_edits_atomic, build_document_map
-from p22_formatting import build_formatting_map
-from p23_richtext import apply_rich_formatting_atomic
-from p24_inline import apply_inline_edits_atomic, build_inline_map
-from p26_controls import apply_control_edits_atomic
-from p28_tables import apply_table_edits_atomic, build_table_map
-from p29_objects import apply_object_edits_atomic, build_object_map
+from hwpx_mcp.document.p2_document import apply_edits_atomic, build_document_map
+from hwpx_mcp.document.p22_formatting import build_formatting_map
+from hwpx_mcp.document.p23_richtext import apply_rich_formatting_atomic
+from hwpx_mcp.document.p24_inline import apply_inline_edits_atomic, build_inline_map
+from hwpx_mcp.document.p26_controls import apply_control_edits_atomic
+from hwpx_mcp.document.p28_tables import apply_table_edits_atomic, build_table_map
+from hwpx_mcp.document.p29_objects import apply_object_edits_atomic, build_object_map
 from hwpx_mcp.document.p39_textbox import build_textbox_map, inject_textbox
 from hwpx_mcp.quality.p311_layout_fidelity import build_hwpx_layout_receipt
 from hwpx_mcp.custody.p312_render_harness import adjudicate_fixture_world_contact
-from p317_fidelity_envelope import (
+from hwpx_mcp.quality.p317_fidelity_envelope import (
     production_fidelity_contract,
     assess_edit_fidelity_envelope,
 )
@@ -33,19 +33,19 @@ from hwpx_mcp.document.p317_page_geometry import (
     build_page_geometry_map,
     apply_page_geometry_edits_atomic,
 )
-from p318_document_setup import (
+from hwpx_mcp.document.p318_document_setup import (
     build_document_setup_map,
     apply_document_setup_atomic,
 )
-from p319_structured_publishing import (
+from hwpx_mcp.document.p319_structured_publishing import (
     build_structured_publishing_map,
     apply_structured_publishing_atomic,
 )
-from p320_annotation_apparatus import (
+from hwpx_mcp.document.p320_annotation_apparatus import (
     build_annotation_apparatus_map,
     apply_annotation_apparatus_atomic,
 )
-from p321_document_composer import (
+from hwpx_mcp.document.p321_document_composer import (
     document_plan_contract,
     validate_document_plan as validate_composition_plan,
     compose_document_plan,
@@ -130,31 +130,31 @@ from hwpx_mcp.corpus.p335_paragraph import (
     build_style_transfer_operations,
 )
 from hwpx_mcp.corpus.p335_corpus import build_corpus_style_profile, build_style_library
-from p336r2_design import (
+from hwpx_mcp.orchestration.p336r2_design import (
     design_quality_contract as p336r2_design_quality_contract,
     compile_design_plan as p336r2_compile_design_plan,
     paragraph_features_from_hwpx as p336r2_paragraph_features,
     infer_presentation_roles as p336r2_infer_presentation_roles,
     evaluate_generated_document as p336r2_evaluate_generated_document,
 )
-from p337_product_workflow import (
+from hwpx_mcp.orchestration.p337_product_workflow import (
     fill_template_atomic as p337_fill_template_atomic,
     product_workflow_contract as p337_product_workflow_contract,
     sniff_hangul_payload as p337_sniff_hangul_payload,
 )
-from p338_rich_builder import (
+from hwpx_mcp.orchestration.p338_rich_builder import (
     compile_rich_document_plan as p338_compile_rich_document_plan,
     evaluate_preview_readiness as p338_evaluate_preview_readiness,
     intelligent_fill_atomic as p338_intelligent_fill_atomic,
     rich_builder_contract as p338_rich_builder_contract,
 )
-from p339_design_intelligence import (
+from hwpx_mcp.orchestration.p339_design_intelligence import (
     design_intelligence_contract as p339_design_intelligence_contract,
     prepare_authoring_strategy as p339_prepare_authoring_strategy,
     diagnose_document_design as p339_diagnose_document_design,
     plan_design_repairs as p339_plan_design_repairs,
 )
-from p340_feedback_loop import (
+from hwpx_mcp.orchestration.p340_feedback_loop import (
     rendered_feedback_loop_contract as p340_rendered_feedback_loop_contract,
     semantic_callout_block as p340_semantic_callout_block,
     diagnose_document_with_render as p340_diagnose_document_with_render,
@@ -164,7 +164,7 @@ from p340_feedback_loop import (
 from hwpx_mcp.custody.p342_mutation_footprint import (
     apply_document_design_repairs_with_footprint_atomic as p342_apply_document_design_repairs_with_footprint_atomic,
 )
-from p341_page_composition import (
+from hwpx_mcp.orchestration.p341_page_composition import (
     page_composition_contract as p341_page_composition_contract,
     diagnose_document_page_composition as p341_diagnose_document_page_composition,
     plan_render_guided_layout_policy as p341_plan_render_guided_layout_policy,
@@ -176,18 +176,18 @@ from hwpx_mcp.custody.p313_capture_custody import (
     verify_custody_chain,
     adjudicate_cross_version_replay,
 )
-from p210_equations import (
+from hwpx_mcp.document.p210_equations import (
     apply_equation_edits_atomic,
     build_equation_map,
     _resolve_paragraph as _resolve_hwpx_paragraph,
 )
-from hwp5_reader import (
+from hwpx_mcp.document.hwp5_reader import (
     Hwp5ReadError,
     extract_hwp5_binary_assets,
     parse_hwp5_bytes,
     prepare_hwp5_image_for_hwpx,
 )
-from common_ir import (
+from hwpx_mcp.document.common_ir import (
     hwp5_to_common_ir,
     hwpx_to_common_ir,
     extract_common_ir,
@@ -7214,7 +7214,7 @@ def get_document_workspace(document_id: str) -> dict:
 
 # P4.18-P3: browser confirmation is NOT an MCP tool. Its origin, passphrase,
 # review snapshot and signing key are server-owned, never client-controlled.
-from oauth_provider import SUBJECT as _P418_HOST_OWNER
+from hwpx_mcp.security.oauth_provider import SUBJECT as _P418_HOST_OWNER
 from hwpx_mcp.orchestration.p418_p3_review_store import get_native_review_store
 from hwpx_mcp.orchestration.p418_p3_host_approval import TrustedNativeEditApprovalHost
 from hwpx_mcp.orchestration.p418_p3_host_routes import register_host_review_route

@@ -7,11 +7,11 @@ from pathlib import Path
 
 from hwpx import HwpxDocument
 
-from p2_document import build_document_map
-from p28_tables import apply_table_edits_atomic, build_table_map
-from p29_objects import apply_object_edits_atomic, build_object_map
-from p210_equations import apply_equation_edits_atomic, build_equation_map
-from p319_structured_publishing import (
+from hwpx_mcp.document.p2_document import build_document_map
+from hwpx_mcp.document.p28_tables import apply_table_edits_atomic, build_table_map
+from hwpx_mcp.document.p29_objects import apply_object_edits_atomic, build_object_map
+from hwpx_mcp.document.p210_equations import apply_equation_edits_atomic, build_equation_map
+from hwpx_mcp.document.p319_structured_publishing import (
     apply_structured_publishing_atomic,
     build_structured_publishing_map,
 )

@@ -5,19 +5,19 @@ from pathlib import Path
 
 import pytest
 
-from p340_feedback_loop import apply_nested_paragraph_alignment_atomic
+from hwpx_mcp.orchestration.p340_feedback_loop import apply_nested_paragraph_alignment_atomic
 
 from hwpx_mcp.corpus.p335_atlas import _sha as atlas_sha
 
-from p321_document_composer import compose_document_plan
+from hwpx_mcp.document.p321_document_composer import compose_document_plan
 
-from p28_tables import build_table_map
+from hwpx_mcp.document.p28_tables import build_table_map
 
-from p22_formatting import build_formatting_map
+from hwpx_mcp.document.p22_formatting import build_formatting_map
 
 from hwpx import HwpxDocument
 
-from p2_document import build_document_map
+from hwpx_mcp.document.p2_document import build_document_map
 from hwpx_mcp.orchestration.p417_executor import compose_post_edit_native_authority, execute_transformation_atomic, transformation_execution_contract
 from hwpx_mcp.orchestration.p417_planner import plan_document_transformation
 from hwpx_mcp.orchestration.p417_semantics import recover_semantic_structure

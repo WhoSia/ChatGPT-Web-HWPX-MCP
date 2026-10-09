@@ -8,8 +8,8 @@ from pathlib import Path
 from typing import Callable
 from xml.etree import ElementTree
 
-from p2_document import _local, _paragraph_nodes, build_document_map
-from p24_inline import (
+from hwpx_mcp.document.p2_document import _local, _paragraph_nodes, build_document_map
+from hwpx_mcp.document.p24_inline import (
     VISIBLE_SPECIALS,
     _public_scan,
     _scan_paragraph,

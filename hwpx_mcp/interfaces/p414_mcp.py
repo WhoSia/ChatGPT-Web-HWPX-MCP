@@ -25,7 +25,7 @@ from hwpx_mcp.evidence.p414_evidence_service import (
     validate_capture_job,
     verify_signed_receipt,
 )
-from p414_evidence_store import P414EvidenceStore, default_database_url
+from hwpx_mcp.evidence.p414_evidence_store import P414EvidenceStore, default_database_url
 
 
 def _release_vectors() -> tuple[dict, dict]:

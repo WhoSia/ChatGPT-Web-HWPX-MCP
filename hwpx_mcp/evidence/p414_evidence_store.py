@@ -29,7 +29,7 @@ class P414EvidenceStore:
         return psycopg.connect(self.database_url, autocommit=autocommit, row_factory=dict_row)
 
     def _ensure_schema(self) -> None:
-        schema_path = os.path.join(os.path.dirname(__file__), "p414_evidence_store.sql")
+        schema_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "p414_evidence_store.sql")
         with open(schema_path, encoding="utf-8") as handle:
             ddl = handle.read()
         with self._connect(autocommit=False) as conn:

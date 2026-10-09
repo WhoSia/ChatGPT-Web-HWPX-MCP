@@ -31,7 +31,7 @@ from hwpx_mcp.evidence.p414_evidence_service import PRODUCT as P414_PRODUCT, SCH
 from hwpx_mcp.evidence.p415_authority import PRODUCT as P415_PRODUCT
 from hwpx_mcp.evidence.p416_generation_manifest import PRODUCT as P416_PRODUCT
 from hwpx_mcp.corpus.p417_corpus import PRODUCT as P417_PRODUCT
-from p418_product import PRODUCT as P418_PRODUCT
+from hwpx_mcp.orchestration.p418_product import PRODUCT as P418_PRODUCT
 
 URL = os.environ.get("MCP_URL", "http://127.0.0.1:8000/mcp")
 RUN_WRITE_TEST = os.environ.get(

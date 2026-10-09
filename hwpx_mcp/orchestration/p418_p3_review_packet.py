@@ -15,7 +15,7 @@ from typing import Any
 
 from hwpx_mcp.orchestration.p418_p2_admission import AdmissionError, canonical_sha
 from hwpx_mcp.orchestration.p418_p2_preview import preview_workflow
-from p418_product import normalize_document_task
+from hwpx_mcp.orchestration.p418_product import normalize_document_task
 
 MAX_REVIEW_BYTES = 131072
 _SHA = re.compile(r"^[0-9a-f]{64}$")

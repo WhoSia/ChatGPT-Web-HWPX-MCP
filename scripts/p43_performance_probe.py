@@ -5,7 +5,7 @@ ROOT=Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:sys.path.insert(0,str(ROOT))
 from hwpx import HwpxDocument
 from p41_operational import profile_operations
-from p43_quality import evaluate_metric,load_release_history
+from hwpx_mcp.quality.p43_quality import evaluate_metric,load_release_history
 
 def make_doc(path:Path):
     doc=HwpxDocument.new();doc.add_paragraph("P4.3 benchmark");doc.add_paragraph("cross-release health");doc.save_to_path(str(path));doc.close()

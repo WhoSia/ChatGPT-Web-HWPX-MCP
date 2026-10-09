@@ -9,7 +9,7 @@ from typing import Any, Mapping, Sequence
 
 PHASE="P4.3"
 PRODUCT="0.29.0-p4.3"
-HISTORY_PATH=Path(__file__).resolve().parent/"benchmarks"/"p43_release_history.json"
+HISTORY_PATH=Path(__file__).resolve().parents[2]/"benchmarks"/"p43_release_history.json"
 MIN_CALIBRATION_RELEASES=5
 
 def _stable(value:Any)->str:

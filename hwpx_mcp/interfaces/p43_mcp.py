@@ -1,6 +1,6 @@
 from __future__ import annotations
 from mcp.types import ToolAnnotations
-from p43_quality import (
+from hwpx_mcp.quality.p43_quality import (
     adjudicate_release_health,build_failure_bundle,load_release_history,
     localize_regression,quality_service_contract,
 )

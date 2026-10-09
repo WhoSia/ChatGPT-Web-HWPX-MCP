@@ -328,3 +328,14 @@ def test_inspector_and_diagnostics_are_read_only():
     assert view["cache"]["reused_nodes"] == ["snapshot"]
     assert diagnostics["ok"] is True
     assert diagnostics["summary"]["errors"] == 0
+
+
+def test_compiled_platform_runtime_resolves_from_repository_root(tmp_path, monkeypatch):
+    from hwpx_mcp.extensions import p346_platform_bridge as bridge
+    root = tmp_path / "repo"
+    script = root / ".tmp" / "p346-ts" / "scripts" / "p346_platform_cli.js"
+    script.parent.mkdir(parents=True)
+    script.write_text("console.log('test')\n", encoding="utf-8")
+    monkeypatch.setattr(bridge, "ROOT", root)
+    monkeypatch.delenv("P346_TS_RUNTIME", raising=False)
+    assert bridge._runtime_script() == script.resolve()

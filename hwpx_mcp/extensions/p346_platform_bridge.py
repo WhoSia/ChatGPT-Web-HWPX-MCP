@@ -7,7 +7,7 @@ import subprocess
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
-ROOT = Path(__file__).resolve().parent
+ROOT = Path(__file__).resolve().parents[2]
 CONTRACT_SCHEMA = "chatgpt-web-hwpx-mcp/p3.46/developer-platform-contract/v1"
 
 

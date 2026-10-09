@@ -6,7 +6,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from p327_diagram_composition import build_diagram_composition_map
+from hwpx_mcp.document.p327_diagram_composition import build_diagram_composition_map
 
 
 def _env():

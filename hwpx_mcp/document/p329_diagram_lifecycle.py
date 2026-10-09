@@ -14,7 +14,7 @@ from hwpx_mcp.document.p325_drawing_layer import (
     _mutate_section,
     _resize_node,
 )
-from p326_drawing_style import build_drawing_style_map
+from hwpx_mcp.document.p326_drawing_style import build_drawing_style_map
 from hwpx_mcp.document.p327_diagram_composition import _position_xy, _set_xy, _size, _resolve_top
 from hwpx_mcp.document.p328_high_level_diagrams import (
     NODE_DEFAULTS,

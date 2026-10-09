@@ -7,7 +7,7 @@ import tempfile
 from pathlib import Path
 from typing import Any, Callable
 
-from p326_drawing_style import (
+from hwpx_mcp.document.p326_drawing_style import (
     build_drawing_style_map,
     _resolve_style_target,
     _mutate_style,

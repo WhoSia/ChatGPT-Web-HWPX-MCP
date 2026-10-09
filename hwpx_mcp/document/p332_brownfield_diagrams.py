@@ -16,7 +16,7 @@ from hwpx_mcp.document.p329_diagram_lifecycle import (
     _parse_marker,
     build_diagram_lifecycle_map,
 )
-from p326_drawing_style import build_drawing_style_map
+from hwpx_mcp.document.p326_drawing_style import build_drawing_style_map
 from hwpx_mcp.document.p330_diagram_design_system import (
     LAYOUT_POLICIES,
     THEMES,

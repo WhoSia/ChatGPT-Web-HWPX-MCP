@@ -22,7 +22,7 @@ from hwpx_mcp.document.p325_drawing_layer import (
     _find_node,
     _mutate_section,
 )
-from p326_drawing_style import _author_shape
+from hwpx_mcp.document.p326_drawing_style import _author_shape
 
 SCHEMA = "chatgpt-web-hwpx-mcp/diagram-composition/p3.27/v1"
 AUTHORITY = "STRUCTURAL_DIAGRAM_COMPOSITION_AUTHORITY_ONLY"

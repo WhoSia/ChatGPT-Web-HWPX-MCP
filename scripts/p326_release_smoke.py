@@ -5,7 +5,7 @@ ROOT=Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path: sys.path.insert(0,str(ROOT))
 from hwpx import HwpxDocument
 from p2_document import build_document_map
-from p326_drawing_style import apply_drawing_style_atomic,build_drawing_style_map
+from hwpx_mcp.document.p326_drawing_style import apply_drawing_style_atomic,build_drawing_style_map
 with tempfile.TemporaryDirectory() as tmp:
     path=Path(tmp)/"p326-smoke.hwpx"
     doc=HwpxDocument.new(); doc.add_paragraph("shape smoke"); doc.save_to_path(str(path)); doc.close()

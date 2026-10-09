@@ -69,7 +69,7 @@ from hwpx_mcp.document.p325_drawing_layer import (
     build_drawing_layer_map,
     apply_drawing_layer_atomic,
 )
-from p326_drawing_style import (
+from hwpx_mcp.document.p326_drawing_style import (
     drawing_style_contract,
     build_drawing_style_map,
     apply_drawing_style_atomic,

@@ -217,6 +217,22 @@ def register_p418_tools(
                 "authority": "SERVER_VERIFIED_STAGING_ONLY_NO_APPROVAL_OR_EXECUTION"}
 
     @core.mcp.tool(annotations=write)
+    def prepare_document_title_change(
+        document_id: str, expected_revision: int, new_title: str,
+    ) -> dict:
+        """Stage a title change in ONE call from the user's natural-language request.
+
+        Includes server-side compile, preview and durable staging. It does not
+        approve or mutate the HWPX; only the separate human browser can.
+        """
+        from p419_change_flow import stage_title_change
+        core._caller_subject()
+        return stage_title_change(
+            core, document_id=document_id, expected_revision=expected_revision,
+            new_title=new_title, stage_adapter=stage_p418_document_workflow,
+        )
+
+    @core.mcp.tool(annotations=write)
     def recover_p418_document_workflow(workflow_id: str) -> dict:
         """Quarantine an unresolved claimed mutation and return recovery disposition."""
         owner = core._caller_subject()

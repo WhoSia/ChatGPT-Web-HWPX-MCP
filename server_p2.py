@@ -7070,7 +7070,7 @@ CORPUS_REGISTRY = register_corpus_tools(core, _owned_document)
 from p342_mcp import register_p342_tools
 P342_EVIDENCE = register_p342_tools(core, _owned_document, CORPUS_REGISTRY)
 
-from p343_mcp import register_p343_tools
+from hwpx_mcp.interfaces.p343_mcp import register_p343_tools
 P343_DESIGN_SYSTEM = register_p343_tools(core, _owned_document, CORPUS_REGISTRY, _apply_p343_migration)
 
 from p344_mcp import register_p344_tools
@@ -7224,13 +7224,13 @@ P413_HANCOM_EVIDENCE_TRUST = register_p413_tools(core)
 from hwpx_mcp.interfaces.p414_mcp import register_p414_tools
 P414_DISTRIBUTED_NATIVE_EVIDENCE = register_p414_tools(core)
 
-from p415_mcp import register_p415_tools
+from hwpx_mcp.interfaces.p415_mcp import register_p415_tools
 P415_SELF_VERIFYING_RELEASE_AUTHORITY = register_p415_tools(core)
 
-from p416_mcp import register_p416_tools
+from hwpx_mcp.interfaces.p416_mcp import register_p416_tools
 P416_DOCUMENT_PROVENANCE = register_p416_tools(core, _owned_document)
 
-from p417_mcp import register_p417_tools, execute_owned_intent_transformation
+from hwpx_mcp.interfaces.p417_mcp import register_p417_tools, execute_owned_intent_transformation
 P417_DOCUMENT_INTELLIGENCE = register_p417_tools(core, _owned_document, _refresh_p417_execution)
 
 from p417_semantics import recover_semantic_structure

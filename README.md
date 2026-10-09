@@ -335,3 +335,12 @@ fixture builders can be combined into one implementation without semantic review
 All imports, CLI entrypoints and lifecycle compilation checks must resolve to
 the packaged modules; the root layout audit enforces a 134-file maximum.
 
+
+### MCP registration facade package (P4.19)
+
+Eight independent release-feature MCP registration facades formerly at repository
+root now live in `hwpx_mcp/interfaces/`. This removes root clutter while
+retaining their distinct registration contracts and all native capabilities.
+`server_p2.py`, validation scripts and CI reference the new package paths.
+Do not merge distinct tool registrations into one unreviewable monolith.
+

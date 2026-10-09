@@ -16,7 +16,7 @@ jobs:
       - uses: actions/setup-python@v5
         with: {python-version: "3.12", cache: pip}
       - run: pip install -r requirements.txt -r requirements-capture.txt -r requirements-dev.txt
-      - run: python -m compileall -q p343_design_system.py p343_mcp.py tests/test_p343_design_system.py scripts/p343_release_smoke.py server_p2.py tests/test_client.py
+      - run: python -m compileall -q p343_design_system.py hwpx_mcp/interfaces/p343_mcp.py tests/test_p343_design_system.py scripts/p343_release_smoke.py server_p2.py tests/test_client.py
       - run: python -m pytest -q tests/test_p343_design_system.py tests/test_p335_registry_atlas.py tests/test_p342_mutation_footprint.py
       - run: python scripts/p343_release_smoke.py
       - run: python scripts/validate_hwpx_authoring_skill.py

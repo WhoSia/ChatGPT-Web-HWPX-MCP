@@ -11,7 +11,7 @@ on:
       - "tests/test_p418_p2_*.py"
       - "tests/test_p418_p3_*.py"
       - "hwpx_mcp/**"
-      - "p417_mcp.py"
+      - "hwpx_mcp/interfaces/p417_mcp.py"
       - "server_p2.py"
       - "tests/test_client.py"
       - "Dockerfile"
@@ -46,7 +46,7 @@ jobs:
       - name: Install dependencies
         run: python -m pip install -r requirements.txt -r requirements-dev.txt
       - name: Compile P4.18 product facade
-        run: python -m py_compile p418_product.py p418_mcp.py hwpx_mcp/orchestration/p418_p2_workflow.py hwpx_mcp/orchestration/p418_p2_preview.py hwpx_mcp/orchestration/p418_p2_admission.py hwpx_mcp/orchestration/p418_p3_host_consent.py hwpx_mcp/orchestration/p418_p3_execution.py hwpx_mcp/orchestration/p418_p3_commit_verifier.py hwpx_mcp/orchestration/p418_p3_release_gate.py hwpx_mcp/orchestration/p418_p3_owned_commit_bridge.py hwpx_mcp/orchestration/p418_p3_native_edit_bridge.py hwpx_mcp/orchestration/p418_p3_review_packet.py hwpx_mcp/orchestration/p418_p3_review_store.py hwpx_mcp/orchestration/p418_p3_host_approval.py hwpx_mcp/orchestration/p418_p3_host_routes.py p417_mcp.py hwpx_mcp/orchestration/p419_product.py server_p2.py
+        run: python -m py_compile p418_product.py p418_mcp.py hwpx_mcp/orchestration/p418_p2_workflow.py hwpx_mcp/orchestration/p418_p2_preview.py hwpx_mcp/orchestration/p418_p2_admission.py hwpx_mcp/orchestration/p418_p3_host_consent.py hwpx_mcp/orchestration/p418_p3_execution.py hwpx_mcp/orchestration/p418_p3_commit_verifier.py hwpx_mcp/orchestration/p418_p3_release_gate.py hwpx_mcp/orchestration/p418_p3_owned_commit_bridge.py hwpx_mcp/orchestration/p418_p3_native_edit_bridge.py hwpx_mcp/orchestration/p418_p3_review_packet.py hwpx_mcp/orchestration/p418_p3_review_store.py hwpx_mcp/orchestration/p418_p3_host_approval.py hwpx_mcp/orchestration/p418_p3_host_routes.py hwpx_mcp/interfaces/p417_mcp.py hwpx_mcp/orchestration/p419_product.py server_p2.py
       - name: P4.18 product task tests
         run: python -m pytest -q tests/test_p418_product.py tests/test_p418_p2_workflow.py tests/test_p418_p2_preview.py tests/test_p418_p2_staging.py tests/test_p418_p3_host_consent.py tests/test_p418_p3_execution.py tests/test_p418_p3_commit_verifier.py tests/test_p418_p3_release_gate.py tests/test_p418_p3_owned_commit_bridge.py tests/test_p418_p3_ledger_hotpath.py tests/test_p418_p3_native_edit_bridge.py tests/test_p418_p3_review_packet.py tests/test_p418_p3_host_approval.py tests/test_p418_p3_host_routes.py tests/test_p419_workspace.py tests/test_p419_change_flow.py tests/test_p417_planner.py tests/test_p417_executor.py
 

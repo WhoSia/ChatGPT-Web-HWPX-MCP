@@ -3,7 +3,7 @@ from __future__ import annotations
 import tempfile
 from pathlib import Path
 
-from p342_corpus_evidence import (
+from hwpx_mcp.corpus.p342_corpus_evidence import (
     build_corpus_coverage_ledger,
     corpus_evidence_contract,
     derive_design_generalizations,

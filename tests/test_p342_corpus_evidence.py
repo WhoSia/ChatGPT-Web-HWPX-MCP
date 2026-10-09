@@ -5,7 +5,7 @@ import tempfile
 from pathlib import Path
 
 from hwpx_mcp.corpus.p335_registry import intake_source, seal_source
-from p342_corpus_evidence import (
+from hwpx_mcp.corpus.p342_corpus_evidence import (
     build_corpus_coverage_ledger,
     derive_design_generalizations,
     evaluate_source_probes,

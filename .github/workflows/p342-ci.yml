@@ -56,7 +56,7 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt -r requirements-capture.txt -r requirements-dev.txt
       - name: Compile P3.42 evidence surface
-        run: python -m compileall -q hwpx_mcp/custody/p342_mutation_footprint.py p342_corpus_evidence.py p342_mcp.py tests/test_p342_mutation_footprint.py tests/test_p342_corpus_evidence.py tests/test_p342_mcp.py scripts/p342_release_smoke.py scripts/p342_public_corpus_ledger.py server_p2.py tests/test_client.py
+        run: python -m compileall -q hwpx_mcp/custody/p342_mutation_footprint.py hwpx_mcp/corpus/p342_corpus_evidence.py p342_mcp.py tests/test_p342_mutation_footprint.py tests/test_p342_corpus_evidence.py tests/test_p342_mcp.py scripts/p342_release_smoke.py scripts/p342_public_corpus_ledger.py server_p2.py tests/test_client.py
       - name: P3.42 focused regression
         run: python -m pytest -q tests/test_p342_mutation_footprint.py tests/test_p342_corpus_evidence.py tests/test_p342_mcp.py tests/test_p335_registry_atlas.py tests/test_p340_feedback_loop.py
       - name: P3.42 release smoke

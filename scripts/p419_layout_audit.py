@@ -29,7 +29,7 @@ def audit() -> dict:
         if (ROOT / retired_root).exists():
             raise AssertionError(f"Duplicated P4.19 root module remains: {retired_root}")
 
-    public_sources = [ROOT / "server_p2.py", ROOT / "p418_mcp.py"]
+    public_sources = [ROOT / "server_p2.py", ROOT / "hwpx_mcp/interfaces/p418_mcp.py"]
     for path in public_sources:
         imports = [
             name

@@ -427,6 +427,28 @@ async def main() -> None:
                     raise RuntimeError(f"secret-bearing field leaked into tool schema: {tool.name}")
 
             tool_rows = {tool.name: tool for tool in tools.tools}
+            # Frozen public argument surfaces. This exercises the real
+            # OAuth MCP list_tools result, not an internal Python facade.
+            p420_schema_contract = {
+                "probe_read": ({"message"}, set()),
+                "get_autonomous_authoring_contract": (set(), set()),
+                "get_p418_document_agent_contract": (set(), set()),
+                "prepare_p418_document_task": ({"task"}, {"task"}),
+                "compile_p418_document_workflow": (
+                    {"specification", "documents"}, {"specification", "documents"}
+                ),
+                "preview_p418_document_workflow": ({"draft"}, {"draft"}),
+            }
+            for tool_name, (properties, required) in p420_schema_contract.items():
+                actual_schema = tool_rows[tool_name].input_schema
+                actual_properties = set((actual_schema.get("properties") or {}).keys())
+                actual_required = set(actual_schema.get("required") or [])
+                if actual_properties != properties or actual_required != required:
+                    raise RuntimeError(
+                        f"P4.20 public MCP argument contract drift for {tool_name}: "
+                        f"properties={sorted(actual_properties)}, "
+                        f"required={sorted(actual_required)}"
+                    )
             inspector_tool = tool_rows["inspect_document_runtime"].model_dump(by_alias=True)
             swap_tool = tool_rows["hot_swap_document_host_adapter_profile"].model_dump(by_alias=True)
             inspector_annotations = inspector_tool.get("annotations") or {}

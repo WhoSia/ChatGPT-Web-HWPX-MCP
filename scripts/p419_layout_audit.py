@@ -65,6 +65,33 @@ def stale_root_imports(source: str, retired: set[str]) -> set[str]:
     return found
 
 
+def workflow_backlink_errors(root: Path, retired: set[str]) -> list[tuple[str, int, str]]:
+    """Catch workflow paths that survive a move and broken unittest patterns.
+
+    A test file passed to unittest discover -p must be a basename glob, not
+    tests/test_name.py: the latter silently discovers zero tests.
+    """
+    problems: list[tuple[str, int, str]] = []
+    for workflow in sorted((root / ".github/workflows").glob("*.yml")):
+        for number, line in enumerate(workflow.read_text(encoding="utf-8").splitlines(), 1):
+            if line.lstrip().startswith("#"):
+                continue
+            if re.search(r"\bunittest\s+discover\b.*?\s-p\s+tests[/\\]test_[\w.-]+\.py", line):
+                problems.append((workflow.name, number, "BROKEN_DISCOVER_PATTERN"))
+            # Bare, retired filenames in a workflow do not resolve in a clean
+            # checkout, whether used by compileall, a script or path filter.
+            for match in re.finditer(r"(?<![A-Za-z0-9_/])([A-Za-z][A-Za-z0-9_]*\.py)\b", line):
+                candidate = match.group(1)
+                if candidate[:-3] in retired:
+                    problems.append((workflow.name, number, candidate))
+            if "python -m compileall" in line or "python -m py_compile" in line:
+                for token in line.split():
+                    candidate = token.strip().strip(",;").strip(chr(39) + chr(34) + chr(92))
+                    if candidate.endswith(".py") and not (root / candidate).is_file():
+                        problems.append((workflow.name, number, f"MISSING_COMPILE_TARGET:{candidate}"))
+    return sorted(set(problems))
+
+
 def audit() -> dict:
     root_tests = sorted(p.name for p in ROOT.glob("test_*.py"))
     if root_tests:
@@ -166,6 +193,10 @@ def audit() -> dict:
         if bad:
             raise AssertionError(f"Stale root import {sorted(bad)} in {source.relative_to(ROOT)}")
 
+    workflow_errors = workflow_backlink_errors(ROOT, retired)
+    if workflow_errors:
+        raise AssertionError(f"Broken workflow backlinks: {workflow_errors[:16]}")
+
     # Moved test files must be referenced by their real paths in ALL workflow
     # invocations, not a mechanical replacement of implementation paths.
     # This catches the P3.46–P3.49 failure where
@@ -186,6 +217,7 @@ def audit() -> dict:
             "package_implementation_modules": len(package_modules),
             "oversized_packaged_modules_bytes_gt_50000": oversized_modules,
             "launcher_sizes_bytes": launcher_sizes,
+            "workflow_backlink_errors": len(workflow_errors),
             "result": "LAYOUT_CONTRACT_PASS"}
 
 

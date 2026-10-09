@@ -13,7 +13,7 @@ from mcp.client.auth import OAuthClientProvider
 from mcp.client.streamable_http import streamable_http_client
 from mcp.shared.auth import OAuthClientMetadata
 
-from test_client import HeadlessApprover, InMemoryTokenStorage, _payload
+from hwpx_mcp.probes.oauth_probe_client import HeadlessApprover, InMemoryTokenStorage, _payload
 
 URL = os.environ.get("MCP_URL", "http://127.0.0.1:8000/mcp")
 PASSPHRASE = os.environ.get("P11_OAUTH_PASSPHRASE", "")

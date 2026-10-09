@@ -11,6 +11,8 @@ on:
       - "hwp5_reader.py"
       - "common_ir.py"
       - "server_p2.py"
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -53,6 +55,24 @@ jobs:
 
       - name: Install project dependencies
         run: pip install -r requirements.txt
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Build required P3.45 TypeScript runtime
+        run: |
+          set -euo pipefail
+          mkdir -p .tmp/p345-ts
+          npx --yes -p typescript@5.9.2 tsc --strict --target ES2022 --module commonjs --rootDir . --outDir .tmp/p345-ts contracts/p345_runtime.ts contracts/p345_extension_sdk.ts scripts/p345_runtime_cli.ts
+          node .tmp/p345-ts/scripts/p345_runtime_cli.js contract | grep -q '"phase":"P3.45"'
+
+      - name: Build required P3.46 TypeScript platform kernel
+        run: |
+          set -euo pipefail
+          mkdir -p .tmp/p346-ts
+          npx --yes -p typescript@5.9.2 tsc --strict --target ES2022 --module commonjs --rootDir . --outDir .tmp/p346-ts contracts/p346_capability_kernel.ts contracts/p346_extension_sdk.ts scripts/p346_platform_cli.ts
+          node .tmp/p346-ts/scripts/p346_platform_cli.js contract | grep -q '"phase":"P3.46"'
 
       - name: Download real HWP fixtures ephemerally
         env:

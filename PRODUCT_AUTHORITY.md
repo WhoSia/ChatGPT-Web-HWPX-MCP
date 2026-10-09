@@ -10,27 +10,31 @@ This file is the single compact repository-level authority note for product phas
 - Public HWPX acquisition evidence does not imply redistribution permission.
 - Runtime/product code changes require normal exact-head CI; documentation-only hygiene commits do not retroactively change the tested runtime evidence.
 
-## P4.19 product engineering — active, not released
+## P4.19 package migration — merged, deployment separate
+
+PR #13 merged to `main` at `c0d8a39d4306fb3abaf38a395052eedd5b445f8a` with a validated identical PR tree, 89 root Python modules and retained human-authored commits. The refactor changed the source layout; it did not establish an equivalent Render live runtime or native-world document delivery.
+
+## P4.20 recovery — active on PR #14, not yet merged
 
 **ChatGPT Web HWPX MCP P4.19 — Durable Document Lifecycle, Post-Commit Audit Persistence, Verifiable Delivery, Expiration-Aware Workflow Recovery & End-to-End Release Closure**
 
-The program is now **ACTIVE DEVELOPMENT**. P4.18-P3 has an independently
+P4.19 source code is **MERGED**, while P4.20 addresses its post-merge regression and runtime integration failures. P4.18-P3 has an independently
 retrieved revision-2 durable commit receipt and version history from the
 human-approved production edit, but content preservation and downloadable file
 delivery have **not** passed. P4.18-P3 PRODUCT CLOSURE remains **HOLD**, not
 retroactively passed.
 
-P4.19's priority is a useful end-user document product, not merely more
+P4.19's retained product priority is a useful end-user document product, not merely more
 byte-count assertions. First vertical slice: owner-scoped read-only
 `get_document_workspace` aggregation of expiry, current revision, durable
 receipt and version history, with truthful delivery status. Unexpired document
 ownership is mandatory; no mutation, recovery, or download is inferred from
 the overview.
 
-Product roadmap and engineering priorities are documented in
+P4.20 recovery must distinguish source CI, real external fixture availability, deployed exact SHA, native Hancom world-contact and consumer file acquisition. Product roadmap and engineering priorities are documented in
 [README.md](README.md). Every runtime promotion still needs exact-head
 testing and actual production contact. GitHub Actions is test-only, never
-a committing contributor. Branches are not deleted.
+a committing contributor. Small bounded fixes can land directly on main; major changes use short-lived PR branches. The separate p332-brownfield historical branch is retained by explicit user choice.
 
 ## P4.17 phase state
 

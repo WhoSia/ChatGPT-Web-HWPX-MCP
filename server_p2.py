@@ -85,7 +85,7 @@ from hwpx_mcp.document.p328_high_level_diagrams import (
     build_high_level_diagram_map,
     apply_high_level_diagrams_atomic,
 )
-from p329_diagram_lifecycle import (
+from hwpx_mcp.document.p329_diagram_lifecycle import (
     diagram_lifecycle_contract,
     build_diagram_lifecycle_map,
     apply_diagram_lifecycle_atomic,

@@ -9,7 +9,7 @@ from hwpx import HwpxDocument
 from p2_document import build_document_map
 from hwpx_mcp.document.p328_high_level_diagrams import _insert_labeled_node, _insert_pointer_line, _set_existing_shape_text
 from p327_diagram_composition import _position_xy, _resolve_top, _size
-from p329_diagram_lifecycle import apply_diagram_lifecycle_atomic, build_diagram_lifecycle_map
+from hwpx_mcp.document.p329_diagram_lifecycle import apply_diagram_lifecycle_atomic, build_diagram_lifecycle_map
 from hwpx_mcp.document.p332_brownfield_diagrams import (
     apply_legacy_diagram_refactor_atomic,
     build_brownfield_diagram_map,

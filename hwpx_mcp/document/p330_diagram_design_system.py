@@ -15,7 +15,7 @@ from p326_drawing_style import (
     _set_fill,
     _set_arrowheads,
 )
-from p329_diagram_lifecycle import (
+from hwpx_mcp.document.p329_diagram_lifecycle import (
     TEMPLATES as LIFECYCLE_TEMPLATES,
     build_diagram_lifecycle_map,
     _diagram,

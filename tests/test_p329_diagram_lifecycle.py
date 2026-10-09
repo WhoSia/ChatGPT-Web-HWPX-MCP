@@ -7,7 +7,7 @@ from pathlib import Path
 from hwpx import HwpxDocument
 
 from p2_document import build_document_map
-from p329_diagram_lifecycle import (
+from hwpx_mcp.document.p329_diagram_lifecycle import (
     apply_diagram_lifecycle_atomic,
     build_diagram_lifecycle_map,
     diagram_lifecycle_contract,

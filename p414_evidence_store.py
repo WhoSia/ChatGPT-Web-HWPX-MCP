@@ -9,7 +9,7 @@ from typing import Any, Mapping
 import psycopg
 from psycopg.rows import dict_row
 
-from p414_evidence_service import canonical_sha256, normalize_capture_evidence
+from hwpx_mcp.evidence.p414_evidence_service import canonical_sha256, normalize_capture_evidence
 
 
 class P414EvidenceStore:

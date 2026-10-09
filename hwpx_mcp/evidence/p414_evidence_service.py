@@ -22,7 +22,7 @@ BASELINE_HEAD = "adeb06e6f55fbc0b7116e998ebbfe3ed18811754"
 BASELINE_PRODUCT = "0.38.0-p4.13"
 BASELINE_DEPLOY = "dep-davkg0vavr4c73cd4j30"
 BASELINE_NATIVE_HEAD = "da77daa9c3d21fffb37a0e3b600f46205e8de6f1"
-ROOT = Path(__file__).resolve().parent
+ROOT = Path(__file__).resolve().parents[2]
 _HEX40 = re.compile(r"^[0-9a-f]{40}$")
 _HEX64 = re.compile(r"^[0-9a-f]{64}$")
 

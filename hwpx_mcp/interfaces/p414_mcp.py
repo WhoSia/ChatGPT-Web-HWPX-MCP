@@ -8,7 +8,7 @@ from typing import Any
 
 from mcp.types import ToolAnnotations
 
-from p414_evidence_service import (
+from hwpx_mcp.evidence.p414_evidence_service import (
     AGENT_VERSION,
     BASELINE_HEAD,
     BASELINE_PRODUCT,

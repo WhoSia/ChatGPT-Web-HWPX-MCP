@@ -11,7 +11,7 @@ import pytest
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
-from p414_evidence_service import PRODUCT, SCHEMA, canonical_json, canonical_sha256, verify_signed_receipt
+from hwpx_mcp.evidence.p414_evidence_service import PRODUCT, SCHEMA, canonical_json, canonical_sha256, verify_signed_receipt
 from p414_evidence_store import P414EvidenceStore
 
 DB = os.environ.get("P414_TEST_DATABASE_URL", "")

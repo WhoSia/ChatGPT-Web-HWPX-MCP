@@ -6,7 +6,7 @@ from datetime import datetime, timedelta, timezone
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
-from p414_evidence_service import (
+from hwpx_mcp.evidence.p414_evidence_service import (
     AGENT_VERSION,
     BASELINE_HEAD,
     PRODUCT,
@@ -143,7 +143,7 @@ def test_matrix_is_build_version_indexed_and_visual_pending_holds():
 
 def test_rollback_requires_signed_native_evidence_and_release_identity():
     release = {"release_id": "current", "product": PRODUCT, "exact_head": "a" * 40, "render_deploy_id": "dep-current"}
-    from p414_evidence_service import release_identity_seed
+    from hwpx_mcp.evidence.p414_evidence_service import release_identity_seed
     target = release_identity_seed()
     drift = {"status": "BLOCKING_REGRESSION", "drift_receipt_sha256": "d" * 64}
     denied = evaluate_rollback_authority(signed_evidence_validation={"accepted": False}, drift_receipt=drift, current_release=release, target_release=target)

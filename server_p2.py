@@ -7348,6 +7348,17 @@ def _p418_execute_after_trusted_host_confirmation(
     )
 
 
+
+# P4.19: owner-scoped product workspace, independent of mutation/approval.
+from p419_workspace import workspace_overview as _p419_workspace_overview
+
+
+@core.mcp.tool()
+def get_document_workspace(document_id: str) -> dict:
+    """One read-only view of document expiry, revisions, receipts and next steps."""
+    return _p419_workspace_overview(core, _owned_document, document_id)
+
+
 # P4.18-P3: browser confirmation is NOT an MCP tool. Its origin, passphrase,
 # review snapshot and signing key are server-owned, never client-controlled.
 from oauth_provider import SUBJECT as _P418_HOST_OWNER

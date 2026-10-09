@@ -6,7 +6,7 @@ import hashlib
 
 import pytest
 
-from p346_platform_bridge import (
+from hwpx_mcp.extensions.p346_platform_bridge import (
     codegen,
     execute_wasm,
     inspect_runtime,

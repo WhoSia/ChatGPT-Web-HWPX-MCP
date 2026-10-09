@@ -2,8 +2,8 @@ from __future__ import annotations
 import copy,hashlib,json,os,shutil,subprocess,threading
 from pathlib import Path
 from typing import Any,Mapping,Sequence
-from p347_supply_chain_bridge import compare_host_conformance
-from p347_trust import verify_host_observations
+from hwpx_mcp.extensions.p347_supply_chain_bridge import compare_host_conformance
+from hwpx_mcp.extensions.p347_trust import verify_host_observations
 ROOT=Path(__file__).resolve().parent
 def _stable(v:Any)->str:return json.dumps(v,ensure_ascii=False,sort_keys=True,separators=(",",":"))
 def _sha(v:Any)->str:return hashlib.sha256(_stable(v).encode()).hexdigest()

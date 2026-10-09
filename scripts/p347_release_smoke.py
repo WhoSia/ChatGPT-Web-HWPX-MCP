@@ -14,8 +14,8 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from p346_platform_bridge import validate_extension
-from p347_supply_chain_bridge import (
+from hwpx_mcp.extensions.p346_platform_bridge import validate_extension
+from hwpx_mcp.extensions.p347_supply_chain_bridge import (
     certify_extension_package,
     normalize_extension_package,
     supply_chain_contract,

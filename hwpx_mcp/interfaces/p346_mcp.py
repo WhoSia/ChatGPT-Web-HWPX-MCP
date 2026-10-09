@@ -9,7 +9,7 @@ from typing import Any, Callable, Mapping
 from mcp.types import ToolAnnotations
 
 from hwpx_mcp.runtime.p345_runtime_bridge import host_receipt_sha256, verify_replay
-from p346_platform_bridge import (
+from hwpx_mcp.extensions.p346_platform_bridge import (
     codegen,
     execute_wasm,
     inspect_runtime,

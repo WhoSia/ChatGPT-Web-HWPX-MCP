@@ -10,8 +10,8 @@ import subprocess
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
-from p346_platform_bridge import execute_wasm, validate_extension
-from p347_trust import normalize_trust_policy, verify_build_provenance_pair, verify_host_observations
+from hwpx_mcp.extensions.p346_platform_bridge import execute_wasm, validate_extension
+from hwpx_mcp.extensions.p347_trust import normalize_trust_policy, verify_build_provenance_pair, verify_host_observations
 
 ROOT = Path(__file__).resolve().parent
 

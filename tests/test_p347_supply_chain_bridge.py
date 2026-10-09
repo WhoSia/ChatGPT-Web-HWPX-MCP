@@ -9,8 +9,8 @@ import pytest
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
-from p346_platform_bridge import validate_extension
-from p347_supply_chain_bridge import (
+from hwpx_mcp.extensions.p346_platform_bridge import validate_extension
+from hwpx_mcp.extensions.p347_supply_chain_bridge import (
     certify_extension_package,
     compare_host_conformance,
     compare_reproducible_builds,

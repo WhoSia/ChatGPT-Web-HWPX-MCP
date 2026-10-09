@@ -50,7 +50,7 @@ from p321_document_composer import (
     validate_document_plan as validate_composition_plan,
     compose_document_plan,
 )
-from p322_review_workflow import (
+from hwpx_mcp.document.p322_review_workflow import (
     build_review_workflow_map,
     apply_review_workflow_atomic,
 )

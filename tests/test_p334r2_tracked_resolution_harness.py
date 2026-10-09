@@ -6,7 +6,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from p322_review_workflow import build_review_workflow_map
+from hwpx_mcp.document.p322_review_workflow import build_review_workflow_map
 
 
 def _env_without_pythonpath():

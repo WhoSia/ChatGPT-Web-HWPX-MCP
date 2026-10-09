@@ -14,7 +14,7 @@ if str(REPO_ROOT) not in sys.path:
 from hwpx import HwpxDocument
 
 from p27_tables import _save_document
-from p323_advanced_tables import build_advanced_table_map
+from hwpx_mcp.document.p323_advanced_tables import build_advanced_table_map
 from hwpx_mcp.document.p334r1_column_insertion import apply_bounded_column_insertion
 
 

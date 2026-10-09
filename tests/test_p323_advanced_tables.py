@@ -6,7 +6,7 @@ from pathlib import Path
 
 from hwpx import HwpxDocument
 
-from p323_advanced_tables import (
+from hwpx_mcp.document.p323_advanced_tables import (
     advanced_table_contract,
     apply_advanced_table_edits_atomic,
     build_advanced_table_map,

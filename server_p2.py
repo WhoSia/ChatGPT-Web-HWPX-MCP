@@ -54,7 +54,7 @@ from hwpx_mcp.document.p322_review_workflow import (
     build_review_workflow_map,
     apply_review_workflow_atomic,
 )
-from p323_advanced_tables import (
+from hwpx_mcp.document.p323_advanced_tables import (
     advanced_table_contract,
     build_advanced_table_map,
     apply_advanced_table_edits_atomic,

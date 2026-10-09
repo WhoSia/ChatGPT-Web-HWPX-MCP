@@ -16,7 +16,7 @@ from p29_objects import build_object_map
 from p210_equations import build_equation_map
 from p318_document_setup import build_document_setup_map
 from p321_document_composer import validate_document_plan
-from p323_advanced_tables import build_advanced_table_map
+from hwpx_mcp.document.p323_advanced_tables import build_advanced_table_map
 from p336r2_design import evaluate_generated_document
 
 

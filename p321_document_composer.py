@@ -19,7 +19,7 @@ from p22_formatting import build_formatting_map
 from p23_richtext import apply_rich_formatting_atomic
 from p27_tables import _save_document
 from p28_tables import build_table_map
-from p323_advanced_tables import build_advanced_table_map, apply_advanced_table_edits_atomic
+from hwpx_mcp.document.p323_advanced_tables import build_advanced_table_map, apply_advanced_table_edits_atomic
 from p29_objects import build_object_map
 from p210_equations import build_equation_map
 from p318_document_setup import apply_document_setup_atomic, build_document_setup_map

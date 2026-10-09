@@ -10,7 +10,7 @@ if str(REPO_ROOT) not in sys.path:
 
 from hwpx import HwpxDocument
 
-from p323_advanced_tables import apply_advanced_table_edits_atomic, build_advanced_table_map
+from hwpx_mcp.document.p323_advanced_tables import apply_advanced_table_edits_atomic, build_advanced_table_map
 
 
 def main() -> int:

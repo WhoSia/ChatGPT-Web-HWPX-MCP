@@ -12,7 +12,7 @@ from p22_formatting import build_formatting_map
 from p28_tables import build_table_map
 from p321_document_composer import compose_document_plan
 from p340_feedback_loop import apply_nested_paragraph_alignment_atomic
-from p342_mutation_footprint import (
+from hwpx_mcp.custody.p342_mutation_footprint import (
     apply_document_design_repairs_with_footprint_atomic,
     build_mutation_footprint,
     classify_footprint_grade,

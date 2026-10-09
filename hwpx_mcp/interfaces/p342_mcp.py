@@ -8,7 +8,7 @@ from p342_corpus_evidence import (
     corpus_evidence_contract,
     derive_design_generalizations,
 )
-from p342_mutation_footprint import (
+from hwpx_mcp.custody.p342_mutation_footprint import (
     build_mutation_footprint,
     enforce_preservation_grade,
     mutation_footprint_contract,

@@ -11,15 +11,15 @@ from typing import Any, Callable, Mapping
 from p2_document import apply_edits_atomic, build_document_map
 from p22_formatting import apply_formatting_atomic
 from p317_fidelity_envelope import assess_edit_fidelity_envelope
-from p342_mutation_footprint import (
+from hwpx_mcp.custody.p342_mutation_footprint import (
     build_mutation_footprint,
     enforce_preservation_grade,
 )
-from p343_design_system import (
+from hwpx_mcp.orchestration.p343_design_system import (
     apply_constraint_preserving_template_migration_atomic,
     plan_constraint_preserving_style_transfer,
 )
-from p342_mutation_footprint import (
+from hwpx_mcp.custody.p342_mutation_footprint import (
     apply_document_design_repairs_with_footprint_atomic,
     expected_scope_for_design_repair,
 )

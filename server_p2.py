@@ -161,7 +161,7 @@ from p340_feedback_loop import (
     plan_executable_editorial_repairs as p340_plan_executable_editorial_repairs,
     compare_design_diagnostics as p340_compare_design_diagnostics,
 )
-from p342_mutation_footprint import (
+from hwpx_mcp.custody.p342_mutation_footprint import (
     apply_document_design_repairs_with_footprint_atomic as p342_apply_document_design_repairs_with_footprint_atomic,
 )
 from p341_page_composition import (
@@ -7055,7 +7055,7 @@ def compare_page_composition_diagnostics(before: dict, after: dict) -> dict:
 
 
 def _apply_p343_migration(*, document_id: str, template: dict, targets_by_role: dict, policy: dict, expected_revision: int, lease_token: str = "") -> dict:
-    from p343_design_system import apply_constraint_preserving_template_migration_atomic
+    from hwpx_mcp.orchestration.p343_design_system import apply_constraint_preserving_template_migration_atomic
     metadata,path=_owned_document(document_id);current=int(metadata["revision"]);ingress=metadata.get("source")=="existing-ingress"
     migration=apply_constraint_preserving_template_migration_atomic(path,template,targets_by_role,policy,expected_revision=int(expected_revision),current_revision=current,validator=lambda candidate: core.validate_hwpx_package(candidate,ingress=ingress))
     validation=migration["formatting_receipt"]["validation"]

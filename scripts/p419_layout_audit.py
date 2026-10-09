@@ -13,6 +13,58 @@ ROOT = Path(__file__).resolve().parents[1]
 TEST_DIR = ROOT / "tests"
 
 
+def stale_root_imports(source: str, retired: set[str]) -> set[str]:
+    """Find relocated-root imports, including literal dynamic loader calls.
+
+    Only recognized stdlib loaders count; a random method named find_spec
+    must not make the production layout fail. Computed strings are left for
+    the separate dependency census and executable smoke tests.
+    """
+    tree = ast.parse(source)
+    aliases: set[str] = set()
+    dynamic_functions = {"__import__"}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                if alias.name in {"importlib", "importlib.util", "runpy"}:
+                    aliases.add(alias.asname or alias.name)
+        elif isinstance(node, ast.ImportFrom):
+            if node.module in {"importlib", "importlib.util", "runpy"}:
+                for alias in node.names:
+                    if alias.name in {"import_module", "find_spec", "run_module"}:
+                        dynamic_functions.add(alias.asname or alias.name)
+
+    found: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            names = (alias.name for alias in node.names)
+        elif isinstance(node, ast.ImportFrom) and node.module and node.level == 0:
+            names = (node.module,)
+        elif isinstance(node, ast.Call) and node.args:
+            func = node.func
+            if isinstance(func, ast.Name):
+                admitted = func.id in dynamic_functions
+            elif isinstance(func, ast.Attribute):
+                # Recognize module-qualified imports, never unrelated objects.
+                admitted = (
+                    isinstance(func.value, ast.Name)
+                    and func.value.id in aliases
+                    and func.attr in {"import_module", "run_module", "find_spec"}
+                )
+            else:
+                admitted = False
+            if not admitted or not isinstance(node.args[0], ast.Constant) or not isinstance(node.args[0].value, str):
+                continue
+            names = (node.args[0].value,)
+        else:
+            continue
+        for name in names:
+            top_level = name.split(".", 1)[0]
+            if top_level in retired:
+                found.add(top_level)
+    return found
+
+
 def audit() -> dict:
     root_tests = sorted(p.name for p in ROOT.glob("test_*.py"))
     if root_tests:
@@ -107,34 +159,12 @@ def audit() -> dict:
         if p.name != "__init__.py"
     }
     retired = {name for name in packaged if not (ROOT / (name + ".py")).is_file()}
-    dynamic_loaders = {"__import__", "import_module", "run_module", "find_spec"}
     for source in ROOT.rglob("*.py"):
         if any(part in {".git", ".venv", "__pycache__", "artifacts"} for part in source.parts):
             continue
-        syntax_tree = ast.parse(source.read_text(encoding="utf-8"))
-        for node in ast.walk(syntax_tree):
-            if isinstance(node, ast.Import):
-                references = [alias.name.split(".")[0] for alias in node.names]
-            elif isinstance(node, ast.ImportFrom) and node.module:
-                references = [node.module.split(".")[0]]
-            elif isinstance(node, ast.Call):
-                # importlib.import_module("old_module"), __import__("old_module"),
-                # runpy.run_module("old_module"), and find_spec("old_module").
-                # Bare loader names are checked too; nonliteral arguments require
-                # manual review by the dependency inventory.
-                func = node.func
-                loader = func.id if isinstance(func, ast.Name) else (
-                    func.attr if isinstance(func, ast.Attribute) else None
-                )
-                if loader in dynamic_loaders and node.args and isinstance(node.args[0], ast.Constant) and isinstance(node.args[0].value, str):
-                    references = [node.args[0].value.split(".")[0]]
-                else:
-                    continue
-            else:
-                continue
-            bad = retired.intersection(references)
-            if bad:
-                raise AssertionError(f"Stale root import {sorted(bad)} in {source.relative_to(ROOT)}")
+        bad = stale_root_imports(source.read_text(encoding="utf-8"), retired)
+        if bad:
+            raise AssertionError(f"Stale root import {sorted(bad)} in {source.relative_to(ROOT)}")
 
     # Moved test files must be referenced by their real paths in ALL workflow
     # invocations, not a mechanical replacement of implementation paths.

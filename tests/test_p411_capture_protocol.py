@@ -1,5 +1,5 @@
 from pathlib import Path
-from p411_capture_protocol import capture_worker_contract, validate_capture_receipt, validate_capture_request
+from hwpx_mcp.custody.p411_capture_protocol import capture_worker_contract, validate_capture_receipt, validate_capture_request
 
 def test_p411_capture_request_contract():
     c=capture_worker_contract()

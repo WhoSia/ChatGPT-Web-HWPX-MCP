@@ -15,7 +15,7 @@ on:
       - "scripts/p345_runtime_cli.ts"
       - "rust/p345_replay/**"
       - "hwpx_mcp/runtime/p345_runtime_bridge.py"
-      - "p345_mcp.py"
+      - "hwpx_mcp/interfaces/p345_mcp.py"
       - "tests/test_p345_mcp.py"
       - "Dockerfile"
       - "tests/test_client.py"
@@ -93,7 +93,7 @@ jobs:
           P346_TS_RUNTIME: .tmp/p346-ts/scripts/p346_platform_cli.js
           P346_GUARD_BIN: rust/p346_guard/target/release/p346-guard
         run: |
-          python -m compileall -q hwpx_mcp/runtime/p345_runtime_bridge.py p345_mcp.py p346_platform_bridge.py hwpx_mcp/interfaces/p346_mcp.py tests/test_p345_mcp.py tests/test_p346_platform_bridge.py tests/test_p346_mcp.py scripts/p346_release_smoke.py
+          python -m compileall -q hwpx_mcp/runtime/p345_runtime_bridge.py hwpx_mcp/interfaces/p345_mcp.py p346_platform_bridge.py hwpx_mcp/interfaces/p346_mcp.py tests/test_p345_mcp.py tests/test_p346_platform_bridge.py tests/test_p346_mcp.py scripts/p346_release_smoke.py
           python -m pytest -q tests/test_p345_mcp.py tests/test_p346_platform_bridge.py tests/test_p346_mcp.py
           python scripts/p346_release_smoke.py
 

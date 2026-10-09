@@ -7152,7 +7152,7 @@ P346_HOST_ADAPTERS = {
 from hwpx_mcp.interfaces.p346_mcp import AdapterRegistry, register_p346_tools
 P346_ADAPTER_REGISTRY = AdapterRegistry(P346_HOST_ADAPTERS)
 
-from p345_mcp import register_p345_tools
+from hwpx_mcp.interfaces.p345_mcp import register_p345_tools
 P345_DOCUMENT_RUNTIME = register_p345_tools(
     core,
     _owned_document,

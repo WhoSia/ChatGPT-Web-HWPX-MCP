@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from p345_mcp import register_p345_tools
+from hwpx_mcp.interfaces.p345_mcp import register_p345_tools
 from hwpx_mcp.runtime.p345_runtime_bridge import host_receipt_sha256
 
 

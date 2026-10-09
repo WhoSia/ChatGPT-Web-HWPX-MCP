@@ -65,7 +65,14 @@ def audit() -> dict:
 
     # Detect stale imports across every checked-in Python source before CI
     # reaches an unrelated production or Hancom workflow.
-    retired = set(expected_corpus) | set(expected_interfaces) | set(expected_probes) | {"p39_textbox"}
+    # Derive the migration map from real package files, not a fixed phase list.
+    packaged = {
+        p.stem
+        for family in ("interfaces", "corpus", "probes", "document", "orchestration")
+        for p in (ROOT / "hwpx_mcp" / family).glob("*.py")
+        if p.name != "__init__.py"
+    }
+    retired = {name for name in packaged if not (ROOT / (name + ".py")).is_file()}
     for source in ROOT.rglob("*.py"):
         if any(part in {".git", ".venv", "__pycache__", "artifacts"} for part in source.parts):
             continue

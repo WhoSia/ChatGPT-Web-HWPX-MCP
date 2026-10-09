@@ -5,10 +5,17 @@ import base64
 import hashlib
 import json
 import os
+import sys
 import uuid
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from urllib.parse import parse_qs, urljoin, urlparse
+
+# The lifecycle runner intentionally supports direct execution from tests/.
+# Keep the repository root importable before loading runtime modules.
+_REPOSITORY_ROOT = str(Path(__file__).resolve().parents[1])
+if _REPOSITORY_ROOT not in sys.path:
+    sys.path.insert(0, _REPOSITORY_ROOT)
 
 import httpx2
 from pydantic import AnyUrl

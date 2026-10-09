@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from mcp.types import ToolAnnotations
 
-from p416_generation_manifest import (
+from hwpx_mcp.evidence.p416_generation_manifest import (
     PHASE,
     PRODUCT,
     classify_reproduction,

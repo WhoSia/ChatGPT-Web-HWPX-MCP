@@ -20,7 +20,7 @@ from p47_native_authoring import compile_unified_authoring_plan as compile_unifi
 from p49_visual_conformance import audit_materialized_visuals, certify_visual_plans
 from p411_visual_oracle import structural_region_provenance_from_audit
 from p412_native_repair import audit_repaired_visuals, execute_repaired_visual_plans
-from p416_generation_manifest import build_authoring_generation_manifest
+from hwpx_mcp.evidence.p416_generation_manifest import build_authoring_generation_manifest
 from p48_components import (
     component_authoring_contract,
     compile_document_components as compile_document_components_kernel,

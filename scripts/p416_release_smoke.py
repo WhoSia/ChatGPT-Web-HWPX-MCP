@@ -7,7 +7,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from p416_generation_manifest import (
+from hwpx_mcp.evidence.p416_generation_manifest import (
     PARENT_RELEASE_AUTHORITY_SHA256,
     classify_reproduction,
     compile_generation_manifest_for_file,

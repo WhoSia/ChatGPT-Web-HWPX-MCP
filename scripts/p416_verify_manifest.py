@@ -7,7 +7,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from p416_generation_manifest import file_sha256, verify_generation_manifest
+from hwpx_mcp.evidence.p416_generation_manifest import file_sha256, verify_generation_manifest
 
 
 def main() -> int:

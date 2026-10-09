@@ -55,6 +55,24 @@ def audit() -> dict:
         if (ROOT / (module_name + ".py")).exists() or not (ROOT / "hwpx_mcp" / "interfaces" / (module_name + ".py")).is_file():
             raise AssertionError("MCP facade package placement mismatch: " + module_name)
 
+    # Detect stale imports across every checked-in Python source before CI
+    # reaches an unrelated production or Hancom workflow.
+    retired = set(expected_corpus) | set(expected_interfaces)
+    for source in ROOT.rglob("*.py"):
+        if any(part in {".git", ".venv", "__pycache__", "artifacts"} for part in source.parts):
+            continue
+        syntax_tree = ast.parse(source.read_text(encoding="utf-8"))
+        for node in ast.walk(syntax_tree):
+            if isinstance(node, ast.Import):
+                references = [alias.name.split(".")[0] for alias in node.names]
+            elif isinstance(node, ast.ImportFrom) and node.module:
+                references = [node.module.split(".")[0]]
+            else:
+                continue
+            bad = retired.intersection(references)
+            if bad:
+                raise AssertionError(f"Stale root import {sorted(bad)} in {source.relative_to(ROOT)}")
+
     return {"root_python": len(root_python), "root_test_python": 0,
             "tests_collected_files": len(tests),
             "p419_product_package": str(module.relative_to(ROOT)),

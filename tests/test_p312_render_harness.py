@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import unittest
 
-from p312_render_harness import (
+from hwpx_mcp.custody.p312_render_harness import (
     RECEIPT_SCHEMA,
     adjudicate_fixture_set,
     adjudicate_fixture_world_contact,

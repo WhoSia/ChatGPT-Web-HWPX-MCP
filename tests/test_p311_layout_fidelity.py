@@ -5,7 +5,7 @@ import unittest
 import zipfile
 from pathlib import Path
 
-from p311_layout_fidelity import (
+from hwpx_mcp.quality.p311_layout_fidelity import (
     adjudicate_layout_fidelity,
     build_hwpx_layout_receipt,
 )

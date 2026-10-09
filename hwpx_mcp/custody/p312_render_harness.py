@@ -4,7 +4,7 @@ import hashlib
 import json
 from typing import Any
 
-from p311_layout_fidelity import adjudicate_layout_fidelity
+from hwpx_mcp.quality.p311_layout_fidelity import adjudicate_layout_fidelity
 
 
 RECEIPT_SCHEMA = "chatgpt-web-hwpx-mcp/render-receipt/p3.12/v1"

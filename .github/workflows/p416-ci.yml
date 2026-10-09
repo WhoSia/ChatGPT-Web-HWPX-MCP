@@ -26,6 +26,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -44,10 +46,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
       - name: Build exact-head image
-        run: docker build --progress=plain -t hwpx-mcp-p416:${{ github.sha }} .
+        run: docker build --progress=plain -t hwpx-mcp-p416:${{ github.event.pull_request.head.sha || github.sha }} .
       - name: P4.16 provenance smoke in image
-        run: docker run --rm --entrypoint python hwpx-mcp-p416:${{ github.sha }} scripts/p416_release_smoke.py
+        run: docker run --rm --entrypoint python hwpx-mcp-p416:${{ github.event.pull_request.head.sha || github.sha }} scripts/p416_release_smoke.py
       - name: P4.15 backward authority smoke
-        run: docker run --rm --entrypoint python hwpx-mcp-p416:${{ github.sha }} scripts/p415_release_smoke.py
+        run: docker run --rm --entrypoint python hwpx-mcp-p416:${{ github.event.pull_request.head.sha || github.sha }} scripts/p415_release_smoke.py

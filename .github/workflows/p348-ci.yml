@@ -25,6 +25,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
@@ -38,6 +40,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - uses: dtolnay/rust-toolchain@stable
       - run: cargo test --manifest-path rust/p348_marketplace_verifier/Cargo.toml
       - run: cargo build --release --manifest-path rust/p348_marketplace_verifier/Cargo.toml
@@ -48,6 +52,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -86,11 +92,13 @@ jobs:
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - name: Build exact production Docker image
-        run: docker build --progress=plain -t hwpx-mcp-p348:\${{ github.sha }} .
+        run: docker build --progress=plain -t hwpx-mcp-p348:\${{ github.event.pull_request.head.sha || github.sha }} .
       - name: Verify packaged P3.47 and P3.48 authority
         run: |
-          docker run --rm --entrypoint /bin/sh hwpx-mcp-p348:\${{ github.sha }} -c '
+          docker run --rm --entrypoint /bin/sh hwpx-mcp-p348:\${{ github.event.pull_request.head.sha || github.sha }} -c '
             test "$(p347-certifier --contract)" = "p3.47-certification-guard-v1" &&
             test "$(p348-marketplace-verifier --contract)" = "p3.48-marketplace-verifier-v1" &&
             python scripts/p347_release_smoke.py &&

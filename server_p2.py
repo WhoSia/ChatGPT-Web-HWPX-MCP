@@ -74,7 +74,7 @@ from p326_drawing_style import (
     build_drawing_style_map,
     apply_drawing_style_atomic,
 )
-from p327_diagram_composition import (
+from hwpx_mcp.document.p327_diagram_composition import (
     diagram_composition_contract,
     build_diagram_composition_map,
     apply_diagram_composition_atomic,

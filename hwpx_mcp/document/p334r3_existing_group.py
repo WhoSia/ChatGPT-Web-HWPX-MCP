@@ -8,7 +8,7 @@ from typing import Any
 
 from lxml import etree
 
-from p327_diagram_composition import build_diagram_composition_map
+from hwpx_mcp.document.p327_diagram_composition import build_diagram_composition_map
 
 
 HP_NS = "http://www.hancom.co.kr/hwpml/2011/paragraph"

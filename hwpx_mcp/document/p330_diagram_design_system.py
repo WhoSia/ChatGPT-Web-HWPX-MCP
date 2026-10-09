@@ -25,7 +25,7 @@ from hwpx_mcp.document.p329_diagram_lifecycle import (
     _remove_edges,
     _insert_edge,
 )
-from p327_diagram_composition import _resolve_top, _set_xy
+from hwpx_mcp.document.p327_diagram_composition import _resolve_top, _set_xy
 
 SCHEMA = "chatgpt-web-hwpx-mcp/diagram-design-system/p3.30/v1"
 AUTHORITY = "STRUCTURAL_DIAGRAM_DESIGN_SYSTEM_AUTHORITY_ONLY"

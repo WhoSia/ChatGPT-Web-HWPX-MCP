@@ -2,7 +2,7 @@ from pathlib import Path
 import sys
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from p46_native_authoring import (
+from hwpx_mcp.rendering.p46_native_authoring import (
     audit_equation_latex,
     compile_native_authoring_bundle,
     native_authoring_contract,

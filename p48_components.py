@@ -5,7 +5,7 @@ import json
 import math
 from typing import Any
 
-from p46_native_authoring import audit_equation_latex
+from hwpx_mcp.rendering.p46_native_authoring import audit_equation_latex
 
 PHASE = "P4.8"
 PRODUCT = "0.34.0-p4.8"

@@ -14,7 +14,7 @@ from p210_equations import apply_equation_edits_atomic, build_equation_map
 from p325_drawing_layer import apply_drawing_layer_atomic, build_drawing_layer_map
 from p338_rich_builder import evaluate_preview_readiness
 from p321_document_composer import compose_document_plan
-from p46_native_authoring import compile_native_authoring_bundle
+from hwpx_mcp.rendering.p46_native_authoring import compile_native_authoring_bundle
 from hwpx_mcp.evidence.p416_generation_manifest import build_authoring_generation_manifest
 from p47_native_authoring import (
     adjudicate_equation_render_evidence as adjudicate_equation_render_evidence_kernel,

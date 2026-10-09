@@ -107,6 +107,7 @@ def audit() -> dict:
         if p.name != "__init__.py"
     }
     retired = {name for name in packaged if not (ROOT / (name + ".py")).is_file()}
+    dynamic_loaders = {"__import__", "import_module", "run_module", "find_spec"}
     for source in ROOT.rglob("*.py"):
         if any(part in {".git", ".venv", "__pycache__", "artifacts"} for part in source.parts):
             continue
@@ -116,6 +117,19 @@ def audit() -> dict:
                 references = [alias.name.split(".")[0] for alias in node.names]
             elif isinstance(node, ast.ImportFrom) and node.module:
                 references = [node.module.split(".")[0]]
+            elif isinstance(node, ast.Call):
+                # importlib.import_module("old_module"), __import__("old_module"),
+                # runpy.run_module("old_module"), and find_spec("old_module").
+                # Bare loader names are checked too; nonliteral arguments require
+                # manual review by the dependency inventory.
+                func = node.func
+                loader = func.id if isinstance(func, ast.Name) else (
+                    func.attr if isinstance(func, ast.Attribute) else None
+                )
+                if loader in dynamic_loaders and node.args and isinstance(node.args[0], ast.Constant) and isinstance(node.args[0].value, str):
+                    references = [node.args[0].value.split(".")[0]]
+                else:
+                    continue
             else:
                 continue
             bad = retired.intersection(references)

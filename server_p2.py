@@ -22,7 +22,7 @@ from p24_inline import apply_inline_edits_atomic, build_inline_map
 from p26_controls import apply_control_edits_atomic
 from p28_tables import apply_table_edits_atomic, build_table_map
 from p29_objects import apply_object_edits_atomic, build_object_map
-from p39_textbox import build_textbox_map, inject_textbox
+from hwpx_mcp.document.p39_textbox import build_textbox_map, inject_textbox
 from p311_layout_fidelity import build_hwpx_layout_receipt
 from p312_render_harness import adjudicate_fixture_world_contact
 from p317_fidelity_envelope import (
@@ -110,18 +110,18 @@ from p332_brownfield_diagrams import (
     plan_legacy_diagram_refactor as plan_p332_legacy_refactor,
     apply_legacy_diagram_refactor_atomic,
 )
-from p334_rare_feature_registry import (
+from hwpx_mcp.document.p334_rare_feature_registry import (
     rare_feature_registry,
     evaluate_rare_feature as evaluate_p334_rare_feature,
     plan_rare_feature_promotion as plan_p334_rare_feature_promotion,
     ux_regression_contract as p334_ux_regression_contract,
 )
-from p335_typography import (
+from hwpx_mcp.corpus.p335_typography import (
     typography_contract as p335_typography_contract,
     build_typography_profile,
     compare_typography_profiles,
 )
-from p335_paragraph import (
+from hwpx_mcp.corpus.p335_paragraph import (
     paragraph_geometry_contract as p335_paragraph_geometry_contract,
     build_paragraph_geometry_profile,
     compare_paragraph_geometry_profiles,
@@ -129,7 +129,7 @@ from p335_paragraph import (
     build_role_aware_style_exemplars,
     build_style_transfer_operations,
 )
-from p335_corpus import build_corpus_style_profile, build_style_library
+from hwpx_mcp.corpus.p335_corpus import build_corpus_style_profile, build_style_library
 from p336r2_design import (
     design_quality_contract as p336r2_design_quality_contract,
     compile_design_plan as p336r2_compile_design_plan,
@@ -170,7 +170,7 @@ from p341_page_composition import (
     plan_render_guided_layout_policy as p341_plan_render_guided_layout_policy,
     compare_page_composition_diagnostics as p341_compare_page_composition_diagnostics,
 )
-from p313_capture_custody import (
+from hwpx_mcp.custody.p313_capture_custody import (
     near_wrap_positive_sensitivity_spec,
     validate_artifact_custody,
     verify_custody_chain,
@@ -7064,16 +7064,16 @@ def _apply_p343_migration(*, document_id: str, template: dict, targets_by_role: 
     _refresh_metadata(document_id,metadata,validation,build_document_map(path),build_formatting_map(path),build_inline_map(path),build_table_map(path),build_object_map(path),build_equation_map(path))
     return {"ok":True,"document_id":document_id,"revision_before":current,"revision_after":int(metadata["revision"]),"sha256":validation["sha256"],"migration":migration,"validation":validation,"transaction":"COMMITTED","authority":"P3.43_ORGANIZATION_CONSTRAINED_TEMPLATE_MIGRATION"}
 
-from p335_mcp import register_corpus_tools
+from hwpx_mcp.interfaces.p335_mcp import register_corpus_tools
 CORPUS_REGISTRY = register_corpus_tools(core, _owned_document)
 
-from p342_mcp import register_p342_tools
+from hwpx_mcp.interfaces.p342_mcp import register_p342_tools
 P342_EVIDENCE = register_p342_tools(core, _owned_document, CORPUS_REGISTRY)
 
-from p343_mcp import register_p343_tools
+from hwpx_mcp.interfaces.p343_mcp import register_p343_tools
 P343_DESIGN_SYSTEM = register_p343_tools(core, _owned_document, CORPUS_REGISTRY, _apply_p343_migration)
 
-from p344_mcp import register_p344_tools
+from hwpx_mcp.interfaces.p344_mcp import register_p344_tools
 P344_AUTONOMOUS_AUTHORING = register_p344_tools(
     core,
     compile_rich_plan=p338_compile_rich_document_plan,
@@ -7149,7 +7149,7 @@ P346_HOST_ADAPTERS = {
     "DOCUMENT_DESIGN_REPAIR": _p345_design_repair_adapter,
 }
 
-from p346_mcp import AdapterRegistry, register_p346_tools
+from hwpx_mcp.interfaces.p346_mcp import AdapterRegistry, register_p346_tools
 P346_ADAPTER_REGISTRY = AdapterRegistry(P346_HOST_ADAPTERS)
 
 from p345_mcp import register_p345_tools
@@ -7166,7 +7166,7 @@ P346_DEVELOPER_PLATFORM = register_p346_tools(
     P346_ADAPTER_REGISTRY,
 )
 
-from p347_mcp import CertifiedPackageRegistry, register_p347_tools
+from hwpx_mcp.interfaces.p347_mcp import CertifiedPackageRegistry, register_p347_tools
 P347_CERTIFIED_PACKAGE_REGISTRY = CertifiedPackageRegistry()
 P347_EXTENSION_ECOSYSTEM = register_p347_tools(
     core,
@@ -7174,14 +7174,14 @@ P347_EXTENSION_ECOSYSTEM = register_p347_tools(
     P347_CERTIFIED_PACKAGE_REGISTRY,
 )
 
-from p348_mcp import register_p348_tools
+from hwpx_mcp.interfaces.p348_mcp import register_p348_tools
 P348_PUBLIC_EXTENSION_MARKETPLACE = register_p348_tools(
     core,
     _owned_document,
     P347_CERTIFIED_PACKAGE_REGISTRY,
 )
 
-from p349_mcp import register_p349_tools
+from hwpx_mcp.interfaces.p349_mcp import register_p349_tools
 P349_EXTENSION_COMPOSITION = register_p349_tools(
     core,
     _owned_document,
@@ -7189,52 +7189,52 @@ P349_EXTENSION_COMPOSITION = register_p349_tools(
     P346_ADAPTER_REGISTRY,
 )
 
-from p41_mcp import register_p41_tools
+from hwpx_mcp.interfaces.p41_mcp import register_p41_tools
 P41_OPERATIONAL_READINESS = register_p41_tools(core)
 
-from p42_mcp import register_p42_tools
+from hwpx_mcp.interfaces.p42_mcp import register_p42_tools
 P42_MIGRATION = register_p42_tools(core)
 
-from p43_mcp import register_p43_tools
+from hwpx_mcp.interfaces.p43_mcp import register_p43_tools
 P43_PRODUCT_HEALTH = register_p43_tools(core)
 
-from p44_mcp import register_p44_tools
+from hwpx_mcp.interfaces.p44_mcp import register_p44_tools
 P44_HEALTH_INTELLIGENCE = register_p44_tools(core)
-from p45_mcp import register_p45_tools
+from hwpx_mcp.interfaces.p45_mcp import register_p45_tools
 P45_QUALITY_CONTROL = register_p45_tools(core)
 
-from p46_mcp import register_p46_tools
+from hwpx_mcp.interfaces.p46_mcp import register_p46_tools
 P46_NATIVE_AUTHORING = register_p46_tools(core, _owned_document, _refresh_metadata)
 
-from p47_mcp import register_p47_tools
+from hwpx_mcp.interfaces.p47_mcp import register_p47_tools
 P47_RENDER_GROUNDED_AUTHORING = register_p47_tools(core, _refresh_metadata, _delivery_after_commit)
 
-from p48_mcp import register_p48_tools
+from hwpx_mcp.interfaces.p48_mcp import register_p48_tools
 P48_COMPONENT_AUTHORING = register_p48_tools(core, _refresh_metadata, _delivery_after_commit)
 
-from p411_mcp import register_p411_tools
+from hwpx_mcp.interfaces.p411_mcp import register_p411_tools
 P411_NATIVE_RENDER_ORACLE = register_p411_tools(core)
 
-from p412_mcp import register_p412_tools
+from hwpx_mcp.interfaces.p412_mcp import register_p412_tools
 P412_NATIVE_VISUAL_REPAIR = register_p412_tools(core)
 
-from p413_mcp import register_p413_tools
+from hwpx_mcp.interfaces.p413_mcp import register_p413_tools
 P413_HANCOM_EVIDENCE_TRUST = register_p413_tools(core)
 
-from p414_mcp import register_p414_tools
+from hwpx_mcp.interfaces.p414_mcp import register_p414_tools
 P414_DISTRIBUTED_NATIVE_EVIDENCE = register_p414_tools(core)
 
-from p415_mcp import register_p415_tools
+from hwpx_mcp.interfaces.p415_mcp import register_p415_tools
 P415_SELF_VERIFYING_RELEASE_AUTHORITY = register_p415_tools(core)
 
-from p416_mcp import register_p416_tools
+from hwpx_mcp.interfaces.p416_mcp import register_p416_tools
 P416_DOCUMENT_PROVENANCE = register_p416_tools(core, _owned_document)
 
-from p417_mcp import register_p417_tools, execute_owned_intent_transformation
+from hwpx_mcp.interfaces.p417_mcp import register_p417_tools, execute_owned_intent_transformation
 P417_DOCUMENT_INTELLIGENCE = register_p417_tools(core, _owned_document, _refresh_p417_execution)
 
 from p417_semantics import recover_semantic_structure
-from p418_mcp import register_p418_tools
+from hwpx_mcp.interfaces.p418_mcp import register_p418_tools
 
 
 def _p418_create_adapter(
@@ -7350,7 +7350,7 @@ def _p418_execute_after_trusted_host_confirmation(
 
 
 # P4.19: owner-scoped product workspace, independent of mutation/approval.
-from p419_workspace import workspace_overview as _p419_workspace_overview
+from hwpx_mcp.orchestration.p419_product import workspace_overview as _p419_workspace_overview
 
 
 @core.mcp.tool()

@@ -3,10 +3,10 @@ import argparse,json,sys,tempfile
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:sys.path.insert(0,str(ROOT))
-from p318_regression_corpus import materialize_p318_regression_corpus
-from p319_regression_corpus import materialize_p319_regression_corpus
-from p323_regression_corpus import materialize_p323_regression_corpus
-from p325_regression_corpus import materialize_p325_regression_corpus
+from hwpx_mcp.corpus.p318_regression_corpus import materialize_p318_regression_corpus
+from hwpx_mcp.corpus.p319_regression_corpus import materialize_p319_regression_corpus
+from hwpx_mcp.corpus.p323_regression_corpus import materialize_p323_regression_corpus
+from hwpx_mcp.corpus.p325_regression_corpus import materialize_p325_regression_corpus
 from scripts.p43_oracles import probe_file
 
 MATERIALIZERS=[

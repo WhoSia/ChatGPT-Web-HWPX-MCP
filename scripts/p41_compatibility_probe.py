@@ -15,10 +15,10 @@ if str(ROOT) not in sys.path:sys.path.insert(0,str(ROOT))
 from hwpx import HwpxDocument
 
 TARGET_TESTS = [
-    "test_p318_document_setup.py",
-    "test_p319_structured_publishing.py",
-    "test_p338_rich_builder.py",
-    "test_p41_operational.py",
+    "tests/test_p318_document_setup.py",
+    "tests/test_p319_structured_publishing.py",
+    "tests/test_p338_rich_builder.py",
+    "tests/test_p41_operational.py",
 ]
 
 def minimal_smoke() -> bool:

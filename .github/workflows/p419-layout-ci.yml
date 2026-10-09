@@ -1,0 +1,54 @@
+name: P4.19 repository layout and full-suite regression
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "tests/**"
+      - "scripts/**"
+      - ".github/workflows/**"
+      - "hwpx_mcp/**"
+      - "server_p2.py"
+      - "p418_mcp.py"
+      - "README.md"
+  push:
+    branches: [main]
+    paths:
+      - "tests/**"
+      - "scripts/p419_layout_audit.py"
+      - ".github/workflows/p419-layout-ci.yml"
+      - "hwpx_mcp/**"
+      - "server_p2.py"
+      - "p418_mcp.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: p419-layout-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  layout-guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Verify package-first repository layout
+        run: python scripts/p419_layout_audit.py
+      - name: Compile moved tests and consolidated product module
+        run: python -m compileall -q tests hwpx_mcp/orchestration/p419_product.py scripts/p419_layout_audit.py
+      - name: Audit Root Module Backlinks And Dynamic Import Literals
+        run: |
+          python -m unittest discover -s tests -p test_p419_dependency_census.py -v
+          python scripts/p419_dependency_census.py --out /tmp/p419-root-dependency-census.json
+      - name: Publish Architecture Census
+        uses: actions/upload-artifact@v4
+        with:
+          name: p419-root-dependency-census
+          path: /tmp/p419-root-dependency-census.json
+          if-no-files-found: error
+          retention-days: 14

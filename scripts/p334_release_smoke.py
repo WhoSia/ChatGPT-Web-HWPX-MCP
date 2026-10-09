@@ -4,7 +4,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from p334_rare_feature_registry import (
+from hwpx_mcp.document.p334_rare_feature_registry import (
     EVIDENCE_KEYS,
     evaluate_rare_feature,
     rare_feature_registry,

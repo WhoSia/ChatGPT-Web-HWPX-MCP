@@ -5,7 +5,7 @@ on:
     branches: [main]
     paths:
       - "p313r1_fixture_pack.py"
-      - "test_p313r1_fixture_pack.py"
+      - "tests/test_p313r1_fixture_pack.py"
       - "scripts/p313r1_*.py"
       - "scripts/p313r1_*.ps1"
       - "requirements-capture.txt"
@@ -31,7 +31,7 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Run P3.13-R1 fixture-pack tests
-        run: python -m unittest -v test_p313r1_fixture_pack.py
+        run: python -m unittest -v tests/test_p313r1_fixture_pack.py
 
       - name: Materialize capture-ready pack
         run: python scripts/p313r1_materialize_pack.py --out artifacts/p313r1-hancom-capture-pack

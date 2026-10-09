@@ -22,6 +22,7 @@ from p340_feedback_loop import (
 
 A1 = Path("artifacts/authorbench-a1-generative-ai-science.hwpx")
 A2 = Path("artifacts/authorbench-a2-research-data-infrastructure.hwpx")
+FROZEN_A1_HUMAN_REVIEW = Path("benchmarks/authorbench_a1_human_review.json")
 OUT = Path("artifacts/authorbench-a2-p340-evaluation.json")
 PROBE_BEFORE = Path("artifacts/authorbench-a2-repair-probe-before.hwpx")
 PROBE_AFTER = Path("artifacts/authorbench-a2-repair-probe-after.hwpx")
@@ -44,6 +45,19 @@ severity_high = {"HIGH", "CRITICAL"}
 a1_high = sum(str(x.get("severity") or "").upper() in severity_high for x in a1_frozen["findings"])
 a2_high = sum(str(x.get("severity") or "").upper() in severity_high for x in a2["findings"])
 a1_codes = {str(x["code"]) for x in a1_frozen["findings"]}
+
+# The A1 specimen was frozen with *two* independently tagged authorities:
+# machine-observable P3.39 diagnostics and contemporaneous human review.
+# Do not silently require four machine codes when the frozen specimen has
+# three; nor may human-only defects be relabelled as static detections.
+a1_human_review = json.loads(FROZEN_A1_HUMAN_REVIEW.read_text(encoding="utf-8"))
+if (
+    a1_human_review.get("benchmark") != "A1"
+    or a1_human_review.get("specimen") != str(A1)
+    or a1_human_review.get("authority") != "HUMAN_VISUAL_REVIEW_GROUND_TRUTH_NOT_AUTOMATIC_AESTHETIC_NORM"
+):
+    raise RuntimeError("A1 frozen human review provenance or specimen mismatch")
+a1_human_codes = {str(x["code"]) for x in a1_human_review.get("findings", [])}
 a2_codes = {str(x["code"]) for x in a2["findings"]}
 
 frozen_a1_failure_family = {
@@ -53,7 +67,9 @@ frozen_a1_failure_family = {
     "TABLE_DENSITY_HIGH",
     "TABLE_HEADER_CONTRAST_WEAK",
 }
-observed_a1_family = sorted(frozen_a1_failure_family & a1_codes)
+observed_a1_static_family = sorted(frozen_a1_failure_family & a1_codes)
+observed_a1_human_family = sorted(frozen_a1_failure_family & a1_human_codes)
+observed_a1_family = sorted(set(observed_a1_static_family) | set(observed_a1_human_family))
 a2_survivors = sorted(frozen_a1_failure_family & a2_codes)
 
 fresh_generalization_pass = bool(
@@ -71,6 +87,8 @@ if not fresh_generalization_pass:
             "a1_high": a1_high,
             "a2_high": a2_high,
             "a1_observed_family": observed_a1_family,
+            "a1_machine_observed_family": observed_a1_static_family,
+            "a1_human_observed_family": observed_a1_human_family,
             "a2_survivors": a2_survivors,
             "a2_codes": sorted(a2_codes),
         }, ensure_ascii=False)
@@ -210,6 +228,10 @@ payload = {
         "a1_high_count": a1_high,
         "a2_high_count": a2_high,
         "a1_frozen_failure_family_observed": observed_a1_family,
+        "a1_machine_observed_family": observed_a1_static_family,
+        "a1_human_observed_family": observed_a1_human_family,
+        "baseline_evidence_authorities": ["FROZEN_P339_STATIC_DIAGNOSTIC", "FROZEN_A1_HUMAN_VISUAL_REVIEW"],
+        "adjudication_limit": "A1 baseline human defects are not A2 machine detections; A2 native render and human visual review remain separately PENDING.",
         "a2_frozen_failure_family_survivors": a2_survivors,
         "a2_codes": sorted(a2_codes),
         "authority": "FROZEN_P3.39_A1_BASELINE_VS_P3.40_A2",

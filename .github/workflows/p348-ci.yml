@@ -12,7 +12,7 @@ on:
       - "server_p2.py"
       - "Dockerfile"
       - "requirements.txt"
-      - "test_client.py"
+      - "tests/test_client.py"
       - ".github/workflows/p348-ci.yml"
   pull_request:
     branches: [main]
@@ -75,8 +75,8 @@ jobs:
           P348_TS_RUNTIME: .tmp/p348-ts/scripts/p348_marketplace_cli.js
           P348_VERIFIER_BIN: rust/p348_marketplace_verifier/target/release/p348-marketplace-verifier
         run: |
-          python -m compileall -q p348_marketplace.py p348_mcp.py test_p348_marketplace.py test_p348_mcp.py scripts/p348_release_smoke.py
-          python -m pytest -q test_p347_supply_chain_bridge.py test_p347_mcp.py test_p348_marketplace.py test_p348_mcp.py
+          python -m compileall -q p348_marketplace.py hwpx_mcp/interfaces/p348_mcp.py tests/test_p348_marketplace.py tests/test_p348_mcp.py scripts/p348_release_smoke.py
+          python -m pytest -q tests/test_p347_supply_chain_bridge.py tests/test_p347_mcp.py tests/test_p348_marketplace.py tests/test_p348_mcp.py
           python scripts/p347_release_smoke.py
           python scripts/p348_release_smoke.py
 

@@ -9,7 +9,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from p329_regression_corpus import materialize_p329_regression_corpus
+from hwpx_mcp.corpus.p329_regression_corpus import materialize_p329_regression_corpus
 
 
 def main() -> int:

@@ -6,8 +6,8 @@ on:
     paths:
       - ".github/p36-real-hwp-trigger"
       - ".github/workflows/p36-real-hwp-contact.yml"
-      - "p36_real_hwp_probe.py"
-      - "p36_rich_fixture_probe.py"
+      - "hwpx_mcp/probes/p36_real_hwp_probe.py"
+      - "hwpx_mcp/probes/p36_rich_fixture_probe.py"
       - "hwp5_reader.py"
       - "common_ir.py"
       - "server_p2.py"
@@ -78,7 +78,7 @@ jobs:
       - name: Official HWP parser and Common-IR contact
         env:
           P36_REAL_HWP: /tmp/hancom-hwp5-spec.hwp
-        run: python p36_real_hwp_probe.py
+        run: python -m hwpx_mcp.probes.p36_real_hwp_probe
 
       - name: Start local P3.9 OAuth MCP
         run: |
@@ -101,7 +101,7 @@ jobs:
           P36_TABLE_HWP: /tmp/table-001.hwp
           P36_EQUATION_HWP: /tmp/eq-01.hwp
           P36_PICTURE_HWP: /tmp/test-image.hwp
-        run: python p36_rich_fixture_probe.py
+        run: python -m hwpx_mcp.probes.p36_rich_fixture_probe
 
       - name: Show MCP log on failure
         if: failure()

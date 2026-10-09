@@ -473,10 +473,10 @@ def _apply_one(path: Path, op: dict) -> dict:
     if name == "insert_group":
         return _insert_group(path, op)
     if name == "group_existing_objects":
-        from p334r3_existing_group import group_existing_objects
+        from hwpx_mcp.document.p334r3_existing_group import group_existing_objects
         return group_existing_objects(path, op.get("drawings"))
     if name == "ungroup_existing_objects":
-        from p334r3_existing_group import ungroup_existing_objects
+        from hwpx_mcp.document.p334r3_existing_group import ungroup_existing_objects
         return ungroup_existing_objects(path, op.get("group"))
     if name == "insert_static_connector":
         return _insert_static_connector(path, op)

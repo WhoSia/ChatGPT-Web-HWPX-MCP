@@ -11,7 +11,7 @@ on:
       - "p48_mcp.py"
       - "scripts/p48_component_benchmark.py"
       - "server_p2.py"
-      - "test_client.py"
+      - "tests/test_client.py"
       - "Dockerfile"
       - "scripts/verify_production_boundary.py"
       - ".github/workflows/p411-ci.yml"
@@ -29,8 +29,8 @@ jobs:
       - uses: actions/setup-python@v5
         with: {python-version: "3.12", cache: pip}
       - run: pip install -r requirements.txt -r requirements-dev.txt
-      - run: python -m compileall -q p411_visual_oracle.py p411_capture_protocol.py p411_release_service.py p411_mcp.py test_p411_visual_oracle.py test_p411_capture_protocol.py test_p411_release_service.py scripts/p411_release_smoke.py scripts/p411_shadow_gate.py scripts/p411_materialize_golden_registry.py scripts/p411_materialize_capture_request.py
-      - run: python -m pytest -q test_p411_visual_oracle.py test_p411_capture_protocol.py test_p411_release_service.py
+      - run: python -m compileall -q p411_visual_oracle.py p411_capture_protocol.py p411_release_service.py hwpx_mcp/interfaces/p411_mcp.py tests/test_p411_visual_oracle.py tests/test_p411_capture_protocol.py tests/test_p411_release_service.py scripts/p411_release_smoke.py scripts/p411_shadow_gate.py scripts/p411_materialize_golden_registry.py scripts/p411_materialize_capture_request.py
+      - run: python -m pytest -q tests/test_p411_visual_oracle.py tests/test_p411_capture_protocol.py tests/test_p411_release_service.py
       - run: python scripts/p411_release_smoke.py
       - run: python scripts/p411_shadow_gate.py
       - run: python scripts/p411_materialize_golden_registry.py

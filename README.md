@@ -1,302 +1,81 @@
 # ChatGPT Web HWPX MCP
 
-**Start here:** [Product authority](PRODUCT_AUTHORITY.md) · [Server entrypoint](server_p2.py) · [P2 orchestration source](hwpx_mcp/orchestration/) · [Tests](tests/) · [CI](.github/workflows/) · [Operational scripts](scripts/)
+**Create, understand, edit, and deliver Korean Hangul documents from ChatGPT.**
 
-The repository is undergoing a compatibility-preserving package migration. Core legacy modules remain at the root until import, Docker, and Windows dependencies can be migrated with exact-head regression evidence. New orchestration code belongs in `hwpx_mcp/orchestration/`, not beside `server_p2.py`. The P4.18-P2 `compile_p418_document_workflow` tool is read-only and never grants approval to execute.
+[Product authority](PRODUCT_AUTHORITY.md) · [Architecture](docs/ARCHITECTURE.md) · [Feature catalog](docs/FEATURE_CATALOG.md) · [Tests](tests/) · [CI](.github/workflows/)
 
-Remote Streamable-HTTP MCP for authenticated HWPX document creation, custody, validation, structured introspection, revision-safe editing, legacy HWP read/promotion, and fidelity testing from ChatGPT Web.
+A remote, authenticated [Model Context Protocol](https://modelcontextprotocol.io/) server for native `.hwpx` documents. It combines structured document authoring, format-aware inspection, revision-safe editing, explicit human approval for protected changes, and secure HWPX delivery.
 
-## P4.19 — Make document work feel like one product
+> **Release boundary:** P4.19 is under development in Draft PR [#13](https://github.com/WhoSia/ChatGPT-Web-HWPX-MCP/pull/13). This branch is **not deployed**. P4.18's human-approved revision-2 durable commit and history are verified; final text preservation and consumer-observed file delivery remain **HOLD**. Do not equate tests, a signed link, or a server receipt with an independently opened file.
 
-P4.19's goal is not to turn every byte comparison into a user-facing step. The
-core user journey is **ask → create/import → understand → preview → approve an
-edit → receive an openable HWPX**, with safe recovery if a step fails.
+## What you can do
 
-The first incremental surface is `get_document_workspace(document_id)`:
-one **owner-scoped, read-only** tool displaying current revision, durable
-receipt, recent versions, remaining document lifetime, and the next useful
-actions. This avoids forcing users to manually combine three low-level tools
-merely to understand the state of a document. It never grants mutation
-authority, refreshes expired documents, or claims that a SHA or byte difference
-proves visual/text preservation.
-
-A second P4.19 vertical slice is `prepare_document_title_change(document_id,
-expected_revision, new_title)`: one MCP call performs **server-side compile →
-preview → durable STAGE** for a title edit, and returns the independent human
-review URL and expiry. ChatGPT can map a natural-language title change into
-these typed inputs without requiring the user to manually compose three tool
-payloads. The stage is **not an approval or a mutation**: the human must review
-and approve separately in the browser. The first release supports only a
-single `TITLE` role change and refuses stale revisions, unsupported/invalid
-title text, ownership mismatch and documents with less than 15 minutes left.
-No broader free-form editing capability is implied.
-
-The planned product architecture separates four public-facing experiences:
-
-| User experience | Product responsibility | Release boundary |
+| Goal | Current product surface | Important boundary |
 | --- | --- | --- |
-| **Create / import** | Natural-language HWPX generation and validation | Native file is available |
-| **Understand / plan** | Structure, style, text, references, scope and preview | Plan is non-mutating |
-| **Approve / edit** | Explicit human review, durable one-time commit, recovery | No edit without approval |
-| **Deliver / continue** | Download that the consumer can verify, resumable workspace | Delivered bytes verified by consumer |
+| **Create a document** | Natural-language plans, `generate_document`, `run_p418_document_task` | Validate generated HWPX before delivery |
+| **Understand an HWPX** | Inspect, semantic graph, document map, document workspace overview | Structural inference is not proof of Hancom rendering |
+| **Prepare a change** | `prepare_document_title_change` (P4.19 candidate) | One tool call compiles, previews and **stages** a title edit; never executes it |
+| **Approve an edit** | Separate authenticated browser review (P4.18-P3) | Only the human approves; ChatGPT tool payload cannot self-authorize |
+| **Continue / deliver** | Revision history, durable commit receipts, revision-bound export | Download/read-back is verified separately; 429 or expiry must not trigger mutation replay |
 
-**Current evidence (2026-10-09):** A human-approved edit returned COMMITTED
-revision 2 and the user independently retrieved its durable revision-2 receipt
-and both revision hashes. Content preservation is **UNVERIFIED**; file delivery
-is **FAILED/BLOCKED** (client tool failure and HTTP 429). This is a
-**P4.18-P3 RELEASE CLOSURE HOLD**, not an end-to-end product PASS. P4.19 should
-make readback and delivery straightforward and observable, not obscure these
-failures.
+### Typical workflow
 
-Implementation priorities:
+1. Ask ChatGPT to create a report or inspect an existing HWPX.
+2. Review its structure, requested scope and suggested changes.
+3. For an approved editing capability, open the **independent browser review** when a mutation is staged.
+4. After explicit approval, inspect the new revision and request its download.
+5. Verify downloaded bytes and openability before relying on the final document.
 
-1. One document workspace summary and action routing; fewer mandatory tool hops.
-2. Semantic document inspection and editable previews (paragraphs, titles,
-   sections, tables), with preservation tests beyond byte count.
-3. Resilient file delivery and consumer-observed download receipts; bounded 429
-   backoff with clear errors, never unlimited retries.
-4. Explicit expiry warnings and separately retained, privacy-bounded audit
-   records; never silently revive expired content.
-5. Coherent create/edit/deliver journeys, templates and reusable document
-   layouts, followed by realistic user tests.
+The newer `get_document_workspace` view consolidates revision, history, expiry and receipt information. No one has to pass three intermediate JSON payloads merely to understand document status. Both P4.19 conveniences are candidates until exact-head CI and deployment confirm them.
 
-This is a **product engineering** roadmap, not an evidence claim. Each released
-feature still requires exact-head CI and real operational verification. GitHub
-Actions builds and tests but must not author commits as `github-actions[bot]`.
+## Start the server
 
-## What this repository contains
-
-The GitHub repository is intentionally runtime-facing.
-
-It contains:
-
-- MCP server/runtime code
-- HWPX/HWP parsing and edit modules
-- durable OAuth/document-custody code
-- tests and CI workflows
-- required fixtures
-- Windows/Hancom fidelity harnesses
-- concise operational documentation
-
-Historical phase ledgers, support packets, adjudication narratives, and long-form receipts are kept outside the runtime repository in the project Drive archive.
-
-## Main capabilities
-
-### Evidence-gated rare-feature lanes and recurring UX guard (P3.34)
-
-P3.34 does not silently promote every deferred native feature. It adds a
-machine-readable registry that separates feature ancestry, current authority,
-evidence requirements, and blocked semantics.
-
-Production discovery surfaces:
-
-- `get_rare_feature_registry`
-- `evaluate_rare_feature_lane`
-- `plan_rare_feature_promotion`
-- `get_product_ux_regression_contract`
-
-A promotion plan is only emitted after semantic contract, structural fixture,
-native open/resave or render evidence, family regression, and primary
-file-delivery regression are all present. The plan itself never changes
-editing authority.
-
-Known ambiguous semantics remain blocked even if callers claim all Boolean
-evidence. In particular, smart `hp:connectLine` authoring remains preserve-only
-because the available anchored native sample does not identify a reversible
-geometry/transform rule. Static P3.29 managed edges remain the production
-contract until stronger evidence exists.
-
-The P3.33 user experience is now a recurring regression obligation rather than
-a one-off milestone. Every production phase, and every plugin/package or host
-UX change, must recheck OAuth discovery, validated revision-bound HWPX
-delivery, download-byte receipt matching, and periodic Hancom open/resave
-sanity. Host attachment-card rendering and in-place chat tool-catalog refresh
-remain separately observed host behaviors.
-
-### Download an HWPX from a natural-language request (P3.33)
-
-The assistant translates the request into the existing P3.21 composition plan and
-calls `generate_document`. The call creates, validates, exports and returns a named
-`.hwpx` MCP resource link plus a clickable download link. `get_document_delivery_contract`
-includes the plan schema and recovery contract. No new document or graph engine is used.
-
-For existing documents, `edit_document_and_deliver` combines the existing atomic
-text/paragraph edits with delivery. All other native editing families retain their
-existing APIs; finish with `deliver_document`. Existing `export_document` also returns
-the file/link, with its prior JSON receipt fields retained in `structuredContent`.
-
-Downloads bind the document ID, revision, SHA-256 and expiry into a signed URL.
-They read immutable revision bytes from encrypted Postgres, not mutable cache files.
-Editing a document after export cannot silently change an already issued download.
-Links expire after 60–900 seconds and document deletion/retention still applies.
-Call `deliver_document` to renew a link; do not repeat an edit to repair delivery.
-If a write commits but delivery fails, the result explicitly reports `COMMITTED`
-and `RETRY_DELIVERY_ONLY` with the recoverable document ID and revision.
-
-MCP resource delivery, a successful HTTP attachment download, ChatGPT's native
-attachment rendering, and Hancom open/resave are separate evidence gates. The server
-does not claim the latter two were observed. Clients without resource-link UI can
-present the returned Markdown download link. See the
-[OpenAI plugin result contract](https://developers.openai.com/plugins/reference)
-for host result handling; no undocumented attachment metadata is invented.
-
-Rare native features remain in an independent capability/evidence lane exposed by
-the delivery contract. Promotion requires native evidence, family regressions and
-the primary delivery/OAuth/Docker gates. Optional Notion/Drive/GitHub integrations
-must not become dependencies of ordinary document creation or download.
-
-Skill-Workshop 2.4.4 routing used for this release: FORGE for bounded artifacts/tests,
-TRACE for actual capability use and delivery evidence. The runtime has no dependency
-on a developer's local `.agents` directory or external skills being installed.
-
-### Authenticated document lifecycle
-
-- OAuth-protected MCP transport
-- opaque document IDs
-- bounded HWPX ingestion
-- revision-safe mutation
-- durable revision lineage
-- signed export
-- semantic/structure/formatting receipts
-
-### ChatGPT-native HWPX creation
-
-- `get_document_plan_contract` exposes the declarative composition schema.
-- `validate_document_plan` checks a plan without creating bytes.
-- `create_document_from_plan` compiles an ordered block plan into one validated HWPX in a single atomic creation call.
-- blank-document and owned-template append modes
-- ordered paragraph/heading/list/table/equation/picture/page-break/section-break blocks
-- preset document setup and formatting
-- block-id references such as `$block:introduction` for bookmarks, cross-references and annotations
-- dependency ordering for setup, formatting, references, native TOC and annotations
-- idempotent replay through `request_id`
-- private-candidate build: failed plans never partially commit a document
-
-The language model remains responsible for deciding the document's content and structure. The MCP is the deterministic compiler/backend that turns that plan into HWPX.
-
-### HWPX editing
-
-- paragraphs and text
-- formatting and rich inline structure
-- fields, hyperlinks and bookmarks
-- tables
-- pictures/objects
-- equations
-- page-margin geometry with revision/CAS protection
-- paper size/orientation and section page setup
-- section creation/removal
-- header/footer stories and automatic page numbers
-- multi-column layout and page-number restart controls
-- native bullet/numbered lists and outline hierarchy
-- named-style application
-- table/picture/equation captions
-- bookmarks, page cross-references, and Hancom-native TOC fields
-- footnotes and endnotes
-- anchored review memos/comments
-- one- and two-level index marks
-- external hyperlinks and bookmark navigation
-- measured DATE/PATH/MAILMERGE/proofreading reference fields
-- bounded search/slice and bulk text plans
-
-### Legacy HWP 5.x
-
-- read-only native HWP parsing
-- common document IR
-- fidelity-graded extraction
-- provenance-preserving HWP→HWPX promotion where authority is sufficient
-
-### Hancom fidelity harness
-
-The repository includes a Windows/Hancom capture lane for renderer evidence.
-
-Current harness components include:
-
-- self-materialized near-wrap fixture packs
-- Hancom PDF export automation
-- controlled PDF rasterization and line-box extraction
-- artifact custody receipts
-- positive-sensitivity calibration ladders
-- font-file SHA-256 custody
-- cross-version environment isolation
-- cross-version boundary transport adjudication
-
-Fidelity authority is layered. Renderer-independent HWPX structural evidence is kept separate from renderer evidence. P3.16 established version-indexed exact authority for Hancom 13.0.0.3622 under the sealed environment; global cross-version promotion remains fail-closed until a second Hancom version is captured under the same non-renderer environment.
-
-P3.17-P3.22 turn that evidence into product behavior:
-
-- `get_production_fidelity_contract` exposes the current edit-class authority envelope.
-- `assess_edit_plan_fidelity` classifies a planned edit before mutation.
-- `get_document_fidelity_profile` composes document-specific structural receipts with the production contract.
-- `get_page_geometry` and `apply_page_geometry` expose revision-safe page-margin editing.
-- `get_document_setup` and `apply_document_setup` expose atomic paper/orientation, header/footer, page-number, section, and multi-column editing.
-- `get_structured_publishing` and `apply_structured_publishing` expose native lists, named styles, captions, bookmarks, page cross-references, TOC fields, and outline hierarchy.
-- Native TOC/CROSSREF authoring delegates to `python-hwpx.tools.toc_author`, whose contract is based on Hancom-authored gold documents; this repository owns the transaction, locator, custody, and regression layers rather than duplicating that field format.
-- `get_annotation_apparatus` and `apply_annotation_apparatus` expose footnotes/endnotes, memos, index marks, hyperlinks/bookmarks, and measured rich reference fields for academic/report publishing.
-- Annotation authoring delegates to public `python-hwpx` note/reference/field APIs where available; unsupported field grammars remain fail-closed rather than guessed.
-- `create_document_from_plan` is the high-level ChatGPT-native composition surface: the LLM supplies a declarative block plan and the MCP resolves block identities, dependency order, native objects, publishing fields, validation and atomic commit.
-- `get_review_workflow` and `apply_review_workflow` expose native tracked insert/delete/replace, CLICKHERE form fields, check boxes, highlights/proofreading marks, and document metadata through the same revision/CAS transaction boundary.
-- Review support is deliberately fail-closed: tracked-change accept/reject, tracking-only toggles/protection passwords, radio/command-button authoring, and document-history-part authoring are not guessed.
-- `get_advanced_tables` and `apply_advanced_table_edits` re-promote the earlier P2.7/P2.8 table primitives into a product layer with merge/split, row operations, width/height, borders/fills, vertical alignment, repeating headers, page-break state, and advanced-layout receipts. Arbitrary column insertion remains evidence-gated.
-- `get_story_layer` and `apply_story_layer` re-promote the P3.18 header/footer/page-number primitives into section-scoped story ownership: BOTH/EVEN/ODD variants, first-page visibility policy, variant page numbering, and section-boundary story configuration.
-- P3.24 does not invent a FIRST header/footer story. HWPX story variants remain BOTH/EVEN/ODD; first-page behavior is expressed through section visibility (`hideFirstHeader`, `hideFirstFooter`, `hideFirstPageNum`).
-- CI materializes document-level regression corpora for general editing, document setup, structured publishing, annotation apparatus, one-shot composition, review workflow, advanced tables, and section stories.
-
-## Local run
-
-Install runtime dependencies:
+**Requirements:** Python 3.12 recommended, a supported PostgreSQL database, and valid server-side authentication/encryption configuration. The public hosted endpoint is `https://chatgpt-web-hwpx-mcp-p0.onrender.com/mcp`; its Render hostname is historical and does not imply the code in this PR is live.
 
 ```bash
-pip install -r requirements.txt
-```
-
-Run the authenticated server with the required deployment secrets/environment variables:
-
-```bash
+python -m pip install -r requirements.txt
 python server_p2.py
 ```
 
-The canonical hosted service currently retains the historical Render hostname:
+The local command requires the deployment configuration documented by the runtime; do **not** hardcode OAuth passwords, signing keys, state encryption secrets or PostgreSQL credentials in code, tests, tool arguments or GitHub Actions logs. To connect ChatGPT, use the MCP endpoint with the configured OAuth flow; the browser-based human edit approval uses a separate authenticated host boundary.
+
+## Repository architecture
 
 ```text
-https://chatgpt-web-hwpx-mcp-p0.onrender.com
+ChatGPT-Web-HWPX-MCP/
+├── server.py, server_p2.py           # Protocol / production entrypoints
+├── auth_store.py, document_store.py # Core authenticated custody
+├── hwpx_mcp/
+│   ├── orchestration/               # Agent workflows, preview, staging
+│   ├── interfaces/                  # MCP tool registration facades
+│   ├── corpus/                      # Reusable corpus & style intelligence
+│   ├── document/                    # Native document parsing primitives
+│   └── probes/                      # Bounded external world-contact test CLIs
+├── tests/                            # Regression and boundary tests
+├── scripts/                          # Operational / compatibility tools
+├── benchmarks/, corpus/, fixtures/   # Evaluation and materialization inputs
+├── docs/                             # Architecture and extended catalog
+└── .github/workflows/                # Human-authored CI; no bot commits
 ```
 
-Secrets are deployment-only and are not stored in this repository.
+P4.19 is **migration-in-progress**: 110 Python modules remain at repository root in the current PR snapshot. These are mostly legacy feature implementations under active migration, **not retired functionality**. Move modules by ownership and import graph; do not merge semantically unrelated parsers, edit engines or renderer gates into a single monolithic file simply to reduce the count. See [Architecture and migration policy](docs/ARCHITECTURE.md).
 
-## Windows/Hancom replay
+## Development and verification
 
-Native Hancom replay is an evidence batch, not a requirement for every feature commit. Normal feature development and regression run in Python/Linux CI; Windows PowerShell is used only when a group of edit classes is ready for native-render certification or when renderer-specific behavior must be diagnosed.
-
-The completed P3.16 single-version stability runner is archived in the project Drive rather than kept on the active runtime surface. Its promoted authority remains recorded in the canonical Drive receipt.
-
-Cross-version reopening remains available through the P3.15 runner:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\p315_run_cross_version_replay.ps1
+```bash
+python -m pytest -q
+python scripts/p419_layout_audit.py
+python -m py_compile server.py server_p2.py
 ```
 
-The runner discovers installed `Hwp.exe` versions, freezes the same fixture bytes for both trials, cryptographically seals Windows font files before and after each replay, fresh-renders both Hancom versions, compares boundary transport, and emits a cross-version evidence ZIP.
+The layout audit checks test location, module relocation, import backlinks and workflow test paths. Product/kernel, PostgreSQL, exact-head Docker, Windows, full lifecycle and live Render checks are separate gates. Linux tests do **not** establish Hancom-native visual fidelity; renderer evidence requires controlled Windows/Hancom capture.
 
-If a second installation is not auto-detected, provide it explicitly:
+- **Source of truth:** [PRODUCT_AUTHORITY.md](PRODUCT_AUTHORITY.md), with phase evidence archived in the project Drive.
+- **Full feature inventory:** [docs/FEATURE_CATALOG.md](docs/FEATURE_CATALOG.md).
+- **Branch policy:** large filesystem/import migrations stay on Draft PRs until required gates pass; never rewrite unrelated history or delete branches implicitly.
+- **Commit policy:** GitHub Actions **tests and builds only**; commits are authored by the human-connected `WhoSia` GitHub identity, never `github-actions[bot]`.
+- **Release policy:** merge, native certification and production deployment are separate explicit decisions. No automatic promotion of HOLD evidence.
 
-```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\p315_run_cross_version_replay.ps1 -SecondHancomExe "C:\path\to\other\Hwp.exe"
-```
+## Current priorities
 
-Promotion remains closed unless the two trials have distinct Hancom versions/executable hashes while OS, machine, locale, DPI, rasterizer, fixture set, and cryptographic font-file custody all match.
-
-## CI
-
-The main lifecycle workflow compiles and tests the active HWPX/HWP runtime plus the renderer-fidelity adjudicators.
-
-The fidelity harness does not simulate Hancom world contact in Linux CI. Real Hancom renderer authority comes only from sealed Windows capture evidence.
-
-## Repository-record policy
-
-Keep GitHub product-facing.
-
-Do not add new phase-specific `*_TEST_LEDGER.md` files, historical support packets, or long-form phase diaries to this repository. Store those in the project Drive archive instead.
-
-Current product/phase authority is intentionally compacted into [`PRODUCT_AUTHORITY.md`](PRODUCT_AUTHORITY.md). Historical ledgers are preserved in Project Drive → `90_ARCHIVE` → `Repository Ledger Archive`.
-
-Raw world-contact artifacts should be preserved before adjudication.
+Product quality means users can ask for a useful document, make intelligible changes, and get an actually openable file. P4.19 prioritizes a single understandable workflow, safe durable edit/approval, expiry-aware document continuation, semantic preservation, verified delivery, and a maintainable package-first architecture. Byte counts are diagnostic signals, not the product goal.

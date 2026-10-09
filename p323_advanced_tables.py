@@ -14,7 +14,7 @@ from p28_tables import (
     apply_table_edits_atomic as apply_p28_table_edits_atomic,
     build_table_map as build_p28_table_map,
 )
-from p334r1_column_insertion import (
+from hwpx_mcp.document.p334r1_column_insertion import (
     apply_bounded_column_insertion,
     column_insertion_contract,
 )

@@ -8,7 +8,7 @@ on:
       - "scripts/p41_*"
       - "server_p2.py"
       - "Dockerfile"
-      - "test_client.py"
+      - "tests/test_client.py"
       - "scripts/verify_production_boundary.py"
       - ".github/workflows/p41-ci.yml"
       - ".github/workflows/p1-ci.yml"
@@ -24,8 +24,8 @@ jobs:
         with: {python-version: "3.12", cache: pip}
       - run: pip install -r requirements.txt -r requirements-dev.txt
       - run: |
-          python -m compileall -q p41_operational.py p41_mcp.py test_p41_operational.py test_p41_mcp.py scripts/p41_baseline.py scripts/p41_compatibility_probe.py scripts/p41_release_smoke.py
-          python -m pytest -q test_p41_operational.py test_p41_mcp.py
+          python -m compileall -q p41_operational.py p41_mcp.py tests/test_p41_operational.py tests/test_p41_mcp.py scripts/p41_baseline.py scripts/p41_compatibility_probe.py scripts/p41_release_smoke.py
+          python -m pytest -q tests/test_p41_operational.py tests/test_p41_mcp.py
           python scripts/p41_release_smoke.py
           python scripts/p41_baseline.py --out p41-baseline.json --samples 2
       - uses: actions/upload-artifact@v4

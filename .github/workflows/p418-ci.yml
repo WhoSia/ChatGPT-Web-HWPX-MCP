@@ -7,13 +7,13 @@ on:
       - "p418_*.py"
       - "p419_*.py"
       - "tests/test_p419_*.py"
-      - "test_p418_*.py"
+      - "tests/test_p418_*.py"
       - "tests/test_p418_p2_*.py"
       - "tests/test_p418_p3_*.py"
       - "hwpx_mcp/**"
-      - "p417_mcp.py"
+      - "hwpx_mcp/interfaces/p417_mcp.py"
       - "server_p2.py"
-      - "test_client.py"
+      - "tests/test_client.py"
       - "Dockerfile"
       - ".github/workflows/p418-ci.yml"
   pull_request:
@@ -21,7 +21,7 @@ on:
       - "p418_*.py"
       - "p419_*.py"
       - "tests/test_p419_*.py"
-      - "test_p418_*.py"
+      - "tests/test_p418_*.py"
       - ".github/workflows/p418-ci.yml"
       - "hwpx_mcp/**"
       - "tests/test_p418_p2_*.py"
@@ -46,9 +46,9 @@ jobs:
       - name: Install dependencies
         run: python -m pip install -r requirements.txt -r requirements-dev.txt
       - name: Compile P4.18 product facade
-        run: python -m py_compile p418_product.py p418_mcp.py hwpx_mcp/orchestration/p418_p2_workflow.py hwpx_mcp/orchestration/p418_p2_preview.py hwpx_mcp/orchestration/p418_p2_admission.py hwpx_mcp/orchestration/p418_p3_host_consent.py hwpx_mcp/orchestration/p418_p3_execution.py hwpx_mcp/orchestration/p418_p3_commit_verifier.py hwpx_mcp/orchestration/p418_p3_release_gate.py hwpx_mcp/orchestration/p418_p3_owned_commit_bridge.py hwpx_mcp/orchestration/p418_p3_native_edit_bridge.py hwpx_mcp/orchestration/p418_p3_review_packet.py hwpx_mcp/orchestration/p418_p3_review_store.py hwpx_mcp/orchestration/p418_p3_host_approval.py hwpx_mcp/orchestration/p418_p3_host_routes.py p417_mcp.py p419_workspace.py p419_change_flow.py server_p2.py
+        run: python -m py_compile p418_product.py hwpx_mcp/interfaces/p418_mcp.py hwpx_mcp/orchestration/p418_p2_workflow.py hwpx_mcp/orchestration/p418_p2_preview.py hwpx_mcp/orchestration/p418_p2_admission.py hwpx_mcp/orchestration/p418_p3_host_consent.py hwpx_mcp/orchestration/p418_p3_execution.py hwpx_mcp/orchestration/p418_p3_commit_verifier.py hwpx_mcp/orchestration/p418_p3_release_gate.py hwpx_mcp/orchestration/p418_p3_owned_commit_bridge.py hwpx_mcp/orchestration/p418_p3_native_edit_bridge.py hwpx_mcp/orchestration/p418_p3_review_packet.py hwpx_mcp/orchestration/p418_p3_review_store.py hwpx_mcp/orchestration/p418_p3_host_approval.py hwpx_mcp/orchestration/p418_p3_host_routes.py hwpx_mcp/interfaces/p417_mcp.py hwpx_mcp/orchestration/p419_product.py server_p2.py
       - name: P4.18 product task tests
-        run: python -m pytest -q test_p418_product.py tests/test_p418_p2_workflow.py tests/test_p418_p2_preview.py tests/test_p418_p2_staging.py tests/test_p418_p3_host_consent.py tests/test_p418_p3_execution.py tests/test_p418_p3_commit_verifier.py tests/test_p418_p3_release_gate.py tests/test_p418_p3_owned_commit_bridge.py tests/test_p418_p3_ledger_hotpath.py tests/test_p418_p3_native_edit_bridge.py tests/test_p418_p3_review_packet.py tests/test_p418_p3_host_approval.py tests/test_p418_p3_host_routes.py tests/test_p419_workspace.py tests/test_p419_change_flow.py test_p417_planner.py test_p417_executor.py
+        run: python -m pytest -q tests/test_p418_product.py tests/test_p418_p2_workflow.py tests/test_p418_p2_preview.py tests/test_p418_p2_staging.py tests/test_p418_p3_host_consent.py tests/test_p418_p3_execution.py tests/test_p418_p3_commit_verifier.py tests/test_p418_p3_release_gate.py tests/test_p418_p3_owned_commit_bridge.py tests/test_p418_p3_ledger_hotpath.py tests/test_p418_p3_native_edit_bridge.py tests/test_p418_p3_review_packet.py tests/test_p418_p3_host_approval.py tests/test_p418_p3_host_routes.py tests/test_p419_workspace.py tests/test_p419_change_flow.py tests/test_p417_planner.py tests/test_p417_executor.py
 
   p2-postgres-admission:
     runs-on: ubuntu-latest
@@ -88,6 +88,6 @@ jobs:
         run: docker build --progress=plain -t hwpx-mcp-p418:${{ github.sha }} .
       - name: Verify packaged production host imports
         run: |
-          docker run --rm --entrypoint python hwpx-mcp-p418:${{ github.sha }} -c "import hwpx_mcp.orchestration.p418_p2_workflow; import hwpx_mcp.orchestration.p418_p3_review_store; import hwpx_mcp.orchestration.p418_p3_host_approval; import hwpx_mcp.orchestration.p418_p3_host_routes; import p418_mcp; import p419_workspace; import p419_change_flow; print('P4.18 production host Python imports PASS')"
+          docker run --rm --entrypoint python hwpx-mcp-p418:${{ github.sha }} -c "import hwpx_mcp.orchestration.p418_p2_workflow; import hwpx_mcp.orchestration.p418_p3_review_store; import hwpx_mcp.orchestration.p418_p3_host_approval; import hwpx_mcp.orchestration.p418_p3_host_routes; import hwpx_mcp.interfaces.p418_mcp; import hwpx_mcp.orchestration.p419_product; print('P4.18 production host Python imports PASS')"
       - name: Verify P4.18 product contract and release identity
         run: docker run --rm --entrypoint python hwpx-mcp-p418:${{ github.sha }} -c "from pathlib import Path; from p418_product import document_agent_contract; c=document_agent_contract(); assert c['phase']=='P4.18' and c['product']=='0.43.0-p4.18' and c['product_goal']=='ONE_PRIMARY_TASK_SURFACE_OVER_VERIFIED_EXISTING_HWPX_CAPABILITIES'; s=Path('/app/server_p2.py').read_text(encoding='utf-8'); assert 'P2_VERSION = \"0.43.0-p4.18\"' in s and 'core.PHASE = \"P4.18\"' in s; print('P4.18 product facade Docker PASS')"

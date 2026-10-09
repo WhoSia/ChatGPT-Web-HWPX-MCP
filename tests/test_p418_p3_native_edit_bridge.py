@@ -172,7 +172,7 @@ def test_real_hwpx_native_title_edit_commits_and_does_not_repeat(tmp_path):
     """Runs the native P4.17 engine on actual HWPX ZIP bytes, not a mock edit."""
     import hashlib
     import zipfile
-    from p417_mcp import execute_owned_intent_transformation
+    from hwpx_mcp.interfaces.p417_mcp import execute_owned_intent_transformation
     from p2_document import build_document_map
 
     path = tmp_path / "actual.hwpx"

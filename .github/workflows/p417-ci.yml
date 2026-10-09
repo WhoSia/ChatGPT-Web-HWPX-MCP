@@ -5,12 +5,12 @@ on:
     branches: [main]
     paths:
       - "p417_*.py"
-      - "test_p417_*.py"
+      - "tests/test_p417_*.py"
       - "scripts/p417_*.py"
       - "benchmarks/p417_*"
       - ".github/workflows/p417-ci.yml"
       - "server_p2.py"
-      - "test_client.py"
+      - "tests/test_client.py"
       - "Dockerfile"
   workflow_dispatch:
 
@@ -32,9 +32,9 @@ jobs:
       - name: Install dependencies
         run: python -m pip install -r requirements.txt -r requirements-dev.txt
       - name: Compile P4.17 corpus kernel
-        run: python -m py_compile p417_corpus.py p417_semantics.py p417_planner.py p417_executor.py p417_mcp.py scripts/p417_acquire_corpus.py
+        run: python -m py_compile p417_corpus.py p417_semantics.py p417_planner.py p417_executor.py hwpx_mcp/interfaces/p417_mcp.py scripts/p417_acquire_corpus.py
       - name: P4.17 corpus intelligence tests
-        run: python -m pytest -q test_p417_corpus.py test_p417_semantics.py test_p417_planner.py test_p417_executor.py
+        run: python -m pytest -q tests/test_p417_corpus.py tests/test_p417_semantics.py tests/test_p417_planner.py tests/test_p417_executor.py
 
   live-official-corpus:
     # P4.17-P1 is HOLD-CLOSED. Keep the frozen 4-doc / 2-institution

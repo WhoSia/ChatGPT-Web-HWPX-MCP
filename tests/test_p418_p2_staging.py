@@ -4,7 +4,7 @@ from types import SimpleNamespace
 
 import pytest
 
-import p418_mcp
+from hwpx_mcp.interfaces import p418_mcp
 from hwpx_mcp.orchestration.p418_p2_workflow import compile_workflow
 from hwpx_mcp.orchestration.p418_p2_preview import preview_workflow
 from hwpx_mcp.orchestration.p418_p2_admission import AdmissionError

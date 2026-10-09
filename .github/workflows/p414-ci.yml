@@ -7,14 +7,14 @@ on:
       - "p414_*"
       - "p414_evidence_store.sql"
       - "test_p414_*"
-      - "test_p335_registry_atlas.py"
+      - "tests/test_p335_registry_atlas.py"
       - "scripts/p414_*"
       - "benchmarks/p414_*"
       - "server.py"
       - "durable_health.py"
-      - "test_durable_health.py"
+      - "tests/test_durable_health.py"
       - "server_p2.py"
-      - "test_client.py"
+      - "tests/test_client.py"
       - "Dockerfile"
       - "scripts/verify_production_boundary.py"
       - ".github/workflows/p414-ci.yml"
@@ -49,8 +49,8 @@ jobs:
           python-version: "3.12"
           cache: pip
       - run: pip install -r requirements.txt -r requirements-dev.txt
-      - run: python -m compileall -q durable_health.py test_durable_health.py server.py p414_evidence_service.py p414_evidence_store.py p414_mcp.py test_p414_production_boundary.py test_p414_evidence_service.py test_p414_evidence_store.py test_p414_docker_layer_budget.py scripts/verify_production_boundary.py scripts/p414_release_smoke.py scripts/p414_materialize_release_evidence.py scripts/p414_materialize_capture_job.py scripts/p414_sign_receipt.py
-      - run: python -m pytest -q test_durable_health.py test_p414_production_boundary.py test_p414_evidence_service.py test_p414_evidence_store.py test_p414_docker_layer_budget.py
+      - run: python -m compileall -q durable_health.py tests/test_durable_health.py server.py p414_evidence_service.py p414_evidence_store.py hwpx_mcp/interfaces/p414_mcp.py tests/test_p414_production_boundary.py tests/test_p414_evidence_service.py tests/test_p414_evidence_store.py tests/test_p414_docker_layer_budget.py scripts/verify_production_boundary.py scripts/p414_release_smoke.py scripts/p414_materialize_release_evidence.py scripts/p414_materialize_capture_job.py scripts/p414_sign_receipt.py
+      - run: python -m pytest -q tests/test_durable_health.py tests/test_p414_production_boundary.py tests/test_p414_evidence_service.py tests/test_p414_evidence_store.py tests/test_p414_docker_layer_budget.py
       - run: python scripts/p414_release_smoke.py
       - run: python scripts/p414_materialize_release_evidence.py --out /tmp/p414-release-evidence --exact-head ${{ github.sha }}
       - uses: actions/upload-artifact@v4
@@ -129,7 +129,7 @@ jobs:
           cat /tmp/p414-health.json
           python -c "import json; x=json.load(open('/tmp/p414-health.json')); assert x['phase'] in {'P4.14','P4.15','P4.16','P4.17','P4.18'} and x['version'] in {'0.39.0-p4.14','0.40.0-p4.15','0.41.0-p4.16','0.42.0-p4.17','0.43.0-p4.18'} and x['p414_evidence']['durable_store_reachable'] is True"
       - name: Full OAuth and MCP lifecycle
-        run: python test_client.py
+        run: python tests/test_client.py
       - if: always()
         run: cat /tmp/p414-server.log
 

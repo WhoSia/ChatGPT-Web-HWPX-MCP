@@ -10,7 +10,7 @@ from typing import Any, Callable, Mapping
 
 from p22_formatting import apply_formatting_atomic
 from p2_document import build_document_map
-from p335_atlas import compile_template
+from hwpx_mcp.corpus.p335_atlas import compile_template
 from p342_mutation_footprint import build_mutation_footprint, enforce_preservation_grade
 
 POLICY_SCHEMA = "chatgpt-web-hwpx-mcp/p3.43/organization-design-policy/v1"

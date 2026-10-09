@@ -4,7 +4,7 @@ import base64
 
 import pytest
 
-from p48_components import (
+from hwpx_mcp.rendering.p48_components import (
     component_authoring_contract,
     compile_document_components,
     distribution_quickstart_contract,

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from p48_components import compile_document_components
+from hwpx_mcp.rendering.p48_components import compile_document_components
 from p49_visual_conformance import (
     ISSUE_KPI_CHILD_OUTSIDE_CONTAINER,
     ISSUE_VISUAL_CHILD_OUTSIDE_CONTAINER,

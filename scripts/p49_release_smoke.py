@@ -10,7 +10,7 @@ from hwpx.tools.package_validator import validate_editor_open_safety
 
 from p321_document_composer import compose_document_plan
 from hwpx_mcp.rendering.p47_native_authoring import compile_unified_authoring_plan
-from p48_components import compile_document_components
+from hwpx_mcp.rendering.p48_components import compile_document_components
 from hwpx_mcp.interfaces.p48_mcp import _execute_bar_chart, _execute_kpi_strip
 from hwpx_mcp.quality.p49_equation_witnesses import alignment_witness_contract, adjudicate_alignment_witness
 from p49_visual_conformance import audit_materialized_visuals, certify_visual_plans

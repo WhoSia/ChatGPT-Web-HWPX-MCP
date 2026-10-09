@@ -8,7 +8,7 @@ import tempfile
 from pathlib import Path
 from typing import Any, Callable
 
-from p325_drawing_layer import (
+from hwpx_mcp.document.p325_drawing_layer import (
     build_drawing_layer_map,
     _find_node,
     _mutate_section,

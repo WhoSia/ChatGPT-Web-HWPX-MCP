@@ -85,7 +85,7 @@ def materialize_p327_regression_corpus(out_dir: Path) -> dict:
             )
             mapped = build_diagram_composition_map(target)
             locs = [item["locator"] for item in mapped["top_level_objects"] if item["kind"] == "ellipse"]
-            from p325_drawing_layer import _mutate_section, _find_node, HP
+            from hwpx_mcp.document.p325_drawing_layer import _mutate_section, _find_node, HP
             for index, locator in enumerate(locs):
                 item = next(x for x in build_diagram_composition_map(target)["top_level_objects"] if x["locator"] == locator)
                 def mutate(root, item=item, index=index):

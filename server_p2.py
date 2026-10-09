@@ -64,7 +64,7 @@ from hwpx_mcp.document.p324_story_layer import (
     build_story_layer_map,
     apply_story_layer_atomic,
 )
-from p325_drawing_layer import (
+from hwpx_mcp.document.p325_drawing_layer import (
     drawing_layer_contract,
     build_drawing_layer_map,
     apply_drawing_layer_atomic,

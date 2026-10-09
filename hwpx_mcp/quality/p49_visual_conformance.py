@@ -6,7 +6,7 @@ import math
 from pathlib import Path
 from typing import Any
 
-from p325_drawing_layer import build_drawing_layer_map
+from hwpx_mcp.document.p325_drawing_layer import build_drawing_layer_map
 
 PHASE = "P4.9"
 SCHEMA = "chatgpt-web-hwpx-mcp/visual-conformance/p4.9/v1"

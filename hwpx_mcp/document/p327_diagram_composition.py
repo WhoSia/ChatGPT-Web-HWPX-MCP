@@ -14,7 +14,7 @@ from hwpx.oxml import ContainerMember
 
 from p28_tables import _save_document
 from p29_objects import _resolve_paragraph
-from p325_drawing_layer import (
+from hwpx_mcp.document.p325_drawing_layer import (
     HP,
     DRAWING_TAGS,
     build_drawing_layer_map,

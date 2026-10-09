@@ -116,7 +116,7 @@ class FileDeliveryTests(unittest.TestCase):
         receipt = self.generate()
         url = receipt["download_url"]
         self.assertEqual(self.download(url.replace("rev=1", "rev=2")).status_code, 403)
-        with patch("p333_file_delivery.time.time", return_value=time.time() + 1000):
+        with patch("hwpx_mcp.delivery.p333_file_delivery.time.time", return_value=time.time() + 1000):
             self.assertEqual(self.download(url).status_code, 410)
         with patch.object(core, "_caller_subject", return_value="other"):
             with self.assertRaises(PermissionError):

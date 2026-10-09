@@ -21,10 +21,10 @@ GENERATOR_INPUTS = (
     "benchmarks/authorbench_a1.py",
     "benchmarks/authorbench_a2.py",
     "benchmarks/authorbench_a2_p340_evaluation.py",
-    "p340_feedback_loop.py",
-    "p339_design_intelligence.py",
-    "p338_rich_builder.py",
-    "p321_document_composer.py",
+    "hwpx_mcp/orchestration/p340_feedback_loop.py",
+    "hwpx_mcp/orchestration/p339_design_intelligence.py",
+    "hwpx_mcp/orchestration/p338_rich_builder.py",
+    "hwpx_mcp/document/p321_document_composer.py",
 )
 
 

@@ -17,7 +17,8 @@ class PortableCaptureRuntimeTests(unittest.TestCase):
     def test_preserves_package_tree_and_imports_from_isolated_pack(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            (root / "capture_runtime.py").write_text("# fixture\n", encoding="utf-8")
+            (root / "hwpx_mcp" / "custody").mkdir(parents=True)
+            (root / "hwpx_mcp" / "custody" / "capture_runtime.py").write_text("# fixture\n", encoding="utf-8")
             (root / "scripts").mkdir()
             (root / "scripts" / "probe.py").write_text("from hwpx_mcp.document.sample import value\n", encoding="utf-8")
             module_dir = root / "hwpx_mcp" / "document"
@@ -30,7 +31,7 @@ class PortableCaptureRuntimeTests(unittest.TestCase):
             pack = root / "pack"
             pack.mkdir()
 
-            with patch.object(capture_runtime, "__file__", str(root / "capture_runtime.py")):
+            with patch.object(capture_runtime, "__file__", str(root / "hwpx_mcp" / "custody" / "capture_runtime.py")):
                 receipt = capture_runtime.attach_capture_runtime(pack)
 
             manifest_path = pack / "runtime-manifest.json"

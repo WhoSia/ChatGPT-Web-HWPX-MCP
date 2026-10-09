@@ -6,6 +6,8 @@ on:
     paths:
       - "benchmarks/authorbench_a2.py"
       - "benchmarks/authorbench_a2_p340_evaluation.py"
+      - "benchmarks/authorbench_a1_human_review.json"
+      - "tests/test_authorbench_a2_evidence_contract.py"
       - "p340r1_capture_pack.py"
       - "tests/test_p340r1_capture_pack.py"
       - "scripts/p340r1_*.py"
@@ -38,6 +40,8 @@ jobs:
         run: python benchmarks/authorbench_a1.py
       - name: Generate fresh A2 only after P3.40 implementation validation
         run: python benchmarks/authorbench_a2.py
+      - name: Validate frozen A1 independent evidence authorities
+        run: python -m unittest discover -s tests -p test_authorbench_a2_evidence_contract.py -v
       - name: Evaluate A1 vs fresh A2 and controlled repair probe
         run: python benchmarks/authorbench_a2_p340_evaluation.py
       - name: Validate P3.40-R1 capture-pack contract

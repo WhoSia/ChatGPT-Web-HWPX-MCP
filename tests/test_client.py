@@ -28,7 +28,7 @@ from mcp.shared.auth import OAuthClientInformationFull, OAuthClientMetadata, OAu
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from hwpx_mcp.evidence.p414_evidence_service import PRODUCT as P414_PRODUCT, SCHEMA as P414_SCHEMA, canonical_json as p414_canonical_json, canonical_sha256 as p414_canonical_sha256
-from p415_authority import PRODUCT as P415_PRODUCT
+from hwpx_mcp.evidence.p415_authority import PRODUCT as P415_PRODUCT
 from p416_generation_manifest import PRODUCT as P416_PRODUCT
 from p417_corpus import PRODUCT as P417_PRODUCT
 from p418_product import PRODUCT as P418_PRODUCT

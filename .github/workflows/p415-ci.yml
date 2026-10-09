@@ -31,7 +31,7 @@ jobs:
           python-version: "3.12"
           cache: pip
       - run: pip install -r requirements.txt -r requirements-dev.txt
-      - run: python -m compileall -q p415_authority.py hwpx_mcp/interfaces/p415_mcp.py tests/test_p415_authority.py scripts/p415_release_smoke.py scripts/p415_materialize_release_authority.py scripts/p415_finalize_release_authority.py
+      - run: python -m compileall -q hwpx_mcp/evidence/p415_authority.py hwpx_mcp/interfaces/p415_mcp.py tests/test_p415_authority.py scripts/p415_release_smoke.py scripts/p415_materialize_release_authority.py scripts/p415_finalize_release_authority.py
       - run: python -m pytest -q tests/test_p415_authority.py
       - run: python scripts/p415_release_smoke.py
       - run: python scripts/p415_materialize_release_authority.py --out /tmp/p415-authority --exact-head ${{ github.sha }} --ci-pass

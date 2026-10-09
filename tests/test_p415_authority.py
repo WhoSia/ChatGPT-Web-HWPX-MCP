@@ -1,6 +1,6 @@
 from copy import deepcopy
 
-from p415_authority import (
+from hwpx_mcp.evidence.p415_authority import (
     PARENT_HEAD,
     PRODUCT,
     build_graph,
@@ -81,7 +81,7 @@ def test_uncertified_or_digest_mismatched_rollback_denied():
 
 
 def test_dangling_or_tampered_edge_fails():
-    from p415_authority import canonical_sha256, make_edge
+    from hwpx_mcp.evidence.p415_authority import canonical_sha256, make_edge
     graph = machine_graph()
     graph["edges"] = [make_edge("head", "missing-node", "DEPENDS_ON")]
     graph["graph_sha256"] = canonical_sha256({k: v for k, v in graph.items() if k != "graph_sha256"})

@@ -7,7 +7,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from p415_authority import (
+from hwpx_mcp.evidence.p415_authority import (
     PRODUCT,
     build_graph,
     canonical_sha256,

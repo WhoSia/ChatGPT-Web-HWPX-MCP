@@ -11,6 +11,8 @@ on:
       - "hwp5_reader.py"
       - "common_ir.py"
       - "server_p2.py"
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 permissions:

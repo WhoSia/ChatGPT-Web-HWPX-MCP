@@ -20,6 +20,17 @@ merely to understand the state of a document. It never grants mutation
 authority, refreshes expired documents, or claims that a SHA or byte difference
 proves visual/text preservation.
 
+A second P4.19 vertical slice is `prepare_document_title_change(document_id,
+expected_revision, new_title)`: one MCP call performs **server-side compile →
+preview → durable STAGE** for a title edit, and returns the independent human
+review URL and expiry. ChatGPT can map a natural-language title change into
+these typed inputs without requiring the user to manually compose three tool
+payloads. The stage is **not an approval or a mutation**: the human must review
+and approve separately in the browser. The first release supports only a
+single `TITLE` role change and refuses stale revisions, unsupported/invalid
+title text, ownership mismatch and documents with less than 15 minutes left.
+No broader free-form editing capability is implied.
+
 The planned product architecture separates four public-facing experiences:
 
 | User experience | Product responsibility | Release boundary |

@@ -1,4 +1,4 @@
-from p46_native_authoring import (
+from hwpx_mcp.rendering.p46_native_authoring import (
     audit_equation_latex,
     compile_native_authoring_bundle,
     equation_capability_matrix,

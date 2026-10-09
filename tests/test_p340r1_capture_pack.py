@@ -5,7 +5,7 @@ import unittest
 import zipfile
 from pathlib import Path
 
-from p340r1_capture_pack import deterministic_zip, sha256_file, validate_complete, verify_fixture, write_json
+from hwpx_mcp.custody.p340r1_capture_pack import deterministic_zip, sha256_file, validate_complete, verify_fixture, write_json
 
 
 class P340R1CapturePackTests(unittest.TestCase):

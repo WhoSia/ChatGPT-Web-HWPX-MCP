@@ -12,8 +12,8 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from hwpx import HwpxDocument
-from p22_formatting import build_formatting_map
-from p334r2_package_validation import validate_hwpx_package_light
+from hwpx_mcp.document.p22_formatting import build_formatting_map
+from hwpx_mcp.document.p334r2_package_validation import validate_hwpx_package_light
 
 CASES = [
     {"id":"spacing-neg50","kind":"spacing","value":-50,"text":"자간 경계 음수 ABC 漢字"},
@@ -44,7 +44,7 @@ def main()->int:
         shutil.rmtree(root)
     root.mkdir(parents=True,exist_ok=True)
 
-    from capture_runtime import attach_capture_runtime
+    from hwpx_mcp.custody.capture_runtime import attach_capture_runtime
     attach_capture_runtime(root)
 
     manifest={

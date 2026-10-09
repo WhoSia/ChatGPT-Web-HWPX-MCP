@@ -9,10 +9,10 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from p2_document import build_document_map
-from p28_tables import build_table_map
-from p321_document_composer import compose_document_plan
-from p338_rich_builder import compile_rich_document_plan, evaluate_preview_readiness
+from hwpx_mcp.document.p2_document import build_document_map
+from hwpx_mcp.document.p28_tables import build_table_map
+from hwpx_mcp.document.p321_document_composer import compose_document_plan
+from hwpx_mcp.orchestration.p338_rich_builder import compile_rich_document_plan, evaluate_preview_readiness
 
 OUT = Path("artifacts/authorbench-a1-generative-ai-science.hwpx")
 RECEIPT = Path("artifacts/authorbench-a1-receipt.json")

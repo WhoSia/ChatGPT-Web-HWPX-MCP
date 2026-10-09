@@ -7,7 +7,7 @@ from typing import Any, Callable, Mapping, Sequence
 
 from mcp.types import ToolAnnotations
 
-from p347_supply_chain_bridge import (
+from hwpx_mcp.extensions.p347_supply_chain_bridge import (
     compare_host_conformance,
     compare_reproducible_builds,
     certify_extension_package,
@@ -19,7 +19,7 @@ from p347_supply_chain_bridge import (
     verify_certificate,
     verify_dependency_closure,
 )
-from p347_trust import normalize_trust_policy
+from hwpx_mcp.extensions.p347_trust import normalize_trust_policy
 
 
 @dataclass(frozen=True)

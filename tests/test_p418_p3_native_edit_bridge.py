@@ -173,7 +173,7 @@ def test_real_hwpx_native_title_edit_commits_and_does_not_repeat(tmp_path):
     import hashlib
     import zipfile
     from hwpx_mcp.interfaces.p417_mcp import execute_owned_intent_transformation
-    from p2_document import build_document_map
+    from hwpx_mcp.document.p2_document import build_document_map
 
     path = tmp_path / "actual.hwpx"
     body = """<?xml version="1.0" encoding="UTF-8"?>

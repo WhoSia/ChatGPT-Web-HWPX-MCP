@@ -9,14 +9,14 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from p2_document import build_document_map
-from p22_formatting import build_formatting_map
-from p28_tables import build_table_map
-from p336r2_design import paragraph_features_from_hwpx, infer_presentation_roles
-from p321_document_composer import compose_document_plan
-from p338_rich_builder import compile_rich_document_plan, evaluate_preview_readiness
-from p339_design_intelligence import prepare_authoring_strategy
-from p340_feedback_loop import (
+from hwpx_mcp.document.p2_document import build_document_map
+from hwpx_mcp.document.p22_formatting import build_formatting_map
+from hwpx_mcp.document.p28_tables import build_table_map
+from hwpx_mcp.orchestration.p336r2_design import paragraph_features_from_hwpx, infer_presentation_roles
+from hwpx_mcp.document.p321_document_composer import compose_document_plan
+from hwpx_mcp.orchestration.p338_rich_builder import compile_rich_document_plan, evaluate_preview_readiness
+from hwpx_mcp.orchestration.p339_design_intelligence import prepare_authoring_strategy
+from hwpx_mcp.orchestration.p340_feedback_loop import (
     apply_document_design_repairs_atomic,
     content_aware_column_widths,
     diagnose_document_with_render,

@@ -5,23 +5,23 @@ import json
 
 from mcp.types import ToolAnnotations
 
-from p2_document import build_document_map
-from p22_formatting import build_formatting_map
-from p24_inline import build_inline_map
-from p28_tables import apply_table_edits_atomic, build_table_map
-from p29_objects import build_object_map
-from p210_equations import apply_equation_edits_atomic, build_equation_map
-from p321_document_composer import compose_document_plan
-from p325_drawing_layer import apply_drawing_layer_atomic, build_drawing_layer_map
-from p326_drawing_style import apply_drawing_style_atomic, build_drawing_style_map
-from p338_rich_builder import evaluate_preview_readiness
-from p46_native_authoring import compile_native_authoring_bundle
-from p47_native_authoring import compile_unified_authoring_plan as compile_unified_authoring_plan_kernel
-from p49_visual_conformance import audit_materialized_visuals, certify_visual_plans
-from p411_visual_oracle import structural_region_provenance_from_audit
-from p412_native_repair import audit_repaired_visuals, execute_repaired_visual_plans
-from p416_generation_manifest import build_authoring_generation_manifest
-from p48_components import (
+from hwpx_mcp.document.p2_document import build_document_map
+from hwpx_mcp.document.p22_formatting import build_formatting_map
+from hwpx_mcp.document.p24_inline import build_inline_map
+from hwpx_mcp.document.p28_tables import apply_table_edits_atomic, build_table_map
+from hwpx_mcp.document.p29_objects import build_object_map
+from hwpx_mcp.document.p210_equations import apply_equation_edits_atomic, build_equation_map
+from hwpx_mcp.document.p321_document_composer import compose_document_plan
+from hwpx_mcp.document.p325_drawing_layer import apply_drawing_layer_atomic, build_drawing_layer_map
+from hwpx_mcp.document.p326_drawing_style import apply_drawing_style_atomic, build_drawing_style_map
+from hwpx_mcp.orchestration.p338_rich_builder import evaluate_preview_readiness
+from hwpx_mcp.rendering.p46_native_authoring import compile_native_authoring_bundle
+from hwpx_mcp.rendering.p47_native_authoring import compile_unified_authoring_plan as compile_unified_authoring_plan_kernel
+from hwpx_mcp.quality.p49_visual_conformance import audit_materialized_visuals, certify_visual_plans
+from hwpx_mcp.rendering.p411_visual_oracle import structural_region_provenance_from_audit
+from hwpx_mcp.rendering.p412_native_repair import audit_repaired_visuals, execute_repaired_visual_plans
+from hwpx_mcp.evidence.p416_generation_manifest import build_authoring_generation_manifest
+from hwpx_mcp.rendering.p48_components import (
     component_authoring_contract,
     compile_document_components as compile_document_components_kernel,
     distribution_quickstart_contract,

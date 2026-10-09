@@ -9,7 +9,7 @@ from pathlib import Path
 
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 
-from p412_native_repair import PRODUCT, defect_eradication_contract
+from hwpx_mcp.rendering.p412_native_repair import PRODUCT, defect_eradication_contract
 from scripts.p48_component_benchmark import run as run_component_benchmark
 
 def _sha(path: Path) -> str:

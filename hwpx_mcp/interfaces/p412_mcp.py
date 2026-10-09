@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from mcp.types import ToolAnnotations
 
-from p412_native_repair import (
+from hwpx_mcp.rendering.p412_native_repair import (
     causal_localization,
     compile_repaired_visual_payload,
     defect_eradication_contract,

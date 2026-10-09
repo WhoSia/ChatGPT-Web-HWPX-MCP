@@ -9,8 +9,8 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from p340r1_capture_pack import sha256_file
-from p341r1_capture_pack import (
+from hwpx_mcp.custody.p340r1_capture_pack import sha256_file
+from hwpx_mcp.custody.p341r1_capture_pack import (
     FIXTURES,
     FROZEN_BENCHMARK_COMMIT,
     FROZEN_MATERIALIZATION_METHOD,

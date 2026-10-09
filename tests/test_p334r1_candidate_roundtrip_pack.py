@@ -6,7 +6,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from p323_advanced_tables import build_advanced_table_map
+from hwpx_mcp.document.p323_advanced_tables import build_advanced_table_map
 
 
 def test_candidate_roundtrip_materializer_builds_three_structurally_valid_outputs(tmp_path: Path):

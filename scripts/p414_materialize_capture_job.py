@@ -11,7 +11,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from p414_evidence_service import PRODUCT, canonical_sha256, validate_capture_job
+from hwpx_mcp.evidence.p414_evidence_service import PRODUCT, canonical_sha256, validate_capture_job
 
 
 def materialize(*, source_root: Path, output_target: Path, exact_head: str, out: Path, ttl_hours: int = 4) -> dict:

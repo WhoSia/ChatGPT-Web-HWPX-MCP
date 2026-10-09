@@ -4,11 +4,11 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from p2_document import build_document_map
-from p22_formatting import build_formatting_map
-from p28_tables import build_table_map
-from p321_document_composer import compose_document_plan
-from p340_feedback_loop import (
+from hwpx_mcp.document.p2_document import build_document_map
+from hwpx_mcp.document.p22_formatting import build_formatting_map
+from hwpx_mcp.document.p28_tables import build_table_map
+from hwpx_mcp.document.p321_document_composer import compose_document_plan
+from hwpx_mcp.orchestration.p340_feedback_loop import (
     apply_document_design_repairs_atomic,
     apply_nested_paragraph_alignment_atomic,
     compare_design_diagnostics,

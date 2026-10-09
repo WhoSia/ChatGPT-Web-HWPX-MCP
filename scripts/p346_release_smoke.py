@@ -8,7 +8,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from hwpx_mcp.interfaces.p346_mcp import AdapterRegistry
-from p346_platform_bridge import (
+from hwpx_mcp.extensions.p346_platform_bridge import (
     platform_contract,
     project_tools,
     validate_composition,

@@ -4,13 +4,13 @@ on:
     branches: [main]
     paths:
       - "p42_*"
-      - "p41_operational.py"
+      - "hwpx_mcp/operations/p41_operational.py"
       - "test_p42_*"
       - "scripts/p42_*"
       - "corpus/p42-*"
-      - "p318_document_setup.py"
-      - "p319_structured_publishing.py"
-      - "p338_rich_builder.py"
+      - "hwpx_mcp/document/p318_document_setup.py"
+      - "hwpx_mcp/document/p319_structured_publishing.py"
+      - "hwpx_mcp/orchestration/p338_rich_builder.py"
       - "server_p2.py"
       - "Dockerfile"
       - "tests/test_client.py"

@@ -10,8 +10,8 @@ if str(ROOT) not in sys.path:
 
 from hwpx import HwpxDocument
 
-from p2_document import build_document_map
-from p329_diagram_lifecycle import apply_diagram_lifecycle_atomic, build_diagram_lifecycle_map
+from hwpx_mcp.document.p2_document import build_document_map
+from hwpx_mcp.document.p329_diagram_lifecycle import apply_diagram_lifecycle_atomic, build_diagram_lifecycle_map
 
 with tempfile.TemporaryDirectory() as tmp:
     path = Path(tmp) / "p329-release-smoke.hwpx"

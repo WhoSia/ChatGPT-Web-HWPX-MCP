@@ -5,7 +5,7 @@ import json
 from collections import Counter
 from pathlib import Path
 
-from p22_formatting import build_formatting_map
+from hwpx_mcp.document.p22_formatting import build_formatting_map
 from hwpx_mcp.corpus.p335_typography import SCRIPTS, build_typography_profile
 
 

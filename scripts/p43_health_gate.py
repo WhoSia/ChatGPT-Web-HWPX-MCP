@@ -3,7 +3,7 @@ import argparse,json,sys
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:sys.path.insert(0,str(ROOT))
-from p43_quality import adjudicate_release_health,build_failure_bundle
+from hwpx_mcp.quality.p43_quality import adjudicate_release_health,build_failure_bundle
 
 def load(path:str)->dict:return json.loads(Path(path).read_text(encoding="utf-8"))
 

@@ -9,10 +9,10 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from p2_document import build_document_map
-from p321_document_composer import compose_document_plan
-from p339_design_intelligence import prepare_authoring_strategy
-from p340_feedback_loop import (
+from hwpx_mcp.document.p2_document import build_document_map
+from hwpx_mcp.document.p321_document_composer import compose_document_plan
+from hwpx_mcp.orchestration.p339_design_intelligence import prepare_authoring_strategy
+from hwpx_mcp.orchestration.p340_feedback_loop import (
     apply_document_design_repairs_atomic,
     apply_nested_paragraph_alignment_atomic,
     compare_design_diagnostics,

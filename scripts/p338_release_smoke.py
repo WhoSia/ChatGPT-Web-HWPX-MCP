@@ -10,10 +10,10 @@ if str(ROOT) not in sys.path:
 
 from hwpx import HwpxDocument
 
-from p2_document import build_document_map
-from p28_tables import build_table_map
-from p321_document_composer import compose_document_plan
-from p338_rich_builder import (
+from hwpx_mcp.document.p2_document import build_document_map
+from hwpx_mcp.document.p28_tables import build_table_map
+from hwpx_mcp.document.p321_document_composer import compose_document_plan
+from hwpx_mcp.orchestration.p338_rich_builder import (
     compile_rich_document_plan,
     evaluate_preview_readiness,
     intelligent_fill_atomic,

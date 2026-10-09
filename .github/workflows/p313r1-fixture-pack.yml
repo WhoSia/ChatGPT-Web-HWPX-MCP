@@ -4,7 +4,7 @@ on:
   push:
     branches: [main]
     paths:
-      - "p313r1_fixture_pack.py"
+      - "hwpx_mcp/custody/p313r1_fixture_pack.py"
       - "tests/test_p313r1_fixture_pack.py"
       - "scripts/p313r1_*.py"
       - "scripts/p313r1_*.ps1"

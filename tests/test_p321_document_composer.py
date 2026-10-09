@@ -11,14 +11,14 @@ from pathlib import Path
 from hwpx import HwpxDocument
 
 import server
-from p2_document import build_document_map
-from p28_tables import build_table_map
-from p29_objects import build_object_map
-from p210_equations import build_equation_map
-from p318_document_setup import build_document_setup_map
-from p319_structured_publishing import build_structured_publishing_map
-from p320_annotation_apparatus import build_annotation_apparatus_map
-from p321_document_composer import (
+from hwpx_mcp.document.p2_document import build_document_map
+from hwpx_mcp.document.p28_tables import build_table_map
+from hwpx_mcp.document.p29_objects import build_object_map
+from hwpx_mcp.document.p210_equations import build_equation_map
+from hwpx_mcp.document.p318_document_setup import build_document_setup_map
+from hwpx_mcp.document.p319_structured_publishing import build_structured_publishing_map
+from hwpx_mcp.document.p320_annotation_apparatus import build_annotation_apparatus_map
+from hwpx_mcp.document.p321_document_composer import (
     compose_document_plan,
     document_plan_contract,
     validate_document_plan,

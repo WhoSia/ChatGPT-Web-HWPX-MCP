@@ -4,8 +4,8 @@ import argparse,json,sys
 from pathlib import Path
 REPO_ROOT=Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path: sys.path.insert(0,str(REPO_ROOT))
-from p327_diagram_composition import build_diagram_composition_map
-from p334r2_package_validation import validate_hwpx_package_light
+from hwpx_mcp.document.p327_diagram_composition import build_diagram_composition_map
+from hwpx_mcp.document.p334r2_package_validation import validate_hwpx_package_light
 
 def compact(path:Path)->dict:
     m=build_diagram_composition_map(path)

@@ -8,9 +8,9 @@ from pathlib import Path
 
 from hwpx import HwpxDocument
 
-from p2_document import build_document_map
-from p22_formatting import apply_formatting_atomic, build_formatting_map
-from p334r2_package_validation import validate_hwpx_package_light
+from hwpx_mcp.document.p2_document import build_document_map
+from hwpx_mcp.document.p22_formatting import apply_formatting_atomic, build_formatting_map
+from hwpx_mcp.document.p334r2_package_validation import validate_hwpx_package_light
 
 
 def _env():

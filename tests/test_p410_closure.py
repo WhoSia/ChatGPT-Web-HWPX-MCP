@@ -1,4 +1,4 @@
-from p410_closure import PRODUCT, adjudicate_closure, closure_contract
+from hwpx_mcp.quality.p410_closure import PRODUCT, adjudicate_closure, closure_contract
 
 
 def test_p410_contract_preserves_p48_failure_and_p47_mapping_holds():

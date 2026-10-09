@@ -5,8 +5,8 @@ from pathlib import Path
 
 from hwpx import HwpxDocument
 
-from p2_document import build_document_map
-from p326_drawing_style import apply_drawing_style_atomic, build_drawing_style_map
+from hwpx_mcp.document.p2_document import build_document_map
+from hwpx_mcp.document.p326_drawing_style import apply_drawing_style_atomic, build_drawing_style_map
 
 FIXTURES=[
     "line-authoring","ellipse-authoring","polygon-authoring","arc-authoring",

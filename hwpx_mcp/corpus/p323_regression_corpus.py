@@ -7,8 +7,8 @@ from typing import Any
 
 from hwpx import HwpxDocument
 
-from p313r1_fixture_pack import _validate_minimal_hwpx
-from p323_advanced_tables import apply_advanced_table_edits_atomic, build_advanced_table_map
+from hwpx_mcp.custody.p313r1_fixture_pack import _validate_minimal_hwpx
+from hwpx_mcp.document.p323_advanced_tables import apply_advanced_table_edits_atomic, build_advanced_table_map
 
 
 SCHEMA = "chatgpt-web-hwpx-mcp/advanced-table-regression/p3.23/v1"

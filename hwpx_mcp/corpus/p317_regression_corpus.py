@@ -9,16 +9,16 @@ from typing import Any
 
 from hwpx import HwpxDocument
 
-from p2_document import apply_text_edits_atomic, build_document_map
-from p23_richtext import apply_rich_formatting_atomic
-from p28_tables import apply_table_edits_atomic, build_table_map
-from p29_objects import apply_object_edits_atomic, build_object_map
+from hwpx_mcp.document.p2_document import apply_text_edits_atomic, build_document_map
+from hwpx_mcp.document.p23_richtext import apply_rich_formatting_atomic
+from hwpx_mcp.document.p28_tables import apply_table_edits_atomic, build_table_map
+from hwpx_mcp.document.p29_objects import apply_object_edits_atomic, build_object_map
 from hwpx_mcp.document.p39_textbox import inject_textbox, build_textbox_map
-from p210_equations import apply_equation_edits_atomic, build_equation_map
-from p22_formatting import build_formatting_map
-from p313r1_fixture_pack import _validate_minimal_hwpx
+from hwpx_mcp.document.p210_equations import apply_equation_edits_atomic, build_equation_map
+from hwpx_mcp.document.p22_formatting import build_formatting_map
+from hwpx_mcp.custody.p313r1_fixture_pack import _validate_minimal_hwpx
 from hwpx_mcp.custody.p316_version_indexed import build_structural_oracle, compare_structural_oracles
-from p317_page_geometry import apply_page_geometry_edits_atomic, build_page_geometry_map
+from hwpx_mcp.document.p317_page_geometry import apply_page_geometry_edits_atomic, build_page_geometry_map
 
 
 CORPUS_SCHEMA = "chatgpt-web-hwpx-mcp/edit-regression-corpus/p3.17/v1"

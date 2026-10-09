@@ -5,7 +5,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from p418_product import document_agent_contract, prepare_document_task
+from hwpx_mcp.orchestration.p418_product import document_agent_contract, prepare_document_task
 
 contract = document_agent_contract()
 assert contract["phase"] == "P4.18"

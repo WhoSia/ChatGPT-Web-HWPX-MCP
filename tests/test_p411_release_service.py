@@ -1,4 +1,4 @@
-from p411_release_service import evaluate_release_candidate, release_promotion_contract
+from hwpx_mcp.evidence.p411_release_service import evaluate_release_candidate, release_promotion_contract
 
 def test_p411_release_contract_is_shadow_first():
     c=release_promotion_contract()

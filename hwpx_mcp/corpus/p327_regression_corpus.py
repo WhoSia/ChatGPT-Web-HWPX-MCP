@@ -5,9 +5,9 @@ from pathlib import Path
 
 from hwpx import HwpxDocument
 
-from p2_document import build_document_map
-from p326_drawing_style import apply_drawing_style_atomic
-from p327_diagram_composition import (
+from hwpx_mcp.document.p2_document import build_document_map
+from hwpx_mcp.document.p326_drawing_style import apply_drawing_style_atomic
+from hwpx_mcp.document.p327_diagram_composition import (
     apply_diagram_composition_atomic,
     build_diagram_composition_map,
 )
@@ -85,7 +85,7 @@ def materialize_p327_regression_corpus(out_dir: Path) -> dict:
             )
             mapped = build_diagram_composition_map(target)
             locs = [item["locator"] for item in mapped["top_level_objects"] if item["kind"] == "ellipse"]
-            from p325_drawing_layer import _mutate_section, _find_node, HP
+            from hwpx_mcp.document.p325_drawing_layer import _mutate_section, _find_node, HP
             for index, locator in enumerate(locs):
                 item = next(x for x in build_diagram_composition_map(target)["top_level_objects"] if x["locator"] == locator)
                 def mutate(root, item=item, index=index):

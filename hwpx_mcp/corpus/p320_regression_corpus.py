@@ -8,9 +8,9 @@ from typing import Any
 
 from hwpx import HwpxDocument
 
-from p2_document import build_document_map
-from p313r1_fixture_pack import _validate_minimal_hwpx
-from p320_annotation_apparatus import (
+from hwpx_mcp.document.p2_document import build_document_map
+from hwpx_mcp.custody.p313r1_fixture_pack import _validate_minimal_hwpx
+from hwpx_mcp.document.p320_annotation_apparatus import (
     apply_annotation_apparatus_atomic,
     build_annotation_apparatus_map,
 )

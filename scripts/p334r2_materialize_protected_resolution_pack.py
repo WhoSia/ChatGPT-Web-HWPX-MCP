@@ -12,8 +12,8 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from p2_document import build_document_map
-from p322_review_workflow import build_review_workflow_map
+from hwpx_mcp.document.p2_document import build_document_map
+from hwpx_mcp.document.p322_review_workflow import build_review_workflow_map
 
 
 def sha(path: Path) -> str:
@@ -40,7 +40,7 @@ def main() -> int:
         )
     out.mkdir(parents=True, exist_ok=True)
 
-    from capture_runtime import attach_capture_runtime
+    from hwpx_mcp.custody.capture_runtime import attach_capture_runtime
     attach_capture_runtime(out)
 
     mapped = build_review_workflow_map(source)

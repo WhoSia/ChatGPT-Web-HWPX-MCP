@@ -15,94 +15,94 @@ from pathlib import Path
 
 import server as core
 from hwpx import HwpxDocument
-from p2_document import apply_edits_atomic, build_document_map
-from p22_formatting import build_formatting_map
-from p23_richtext import apply_rich_formatting_atomic
-from p24_inline import apply_inline_edits_atomic, build_inline_map
-from p26_controls import apply_control_edits_atomic
-from p28_tables import apply_table_edits_atomic, build_table_map
-from p29_objects import apply_object_edits_atomic, build_object_map
+from hwpx_mcp.document.p2_document import apply_edits_atomic, build_document_map
+from hwpx_mcp.document.p22_formatting import build_formatting_map
+from hwpx_mcp.document.p23_richtext import apply_rich_formatting_atomic
+from hwpx_mcp.document.p24_inline import apply_inline_edits_atomic, build_inline_map
+from hwpx_mcp.document.p26_controls import apply_control_edits_atomic
+from hwpx_mcp.document.p28_tables import apply_table_edits_atomic, build_table_map
+from hwpx_mcp.document.p29_objects import apply_object_edits_atomic, build_object_map
 from hwpx_mcp.document.p39_textbox import build_textbox_map, inject_textbox
-from p311_layout_fidelity import build_hwpx_layout_receipt
-from p312_render_harness import adjudicate_fixture_world_contact
-from p317_fidelity_envelope import (
+from hwpx_mcp.quality.p311_layout_fidelity import build_hwpx_layout_receipt
+from hwpx_mcp.custody.p312_render_harness import adjudicate_fixture_world_contact
+from hwpx_mcp.quality.p317_fidelity_envelope import (
     production_fidelity_contract,
     assess_edit_fidelity_envelope,
 )
-from p317_page_geometry import (
+from hwpx_mcp.document.p317_page_geometry import (
     build_page_geometry_map,
     apply_page_geometry_edits_atomic,
 )
-from p318_document_setup import (
+from hwpx_mcp.document.p318_document_setup import (
     build_document_setup_map,
     apply_document_setup_atomic,
 )
-from p319_structured_publishing import (
+from hwpx_mcp.document.p319_structured_publishing import (
     build_structured_publishing_map,
     apply_structured_publishing_atomic,
 )
-from p320_annotation_apparatus import (
+from hwpx_mcp.document.p320_annotation_apparatus import (
     build_annotation_apparatus_map,
     apply_annotation_apparatus_atomic,
 )
-from p321_document_composer import (
+from hwpx_mcp.document.p321_document_composer import (
     document_plan_contract,
     validate_document_plan as validate_composition_plan,
     compose_document_plan,
 )
-from p322_review_workflow import (
+from hwpx_mcp.document.p322_review_workflow import (
     build_review_workflow_map,
     apply_review_workflow_atomic,
 )
-from p323_advanced_tables import (
+from hwpx_mcp.document.p323_advanced_tables import (
     advanced_table_contract,
     build_advanced_table_map,
     apply_advanced_table_edits_atomic,
 )
-from p324_story_layer import (
+from hwpx_mcp.document.p324_story_layer import (
     story_layer_contract,
     build_story_layer_map,
     apply_story_layer_atomic,
 )
-from p325_drawing_layer import (
+from hwpx_mcp.document.p325_drawing_layer import (
     drawing_layer_contract,
     build_drawing_layer_map,
     apply_drawing_layer_atomic,
 )
-from p326_drawing_style import (
+from hwpx_mcp.document.p326_drawing_style import (
     drawing_style_contract,
     build_drawing_style_map,
     apply_drawing_style_atomic,
 )
-from p327_diagram_composition import (
+from hwpx_mcp.document.p327_diagram_composition import (
     diagram_composition_contract,
     build_diagram_composition_map,
     apply_diagram_composition_atomic,
 )
-from p328_high_level_diagrams import (
+from hwpx_mcp.document.p328_high_level_diagrams import (
     high_level_diagram_contract,
     validate_diagram_plan as validate_p328_diagram_plan,
     build_high_level_diagram_map,
     apply_high_level_diagrams_atomic,
 )
-from p329_diagram_lifecycle import (
+from hwpx_mcp.document.p329_diagram_lifecycle import (
     diagram_lifecycle_contract,
     build_diagram_lifecycle_map,
     apply_diagram_lifecycle_atomic,
 )
-from p330_diagram_design_system import (
+from hwpx_mcp.document.p330_diagram_design_system import (
     diagram_design_system_contract,
     build_diagram_design_system_map,
     apply_diagram_design_system_atomic,
 )
-from p331_diagram_quality_assurance import (
+from hwpx_mcp.document.p331_diagram_quality_assurance import (
     diagram_quality_assurance_contract,
     validate_diagram_quality as validate_p331_diagram_quality,
     build_diagram_quality_map,
     plan_diagram_repairs as plan_p331_diagram_repairs,
     apply_diagram_repairs_atomic,
 )
-from p332_brownfield_diagrams import (
+from hwpx_mcp.document.p332_brownfield_diagrams import (
     brownfield_diagram_contract,
     build_brownfield_diagram_map,
     plan_diagram_adoption as plan_p332_diagram_adoption,
@@ -130,41 +130,41 @@ from hwpx_mcp.corpus.p335_paragraph import (
     build_style_transfer_operations,
 )
 from hwpx_mcp.corpus.p335_corpus import build_corpus_style_profile, build_style_library
-from p336r2_design import (
+from hwpx_mcp.orchestration.p336r2_design import (
     design_quality_contract as p336r2_design_quality_contract,
     compile_design_plan as p336r2_compile_design_plan,
     paragraph_features_from_hwpx as p336r2_paragraph_features,
     infer_presentation_roles as p336r2_infer_presentation_roles,
     evaluate_generated_document as p336r2_evaluate_generated_document,
 )
-from p337_product_workflow import (
+from hwpx_mcp.orchestration.p337_product_workflow import (
     fill_template_atomic as p337_fill_template_atomic,
     product_workflow_contract as p337_product_workflow_contract,
     sniff_hangul_payload as p337_sniff_hangul_payload,
 )
-from p338_rich_builder import (
+from hwpx_mcp.orchestration.p338_rich_builder import (
     compile_rich_document_plan as p338_compile_rich_document_plan,
     evaluate_preview_readiness as p338_evaluate_preview_readiness,
     intelligent_fill_atomic as p338_intelligent_fill_atomic,
     rich_builder_contract as p338_rich_builder_contract,
 )
-from p339_design_intelligence import (
+from hwpx_mcp.orchestration.p339_design_intelligence import (
     design_intelligence_contract as p339_design_intelligence_contract,
     prepare_authoring_strategy as p339_prepare_authoring_strategy,
     diagnose_document_design as p339_diagnose_document_design,
     plan_design_repairs as p339_plan_design_repairs,
 )
-from p340_feedback_loop import (
+from hwpx_mcp.orchestration.p340_feedback_loop import (
     rendered_feedback_loop_contract as p340_rendered_feedback_loop_contract,
     semantic_callout_block as p340_semantic_callout_block,
     diagnose_document_with_render as p340_diagnose_document_with_render,
     plan_executable_editorial_repairs as p340_plan_executable_editorial_repairs,
     compare_design_diagnostics as p340_compare_design_diagnostics,
 )
-from p342_mutation_footprint import (
+from hwpx_mcp.custody.p342_mutation_footprint import (
     apply_document_design_repairs_with_footprint_atomic as p342_apply_document_design_repairs_with_footprint_atomic,
 )
-from p341_page_composition import (
+from hwpx_mcp.orchestration.p341_page_composition import (
     page_composition_contract as p341_page_composition_contract,
     diagnose_document_page_composition as p341_diagnose_document_page_composition,
     plan_render_guided_layout_policy as p341_plan_render_guided_layout_policy,
@@ -176,18 +176,18 @@ from hwpx_mcp.custody.p313_capture_custody import (
     verify_custody_chain,
     adjudicate_cross_version_replay,
 )
-from p210_equations import (
+from hwpx_mcp.document.p210_equations import (
     apply_equation_edits_atomic,
     build_equation_map,
     _resolve_paragraph as _resolve_hwpx_paragraph,
 )
-from hwp5_reader import (
+from hwpx_mcp.document.hwp5_reader import (
     Hwp5ReadError,
     extract_hwp5_binary_assets,
     parse_hwp5_bytes,
     prepare_hwp5_image_for_hwpx,
 )
-from common_ir import (
+from hwpx_mcp.document.common_ir import (
     hwp5_to_common_ir,
     hwpx_to_common_ir,
     extract_common_ir,
@@ -1263,165 +1263,18 @@ def materialize_hwp5_text_derivative(
     }
 
 
-def _canonical_font_face(value: object) -> str | None:
-    if value is None:
-        return None
-    text = unicodedata.normalize("NFKC", str(value))
-    text = " ".join(text.split()).strip()
-    return text.casefold() or None
-
-
-def _canonical_color(value: object) -> str | None:
-    if value is None:
-        return None
-    text = str(value).strip().upper()
-    if text.startswith("#"):
-        text = text[1:]
-    if re.fullmatch(r"[0-9A-F]{6}", text):
-        return f"#{text}"
-    return text or None
-
-
-def _hwp_colorref_to_hex(value: object) -> str:
-    raw = int(value or 0)
-    red = raw & 0xFF
-    green = (raw >> 8) & 0xFF
-    blue = (raw >> 16) & 0xFF
-    return f"#{red:02X}{green:02X}{blue:02X}"
-
-
-def _hwp_run_format_subset(run: dict) -> dict:
-    shape = run.get("char_shape") or {}
-    if not shape or shape.get("fidelity") != "semantic":
-        return {}
-    fmt = {
-        "bold": bool(shape.get("bold")),
-        "italic": bool(shape.get("italic")),
-        "underline": int(shape.get("underline_type", 0) or 0) != 0,
-        "strike": bool(shape.get("strikeout_color") is not None and (int(shape.get("attributes", 0)) >> 18) & 0b111),
-    }
-    height = int(shape.get("height", 0) or 0)
-    if height > 0:
-        fmt["size"] = height / 100.0
-    if shape.get("text_color") is not None:
-        fmt["color"] = _hwp_colorref_to_hex(shape.get("text_color"))
-    primary_font = shape.get("primary_font_face")
-    if primary_font:
-        fmt["font"] = str(primary_font)
-    if shape.get("superscript"):
-        fmt["script"] = "sup"
-    elif shape.get("subscript"):
-        fmt["script"] = "sub"
-    return fmt
-
-
-def _hwp_paragraph_format_subset(paragraph: dict) -> dict:
-    shape = (paragraph.get("paragraph_style") or {}).get("resolved_para_shape") or {}
-    if shape.get("fidelity") != "semantic":
-        return {}
-    fmt: dict = {}
-    alignment = str(shape.get("alignment") or "")
-    if alignment in {"LEFT", "RIGHT", "CENTER", "JUSTIFY", "DISTRIBUTE"}:
-        fmt["alignment"] = alignment
-    def mm(value: object) -> float:
-        return round(float(value or 0) * 25.4 / 7200.0, 4)
-    def pt(value: object) -> float:
-        return round(float(value or 0) / 100.0, 4)
-    left = int(shape.get("left_margin_hwpunit", 0) or 0)
-    right = int(shape.get("right_margin_hwpunit", 0) or 0)
-    indent = int(shape.get("indent_hwpunit", 0) or 0)
-    before = int(shape.get("spacing_before_hwpunit", 0) or 0)
-    after = int(shape.get("spacing_after_hwpunit", 0) or 0)
-    if left:
-        fmt["indent_left_mm"] = mm(left)
-    if right:
-        fmt["indent_right_mm"] = mm(right)
-    if indent:
-        fmt["first_line_indent_mm"] = mm(indent)
-    if before:
-        fmt["spacing_before_pt"] = pt(before)
-    if after:
-        fmt["spacing_after_pt"] = pt(after)
-    return fmt
-
-
-def _hwp_style_signature(run: dict) -> dict:
-    fmt = _hwp_run_format_subset(run)
-    return {
-        "text": str(run.get("text", "")),
-        "bold": fmt.get("bold"),
-        "italic": fmt.get("italic"),
-        "underline": fmt.get("underline"),
-        "strike": fmt.get("strike"),
-        "size": fmt.get("size"),
-        "color": _canonical_color(fmt.get("color")),
-        "font": _canonical_font_face(fmt.get("font")),
-        "script": fmt.get("script"),
-    }
-
-
-def _hwp_paragraph_style_signature(paragraph: dict) -> dict:
-    fmt = _hwp_paragraph_format_subset(paragraph)
-    def zero_default(name: str) -> float:
-        value = fmt.get(name)
-        return 0.0 if value is None else round(float(value), 4)
-    return {
-        "alignment": fmt.get("alignment"),
-        "indent_left_mm": zero_default("indent_left_mm"),
-        "indent_right_mm": zero_default("indent_right_mm"),
-        "first_line_indent_mm": zero_default("first_line_indent_mm"),
-        "spacing_before_pt": zero_default("spacing_before_pt"),
-        "spacing_after_pt": zero_default("spacing_after_pt"),
-    }
-
-
-def _hwpx_paragraph_style_signature(paragraph: dict) -> dict:
-    prop = paragraph.get("paragraph_property") or {}
-    alignment = (prop.get("alignment") or {}).get("horizontal")
-    margin_values = prop.get("margin_values") or {}
-
-    def hwpunit_value(name: str) -> float | None:
-        item = margin_values.get(name) or {}
-        raw = item.get("value")
-        if raw is None:
-            return None
-        try:
-            value = float(raw)
-        except (TypeError, ValueError):
-            return None
-        unit = str(item.get("unit") or "HWPUNIT").upper()
-        if unit != "HWPUNIT":
-            return None
-        return value
-
-    left = hwpunit_value("left")
-    right = hwpunit_value("right")
-    intent = hwpunit_value("intent")
-    prev = hwpunit_value("prev")
-    next_value = hwpunit_value("next")
-
-    def mm(value: float | None) -> float | None:
-        return None if value is None else round(value * 25.4 / 7200.0, 4)
-
-    def pt(value: float | None) -> float | None:
-        return None if value is None else round(value / 100.0, 4)
-
-    return {
-        "alignment": alignment,
-        "indent_left_mm": 0.0 if left is None else mm(left),
-        "indent_right_mm": 0.0 if right is None else mm(right),
-        "first_line_indent_mm": 0.0 if intent is None else mm(intent),
-        "spacing_before_pt": 0.0 if prev is None else pt(prev),
-        "spacing_after_pt": 0.0 if next_value is None else pt(next_value),
-    }
-
-
-def _hwp_rel_to_horizontal(value: object) -> str:
-    return {0: "PAGE", 1: "PAGE", 2: "COLUMN", 3: "PARA"}.get(int(value or 0), "COLUMN")
-
-
-def _hwp_rel_to_vertical(value: object) -> str:
-    return {0: "PAPER", 1: "PAGE", 2: "PARA"}.get(int(value or 0), "PARA")
+from hwpx_mcp.document.hwp5_style_signatures import (
+    _canonical_font_face,
+    _canonical_color,
+    _hwp_colorref_to_hex,
+    _hwp_run_format_subset,
+    _hwp_paragraph_format_subset,
+    _hwp_style_signature,
+    _hwp_paragraph_style_signature,
+    _hwpx_paragraph_style_signature,
+    _hwp_rel_to_horizontal,
+    _hwp_rel_to_vertical,
+)
 
 
 @core.mcp.tool()
@@ -6123,7 +5976,7 @@ def get_product_ux_regression_contract() -> dict:
 
 
 from mcp.types import CallToolResult, TextContent, ToolAnnotations
-from p333_file_delivery import delivery_contract, export_revision, handoff
+from hwpx_mcp.delivery.p333_file_delivery import delivery_contract, export_revision, handoff
 
 
 @core.mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, openWorldHint=False))
@@ -7055,7 +6908,7 @@ def compare_page_composition_diagnostics(before: dict, after: dict) -> dict:
 
 
 def _apply_p343_migration(*, document_id: str, template: dict, targets_by_role: dict, policy: dict, expected_revision: int, lease_token: str = "") -> dict:
-    from p343_design_system import apply_constraint_preserving_template_migration_atomic
+    from hwpx_mcp.orchestration.p343_design_system import apply_constraint_preserving_template_migration_atomic
     metadata,path=_owned_document(document_id);current=int(metadata["revision"]);ingress=metadata.get("source")=="existing-ingress"
     migration=apply_constraint_preserving_template_migration_atomic(path,template,targets_by_role,policy,expected_revision=int(expected_revision),current_revision=current,validator=lambda candidate: core.validate_hwpx_package(candidate,ingress=ingress))
     validation=migration["formatting_receipt"]["validation"]
@@ -7085,7 +6938,7 @@ P344_AUTONOMOUS_AUTHORING = register_p344_tools(
 )
 
 
-from p345_runtime_bridge import host_receipt_sha256 as _p345_host_sha
+from hwpx_mcp.runtime.p345_runtime_bridge import host_receipt_sha256 as _p345_host_sha
 
 
 def _p345_snapshot_adapter(*, document_id: str, current_revision: int, inputs: dict, lease_token: str = "") -> dict:
@@ -7152,7 +7005,7 @@ P346_HOST_ADAPTERS = {
 from hwpx_mcp.interfaces.p346_mcp import AdapterRegistry, register_p346_tools
 P346_ADAPTER_REGISTRY = AdapterRegistry(P346_HOST_ADAPTERS)
 
-from p345_mcp import register_p345_tools
+from hwpx_mcp.interfaces.p345_mcp import register_p345_tools
 P345_DOCUMENT_RUNTIME = register_p345_tools(
     core,
     _owned_document,
@@ -7233,7 +7086,7 @@ P416_DOCUMENT_PROVENANCE = register_p416_tools(core, _owned_document)
 from hwpx_mcp.interfaces.p417_mcp import register_p417_tools, execute_owned_intent_transformation
 P417_DOCUMENT_INTELLIGENCE = register_p417_tools(core, _owned_document, _refresh_p417_execution)
 
-from p417_semantics import recover_semantic_structure
+from hwpx_mcp.orchestration.p417_semantics import recover_semantic_structure
 from hwpx_mcp.interfaces.p418_mcp import register_p418_tools
 
 
@@ -7361,7 +7214,7 @@ def get_document_workspace(document_id: str) -> dict:
 
 # P4.18-P3: browser confirmation is NOT an MCP tool. Its origin, passphrase,
 # review snapshot and signing key are server-owned, never client-controlled.
-from oauth_provider import SUBJECT as _P418_HOST_OWNER
+from hwpx_mcp.security.oauth_provider import SUBJECT as _P418_HOST_OWNER
 from hwpx_mcp.orchestration.p418_p3_review_store import get_native_review_store
 from hwpx_mcp.orchestration.p418_p3_host_approval import TrustedNativeEditApprovalHost
 from hwpx_mcp.orchestration.p418_p3_host_routes import register_host_review_route

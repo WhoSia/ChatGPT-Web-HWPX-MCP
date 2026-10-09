@@ -7,7 +7,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import json
 
-from p411_visual_oracle import (
+from hwpx_mcp.rendering.p411_visual_oracle import (
     build_golden_registry,
     evaluate_shadow_release_gate,
     evaluate_visual_slo,

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from mcp.types import ToolAnnotations
 
-from p415_authority import (
+from hwpx_mcp.evidence.p415_authority import (
     PRODUCT,
     authority_contract,
     evaluate_admission,

@@ -7,9 +7,9 @@ from typing import Any
 
 from hwpx import HwpxDocument
 
-from p2_document import build_document_map
-from p313r1_fixture_pack import _validate_minimal_hwpx
-from p322_review_workflow import apply_review_workflow_atomic, build_review_workflow_map
+from hwpx_mcp.document.p2_document import build_document_map
+from hwpx_mcp.custody.p313r1_fixture_pack import _validate_minimal_hwpx
+from hwpx_mcp.document.p322_review_workflow import apply_review_workflow_atomic, build_review_workflow_map
 
 
 SCHEMA = "chatgpt-web-hwpx-mcp/review-workflow-regression/p3.22/v1"

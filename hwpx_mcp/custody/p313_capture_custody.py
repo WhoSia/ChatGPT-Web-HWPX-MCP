@@ -4,7 +4,7 @@ import hashlib
 import json
 from typing import Any
 
-from p312_render_harness import adjudicate_fixture_world_contact
+from hwpx_mcp.custody.p312_render_harness import adjudicate_fixture_world_contact
 
 
 CAPTURE_SCHEMA = "chatgpt-web-hwpx-mcp/capture-bundle/p3.13/v1"

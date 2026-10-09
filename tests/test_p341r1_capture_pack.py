@@ -5,7 +5,7 @@ import json
 import tempfile
 from pathlib import Path
 
-from p341r1_capture_pack import (
+from hwpx_mcp.custody.p341r1_capture_pack import (
     FROZEN_ARTIFACT_CONTAINER_SHA256,
     FROZEN_ARTIFACT_SHARDS,
     FIXTURES,

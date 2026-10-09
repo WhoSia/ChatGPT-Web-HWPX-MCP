@@ -5,7 +5,7 @@ from typing import Any, Callable
 
 from mcp.types import CallToolResult, ToolAnnotations
 
-from p418_product import PHASE, PRODUCT, document_agent_contract, prepare_document_task
+from hwpx_mcp.orchestration.p418_product import PHASE, PRODUCT, document_agent_contract, prepare_document_task
 from hwpx_mcp.orchestration.p418_p2_workflow import compile_workflow
 from hwpx_mcp.orchestration.p418_p2_preview import preview_workflow, correct_workflow
 from hwpx_mcp.orchestration.p418_p2_admission import get_durable_approval_ledger, AdmissionError

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Callable, Mapping
 
-from p343_design_system import (
+from hwpx_mcp.orchestration.p343_design_system import (
     build_cross_template_generalization_ledger,
     design_system_adaptation_contract,
     normalize_organization_policy,

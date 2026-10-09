@@ -32,4 +32,4 @@ jobs:
       - name: Install probe dependency
         run: pip install httpx2==2.13.0
       - name: Restart-aware OAuth-native P3.2/P3.3 lifecycle
-        run: python p32_public_world_contact.py
+        run: python hwpx_mcp/probes/p32_public_world_contact.py

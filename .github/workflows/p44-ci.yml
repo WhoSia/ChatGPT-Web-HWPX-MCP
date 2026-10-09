@@ -4,6 +4,8 @@ on:
     branches: [main]
     paths:
       - "p44_*"
+      - "hwpx_mcp/quality/p44_*"
+      - "hwpx_mcp/interfaces/p44_*"
       - "test_p44_*"
       - "scripts/p44_*"
       - "benchmarks/p44_*"
@@ -23,11 +25,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - uses: actions/setup-python@v5
         with: {python-version: "3.12", cache: pip}
       - run: pip install -r requirements.txt -r requirements-dev.txt
       - run: |
-          python -m compileall -q p44_health_intelligence.py p44_health_store.py p44_mcp.py tests/test_p44_health_intelligence.py tests/test_p44_health_store.py tests/test_p44_mcp.py scripts/p44_release_smoke.py
+          python -m compileall -q hwpx_mcp/quality/p44_health_intelligence.py hwpx_mcp/quality/p44_health_store.py hwpx_mcp/interfaces/p44_mcp.py tests/test_p44_health_intelligence.py tests/test_p44_health_store.py tests/test_p44_mcp.py scripts/p44_release_smoke.py
           python -m pytest -q tests/test_p44_health_intelligence.py tests/test_p44_mcp.py
           python scripts/p44_release_smoke.py
   durable-store:
@@ -46,6 +50,8 @@ jobs:
       P44_TEST_DATABASE_URL: postgresql://p44:p44@127.0.0.1:5432/p44
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - uses: actions/setup-python@v5
         with: {python-version: "3.12", cache: pip}
       - run: pip install -r requirements.txt -r requirements-dev.txt
@@ -53,7 +59,7 @@ jobs:
       - run: |
           python - <<'PY'
           import os
-          from p44_health_store import DurableHealthIntelligenceStore
+          from hwpx_mcp.quality.p44_health_store import DurableHealthIntelligenceStore
           s=DurableHealthIntelligenceStore(os.environ["P44_TEST_DATABASE_URL"])
           r=s.bootstrap()
           assert r["release_count"]>=3
@@ -68,13 +74,17 @@ jobs:
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
-      - run: docker build --progress=plain -t hwpx-mcp-p44:${{ github.sha }} .
-      - run: docker run --rm --entrypoint /bin/sh hwpx-mcp-p44:${{ github.sha }} -c 'python scripts/p44_release_smoke.py'
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - run: docker build --progress=plain -t hwpx-mcp-p44:${{ github.event.pull_request.head.sha || github.sha }} .
+      - run: docker run --rm --entrypoint /bin/sh hwpx-mcp-p44:${{ github.event.pull_request.head.sha || github.sha }} -c 'python scripts/p44_release_smoke.py'
   p44-gate:
     needs: [unit, durable-store, docker-image]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - uses: actions/setup-python@v5
         with: {python-version: "3.12"}
       - run: python scripts/p44_release_smoke.py

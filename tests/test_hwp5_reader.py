@@ -7,7 +7,7 @@ import zlib
 
 from PIL import Image
 
-from hwp5_reader import (
+from hwpx_mcp.document.hwp5_reader import (
     HWP5_SIGNATURE,
     HWPTAG_PARA_TEXT,
     Hwp5ReadError,

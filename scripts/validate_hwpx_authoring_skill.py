@@ -10,7 +10,7 @@ SERVER = ROOT / "server_p2.py"
 P342_MCP = ROOT / "hwpx_mcp/interfaces/p342_mcp.py"
 P343_MCP = ROOT / "hwpx_mcp" / "interfaces" / "p343_mcp.py"
 P344_MCP = ROOT / "hwpx_mcp/interfaces/p344_mcp.py"
-P345_MCP = ROOT / "p345_mcp.py"
+P345_MCP = ROOT / "hwpx_mcp/interfaces/p345_mcp.py"
 TOOL_SOURCES = (SERVER, P342_MCP, P343_MCP, P344_MCP, P345_MCP)
 
 REQUIRED_REFERENCES = (

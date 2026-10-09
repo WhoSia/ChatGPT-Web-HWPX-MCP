@@ -6,7 +6,7 @@ from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:sys.path.insert(0,str(ROOT))
 
-from p42_migration import adjudicate_upgrade, migration_contract, normalize_list_number_format, semantic_page_geometry
+from hwpx_mcp.operations.p42_migration import adjudicate_upgrade, migration_contract, normalize_list_number_format, semantic_page_geometry
 
 contract=migration_contract()
 assert contract["phase"]=="P4.2"

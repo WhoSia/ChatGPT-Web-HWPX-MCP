@@ -13,7 +13,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 from xml.etree import ElementTree as ET
 
-from p323_advanced_tables import build_advanced_table_map
+from hwpx_mcp.document.p323_advanced_tables import build_advanced_table_map
 
 
 def sha(path: Path) -> str:

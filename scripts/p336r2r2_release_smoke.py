@@ -9,9 +9,9 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from p23_richtext import apply_rich_formatting_atomic
-from p321_document_composer import compose_document_plan
-from p336r2_design import (
+from hwpx_mcp.document.p23_richtext import apply_rich_formatting_atomic
+from hwpx_mcp.document.p321_document_composer import compose_document_plan
+from hwpx_mcp.orchestration.p336r2_design import (
     compile_design_plan,
     evaluate_generated_document,
     paragraph_features_from_hwpx,

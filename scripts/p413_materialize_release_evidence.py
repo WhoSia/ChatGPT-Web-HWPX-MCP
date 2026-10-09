@@ -7,7 +7,7 @@ from pathlib import Path
 
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 
-from p413_evidence_service import (
+from hwpx_mcp.evidence.p413_evidence_service import (
     evidence_health_summary,
     load_promoted_baseline,
     public_authoring_trust_status,

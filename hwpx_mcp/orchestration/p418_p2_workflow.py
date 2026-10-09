@@ -10,7 +10,7 @@ import json
 from collections.abc import Mapping, Sequence
 from typing import Any
 
-from p418_product import normalize_document_task
+from hwpx_mcp.orchestration.p418_product import normalize_document_task
 
 SCHEMA = "chatgpt-web-hwpx-mcp/p4.18-p2/workflow-draft/v1"
 MUTATING = frozenset({"CREATE", "EDIT_INTENT", "TEMPLATE_FILL"})

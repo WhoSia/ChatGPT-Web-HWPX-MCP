@@ -4,8 +4,8 @@ import tempfile
 import unittest
 from pathlib import Path
 from hwpx import HwpxDocument
-from p22_formatting import build_formatting_map, apply_formatting_atomic
-from p334r2_package_validation import validate_hwpx_package_light
+from hwpx_mcp.document.p22_formatting import build_formatting_map, apply_formatting_atomic
+from hwpx_mcp.document.p334r2_package_validation import validate_hwpx_package_light
 from hwpx_mcp.corpus.p335_registry import intake_source, registry_snapshot, seal_source, validate_source_metadata
 from hwpx_mcp.corpus.p335_atlas import build_style_atlas, synthesize_templates, compile_template
 from hwpx_mcp.corpus.p335_visual import control_descriptor, validate_annotation, native_patterns, inspect_pdf_control, compare_controls

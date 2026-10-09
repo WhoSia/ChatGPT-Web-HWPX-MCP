@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from mcp.types import ToolAnnotations
-from p45_quality_control import active_corpus_governance, audit_feature_attribution, build_operator_alerts, create_incident_event, derive_incident_lifecycle, quality_control_contract, slo_readiness
+from hwpx_mcp.quality.p45_quality_control import active_corpus_governance, audit_feature_attribution, build_operator_alerts, create_incident_event, derive_incident_lifecycle, quality_control_contract, slo_readiness
 
 
 def register_p45_tools(core, store=None):
@@ -20,7 +20,7 @@ def register_p45_tools(core, store=None):
     @core.mcp.tool(annotations=read)
     def audit_document_feature_attribution(document_id: str, required_family: str = "") -> dict:
         core._caller_subject(); meta = core._load_metadata(document_id); core._require_owner(meta); path, _ = core._paths(document_id)
-        from p44_health_intelligence import attribute_hwpx_feature_families
+        from hwpx_mcp.quality.p44_health_intelligence import attribute_hwpx_feature_families
         return {"ok": True, **audit_feature_attribution(attribute_hwpx_feature_families(path), required_family=required_family)}
 
     @core.mcp.tool(annotations=append)

@@ -30,7 +30,7 @@ jobs:
         with: {python-version: "3.12", cache: pip}
       - run: pip install -r requirements.txt -r requirements-dev.txt
       - run: |
-          python -m compileall -q p43_quality.py p43_mcp.py tests/test_p43_quality.py tests/test_p43_mcp.py scripts/p43_oracles.py scripts/p43_feature_family_matrix.py scripts/p43_external_fixture_matrix.py scripts/p43_public_matrix.py scripts/p43_performance_probe.py scripts/p43_health_gate.py scripts/p43_release_smoke.py
+          python -m compileall -q hwpx_mcp/quality/p43_quality.py hwpx_mcp/interfaces/p43_mcp.py tests/test_p43_quality.py tests/test_p43_mcp.py scripts/p43_oracles.py scripts/p43_feature_family_matrix.py scripts/p43_external_fixture_matrix.py scripts/p43_public_matrix.py scripts/p43_performance_probe.py scripts/p43_health_gate.py scripts/p43_release_smoke.py
           python -m pytest -q tests/test_p43_quality.py tests/test_p43_mcp.py
           python scripts/p43_release_smoke.py
 

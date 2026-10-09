@@ -2,7 +2,7 @@ from pathlib import Path
 import sys
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 
-from p413_evidence_service import evidence_health_summary, public_authoring_trust_status, release_manifest
+from hwpx_mcp.evidence.p413_evidence_service import evidence_health_summary, public_authoring_trust_status, release_manifest
 
 m=release_manifest()
 h=evidence_health_summary()

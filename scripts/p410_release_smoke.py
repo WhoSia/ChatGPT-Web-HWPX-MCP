@@ -3,7 +3,7 @@ import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from p410_closure import PRODUCT, adjudicate_closure, closure_contract
+from hwpx_mcp.quality.p410_closure import PRODUCT, adjudicate_closure, closure_contract
 
 contract = closure_contract()
 assert contract["phase"] == "P4.10"

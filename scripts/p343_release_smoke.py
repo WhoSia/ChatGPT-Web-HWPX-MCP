@@ -7,10 +7,10 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from hwpx import HwpxDocument
-from p22_formatting import build_formatting_map
-from p334r2_package_validation import validate_hwpx_package_light
+from hwpx_mcp.document.p22_formatting import build_formatting_map
+from hwpx_mcp.document.p334r2_package_validation import validate_hwpx_package_light
 from hwpx_mcp.corpus.p335_atlas import _sha
-from p343_design_system import apply_constraint_preserving_template_migration_atomic, design_system_adaptation_contract
+from hwpx_mcp.orchestration.p343_design_system import apply_constraint_preserving_template_migration_atomic, design_system_adaptation_contract
 
 with tempfile.TemporaryDirectory() as tmp:
     path=Path(tmp)/"p343.hwpx";doc=HwpxDocument.new();doc.add_paragraph("기관 제목");doc.add_paragraph("본문");doc.save_to_path(path);doc.close()

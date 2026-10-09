@@ -1,4 +1,4 @@
-from p45_quality_control import active_corpus_governance,audit_feature_attribution,build_operator_alerts,create_incident_event,derive_incident_lifecycle,quality_control_contract,slo_readiness
+from hwpx_mcp.quality.p45_quality_control import active_corpus_governance,audit_feature_attribution,build_operator_alerts,create_incident_event,derive_incident_lifecycle,quality_control_contract,slo_readiness
 
 def _row(i):
  return {"phase":f"P4.{i}","product":f"0.{26+i}","exact_head":f"{i:040x}","observed_at":f"2026-09-{20+i:02d}T00:00:00+00:00","metrics":{"create_validate_p95_ms":100+i}}

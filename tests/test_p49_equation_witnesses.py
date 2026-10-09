@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import tempfile
 from pathlib import Path
-from p49_equation_witnesses import alignment_witness_contract, adjudicate_alignment_witness
+from hwpx_mcp.quality.p49_equation_witnesses import alignment_witness_contract, adjudicate_alignment_witness
 from scripts.p49_materialize_equation_witnesses import run as materialize_alignment_witnesses
 
 

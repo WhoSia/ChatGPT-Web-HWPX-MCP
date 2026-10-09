@@ -6,7 +6,7 @@ from mcp.types import CallToolResult, TextContent
 
 from hwpx_mcp.interfaces.p418_mcp import _augment
 
-from p418_product import (
+from hwpx_mcp.orchestration.p418_product import (
     PRODUCT,
     document_agent_contract,
     normalize_document_task,

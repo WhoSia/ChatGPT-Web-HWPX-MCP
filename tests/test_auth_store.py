@@ -7,7 +7,7 @@ import unittest
 import psycopg
 from mcp.server.auth.provider import RefreshToken
 
-from auth_store import DurableOAuthStore
+from hwpx_mcp.security.auth_store import DurableOAuthStore
 
 
 class DurableOAuthStoreTests(unittest.TestCase):

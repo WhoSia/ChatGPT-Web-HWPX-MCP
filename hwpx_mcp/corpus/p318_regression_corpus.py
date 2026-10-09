@@ -8,9 +8,9 @@ from typing import Any
 
 from hwpx import HwpxDocument
 
-from p2_document import build_document_map
-from p313r1_fixture_pack import _validate_minimal_hwpx
-from p318_document_setup import (
+from hwpx_mcp.document.p2_document import build_document_map
+from hwpx_mcp.custody.p313r1_fixture_pack import _validate_minimal_hwpx
+from hwpx_mcp.document.p318_document_setup import (
     apply_document_setup_atomic,
     build_document_setup_map,
 )

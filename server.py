@@ -23,11 +23,11 @@ from mcp.server.auth.middleware.auth_context import get_access_token
 from mcp.server.transport_security import TransportSecuritySettings
 from starlette.responses import FileResponse, HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse
 
-from auth_store import DurableOAuthStore
-from document_store import DurableDocumentStore
-from durable_health import probe_durable_stores
-from p414_evidence_store import P414EvidenceStore, default_database_url as p414_default_database_url
-from oauth_provider import HWPX_SCOPE, SUBJECT, SingleUserOAuthProvider, build_auth_settings
+from hwpx_mcp.security.auth_store import DurableOAuthStore
+from hwpx_mcp.storage.document_store import DurableDocumentStore
+from hwpx_mcp.operations.durable_health import probe_durable_stores
+from hwpx_mcp.evidence.p414_evidence_store import P414EvidenceStore, default_database_url as p414_default_database_url
+from hwpx_mcp.security.oauth_provider import HWPX_SCOPE, SUBJECT, SingleUserOAuthProvider, build_auth_settings
 
 PROJECT = "ChatGPT Web HWPX MCP"
 VERSION = "0.2.2-p1.2"
@@ -576,14 +576,14 @@ def inspect_document(document_id: str) -> dict:
 def export_document(document_id: str, link_ttl_seconds: int = 300) -> CallToolResult:
     """Return a downloadable HWPX file/link and the existing receipt in structuredContent."""
     import sys
-    from p333_file_delivery import export_revision, handoff
+    from hwpx_mcp.delivery.p333_file_delivery import export_revision, handoff
     return handoff(export_revision(sys.modules[__name__], document_id, link_ttl_seconds))
 
 
 @mcp.custom_route("/deliveries/{document_id}", methods=["GET"])
 async def download_delivery(request):
     import sys
-    from p333_file_delivery import download_revision
+    from hwpx_mcp.delivery.p333_file_delivery import download_revision
     return await download_revision(sys.modules[__name__], request)
 
 

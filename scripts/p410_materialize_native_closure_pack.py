@@ -9,7 +9,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from p410_closure import PRODUCT, closure_contract
+from hwpx_mcp.quality.p410_closure import PRODUCT, closure_contract
 from scripts.p48_component_benchmark import run as run_component_benchmark
 from scripts.p49_materialize_equation_witnesses import run as run_equation_witnesses
 

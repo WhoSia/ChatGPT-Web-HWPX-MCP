@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from mcp.types import ToolAnnotations
 
-from p411_capture_protocol import capture_worker_contract, validate_capture_request, validate_capture_receipt
-from p411_release_service import evaluate_release_candidate, release_promotion_contract
-from p411_visual_oracle import (
+from hwpx_mcp.custody.p411_capture_protocol import capture_worker_contract, validate_capture_request, validate_capture_receipt
+from hwpx_mcp.evidence.p411_release_service import evaluate_release_candidate, release_promotion_contract
+from hwpx_mcp.rendering.p411_visual_oracle import (
     adjudicate_repair_candidate,
     build_golden_registry,
     calibration_summary,

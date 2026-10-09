@@ -10,11 +10,11 @@ if str(REPO_ROOT) not in sys.path:
 
 from hwpx import HwpxDocument
 
-from p2_document import build_document_map
-from p28_tables import build_table_map
-from p210_equations import build_equation_map
-from p319_structured_publishing import build_structured_publishing_map
-from p321_document_composer import compose_document_plan
+from hwpx_mcp.document.p2_document import build_document_map
+from hwpx_mcp.document.p28_tables import build_table_map
+from hwpx_mcp.document.p210_equations import build_equation_map
+from hwpx_mcp.document.p319_structured_publishing import build_structured_publishing_map
+from hwpx_mcp.document.p321_document_composer import compose_document_plan
 
 
 def main() -> int:

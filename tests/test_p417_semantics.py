@@ -3,7 +3,7 @@ from __future__ import annotations
 import zipfile
 from pathlib import Path
 
-from p417_semantics import (
+from hwpx_mcp.orchestration.p417_semantics import (
     align_semantic_graphs,
     classify_native_components,
     infer_corpus_schema,

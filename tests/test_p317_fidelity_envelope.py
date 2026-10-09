@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from p317_fidelity_envelope import (
+from hwpx_mcp.quality.p317_fidelity_envelope import (
     assess_edit_fidelity_envelope,
     production_fidelity_contract,
 )

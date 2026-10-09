@@ -7,15 +7,15 @@ import unittest
 from pathlib import Path
 
 import server
-from p2_document import apply_edits_atomic, apply_text_edits_atomic, build_document_map
-from p22_formatting import apply_formatting_atomic, build_formatting_map
-from p23_richtext import apply_rich_formatting_atomic
-from p24_inline import apply_inline_edits_atomic, build_inline_map
-from p25_controls import apply_control_edits_atomic as apply_control_edits_p25_atomic
-from p26_controls import apply_control_edits_atomic
-from p28_tables import apply_table_edits_atomic, build_table_map
-from p29_objects import apply_object_edits_atomic, build_object_map
-from p210_equations import apply_equation_edits_atomic, build_equation_map
+from hwpx_mcp.document.p2_document import apply_edits_atomic, apply_text_edits_atomic, build_document_map
+from hwpx_mcp.document.p22_formatting import apply_formatting_atomic, build_formatting_map
+from hwpx_mcp.document.p23_richtext import apply_rich_formatting_atomic
+from hwpx_mcp.document.p24_inline import apply_inline_edits_atomic, build_inline_map
+from hwpx_mcp.document.p25_controls import apply_control_edits_atomic as apply_control_edits_p25_atomic
+from hwpx_mcp.document.p26_controls import apply_control_edits_atomic
+from hwpx_mcp.document.p28_tables import apply_table_edits_atomic, build_table_map
+from hwpx_mcp.document.p29_objects import apply_object_edits_atomic, build_object_map
+from hwpx_mcp.document.p210_equations import apply_equation_edits_atomic, build_equation_map
 
 
 class P2DocumentTests(unittest.TestCase):

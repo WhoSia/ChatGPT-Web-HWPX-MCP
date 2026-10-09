@@ -10,10 +10,10 @@ if str(ROOT) not in sys.path:
 
 from hwpx import HwpxDocument
 
-from p2_document import build_document_map
-from p329_diagram_lifecycle import apply_diagram_lifecycle_atomic
-from p330_diagram_design_system import apply_diagram_design_system_atomic
-from p331_diagram_quality_assurance import plan_diagram_repairs, validate_diagram_quality
+from hwpx_mcp.document.p2_document import build_document_map
+from hwpx_mcp.document.p329_diagram_lifecycle import apply_diagram_lifecycle_atomic
+from hwpx_mcp.document.p330_diagram_design_system import apply_diagram_design_system_atomic
+from hwpx_mcp.document.p331_diagram_quality_assurance import plan_diagram_repairs, validate_diagram_quality
 
 
 with tempfile.TemporaryDirectory() as tmp:

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import copy
 
-from p416_generation_manifest import (
+from hwpx_mcp.evidence.p416_generation_manifest import (
     PARENT_RELEASE_AUTHORITY_SHA256,
     canonical_sha256,
     classify_reproduction,

@@ -8,7 +8,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import argparse
 import hashlib
 import json
-from p411_capture_protocol import validate_capture_request
+from hwpx_mcp.custody.p411_capture_protocol import validate_capture_request
 
 def main():
     p=argparse.ArgumentParser()

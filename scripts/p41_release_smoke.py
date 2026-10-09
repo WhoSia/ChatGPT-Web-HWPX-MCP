@@ -5,7 +5,7 @@ from pathlib import Path
 
 ROOT=Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:sys.path.insert(0,str(ROOT))
-from p41_operational import diagnose_failure, evaluate_upgrade_candidate, operational_readiness_contract, runtime_compatibility_matrix
+from hwpx_mcp.operations.p41_operational import diagnose_failure, evaluate_upgrade_candidate, operational_readiness_contract, runtime_compatibility_matrix
 
 contract = operational_readiness_contract()
 assert contract["phase"] == "P4.1"

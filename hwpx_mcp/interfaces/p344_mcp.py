@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Callable, Mapping
 
-from p344_autonomous_authoring import (
+from hwpx_mcp.orchestration.p344_autonomous_authoring import (
     append_event,
     autonomous_authoring_contract,
     diagnostic_summary,
@@ -103,7 +103,7 @@ def register_p344_tools(
             run["next_action"] = gate["action"]
 
             if gate["action"] != "REPAIR" or not auto_repair:
-                from p344_autonomous_authoring import _seal_run
+                from hwpx_mcp.orchestration.p344_autonomous_authoring import _seal_run
                 run = _seal_run(run)
                 return run, repair_plan
 
@@ -284,7 +284,7 @@ def register_p344_tools(
                 "reason": "RE_RENDER_REQUIRED_AFTER_REPAIR",
                 "authority": gate["authority"],
             }
-            from p344_autonomous_authoring import _seal_run
+            from hwpx_mcp.orchestration.p344_autonomous_authoring import _seal_run
             run = _seal_run(run)
             _persist(run)
             return {
@@ -297,7 +297,7 @@ def register_p344_tools(
 
         run["status"] = gate["action"]
         run["next_action"] = gate["action"]
-        from p344_autonomous_authoring import _seal_run
+        from hwpx_mcp.orchestration.p344_autonomous_authoring import _seal_run
         run = _seal_run(run)
         _persist(run)
         if gate["action"] == "DELIVER" and bool(deliver_if_ready) and run["config"]["delivery_when_ready"]:

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import unittest
 
-from common_ir import extract_common_ir, hwp5_to_common_ir, search_common_ir, slice_common_ir
+from hwpx_mcp.document.common_ir import extract_common_ir, hwp5_to_common_ir, search_common_ir, slice_common_ir
 
 
 class CommonIrTests(unittest.TestCase):

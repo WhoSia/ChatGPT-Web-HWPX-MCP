@@ -4,7 +4,7 @@ from pathlib import Path
 import sys
 ROOT=Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path: sys.path.insert(0,str(ROOT))
-from p44_health_intelligence import attribute_feature_families_from_evidence,build_operator_dashboard,build_support_bundle,health_intelligence_contract,route_native_render_escalation
+from hwpx_mcp.quality.p44_health_intelligence import attribute_feature_families_from_evidence,build_operator_dashboard,build_support_bundle,health_intelligence_contract,route_native_render_escalation
 contract=health_intelligence_contract();assert contract["product"]=="0.30.0-p4.4"
 seed=json.loads((ROOT/"benchmarks"/"p44_release_seed.json").read_text(encoding="utf-8"));assert len(seed["entries"])==3;assert seed["entries"][-1]["exact_head"]=="a970def5bb92db5592b9e0e235baa98a8cd9ba1e"
 registry=json.loads((ROOT/"corpus"/"p44-federation-registry.json").read_text(encoding="utf-8"));assert len(registry["sources"])>=4

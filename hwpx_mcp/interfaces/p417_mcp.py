@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from p2_document import build_document_map
+from hwpx_mcp.document.p2_document import build_document_map
 
 from mcp.types import ToolAnnotations
 
-from p417_corpus import (
+from hwpx_mcp.corpus.p417_corpus import (
     PRODUCT,
     PHASE,
     attach_render_pair,
@@ -344,7 +344,7 @@ def register_p417_tools(core, owned_document=None, refresh_document=None):
     return {"phase": PHASE, "product": PRODUCT, "authority": "P417_DOCUMENT_INTELLIGENCE_AND_VERIFIED_EXECUTION_SURFACE"}
 
 
-from p417_semantics import (
+from hwpx_mcp.orchestration.p417_semantics import (
     align_semantic_graphs,
     classify_native_components,
     infer_corpus_schema,
@@ -353,18 +353,18 @@ from p417_semantics import (
 )
 
 
-from p417_planner import (
+from hwpx_mcp.orchestration.p417_planner import (
     plan_document_transformation,
     transformation_planning_contract,
     validate_transformation_plan,
 )
 
 
-from p417_executor import (
+from hwpx_mcp.orchestration.p417_executor import (
     compose_post_edit_native_authority,
     execute_transformation_atomic,
     transformation_execution_contract,
 )
 
 
-from p414_evidence_service import document_native_trust_receipt
+from hwpx_mcp.evidence.p414_evidence_service import document_native_trust_receipt

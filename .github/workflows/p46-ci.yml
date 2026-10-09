@@ -23,7 +23,7 @@ jobs:
       - uses: actions/setup-python@v5
         with: {python-version: "3.12", cache: pip}
       - run: pip install -r requirements.txt -r requirements-dev.txt
-      - run: python -m compileall -q p46_native_authoring.py p46_mcp.py tests/test_p46_native_authoring.py tests/test_p46_mcp.py scripts/p46_release_smoke.py scripts/p46_real_document_benchmark.py
+      - run: python -m compileall -q hwpx_mcp/rendering/p46_native_authoring.py hwpx_mcp/interfaces/p46_mcp.py tests/test_p46_native_authoring.py tests/test_p46_mcp.py scripts/p46_release_smoke.py scripts/p46_real_document_benchmark.py
       - run: python -m pytest -q tests/test_p46_native_authoring.py tests/test_p46_mcp.py
       - run: python scripts/p46_release_smoke.py
       - run: python scripts/p46_real_document_benchmark.py --out /tmp/p46-real-documents

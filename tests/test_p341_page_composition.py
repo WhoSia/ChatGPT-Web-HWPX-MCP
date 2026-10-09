@@ -8,9 +8,9 @@ from pathlib import Path
 import pytest
 from lxml import etree
 
-from p321_document_composer import compose_document_plan
+from hwpx_mcp.document.p321_document_composer import compose_document_plan
 
-from p341_page_composition import (
+from hwpx_mcp.orchestration.p341_page_composition import (
     analyze_page_primitive,
     compare_page_composition_diagnostics,
     diagnose_page_composition,

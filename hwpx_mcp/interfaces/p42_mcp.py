@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from mcp.types import ToolAnnotations
 
-from p42_migration import adjudicate_upgrade, current_runtime_state, migration_contract
+from hwpx_mcp.operations.p42_migration import adjudicate_upgrade, current_runtime_state, migration_contract
 
 def register_p42_tools(core):
     read = ToolAnnotations(readOnlyHint=True, destructiveHint=False, openWorldHint=False)

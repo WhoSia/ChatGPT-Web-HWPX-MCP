@@ -79,7 +79,7 @@ jobs:
           P345_TS_RUNTIME: .tmp/p345-ts/scripts/p345_runtime_cli.js
           P345_REPLAY_BIN: rust/p345_replay/target/release/p345-replay
         run: |
-          python -m compileall -q p345_runtime_bridge.py p345_mcp.py tests/test_p345_runtime_bridge.py tests/test_p345_mcp.py scripts/p345_release_smoke.py
+          python -m compileall -q hwpx_mcp/runtime/p345_runtime_bridge.py hwpx_mcp/interfaces/p345_mcp.py tests/test_p345_runtime_bridge.py tests/test_p345_mcp.py scripts/p345_release_smoke.py
           python -m pytest -q tests/test_p345_runtime_bridge.py tests/test_p345_mcp.py
           python scripts/p345_release_smoke.py
 

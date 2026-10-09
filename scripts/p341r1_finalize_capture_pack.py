@@ -9,7 +9,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from p341r1_capture_pack import deterministic_zip, validate_complete, write_json
+from hwpx_mcp.custody.p341r1_capture_pack import deterministic_zip, validate_complete, write_json
 
 
 def main() -> int:

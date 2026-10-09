@@ -3,7 +3,7 @@ import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from p414_evidence_service import (
+from hwpx_mcp.evidence.p414_evidence_service import (
     PRODUCT,
     capture_agent_contract,
     compare_native_visual_drift,

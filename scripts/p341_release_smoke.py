@@ -7,7 +7,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from p341_page_composition import compare_page_composition_diagnostics, diagnose_page_composition, page_composition_contract, plan_render_guided_layout_policy
+from hwpx_mcp.orchestration.p341_page_composition import compare_page_composition_diagnostics, diagnose_page_composition, page_composition_contract, plan_render_guided_layout_policy
 
 def line(y: int, index: int, *, width: int = 430) -> dict:
     return {"x":100,"y":y,"width":width,"height":18,"baseline":y+18,"text_sha256":f"{index+1:064x}","paragraph_locator":f"p_{index//3}"}

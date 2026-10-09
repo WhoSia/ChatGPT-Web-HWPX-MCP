@@ -6,9 +6,9 @@ from pathlib import Path
 
 from hwpx import HwpxDocument
 
-from p2_document import build_document_map
-from p326_drawing_style import apply_drawing_style_atomic
-from p327_diagram_composition import (
+from hwpx_mcp.document.p2_document import build_document_map
+from hwpx_mcp.document.p326_drawing_style import apply_drawing_style_atomic
+from hwpx_mcp.document.p327_diagram_composition import (
     apply_diagram_composition_atomic,
     build_diagram_composition_map,
     diagram_composition_contract,
@@ -49,7 +49,7 @@ class DiagramCompositionTests(unittest.TestCase):
             current_revision=2,
         )
         # Give the three objects distinct x positions.
-        from p325_drawing_layer import _mutate_section, _find_node, HP
+        from hwpx_mcp.document.p325_drawing_layer import _mutate_section, _find_node, HP
         refreshed = build_diagram_composition_map(path)
         for index, locator in enumerate(locs):
             item = next(x for x in refreshed["top_level_objects"] if x["locator"] == locator)

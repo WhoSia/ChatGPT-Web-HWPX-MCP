@@ -4,10 +4,10 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from p23_richtext import apply_rich_formatting_atomic
-from p321_document_composer import compose_document_plan
-from p323_advanced_tables import build_advanced_table_map
-from p336r2_design import (
+from hwpx_mcp.document.p23_richtext import apply_rich_formatting_atomic
+from hwpx_mcp.document.p321_document_composer import compose_document_plan
+from hwpx_mcp.document.p323_advanced_tables import build_advanced_table_map
+from hwpx_mcp.orchestration.p336r2_design import (
     compile_design_plan,
     design_quality_contract,
     evaluate_generated_document,

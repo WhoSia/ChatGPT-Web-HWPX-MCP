@@ -5,7 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from p313r1_fixture_pack import materialize_pre_hancom_pack
+from hwpx_mcp.custody.p313r1_fixture_pack import materialize_pre_hancom_pack
 from hwpx_mcp.custody.p316_stability_builder import build_structural_consolidation
 from hwpx_mcp.custody.p316_version_indexed import adjudicate_version_indexed_stability
 

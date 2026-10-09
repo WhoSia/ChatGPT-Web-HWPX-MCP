@@ -7,7 +7,7 @@ on:
       - "p412_*"
       - "test_p412_*"
       - "scripts/p412_*"
-      - "p48_mcp.py"
+      - "hwpx_mcp/interfaces/p48_mcp.py"
       - "tests/test_p48_mcp.py"
       - "scripts/p48_component_benchmark.py"
       - "scripts/p48_release_smoke.py"
@@ -33,7 +33,7 @@ jobs:
           python-version: "3.12"
           cache: pip
       - run: pip install -r requirements.txt -r requirements-dev.txt
-      - run: python -m compileall -q p412_native_repair.py hwpx_mcp/interfaces/p412_mcp.py tests/test_p412_native_repair.py scripts/p412_release_smoke.py scripts/p412_materialize_native_repair_pack.py p48_mcp.py tests/test_p48_mcp.py
+      - run: python -m compileall -q hwpx_mcp/rendering/p412_native_repair.py hwpx_mcp/interfaces/p412_mcp.py tests/test_p412_native_repair.py scripts/p412_release_smoke.py scripts/p412_materialize_native_repair_pack.py hwpx_mcp/interfaces/p48_mcp.py tests/test_p48_mcp.py
       - run: python -m pytest -q tests/test_p412_native_repair.py tests/test_p48_mcp.py
       - run: python scripts/p49_release_smoke.py
       - run: python scripts/p412_release_smoke.py

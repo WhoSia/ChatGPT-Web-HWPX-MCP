@@ -3,7 +3,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from p341r1_adjudicate import write_adjudication
+from hwpx_mcp.custody.p341r1_adjudicate import write_adjudication
 
 
 def main() -> int:

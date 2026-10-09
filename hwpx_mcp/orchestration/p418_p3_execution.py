@@ -76,7 +76,7 @@ def execute_exact_approved_draft(
     Never expose this function to arbitrary MCP clients; authorization and
     execution callbacks belong to the trusted independent host.
     """
-    from p418_product import normalize_document_task
+    from hwpx_mcp.orchestration.p418_product import normalize_document_task
     from hwpx_mcp.orchestration.p418_p2_preview import preview_workflow
     canonical_preview = preview_workflow(draft)
     if not isinstance(preview, Mapping) or dict(preview) != canonical_preview:

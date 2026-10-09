@@ -4,6 +4,8 @@ on:
     branches: [main]
     paths:
       - "p41_*"
+      - "hwpx_mcp/operations/p41_*"
+      - "hwpx_mcp/interfaces/p41_*"
       - "test_p41_*"
       - "scripts/p41_*"
       - "server_p2.py"
@@ -24,7 +26,7 @@ jobs:
         with: {python-version: "3.12", cache: pip}
       - run: pip install -r requirements.txt -r requirements-dev.txt
       - run: |
-          python -m compileall -q p41_operational.py p41_mcp.py tests/test_p41_operational.py tests/test_p41_mcp.py scripts/p41_baseline.py scripts/p41_compatibility_probe.py scripts/p41_release_smoke.py
+          python -m compileall -q hwpx_mcp/operations/p41_operational.py hwpx_mcp/interfaces/p41_mcp.py tests/test_p41_operational.py tests/test_p41_mcp.py scripts/p41_baseline.py scripts/p41_compatibility_probe.py scripts/p41_release_smoke.py
           python -m pytest -q tests/test_p41_operational.py tests/test_p41_mcp.py
           python scripts/p41_release_smoke.py
           python scripts/p41_baseline.py --out p41-baseline.json --samples 2

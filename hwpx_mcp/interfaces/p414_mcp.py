@@ -8,7 +8,7 @@ from typing import Any
 
 from mcp.types import ToolAnnotations
 
-from p414_evidence_service import (
+from hwpx_mcp.evidence.p414_evidence_service import (
     AGENT_VERSION,
     BASELINE_HEAD,
     BASELINE_PRODUCT,
@@ -25,7 +25,7 @@ from p414_evidence_service import (
     validate_capture_job,
     verify_signed_receipt,
 )
-from p414_evidence_store import P414EvidenceStore, default_database_url
+from hwpx_mcp.evidence.p414_evidence_store import P414EvidenceStore, default_database_url
 
 
 def _release_vectors() -> tuple[dict, dict]:

@@ -9,7 +9,7 @@ from pathlib import Path
 
 from lxml import etree
 
-from p2_document import build_document_map
+from hwpx_mcp.document.p2_document import build_document_map
 
 HP_URI = "http://www.hancom.co.kr/hwpml/2011/paragraph"
 HC_URI = "http://www.hancom.co.kr/hwpml/2011/core"

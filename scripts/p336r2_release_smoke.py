@@ -9,9 +9,9 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from p321_document_composer import compose_document_plan
-from p323_advanced_tables import build_advanced_table_map
-from p336r2_design import compile_design_plan, evaluate_generated_document
+from hwpx_mcp.document.p321_document_composer import compose_document_plan
+from hwpx_mcp.document.p323_advanced_tables import build_advanced_table_map
+from hwpx_mcp.orchestration.p336r2_design import compile_design_plan, evaluate_generated_document
 
 base = {
     "preset": "default",

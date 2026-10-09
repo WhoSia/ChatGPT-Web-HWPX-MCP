@@ -9,7 +9,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 import psycopg
 
-from document_store import DurableDocumentStore
+from hwpx_mcp.storage.document_store import DurableDocumentStore
 import server
 
 

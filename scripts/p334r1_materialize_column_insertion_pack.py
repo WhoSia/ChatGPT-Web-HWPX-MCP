@@ -99,7 +99,7 @@ def main() -> int:
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
 
-    from capture_runtime import attach_capture_runtime
+    from hwpx_mcp.custody.capture_runtime import attach_capture_runtime
     attach_capture_runtime(out)
 
     manifest = {

@@ -2,7 +2,7 @@ from pathlib import Path
 import sys
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 
-from p412_native_repair import defect_eradication_contract,compile_repaired_visual_payload
+from hwpx_mcp.rendering.p412_native_repair import defect_eradication_contract,compile_repaired_visual_payload
 
 c=defect_eradication_contract()
 assert c["phase"]=="P4.12"

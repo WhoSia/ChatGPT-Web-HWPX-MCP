@@ -8,7 +8,7 @@ on:
       - "benchmarks/authorbench_a2_p340_evaluation.py"
       - "benchmarks/authorbench_a1_human_review.json"
       - "tests/test_authorbench_a2_evidence_contract.py"
-      - "p340r1_capture_pack.py"
+      - "hwpx_mcp/custody/p340r1_capture_pack.py"
       - "tests/test_p340r1_capture_pack.py"
       - "scripts/p340r1_*.py"
       - "scripts/p340r1_*.ps1"

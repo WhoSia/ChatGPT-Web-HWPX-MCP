@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from p340r1_capture_pack import read_json, write_json
+from hwpx_mcp.custody.p340r1_capture_pack import read_json, write_json
 from p341r1_adjudicate import (
     HUMAN_REVIEW_RECEIPT_SCHEMA,
     HUMAN_REVIEW_SCHEMA,

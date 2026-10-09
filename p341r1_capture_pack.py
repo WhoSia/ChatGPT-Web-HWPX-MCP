@@ -9,7 +9,7 @@ import zipfile
 from pathlib import Path, PurePosixPath
 from typing import Any
 
-from p340r1_capture_pack import (
+from hwpx_mcp.custody.p340r1_capture_pack import (
     assert_clean_source,
     deterministic_zip,
     read_json,

@@ -9,7 +9,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from p340r1_capture_pack import capture_pdf
+from hwpx_mcp.custody.p340r1_capture_pack import capture_pdf
 
 
 def main() -> int:

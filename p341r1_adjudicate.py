@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Mapping
 
-from p340r1_capture_pack import read_json, sha256_file, write_json
+from hwpx_mcp.custody.p340r1_capture_pack import read_json, sha256_file, write_json
 
 SCHEMA = "chatgpt-web-hwpx-mcp/p3.41-r1-adjudication/v2"
 HUMAN_REVIEW_SCHEMA = "chatgpt-web-hwpx-mcp/p3.41-r1-human-review/v2"

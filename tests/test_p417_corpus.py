@@ -3,7 +3,7 @@ from __future__ import annotations
 import zipfile
 from pathlib import Path
 
-from p417_corpus import analyze_hwpx, attach_render_pair, build_dataset, corpus_contract, infer_archetype
+from hwpx_mcp.corpus.p417_corpus import analyze_hwpx, attach_render_pair, build_dataset, corpus_contract, infer_archetype
 
 
 def make_hwpx(path: Path, text: str, *, table: bool = False, equation: bool = False) -> None:

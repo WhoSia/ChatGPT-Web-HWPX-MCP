@@ -18,7 +18,7 @@ from p22_formatting import build_formatting_map
 from hwpx import HwpxDocument
 
 from p2_document import build_document_map
-from p417_executor import compose_post_edit_native_authority, execute_transformation_atomic, transformation_execution_contract
+from hwpx_mcp.orchestration.p417_executor import compose_post_edit_native_authority, execute_transformation_atomic, transformation_execution_contract
 from hwpx_mcp.orchestration.p417_planner import plan_document_transformation
 from hwpx_mcp.orchestration.p417_semantics import recover_semantic_structure
 

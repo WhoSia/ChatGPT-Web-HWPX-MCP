@@ -15,7 +15,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from p417_corpus import analyze_hwpx, build_dataset
+from hwpx_mcp.corpus.p417_corpus import analyze_hwpx, build_dataset
 
 UA = "ChatGPT-Web-HWPX-MCP-P4.17/1.0 corpus-research"
 MAX_PAGE_BYTES = 5_000_000

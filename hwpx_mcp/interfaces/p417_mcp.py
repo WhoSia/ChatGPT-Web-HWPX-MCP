@@ -4,7 +4,7 @@ from p2_document import build_document_map
 
 from mcp.types import ToolAnnotations
 
-from p417_corpus import (
+from hwpx_mcp.corpus.p417_corpus import (
     PRODUCT,
     PHASE,
     attach_render_pair,
@@ -360,7 +360,7 @@ from hwpx_mcp.orchestration.p417_planner import (
 )
 
 
-from p417_executor import (
+from hwpx_mcp.orchestration.p417_executor import (
     compose_post_edit_native_authority,
     execute_transformation_atomic,
     transformation_execution_contract,

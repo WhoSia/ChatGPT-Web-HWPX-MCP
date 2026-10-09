@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from mcp.types import ToolAnnotations
 
-from p413_evidence_service import (
+from hwpx_mcp.evidence.p413_evidence_service import (
     compare_evidence_drift,
     document_visual_authority_receipt,
     evidence_health_summary,

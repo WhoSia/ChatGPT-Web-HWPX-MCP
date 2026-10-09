@@ -1,6 +1,6 @@
 import copy
 
-from p413_evidence_service import (
+from hwpx_mcp.evidence.p413_evidence_service import (
     compare_evidence_drift,
     document_visual_authority_receipt,
     evidence_health_summary,

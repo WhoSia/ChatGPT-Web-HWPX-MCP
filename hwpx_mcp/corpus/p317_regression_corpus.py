@@ -13,7 +13,7 @@ from p2_document import apply_text_edits_atomic, build_document_map
 from p23_richtext import apply_rich_formatting_atomic
 from p28_tables import apply_table_edits_atomic, build_table_map
 from p29_objects import apply_object_edits_atomic, build_object_map
-from p39_textbox import inject_textbox, build_textbox_map
+from hwpx_mcp.document.p39_textbox import inject_textbox, build_textbox_map
 from p210_equations import apply_equation_edits_atomic, build_equation_map
 from p22_formatting import build_formatting_map
 from p313r1_fixture_pack import _validate_minimal_hwpx

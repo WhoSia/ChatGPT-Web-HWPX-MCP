@@ -11,7 +11,7 @@ from typing import Any, Callable
 from lxml import etree
 
 from p2_document import build_document_map
-from p39_textbox import inject_textbox
+from hwpx_mcp.document.p39_textbox import inject_textbox
 
 HP_URI = "http://www.hancom.co.kr/hwpml/2011/paragraph"
 HP = f"{{{HP_URI}}}"

@@ -22,7 +22,7 @@ from p24_inline import apply_inline_edits_atomic, build_inline_map
 from p26_controls import apply_control_edits_atomic
 from p28_tables import apply_table_edits_atomic, build_table_map
 from p29_objects import apply_object_edits_atomic, build_object_map
-from p39_textbox import build_textbox_map, inject_textbox
+from hwpx_mcp.document.p39_textbox import build_textbox_map, inject_textbox
 from p311_layout_fidelity import build_hwpx_layout_receipt
 from p312_render_harness import adjudicate_fixture_world_contact
 from p317_fidelity_envelope import (

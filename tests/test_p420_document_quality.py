@@ -106,3 +106,39 @@ def test_no_physical_artifact_does_not_get_quality_credit(tmp_path):
 def test_invalid_expectations_are_rejected(report, minimums):
     with pytest.raises(ValueError):
         judge_document_quality(report, minimum_counts=minimums)
+
+
+def test_known_visual_failure_propagates_to_top_level(report):
+    sha = judge_document_quality(report)["document_sha256"]
+    evidence = {
+        "source_sha256": sha,
+        "renderer": "Hancom Hangul",
+        "renderer_version": "untrusted-fixture",
+        "pages": [{
+            "page_index": 0, "width_px": 1000, "height_px": 1400,
+            "raster_sha256": "b" * 64, "line_boxes": [],
+        }],
+    }
+    observation = {
+        "page_count": 1, "page_width": 1000, "page_height": 1400,
+        "regions": [{
+            "component_id": "headline", "role": "title",
+            "x": 50, "y": 100, "width": 200, "height": 40,
+            "expected_text": "연구 결과와 해석", "observed_text": "",
+        }],
+        "vectors": [],
+    }
+    result = judge_document_quality(report, capture=evidence, observation=observation)
+    assert result["status"] == "FAIL_RENDER_EVIDENCE"
+    assert any(x["code"] == "RENDER_EVIDENCE_FAILED" for x in result["issues"])
+    assert result["native_render"]["status"] == "FAIL_VISUAL_SLO"
+    assert result["release_eligible"] is False
+
+
+def test_invalid_edit_baseline_fails_closed(report, tmp_path):
+    bad = tmp_path / "not-a-real-baseline.hwpx"
+    bad.write_bytes(b"invalid")
+    result = judge_document_quality(report, baseline_path=bad)
+    assert result["status"] == "FAIL_REQUIREMENTS"
+    assert any(x["code"] == "BASELINE_INVALID" for x in result["issues"])
+    assert result["release_eligible"] is False

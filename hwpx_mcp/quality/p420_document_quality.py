@@ -106,29 +106,45 @@ def judge_document_quality(
 
     baseline_sha256 = None
     if baseline_path is not None:
-        baseline = _measure(Path(baseline_path))
-        baseline_sha256 = baseline["document_sha256"]
-        if baseline["structure_sha256"] != observed["structure_sha256"]:
-            issues.append({"code": "STRUCTURE_DIGEST_DRIFT"})
-        for name in ("tables", "equations", "pictures", "footnotes", "sections"):
-            if baseline["counts"][name] != observed["counts"][name]:
-                issues.append({
-                    "code": "NATIVE_COMPONENT_COUNT_DRIFT", "kind": name,
-                    "before": baseline["counts"][name],
-                    "after": observed["counts"][name],
-                })
+        try:
+            baseline = _measure(Path(baseline_path))
+        except (OSError, ValueError, KeyError, zipfile.BadZipFile, ParseError) as exc:
+            issues.append({"code": "BASELINE_INVALID", "detail": str(exc)})
+        else:
+            baseline_sha256 = baseline["document_sha256"]
+            if baseline["structure_sha256"] != observed["structure_sha256"]:
+                issues.append({"code": "STRUCTURE_DIGEST_DRIFT"})
+            for name in ("tables", "equations", "pictures", "footnotes", "sections"):
+                if baseline["counts"][name] != observed["counts"][name]:
+                    issues.append({
+                        "code": "NATIVE_COMPONENT_COUNT_DRIFT", "kind": name,
+                        "before": baseline["counts"][name],
+                        "after": observed["counts"][name],
+                    })
 
     evidence = None
+    status = "FAIL_REQUIREMENTS" if issues else "PASS_STRUCTURE_HOLD_RELEASE"
     if not issues:
-        evidence = assess_render_readiness(
-            artifact_sha256=observed["document_sha256"],
-            structural_valid=True,
-            capture=capture, observation=observation,
-        )
+        try:
+            evidence = assess_render_readiness(
+                artifact_sha256=observed["document_sha256"],
+                structural_valid=True,
+                capture=capture, observation=observation,
+            )
+        except (ValueError, TypeError, KeyError, OverflowError) as exc:
+            status = "FAIL_RENDER_EVIDENCE"
+            issues.append({"code": "RENDER_EVIDENCE_INVALID", "detail": str(exc)})
+        else:
+            if evidence["status"].startswith("FAIL"):
+                status = "FAIL_RENDER_EVIDENCE"
+                issues.append({
+                    "code": "RENDER_EVIDENCE_FAILED",
+                    "render_status": evidence["status"],
+                })
 
     result = {
         "schema": SCHEMA,
-        "status": "FAIL_REQUIREMENTS" if issues else "PASS_STRUCTURE_HOLD_RELEASE",
+        "status": status,
         "release_eligible": False,
         "document_sha256": observed["document_sha256"],
         "baseline_sha256": baseline_sha256,

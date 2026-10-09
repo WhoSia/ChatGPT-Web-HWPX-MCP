@@ -18,7 +18,7 @@ from p341_page_composition import (
     plan_render_guided_layout_policy,
 )
 
-ROOT = Path(__file__).resolve().parent
+ROOT = Path(__file__).resolve().parents[1]
 
 
 def _line(y: int, *, locator: str, x: int = 100, width: int = 400, height: int = 20) -> dict:

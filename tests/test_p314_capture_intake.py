@@ -8,7 +8,7 @@ from pathlib import Path
 from p314_capture_intake import adjudicate_first_hancom_world_contact
 
 
-ROOT = Path(__file__).resolve().parent
+ROOT = Path(__file__).resolve().parents[1]
 RECEIPT = json.loads(
     (ROOT / "fixtures" / "p314_first_hancom_capture_receipt.json").read_text(encoding="utf-8")
 )

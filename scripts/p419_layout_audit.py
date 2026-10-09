@@ -81,7 +81,7 @@ def audit() -> dict:
     missing_test_paths = []
     for workflow in sorted((ROOT / ".github/workflows").glob("*.yml")):
         text = workflow.read_text(encoding="utf-8")
-        for match in re.finditer(r"(?<![A-Za-z0-9_/])tests/test_[A-Za-z0-9_./-]+\\.py\\b", text):
+        for match in re.finditer(r"(?<![A-Za-z0-9_/])tests/test_[A-Za-z0-9_./-]+\.py\b", text):
             candidate = match.group(0)
             if not (ROOT / candidate).is_file():
                 missing_test_paths.append((workflow.name, candidate))

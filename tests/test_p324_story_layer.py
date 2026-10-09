@@ -6,7 +6,7 @@ from pathlib import Path
 
 from hwpx import HwpxDocument
 
-from p324_story_layer import (
+from hwpx_mcp.document.p324_story_layer import (
     apply_story_layer_atomic,
     build_story_layer_map,
     story_layer_contract,

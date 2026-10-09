@@ -8,7 +8,7 @@ from typing import Any
 from hwpx import HwpxDocument
 
 from p313r1_fixture_pack import _validate_minimal_hwpx
-from p324_story_layer import apply_story_layer_atomic, build_story_layer_map
+from hwpx_mcp.document.p324_story_layer import apply_story_layer_atomic, build_story_layer_map
 
 
 SCHEMA = "chatgpt-web-hwpx-mcp/story-layer-regression/p3.24/v1"

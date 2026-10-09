@@ -10,7 +10,7 @@ if str(REPO_ROOT) not in sys.path:
 
 from hwpx import HwpxDocument
 
-from p324_story_layer import apply_story_layer_atomic, build_story_layer_map
+from hwpx_mcp.document.p324_story_layer import apply_story_layer_atomic, build_story_layer_map
 
 
 def main() -> int:

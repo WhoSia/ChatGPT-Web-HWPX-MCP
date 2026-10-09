@@ -59,7 +59,7 @@ from p323_advanced_tables import (
     build_advanced_table_map,
     apply_advanced_table_edits_atomic,
 )
-from p324_story_layer import (
+from hwpx_mcp.document.p324_story_layer import (
     story_layer_contract,
     build_story_layer_map,
     apply_story_layer_atomic,

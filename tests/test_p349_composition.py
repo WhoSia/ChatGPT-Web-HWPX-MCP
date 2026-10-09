@@ -1,5 +1,5 @@
 from __future__ import annotations
-import p349_composition as c
+import hwpx_mcp.extensions.p349_composition as p349_composition as c
 def rec(n,ext,effect="READ_ONLY",deps=None,tool=None):return {"package_id":"sha256:"+n*64,"extension_id":ext,"version":"1.0.0","certificate_sha256":n*64,"dependencies":deps or [],"capabilities":[{"name":ext+".cap","version":"1.0.0","effect":effect,"adapter":ext.upper(),"deterministic":True}],"tools":[] if tool is None else [{"name":tool,"effect":effect}]}
 def env():return {"p347_registry_generation":4,"trust_policy_sha256":"a"*64,"p346_adapter_generation":2,"p346_adapter_contract_sha256":"b"*64,"joint_host_conformance_sha256":"c"*64}
 def req(packages,order,max_effect="DELIVERY"):return {"schema":"chatgpt-web-hwpx-mcp/p3.49/composition-request/v1","packages":packages,"serial_order":order,"max_effect":max_effect,"environment":env()}

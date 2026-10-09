@@ -7,7 +7,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 ROOT=Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path: sys.path.insert(0,str(ROOT))
 
-from p348_marketplace import (
+from hwpx_mcp.extensions.p348_marketplace import (
     public_key_record,sign_marketplace_event,build_checkpoint,build_snapshot,verify_snapshot,
     discover_candidates,compare_snapshots,build_offline_bundle,verify_offline_bundle,
 )

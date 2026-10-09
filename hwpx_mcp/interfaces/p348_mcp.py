@@ -4,7 +4,7 @@ from typing import Any,Callable,Mapping
 from mcp.types import ToolAnnotations
 
 from hwpx_mcp.extensions.p347_supply_chain_bridge import normalize_extension_package
-from p348_marketplace import (
+from hwpx_mcp.extensions.p348_marketplace import (
     marketplace_contract,verify_snapshot,discover_candidates,compare_snapshots,verify_offline_bundle,
 )
 

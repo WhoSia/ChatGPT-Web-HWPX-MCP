@@ -1,7 +1,7 @@
 from __future__ import annotations
 from typing import Any,Callable
 from mcp.types import ToolAnnotations
-from p349_composition import CompositionRegistry,composition_contract
+from hwpx_mcp.extensions.p349_composition import CompositionRegistry,composition_contract
 def register_p349_tools(core,owned_document:Callable[[str],tuple[dict,Any]],p347_registry,adapter_registry):
     read=ToolAnnotations(readOnlyHint=True,destructiveHint=False,openWorldHint=False);mutate=ToolAnnotations(readOnlyHint=False,destructiveHint=True,openWorldHint=False);registry=CompositionRegistry(p347_registry,adapter_registry)
     def own(document_id:str):owned_document(document_id)

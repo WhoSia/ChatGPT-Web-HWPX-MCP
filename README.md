@@ -6,6 +6,53 @@ The repository is undergoing a compatibility-preserving package migration. Core 
 
 Remote Streamable-HTTP MCP for authenticated HWPX document creation, custody, validation, structured introspection, revision-safe editing, legacy HWP read/promotion, and fidelity testing from ChatGPT Web.
 
+## P4.19 — Make document work feel like one product
+
+P4.19's goal is not to turn every byte comparison into a user-facing step. The
+core user journey is **ask → create/import → understand → preview → approve an
+edit → receive an openable HWPX**, with safe recovery if a step fails.
+
+The first incremental surface is `get_document_workspace(document_id)`:
+one **owner-scoped, read-only** tool displaying current revision, durable
+receipt, recent versions, remaining document lifetime, and the next useful
+actions. This avoids forcing users to manually combine three low-level tools
+merely to understand the state of a document. It never grants mutation
+authority, refreshes expired documents, or claims that a SHA or byte difference
+proves visual/text preservation.
+
+The planned product architecture separates four public-facing experiences:
+
+| User experience | Product responsibility | Release boundary |
+| --- | --- | --- |
+| **Create / import** | Natural-language HWPX generation and validation | Native file is available |
+| **Understand / plan** | Structure, style, text, references, scope and preview | Plan is non-mutating |
+| **Approve / edit** | Explicit human review, durable one-time commit, recovery | No edit without approval |
+| **Deliver / continue** | Download that the consumer can verify, resumable workspace | Delivered bytes verified by consumer |
+
+**Current evidence (2026-10-09):** A human-approved edit returned COMMITTED
+revision 2 and the user independently retrieved its durable revision-2 receipt
+and both revision hashes. Content preservation is **UNVERIFIED**; file delivery
+is **FAILED/BLOCKED** (client tool failure and HTTP 429). This is a
+**P4.18-P3 RELEASE CLOSURE HOLD**, not an end-to-end product PASS. P4.19 should
+make readback and delivery straightforward and observable, not obscure these
+failures.
+
+Implementation priorities:
+
+1. One document workspace summary and action routing; fewer mandatory tool hops.
+2. Semantic document inspection and editable previews (paragraphs, titles,
+   sections, tables), with preservation tests beyond byte count.
+3. Resilient file delivery and consumer-observed download receipts; bounded 429
+   backoff with clear errors, never unlimited retries.
+4. Explicit expiry warnings and separately retained, privacy-bounded audit
+   records; never silently revive expired content.
+5. Coherent create/edit/deliver journeys, templates and reusable document
+   layouts, followed by realistic user tests.
+
+This is a **product engineering** roadmap, not an evidence claim. Each released
+feature still requires exact-head CI and real operational verification. GitHub
+Actions builds and tests but must not author commits as `github-actions[bot]`.
+
 ## What this repository contains
 
 The GitHub repository is intentionally runtime-facing.

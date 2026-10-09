@@ -576,14 +576,14 @@ def inspect_document(document_id: str) -> dict:
 def export_document(document_id: str, link_ttl_seconds: int = 300) -> CallToolResult:
     """Return a downloadable HWPX file/link and the existing receipt in structuredContent."""
     import sys
-    from p333_file_delivery import export_revision, handoff
+    from hwpx_mcp.delivery.p333_file_delivery import export_revision, handoff
     return handoff(export_revision(sys.modules[__name__], document_id, link_ttl_seconds))
 
 
 @mcp.custom_route("/deliveries/{document_id}", methods=["GET"])
 async def download_delivery(request):
     import sys
-    from p333_file_delivery import download_revision
+    from hwpx_mcp.delivery.p333_file_delivery import download_revision
     return await download_revision(sys.modules[__name__], request)
 
 

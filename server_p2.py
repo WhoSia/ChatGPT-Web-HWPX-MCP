@@ -6123,7 +6123,7 @@ def get_product_ux_regression_contract() -> dict:
 
 
 from mcp.types import CallToolResult, TextContent, ToolAnnotations
-from p333_file_delivery import delivery_contract, export_revision, handoff
+from hwpx_mcp.delivery.p333_file_delivery import delivery_contract, export_revision, handoff
 
 
 @core.mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, openWorldHint=False))

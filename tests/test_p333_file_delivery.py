@@ -14,7 +14,7 @@ from starlette.requests import Request
 
 import server as core
 import server_p2 as api
-from p333_file_delivery import delivery_contract, download_revision, handoff
+from hwpx_mcp.delivery.p333_file_delivery import delivery_contract, download_revision, handoff
 
 
 class MemoryRevisions:

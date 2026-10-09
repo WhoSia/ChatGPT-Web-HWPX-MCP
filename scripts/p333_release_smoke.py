@@ -10,7 +10,7 @@ from urllib.parse import urlsplit
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from p321_document_composer import compose_document_plan
-from p333_file_delivery import export_revision, handoff, download_revision
+from hwpx_mcp.delivery.p333_file_delivery import export_revision, handoff, download_revision
 from starlette.requests import Request
 
 with tempfile.TemporaryDirectory() as tmp:

@@ -69,9 +69,9 @@ def audit_enrollment(
     slots = {x["case_id"]: x for x in registration["slots"]}
     used_ids: set[str] = set()
     used_sources: set[str] = set(disallowed_source_hashes or ())
+    issues: list[dict] = []
     if enrolled and disallowed_source_hashes is None:
         issues.append({"code": "EXCLUSION_LEDGER_UNBOUND"})
-    issues: list[dict] = []
     for row in enrolled:
         cid = str(row.get("case_id") or "")
         source = str(row.get("source_sha256") or "")

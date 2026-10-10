@@ -59,8 +59,40 @@
       "prior_exposure": true
     }
   ],
-  "fresh_candidates": [],
+  "fresh_candidates": [
+    {
+      "source_id": "moe-106880-education-data-bk21-20260809",
+      "publisher": "교육부",
+      "published": "2026-08-09",
+      "source_page": "https://www.moe.go.kr/boardCnts/viewRenew.do?boardID=294&boardSeq=106880&lev=0&m=020402&opType=N&page=1&s=moe&searchType=null&statusYN=W",
+      "expected_attachment": "데이터로 읽는 우리 교육 제11호 발간.hwpx",
+      "expected_size_approx_bytes": 44749,
+      "archetype_candidate": "academic_report",
+      "page_license": "KOGL_TYPE_1_ATTRIBUTION",
+      "attachment_license": "UNVERIFIED_SEPARATELY",
+      "provenance": "OFFICIAL_LISTING_CONFIRMED_NO_BINARY",
+      "download_status": "NOT_ACQUIRED",
+      "source_sha256": null,
+      "cohort": "UNASSIGNED"
+    },
+    {
+      "source_id": "moe-106879-overseas-education-20260809",
+      "publisher": "교육부",
+      "published": "2026-08-09",
+      "source_page": "https://www.moe.go.kr/boardCnts/viewRenew.do?boardID=294&boardSeq=106879&lev=0&m=020402&opType=N&page=1&s=moe&searchType=null&statusYN=W",
+      "expected_attachment": "재외교육기관장과 함께 케이(K)-교육의 미래를 논하다.hwpx",
+      "expected_size_approx_bytes": 182067,
+      "archetype_candidate": "academic_report",
+      "page_license": "KOGL_TYPE_1_ATTRIBUTION",
+      "attachment_license": "UNVERIFIED_SEPARATELY",
+      "provenance": "OFFICIAL_LISTING_CONFIRMED_NO_BINARY",
+      "download_status": "NOT_ACQUIRED",
+      "source_sha256": null,
+      "cohort": "UNASSIGNED"
+    }
+  ],
   "new_source_bytes_verified": 0,
   "actual_hancom_captures": 0,
-  "prohibition": "Do not count prior fixtures, URLs, or official PDFs as new independent HWPX render evidence."
+  "prohibition": "Do not count prior fixtures, URLs, or official PDFs as new independent HWPX render evidence.",
+  "notes": "Public listing and KOGL Type 1 label verified, but exact attachment byte hash, attachment reuse rights, source exposure and structural suitability require native intake."
 }

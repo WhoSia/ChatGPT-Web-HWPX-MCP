@@ -1,0 +1,68 @@
+name: P4.21 prospective native-render shadow-court
+on:
+  pull_request:
+    branches: ["refactor/p420-python-domain-packages-20261009"]
+    paths:
+      - "hwpx_mcp/quality/p421_prospective_render_court.py"
+      - "hwpx_mcp/quality/p421_renderer_qualification.py"
+      - "tests/test_p421_prospective_render_court.py"
+      - "tests/test_p421_renderer_qualification.py"
+      - "benchmarks/p421_renderer_qualification.json"
+      - "corpus/p421_candidate_intake.json"
+      - "scripts/p421_acquire_public_fixture.py"
+      - "tests/test_p421_acquire_public_fixture.py"
+      - "benchmarks/p421_byte_acquisition_registration.json"
+      - "benchmarks/p421_preregistration.json"
+      - "docs/P421_NATIVE_RENDER_FIDELITY_RESEARCH_CHARTER.md"
+      - ".github/workflows/p421-native-render-ci.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: p421-shadow-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  prospective-shadow:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Assert exact source HEAD
+        env:
+          EXPECTED: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Verify native research court Python syntax
+        run: |
+          python -m compileall -q hwpx_mcp/quality/p421_prospective_render_court.py tests/test_p421_prospective_render_court.py
+      - name: Install only shadow test runner
+        run: python -m pip install --disable-pip-version-check pytest==8.4.2
+      - name: Run negative controls and preregistration audit
+        run: python -m pytest -q tests/test_p421_prospective_render_court.py tests/test_p421_renderer_qualification.py tests/test_p421_acquire_public_fixture.py
+      - name: Download and verify pinned new rival fixture bytes (not Pilot enrollment)
+        continue-on-error: true
+        run: python scripts/p421_acquire_public_fixture.py --receipt "$RUNNER_TEMP/p421-acquisition-receipt.json"
+      - name: Publish receipt only, never third-party HWPX bytes
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: p421-rival-fixture-byte-receipt
+          path: ${{ runner.temp }}/p421-acquisition-receipt.json
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Verify no actual native evidence was claimed
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          from hwpx_mcp.quality.p421_prospective_render_court import registration_contract
+          manifest = json.loads(Path("benchmarks/p421_preregistration.json").read_text(encoding="utf-8"))
+          assert len(manifest["cases"]) == len(registration_contract()["slots"]) == 36
+          assert manifest["independent_native_captures_collected"] == 0
+          assert manifest["independent_human_reviews_collected"] == 0
+          assert all(case["source_sha256"] is None for case in manifest["cases"])
+          print("P4.21 prospective protocol: NO_NATIVE_OR_HUMAN_EVIDENCE")
+          PY

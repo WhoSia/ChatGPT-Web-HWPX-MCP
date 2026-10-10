@@ -1,0 +1,98 @@
+{
+  "schema": "p421/fresh-corpus-intake/v1",
+  "status": "METADATA_ONLY_NOT_ENROLLED",
+  "prior_sources": [
+    {
+      "source_id": "python-hwpx-formatting-showcase",
+      "feature_family": "FORMATTING",
+      "git_blob_sha": "52201854accd21f73ea40d7bbf89fefcf09b47cc",
+      "license": "Apache-2.0",
+      "prior_exposure": true
+    },
+    {
+      "source_id": "python-hwpx-note-example",
+      "feature_family": "NOTES",
+      "git_blob_sha": "3e319300852c0677f955f334abfe2c8e831f5c12",
+      "license": "Apache-2.0",
+      "prior_exposure": true
+    },
+    {
+      "source_id": "python-hwpx-exam-form",
+      "feature_family": "FORM_FIELDS",
+      "git_blob_sha": "e90c4b7c53cbc84aa62752a856804977133477ba",
+      "license": "Apache-2.0",
+      "prior_exposure": true
+    },
+    {
+      "source_id": "python-hwpx-list-level3",
+      "feature_family": "NUMBERING",
+      "git_blob_sha": "594e527ff778a5c64629932ba3bce878a0864cfc",
+      "license": "Apache-2.0",
+      "prior_exposure": true
+    },
+    {
+      "source_id": "python-hwpx-merge-3x3",
+      "feature_family": "MERGED_TABLES",
+      "git_blob_sha": "bf4943a276e14e4342291e350d3189ee2099ef2a",
+      "license": "Apache-2.0",
+      "prior_exposure": true
+    },
+    {
+      "source_id": "python-hwpx-textbox-fields",
+      "feature_family": "TEXTBOX_FIELDS",
+      "git_blob_sha": "2fdfd1f0361e9cf9443406e232e6b56428157438",
+      "license": "Apache-2.0",
+      "prior_exposure": true
+    },
+    {
+      "source_id": "hwpx-rust-hyperlink",
+      "feature_family": "HYPERLINKS",
+      "git_blob_sha": "0f8f7f25ce340e080f7e8df3007419888b83e4d8",
+      "license": "MIT",
+      "prior_exposure": true
+    },
+    {
+      "source_id": "hwpx-rust-linespacing",
+      "feature_family": "LINE_SPACING",
+      "git_blob_sha": "bb29dc5cfad6950c9dc7db76cd6be81c20f18ff9",
+      "license": "MIT",
+      "prior_exposure": true
+    }
+  ],
+  "fresh_candidates": [
+    {
+      "source_id": "moe-106880-education-data-bk21-20260809",
+      "publisher": "교육부",
+      "published": "2026-08-09",
+      "source_page": "https://www.moe.go.kr/boardCnts/viewRenew.do?boardID=294&boardSeq=106880&lev=0&m=020402&opType=N&page=1&s=moe&searchType=null&statusYN=W",
+      "expected_attachment": "데이터로 읽는 우리 교육 제11호 발간.hwpx",
+      "expected_size_approx_bytes": 44749,
+      "archetype_candidate": "academic_report",
+      "page_license": "KOGL_TYPE_1_ATTRIBUTION",
+      "attachment_license": "UNVERIFIED_SEPARATELY",
+      "provenance": "OFFICIAL_LISTING_CONFIRMED_NO_BINARY",
+      "download_status": "NOT_ACQUIRED",
+      "source_sha256": null,
+      "cohort": "UNASSIGNED"
+    },
+    {
+      "source_id": "moe-106879-overseas-education-20260809",
+      "publisher": "교육부",
+      "published": "2026-08-09",
+      "source_page": "https://www.moe.go.kr/boardCnts/viewRenew.do?boardID=294&boardSeq=106879&lev=0&m=020402&opType=N&page=1&s=moe&searchType=null&statusYN=W",
+      "expected_attachment": "재외교육기관장과 함께 케이(K)-교육의 미래를 논하다.hwpx",
+      "expected_size_approx_bytes": 182067,
+      "archetype_candidate": "academic_report",
+      "page_license": "KOGL_TYPE_1_ATTRIBUTION",
+      "attachment_license": "UNVERIFIED_SEPARATELY",
+      "provenance": "OFFICIAL_LISTING_CONFIRMED_NO_BINARY",
+      "download_status": "NOT_ACQUIRED",
+      "source_sha256": null,
+      "cohort": "UNASSIGNED"
+    }
+  ],
+  "new_source_bytes_verified": 0,
+  "actual_hancom_captures": 0,
+  "prohibition": "Do not count prior fixtures, URLs, or official PDFs as new independent HWPX render evidence.",
+  "notes": "Public listing and KOGL Type 1 label verified, but exact attachment byte hash, attachment reuse rights, source exposure and structural suitability require native intake."
+}

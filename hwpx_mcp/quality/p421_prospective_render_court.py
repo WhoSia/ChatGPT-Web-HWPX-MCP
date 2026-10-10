@@ -1,0 +1,287 @@
+"""P4.21 prospective renderer experiment, fail-closed and shadow-only.
+
+This module inspects reported observations. It cannot prove a real Hancom
+invocation or attest raster origin. Such authority must come from an
+independent external custodian.
+"""
+from __future__ import annotations
+
+import hashlib
+import json
+import re
+from typing import Any, Mapping, Sequence
+
+from hwpx_mcp.rendering.p411_visual_oracle import (
+    ALLOWED_REPAIRS, FORBIDDEN_REPAIRS, detect_native_visual_defects,
+)
+
+SCHEMA = "chatgpt-web-hwpx-mcp/p421/prospective-render-court/v1"
+SHA = re.compile(r"^[a-f0-9]{64}$")
+ARCHETYPES = ("academic_report", "long_table", "equation_heavy", "image_footnote")
+COHORTS = {"pilot": 12, "confirmatory": 24}
+HARD = frozenset({
+    "VECTOR_ESCAPE", "REGION_CLIP", "TEXT_DISAPPEARANCE",
+    "LABEL_VALUE_DETACHMENT", "KPI_CONTAINER_COLLAPSE",
+    "OBJECT_OVERLAP", "ALIGNMENT_DRIFT",
+    "NATIVE_ONLY_SERIALIZATION_DEFECT",
+})
+
+
+def digest(obj: Any) -> str:
+    return hashlib.sha256(json.dumps(
+        obj, sort_keys=True, ensure_ascii=False, separators=(",", ":"),
+    ).encode("utf-8")).hexdigest()
+
+
+def registration_contract() -> dict:
+    """Allocate study slots, but invent no sources, people, or observations."""
+    slots = [
+        {"case_id": f"p421-{phase}-{family}-{n:02d}",
+         "cohort": phase, "archetype": family, "state": "UNENROLLED"}
+        for phase, per_family in (("pilot", 3), ("confirmatory", 6))
+        for family in ARCHETYPES
+        for n in range(1, per_family + 1)
+    ]
+    receipt = {
+        "schema": SCHEMA,
+        "phase": "P4.21",
+        "mode": "PROSPECTIVE_SHADOW",
+        "cohorts": dict(COHORTS),
+        "archetypes": list(ARCHETYPES),
+        "slots": slots,
+        "max_repairs_per_case": 2,
+        "min_independent_human_reviewers": 2,
+        "independent_sources_required": True,
+        "no_cross_cohort_reuse": True,
+        "production_release_eligible": False,
+        "authority": "UNENROLLED_PREREGISTRATION",
+    }
+    receipt["registration_sha256"] = digest(receipt)
+    return receipt
+
+
+def audit_enrollment(
+    registration: Mapping[str, Any],
+    enrolled: Sequence[Mapping[str, Any]],
+    *, disallowed_source_hashes: Sequence[str] | None = None,
+) -> dict:
+    """Reject leaked sources, unknown slots and post-hoc split changes."""
+    slots = {x["case_id"]: x for x in registration["slots"]}
+    used_ids: set[str] = set()
+    used_sources: set[str] = set(disallowed_source_hashes or ())
+    issues: list[dict] = []
+    if enrolled and disallowed_source_hashes is None:
+        issues.append({"code": "EXCLUSION_LEDGER_UNBOUND"})
+    for row in enrolled:
+        cid = str(row.get("case_id") or "")
+        source = str(row.get("source_sha256") or "")
+        if cid not in slots or cid in used_ids:
+            issues.append({"code": "UNKNOWN_OR_DUPLICATE_SLOT", "case_id": cid})
+        used_ids.add(cid)
+        if not SHA.fullmatch(source):
+            issues.append({"code": "INVALID_SOURCE_HASH", "case_id": cid})
+        elif source in used_sources:
+            issues.append({"code": "SOURCE_REUSE_OR_LEAKAGE", "case_id": cid})
+        used_sources.add(source)
+        if cid in slots and (
+            row.get("cohort") != slots[cid]["cohort"]
+            or row.get("archetype") != slots[cid]["archetype"]
+        ):
+            issues.append({"code": "ASSIGNMENT_DRIFT", "case_id": cid})
+    return {
+        "status": ("FAIL_ENROLLMENT" if issues else
+                   "READY_FOR_CAPTURE" if len(used_ids) == len(slots) else
+                   "HOLD_UNFILLED_COHORT"),
+        "registered_count": len(slots),
+        "enrolled_count": len(used_ids),
+        "issues": issues,
+        "production_release_eligible": False,
+    }
+
+
+def _capture_errors(capture: Mapping[str, Any]) -> list[str]:
+    problems = []
+    for key in ("artifact_sha256", "raster_sha256", "font_inventory_sha256"):
+        if not SHA.fullmatch(str(capture.get(key) or "")):
+            problems.append("INVALID_" + key.upper())
+    for key in ("capture_id", "renderer_engine", "renderer_version",
+                "host_environment_id"):
+        if not capture.get(key):
+            problems.append("MISSING_" + key.upper())
+    if not isinstance(capture.get("page_break_locators"), list):
+        problems.append("MISSING_PAGE_FLOW")
+    if not isinstance(capture.get("observation"), dict):
+        problems.append("MISSING_VISUAL_OBSERVATION")
+    return problems
+
+
+def adjudicate_shadow_trial(trial: Mapping[str, Any]) -> dict:
+    """Evaluate structural admissibility and defects, never world authority."""
+    before = trial.get("baseline") or {}
+    after = trial.get("candidate") or {}
+    issues: list[str] = []
+    if not SHA.fullmatch(str(trial.get("source_sha256") or "")):
+        issues.append("INVALID_SOURCE")
+    if not SHA.fullmatch(str(trial.get("semantic_sha256_before") or "")):
+        issues.append("MISSING_SEMANTIC_CERTIFICATE")
+    if trial.get("semantic_sha256_before") != trial.get("semantic_sha256_after"):
+        issues.append("SEMANTIC_DRIFT")
+    repairs = trial.get("repairs") or []
+    if not isinstance(repairs, list) or len(repairs) > 2:
+        issues.append("REPAIR_BUDGET_EXCEEDED")
+    else:
+        for op in repairs:
+            if not isinstance(op, dict) or (
+                op.get("action") not in ALLOWED_REPAIRS
+                or op.get("action") in FORBIDDEN_REPAIRS
+            ):
+                issues.append("UNAUTHORIZED_REPAIR")
+    for label, capture in (("BASELINE", before), ("CANDIDATE", after)):
+        issues.extend(label + "_" + e for e in _capture_errors(capture))
+    if before.get("capture_id") == after.get("capture_id"):
+        issues.append("CAPTURE_REUSE")
+    comparison = "CROSS_RENDERER_CANDIDATE"
+    if before.get("renderer_engine") == after.get("renderer_engine"):
+        comparison = "CROSS_VERSION_ONLY"
+    rasterizers = {"pdfium", "poppler", "ghostscript", "pdf-rasterizer"}
+    if any(str(x.get("renderer_engine") or "").lower() in rasterizers
+           for x in (before, after)):
+        comparison = "RASTERIZER_NOT_LAYOUT_ENGINE"
+    if comparison != "CROSS_RENDERER_CANDIDATE":
+        issues.append(comparison)
+    before_codes: list[str] = []
+    after_codes: list[str] = []
+    if not issues:
+        for capture, destination in ((before, before_codes),
+                                     (after, after_codes)):
+            defects = detect_native_visual_defects(capture["observation"])
+            destination.extend(str(x["code"]) for x in defects["issues"])
+        if (set(after_codes) & HARD) - set(before_codes):
+            issues.append("NOVEL_HARD_DEFECT")
+        if set(after_codes) & HARD:
+            issues.append("UNRESOLVED_HARD_DEFECT")
+    result = {
+        "schema": SCHEMA,
+        "case_id": trial.get("case_id"),
+        "status": ("FAIL_PRELIMINARY_COURT" if issues else
+                   "HOLD_EXTERNAL_ATTESTATION_AND_HUMAN_REVIEW"),
+        "issues": sorted(set(issues)),
+        "comparison": comparison,
+        "baseline_defects": sorted(before_codes),
+        "candidate_defects": sorted(after_codes),
+        "page_breaks_before": before.get("page_break_locators"),
+        "page_breaks_after": after.get("page_break_locators"),
+        "page_flow_changed": (before.get("page_break_locators") !=
+                              after.get("page_break_locators")),
+        "font_environment_changed": (
+            before.get("font_inventory_sha256") !=
+            after.get("font_inventory_sha256")
+        ),
+        "renderer_claim_is_unverified": True,
+        "independent_human_review_observed": False,
+        "production_release_eligible": False,
+        "authority": "P421_SHADOW_METADATA_COURT",
+    }
+    result["receipt_sha256"] = digest(result)
+    return result
+
+
+def adjudicate_factorial_trial(trial: Mapping[str, Any]) -> dict:
+    """Compare repair effects under a 2x2 artifact-by-renderer experiment.
+
+    Requires four independent captures of the SAME baseline and candidate
+    artifacts: baseline/after on Hancom, and baseline/after on a second native
+    layout engine. This avoids attributing engine differences to repairs.
+    Cross-version captures alone cannot identify a cross-engine effect.
+    """
+    required = ("baseline_hancom", "candidate_hancom",
+                "baseline_rival", "candidate_rival")
+    captures = trial.get("captures") or {}
+    issues: list[str] = []
+    missing = [key for key in required if key not in captures]
+    if missing:
+        issues.append("MISSING_FACTORIAL_CELL")
+    if not SHA.fullmatch(str(trial.get("source_sha256") or "")):
+        issues.append("INVALID_SOURCE")
+    if not SHA.fullmatch(str(trial.get("semantic_sha256_before") or "")):
+        issues.append("MISSING_SEMANTIC_CERTIFICATE")
+    if trial.get("semantic_sha256_before") != trial.get("semantic_sha256_after"):
+        issues.append("SEMANTIC_DRIFT")
+    repairs = trial.get("repairs") or []
+    if not isinstance(repairs, list) or len(repairs) > 2:
+        issues.append("REPAIR_BUDGET_EXCEEDED")
+    elif any(not isinstance(op, dict)
+             or op.get("action") not in ALLOWED_REPAIRS
+             or op.get("action") in FORBIDDEN_REPAIRS for op in repairs):
+        issues.append("UNAUTHORIZED_REPAIR")
+
+    if not missing:
+        for key in required:
+            issues.extend(key.upper() + "_" + error
+                          for error in _capture_errors(captures[key]))
+        ids = [captures[key].get("capture_id") for key in required]
+        if len(set(ids)) != len(ids):
+            issues.append("CAPTURE_REUSE")
+        primary = [captures["baseline_hancom"], captures["candidate_hancom"]]
+        rival = [captures["baseline_rival"], captures["candidate_rival"]]
+        if any(x.get("renderer_engine") != "Hancom Hangul" for x in primary):
+            issues.append("HANCOM_NATIVE_ANCHOR_MISSING")
+        if (rival[0].get("renderer_engine") != rival[1].get("renderer_engine")
+                or rival[0].get("renderer_version") != rival[1].get("renderer_version")):
+            issues.append("RIVAL_VERSION_CONFOUND")
+        if rival[0].get("renderer_engine") == "Hancom Hangul":
+            issues.append("SAME_ENGINE_NOT_CROSS_RENDERER")
+        if str(rival[0].get("renderer_engine") or "").lower() in {
+            "pdfium", "poppler", "ghostscript", "pdf-rasterizer"
+        }:
+            issues.append("RASTERIZER_NOT_LAYOUT_ENGINE")
+        if primary[0].get("renderer_version") != primary[1].get("renderer_version"):
+            issues.append("HANCOM_VERSION_CONFOUND")
+        if (primary[0].get("artifact_sha256") != rival[0].get("artifact_sha256")
+                or primary[1].get("artifact_sha256") != rival[1].get("artifact_sha256")):
+            issues.append("ARTIFACT_RENDERER_CONFOUND")
+        for family in (primary, rival):
+            if family[0].get("font_inventory_sha256") != family[1].get("font_inventory_sha256"):
+                issues.append("WITHIN_RENDERER_FONT_DRIFT")
+            if family[0].get("host_environment_id") != family[1].get("host_environment_id"):
+                issues.append("WITHIN_RENDERER_HOST_DRIFT")
+
+    paired: dict[str, Any] = {}
+    if not issues:
+        for family in ("hancom", "rival"):
+            b = captures["baseline_" + family]
+            a = captures["candidate_" + family]
+            before = detect_native_visual_defects(b["observation"])
+            after = detect_native_visual_defects(a["observation"])
+            before_hard = {x["code"] for x in before["issues"] if x["code"] in HARD}
+            after_hard = {x["code"] for x in after["issues"] if x["code"] in HARD}
+            if after_hard - before_hard:
+                issues.append("NOVEL_HARD_DEFECT_" + family.upper())
+            if after_hard:
+                issues.append("UNRESOLVED_HARD_DEFECT_" + family.upper())
+            paired[family] = {
+                "baseline_hard_defects": sorted(before_hard),
+                "candidate_hard_defects": sorted(after_hard),
+                "hard_defect_reduction": len(before_hard - after_hard),
+                "page_breaks_before": b["page_break_locators"],
+                "page_breaks_after": a["page_break_locators"],
+                "page_flow_changed": (
+                    b["page_break_locators"] != a["page_break_locators"]
+                ),
+            }
+    result = {
+        "schema": SCHEMA,
+        "mode": "PROSPECTIVE_2X2_SHADOW",
+        "case_id": trial.get("case_id"),
+        "status": ("FAIL_PRELIMINARY_COURT" if issues else
+                   "HOLD_UNVERIFIED_NATIVE_CAPTURES_AND_INDEPENDENT_HUMAN_ACCEPTANCE"),
+        "issues": sorted(set(issues)),
+        "paired_renderer_effects": paired,
+        "native_engine_independence_attested": False,
+        "capture_provenance_attested": False,
+        "blinded_human_acceptance_attested": False,
+        "production_release_eligible": False,
+        "authority": "P421_NONPROMOTING_FACTORIAL_OBSERVATION_COURT",
+    }
+    result["receipt_sha256"] = digest(result)
+    return result

@@ -1,0 +1,22 @@
+{
+  "schema": "p421/rival-qualification/v1",
+  "candidate": "STAIxBWLB/hwp-cli",
+  "version": "v1.3.1",
+  "source_commit": "6a10cccfb5e7cc9c88f26a3cd363decde00f5b96",
+  "readme_blob": "650c13587bd7c871c5e41ad12f5be2ec8d53d393",
+  "claimed": {
+    "hwpx_to_png_svg_pdf": true,
+    "text_tables_images_footnotes": "DOCUMENTED",
+    "equations": "APPROXIMATED",
+    "fonts": "EXTERNAL_REQUIRED"
+  },
+  "verified": {
+    "binary_downloaded": false,
+    "checksum_verified": false,
+    "execution_pass": false,
+    "hancom_native_capture": false,
+    "semantic_equivalence": false
+  },
+  "verdict": "CONDITIONAL_CANDIDATE_NOT_REFERENCE",
+  "reason": "Upstream feature claims are not independently executed; equation approximation is not exact."
+}

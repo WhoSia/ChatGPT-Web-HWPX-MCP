@@ -1,0 +1,14 @@
+{
+  "schema": "chatgpt-web-hwpx-mcp/p421/byte-acquisition-registration/v1",
+  "source_id": "hwp-cli-v1.3.1-report-tables",
+  "repo": "STAIxBWLB/hwp-cli",
+  "source_commit": "6a10cccfb5e7cc9c88f26a3cd363decde00f5b96",
+  "relative_path": "fixtures/samples/report-tables.hwpx",
+  "git_blob_sha1": "6475b45d72f0c69f895693aafa26c6eb73805dec",
+  "size_bytes_expected": 191242,
+  "license": "MIT OR Apache-2.0 (repository); fixture-specific provenance NOT cleared",
+  "policy": "DOWNLOAD_TO_EPHEMERAL_CI_ONLY_NO_SOURCE_REDISTRIBUTION",
+  "stage": "RIVAL_QUALIFICATION_FIXTURE_NOT_INDEPENDENT_PILOT",
+  "source_sha256": null,
+  "bytes_verified": false
+}

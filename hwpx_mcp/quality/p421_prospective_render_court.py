@@ -183,3 +183,104 @@ def adjudicate_shadow_trial(trial: Mapping[str, Any]) -> dict:
     }
     result["receipt_sha256"] = digest(result)
     return result
+
+
+def adjudicate_factorial_trial(trial: Mapping[str, Any]) -> dict:
+    """Compare repair effects under a 2x2 artifact-by-renderer experiment.
+
+    Requires four independent captures of the SAME baseline and candidate
+    artifacts: baseline/after on Hancom, and baseline/after on a second native
+    layout engine. This avoids attributing engine differences to repairs.
+    Cross-version captures alone cannot identify a cross-engine effect.
+    """
+    required = ("baseline_hancom", "candidate_hancom",
+                "baseline_rival", "candidate_rival")
+    captures = trial.get("captures") or {}
+    issues: list[str] = []
+    missing = [key for key in required if key not in captures]
+    if missing:
+        issues.append("MISSING_FACTORIAL_CELL")
+    if not SHA.fullmatch(str(trial.get("source_sha256") or "")):
+        issues.append("INVALID_SOURCE")
+    if not SHA.fullmatch(str(trial.get("semantic_sha256_before") or "")):
+        issues.append("MISSING_SEMANTIC_CERTIFICATE")
+    if trial.get("semantic_sha256_before") != trial.get("semantic_sha256_after"):
+        issues.append("SEMANTIC_DRIFT")
+    repairs = trial.get("repairs") or []
+    if not isinstance(repairs, list) or len(repairs) > 2:
+        issues.append("REPAIR_BUDGET_EXCEEDED")
+    elif any(not isinstance(op, dict)
+             or op.get("action") not in ALLOWED_REPAIRS
+             or op.get("action") in FORBIDDEN_REPAIRS for op in repairs):
+        issues.append("UNAUTHORIZED_REPAIR")
+
+    if not missing:
+        for key in required:
+            issues.extend(key.upper() + "_" + error
+                          for error in _capture_errors(captures[key]))
+        ids = [captures[key].get("capture_id") for key in required]
+        if len(set(ids)) != len(ids):
+            issues.append("CAPTURE_REUSE")
+        primary = [captures["baseline_hancom"], captures["candidate_hancom"]]
+        rival = [captures["baseline_rival"], captures["candidate_rival"]]
+        if any(x.get("renderer_engine") != "Hancom Hangul" for x in primary):
+            issues.append("HANCOM_NATIVE_ANCHOR_MISSING")
+        if (rival[0].get("renderer_engine") != rival[1].get("renderer_engine")
+                or rival[0].get("renderer_version") != rival[1].get("renderer_version")):
+            issues.append("RIVAL_VERSION_CONFOUND")
+        if rival[0].get("renderer_engine") == "Hancom Hangul":
+            issues.append("SAME_ENGINE_NOT_CROSS_RENDERER")
+        if str(rival[0].get("renderer_engine") or "").lower() in {
+            "pdfium", "poppler", "ghostscript", "pdf-rasterizer"
+        }:
+            issues.append("RASTERIZER_NOT_LAYOUT_ENGINE")
+        if primary[0].get("renderer_version") != primary[1].get("renderer_version"):
+            issues.append("HANCOM_VERSION_CONFOUND")
+        if (primary[0].get("artifact_sha256") != rival[0].get("artifact_sha256")
+                or primary[1].get("artifact_sha256") != rival[1].get("artifact_sha256")):
+            issues.append("ARTIFACT_RENDERER_CONFOUND")
+        for family in (primary, rival):
+            if family[0].get("font_inventory_sha256") != family[1].get("font_inventory_sha256"):
+                issues.append("WITHIN_RENDERER_FONT_DRIFT")
+            if family[0].get("host_environment_id") != family[1].get("host_environment_id"):
+                issues.append("WITHIN_RENDERER_HOST_DRIFT")
+
+    paired: dict[str, Any] = {}
+    if not issues:
+        for family in ("hancom", "rival"):
+            b = captures["baseline_" + family]
+            a = captures["candidate_" + family]
+            before = detect_native_visual_defects(b["observation"])
+            after = detect_native_visual_defects(a["observation"])
+            before_hard = {x["code"] for x in before["issues"] if x["code"] in HARD}
+            after_hard = {x["code"] for x in after["issues"] if x["code"] in HARD}
+            if after_hard - before_hard:
+                issues.append("NOVEL_HARD_DEFECT_" + family.upper())
+            if after_hard:
+                issues.append("UNRESOLVED_HARD_DEFECT_" + family.upper())
+            paired[family] = {
+                "baseline_hard_defects": sorted(before_hard),
+                "candidate_hard_defects": sorted(after_hard),
+                "hard_defect_reduction": len(before_hard - after_hard),
+                "page_breaks_before": b["page_break_locators"],
+                "page_breaks_after": a["page_break_locators"],
+                "page_flow_changed": (
+                    b["page_break_locators"] != a["page_break_locators"]
+                ),
+            }
+    result = {
+        "schema": SCHEMA,
+        "mode": "PROSPECTIVE_2X2_SHADOW",
+        "case_id": trial.get("case_id"),
+        "status": ("FAIL_PRELIMINARY_COURT" if issues else
+                   "HOLD_UNVERIFIED_NATIVE_CAPTURES_AND_INDEPENDENT_HUMAN_ACCEPTANCE"),
+        "issues": sorted(set(issues)),
+        "paired_renderer_effects": paired,
+        "native_engine_independence_attested": False,
+        "capture_provenance_attested": False,
+        "blinded_human_acceptance_attested": False,
+        "production_release_eligible": False,
+        "authority": "P421_NONPROMOTING_FACTORIAL_OBSERVATION_COURT",
+    }
+    result["receipt_sha256"] = digest(result)
+    return result

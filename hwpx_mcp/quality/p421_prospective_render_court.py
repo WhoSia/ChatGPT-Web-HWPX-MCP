@@ -9,7 +9,6 @@ from __future__ import annotations
 import hashlib
 import json
 import re
-from collections import Counter
 from typing import Any, Mapping, Sequence
 
 from hwpx_mcp.rendering.p411_visual_oracle import (
@@ -64,12 +63,14 @@ def registration_contract() -> dict:
 def audit_enrollment(
     registration: Mapping[str, Any],
     enrolled: Sequence[Mapping[str, Any]],
-    *, disallowed_source_hashes: Sequence[str] = (),
+    *, disallowed_source_hashes: Sequence[str] | None = None,
 ) -> dict:
     """Reject leaked sources, unknown slots and post-hoc split changes."""
     slots = {x["case_id"]: x for x in registration["slots"]}
     used_ids: set[str] = set()
-    used_sources: set[str] = set(disallowed_source_hashes)
+    used_sources: set[str] = set(disallowed_source_hashes or ())
+    if enrolled and disallowed_source_hashes is None:
+        issues.append({"code": "EXCLUSION_LEDGER_UNBOUND"})
     issues: list[dict] = []
     for row in enrolled:
         cid = str(row.get("case_id") or "")

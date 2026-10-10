@@ -228,3 +228,31 @@ def test_factorial_reports_reflow_separately_from_semantic_change():
     assert result["paired_renderer_effects"]["hancom"]["page_flow_changed"] is True
     assert result["paired_renderer_effects"]["rival"]["page_flow_changed"] is False
     assert result["production_release_eligible"] is False
+
+
+
+def test_frozen_calibration_ledger_matches_archive():
+    import json
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[1]
+    archived = json.loads((root / "benchmarks/p411_native_calibration.json").read_text(encoding="utf-8"))
+    frozen = json.loads((root / "benchmarks/p421_preregistration.json").read_text(encoding="utf-8"))
+    source_hashes = {x["source_sha256"].lower() for x in
+                     (archived.get("archetypes", []) + archived.get("equations", []))}
+    assert set(frozen["known_p411_calibration_source_exclusions"]) == source_hashes
+    reg = registration_contract()
+    assert [s["case_id"] for s in reg["slots"]] == [
+        s["case_id"] for s in frozen["cases"]
+    ]
+    assert frozen["independent_native_captures_collected"] == 0
+    assert frozen["independent_human_reviews_collected"] == 0
+
+
+def test_enrollment_is_blocked_without_explicit_frozen_exclusions():
+    reg = registration_contract()
+    entry = dict(reg["slots"][0], source_sha256="a" * 64)
+    r = audit_enrollment(reg, [entry])
+    assert "EXCLUSION_LEDGER_UNBOUND" in {x["code"] for x in r["issues"]}
+    safe = audit_enrollment(reg, [entry], disallowed_source_hashes=["b" * 64])
+    assert safe["status"] == "HOLD_UNFILLED_COHORT"

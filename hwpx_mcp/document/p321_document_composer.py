@@ -14,6 +14,7 @@ from typing import Any, Callable
 from hwpx import HwpxDocument
 from hwpx.equation import latex_to_eqedit
 
+from hwpx_mcp.quality.p421_professional_authoring_review import review_authoring_plan
 from hwpx_mcp.document.p2_document import build_document_map
 from hwpx_mcp.document.p22_formatting import build_formatting_map
 from hwpx_mcp.document.p23_richtext import apply_rich_formatting_atomic
@@ -637,6 +638,7 @@ def compose_document_plan(
     validator: Callable[[Path], dict] | None = None,
 ) -> dict:
     normalized = _normalize_plan(plan)
+    professional_review = review_authoring_plan(normalized)
     destination = Path(destination)
     destination.parent.mkdir(parents=True, exist_ok=True)
     fd, tmp_name = tempfile.mkstemp(
@@ -753,6 +755,7 @@ def compose_document_plan(
             "schema": RECEIPT_SCHEMA,
             "plan_schema": PLAN_SCHEMA,
             "plan_sha256": _sha(normalized),
+            "professional_authoring_review": professional_review,
             "preset": normalized["preset"],
             "template_mode": "append" if template_path is not None else "blank",
             "block_count": len(normalized["blocks"]),

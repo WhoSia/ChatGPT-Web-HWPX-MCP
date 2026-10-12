@@ -4,7 +4,8 @@ from copy import deepcopy
 import pytest
 
 from hwpx_mcp.quality.p421_prospective_render_court import (
-    adjudicate_shadow_trial, audit_enrollment, registration_contract,
+    adjudicate_shadow_trial, adjudicate_factorial_trial,
+    audit_enrollment, registration_contract,
 )
 
 
@@ -142,3 +143,88 @@ def test_candidate_new_missing_text_is_blocking():
     assert result["status"] == "FAIL_PRELIMINARY_COURT"
     assert "TEXT_DISAPPEARANCE" in result["candidate_defects"]
     assert "NOVEL_HARD_DEFECT" in result["issues"]
+
+
+def factorial():
+    import copy
+    src = sample()
+    b = copy.deepcopy(src["baseline"])
+    c = copy.deepcopy(src["candidate"])
+    # Each renderer processes BOTH artifact versions under one environment.
+    h_after = copy.deepcopy(b)
+    h_after["capture_id"] = "hancom-after"
+    h_after["artifact_sha256"] = c["artifact_sha256"]
+    r_before = copy.deepcopy(c)
+    r_before["capture_id"] = "rival-before"
+    r_before["artifact_sha256"] = b["artifact_sha256"]
+    return {
+        "case_id": src["case_id"],
+        "source_sha256": src["source_sha256"],
+        "semantic_sha256_before": src["semantic_sha256_before"],
+        "semantic_sha256_after": src["semantic_sha256_after"],
+        "repairs": src["repairs"],
+        "captures": {
+            "baseline_hancom": b,
+            "candidate_hancom": h_after,
+            "baseline_rival": r_before,
+            "candidate_rival": c,
+        },
+        "attested": True,
+        "human_review": src["human_review"],
+    }
+
+
+def test_factorial_design_requires_four_cells():
+    pair = factorial()
+    del pair["captures"]["candidate_rival"]
+    result = adjudicate_factorial_trial(pair)
+    assert "MISSING_FACTORIAL_CELL" in result["issues"]
+    assert result["status"] == "FAIL_PRELIMINARY_COURT"
+
+
+def test_factorial_clean_synthetic_does_not_certify_native_quality():
+    a = adjudicate_factorial_trial(factorial())
+    assert a["status"] == "HOLD_UNVERIFIED_NATIVE_CAPTURES_AND_INDEPENDENT_HUMAN_ACCEPTANCE"
+    assert set(a["paired_renderer_effects"]) == {"hancom", "rival"}
+    assert a["production_release_eligible"] is False
+    assert a["blinded_human_acceptance_attested"] is False
+
+
+@pytest.mark.parametrize("broken,expected", [
+    (("candidate_hancom", "renderer_version", "2026"), "HANCOM_VERSION_CONFOUND"),
+    (("candidate_rival", "renderer_engine", "unrelated-engine"),
+     "RIVAL_VERSION_CONFOUND"),
+    (("baseline_rival", "renderer_engine", "pdfium"), "RASTERIZER_NOT_LAYOUT_ENGINE"),
+    (("candidate_hancom", "font_inventory_sha256", "1"*64),
+     "WITHIN_RENDERER_FONT_DRIFT"),
+    (("candidate_rival", "artifact_sha256", "8"*64), "ARTIFACT_RENDERER_CONFOUND"),
+])
+def test_factorial_confounding_cannot_be_interpreted_as_repair_effect(broken, expected):
+    t = factorial()
+    key, field, value = broken
+    t["captures"][key][field] = value
+    result = adjudicate_factorial_trial(t)
+    assert expected in result["issues"]
+    assert result["production_release_eligible"] is False
+
+
+def test_factorial_detects_new_hancom_text_loss_and_retains_rival_pair():
+    t = factorial()
+    t["captures"]["candidate_hancom"]["observation"]["regions"] = [{
+        "component_id": "heading", "role": "heading",
+        "x": 80, "y": 100, "width": 240, "height": 38,
+        "expected_text": "연구", "observed_text": "",
+    }]
+    result = adjudicate_factorial_trial(t)
+    assert "NOVEL_HARD_DEFECT_HANCOM" in result["issues"]
+    assert "TEXT_DISAPPEARANCE" in result["paired_renderer_effects"]["hancom"]["candidate_hard_defects"]
+    assert result["status"] == "FAIL_PRELIMINARY_COURT"
+
+
+def test_factorial_reports_reflow_separately_from_semantic_change():
+    t = factorial()
+    t["captures"]["candidate_hancom"]["page_break_locators"] = ["paragraph-3"]
+    result = adjudicate_factorial_trial(t)
+    assert result["paired_renderer_effects"]["hancom"]["page_flow_changed"] is True
+    assert result["paired_renderer_effects"]["rival"]["page_flow_changed"] is False
+    assert result["production_release_eligible"] is False

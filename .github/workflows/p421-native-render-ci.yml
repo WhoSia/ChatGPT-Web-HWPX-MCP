@@ -1,7 +1,7 @@
 name: P4.21 prospective native-render shadow-court
 on:
   pull_request:
-    branches: ["refactor/p420-python-domain-packages-20261009"]
+    branches: ["main"]
     paths:
       - "hwpx_mcp/quality/p421_prospective_render_court.py"
       - "hwpx_mcp/quality/p421_renderer_qualification.py"

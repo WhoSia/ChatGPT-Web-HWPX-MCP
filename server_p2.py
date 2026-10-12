@@ -3588,6 +3588,29 @@ def apply_equation_edits(document_id: str, expected_revision: int, operations: l
     }
 
 
+
+@core.mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, openWorldHint=False))
+def preview_professional_formatting(document_id: str) -> dict:
+    """Inspect document quality and authoring review before explicit native formatting edits.
+
+    Recommendations are advisory. Clients must separately supply exact approved
+    operations to apply_formatting; no implicit mutation or visual certification.
+    """
+    metadata, _source = _owned_document(document_id)
+    composition = metadata.get("composition_receipt") or {}
+    return {
+        "ok": True,
+        "document_id": document_id,
+        "revision": int(metadata["revision"]),
+        "professional_plan_review": composition.get("professional_authoring_review"),
+        "quality_before": _p421_public_quality(document_id),
+        "next": "Inspect get_document_map and formatting map; submit explicit approved "
+                "format operations to apply_formatting at this expected_revision.",
+        "automatic_repairs_applied": False,
+        "visual_authority": "NOT_OBSERVED",
+    }
+
+
 @core.mcp.tool()
 def apply_formatting(document_id: str, expected_revision: int, operations: list[dict], lease_token: str = "") -> dict:
     """Apply one revision-guarded formatting-only transaction."""

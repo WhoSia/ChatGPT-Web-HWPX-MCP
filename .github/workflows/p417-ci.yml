@@ -4,7 +4,9 @@ on:
   push:
     branches: [main]
     paths:
-      - "p417_*.py"
+      - "hwpx_mcp/corpus/p417_*.py"
+      - "hwpx_mcp/orchestration/p417_*.py"
+      - "hwpx_mcp/interfaces/p417_*.py"
       - "tests/test_p417_*.py"
       - "scripts/p417_*.py"
       - "benchmarks/p417_*"
@@ -67,6 +69,6 @@ jobs:
       - name: Build exact-head image
         run: docker build --progress=plain -t hwpx-mcp-p417:${{ github.sha }} .
       - name: Verify P4.17 intelligence and execution kernels in exact-head image
-        run: docker run --rm --entrypoint python hwpx-mcp-p417:${{ github.sha }} -c "from p417_corpus import corpus_contract; from p417_executor import transformation_execution_contract; c=corpus_contract(); e=transformation_execution_contract(); assert c['phase']=='P4.17' and c['product']=='0.42.0-p4.17' and c['raw_bytes_policy']=='EPHEMERAL_ONLY_BY_DEFAULT'; assert e['phase']=='P4.17' and e['product']=='0.42.0-p4.17' and e['transaction']=='COPY_EXECUTE_VERIFY_ATOMIC_REPLACE'; print('P4.17 corpus + verified execution Docker PASS')"
+        run: docker run --rm --entrypoint python hwpx-mcp-p417:${{ github.sha }} -c "from hwpx_mcp.corpus.p417_corpus import corpus_contract; from hwpx_mcp.orchestration.p417_executor import transformation_execution_contract; c=corpus_contract(); e=transformation_execution_contract(); assert c['phase']=='P4.17' and c['product']=='0.42.0-p4.17' and c['raw_bytes_policy']=='EPHEMERAL_ONLY_BY_DEFAULT'; assert e['phase']=='P4.17' and e['product']=='0.42.0-p4.17' and e['transaction']=='COPY_EXECUTE_VERIFY_ATOMIC_REPLACE'; print('P4.17 corpus + verified execution Docker PASS')"
       - name: Preserve P4.16 backward authority smoke
         run: docker run --rm --entrypoint python hwpx-mcp-p417:${{ github.sha }} scripts/p416_release_smoke.py

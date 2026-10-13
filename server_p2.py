@@ -14,6 +14,7 @@ import unicodedata
 from pathlib import Path
 
 import server as core
+from mcp.types import ToolAnnotations
 from hwpx import HwpxDocument
 from hwpx_mcp.document.p2_document import apply_edits_atomic, build_document_map
 from hwpx_mcp.document.p22_formatting import build_formatting_map

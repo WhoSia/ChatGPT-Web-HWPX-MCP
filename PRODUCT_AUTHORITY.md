@@ -4,8 +4,9 @@ This file is the single compact repository-level authority note for product phas
 
 ## Current product line
 
-- Product: `0.43.0-p4.18`
-- Active program: **P4.18 — End-User Document Agent Productization**
+- Last independently observed production identifier: `0.43.0-p4.18` (observed 2026-10-09; **current deployed SHA and deployed functionality unverified**).
+- GitHub code state: **P4.20 PR #14 and PR #15 MERGED to `main`**; **P4.21 PR #16 OPEN/DRAFT, not merged and not certified on production** (verified 2026-10-13).
+- Active development program: **P4.21 — Independent Native-Render Fidelity & Bounded Professional Document Repair**, with source/CI-only progress and unresolved native/live consumer gates.
 - Production authority remains evidence-separated from native Hancom visual authority.
 - Public HWPX acquisition evidence does not imply redistribution permission.
 - Runtime/product code changes require normal exact-head CI; documentation-only hygiene commits do not retroactively change the tested runtime evidence.
@@ -14,9 +15,11 @@ This file is the single compact repository-level authority note for product phas
 
 PR #13 merged to `main` at `c0d8a39d4306fb3abaf38a395052eedd5b445f8a` with a validated identical PR tree, 89 root Python modules and retained human-authored commits. The refactor changed the source layout; it did not establish an equivalent Render live runtime or native-world document delivery.
 
-## P4.20 recovery — active on PR #14, not yet merged
+## P4.20 recovery — source merged (PR #14 and #15), production authority separate
 
-**ChatGPT Web HWPX MCP P4.19 — Durable Document Lifecycle, Post-Commit Audit Persistence, Verifiable Delivery, Expiration-Aware Workflow Recovery & End-to-End Release Closure**
+**Source chronology audit (2026-10-13):** [P4.20 PR #14](https://github.com/WhoSia/ChatGPT-Web-HWPX-MCP/pull/14) merged **2026-10-09 23:25 KST** at `1b28199b21b72a392e791863b82cab850e750f69`; [P4.20 PR #15](https://github.com/WhoSia/ChatGPT-Web-HWPX-MCP/pull/15) merged **2026-10-12 15:11 KST** at `950bff8d3ed16f1d6eda20e190b2b32cd8280733`; [P4.21 PR #16](https://github.com/WhoSia/ChatGPT-Web-HWPX-MCP/pull/16) is an unmerged Draft at `d47984e1e7d639873801dbe27a9f508790666463` when audited. This is a **GitHub source/PR certificate, not a Render deploy or Hancom native screenshot certificate**. The last independently observed Render identifier remains historical `0.43.0-p4.18`; GitHub Release list had no published release; server-side P4.21 quality metadata and the live edit roundtrip are unverified or previously observed failing. Retain historical P4.18-P3 consumer content/delivery HOLD.
+
+**Historical program predecessor: ChatGPT Web HWPX MCP P4.19 — Durable Document Lifecycle, Post-Commit Audit Persistence, Verifiable Delivery, Expiration-Aware Workflow Recovery & End-to-End Release Closure**
 
 P4.19 source code is **MERGED**, while P4.20 addresses its post-merge regression and runtime integration failures. P4.18-P3 has an independently
 retrieved revision-2 durable commit receipt and version history from the
@@ -31,7 +34,7 @@ receipt and version history, with truthful delivery status. Unexpired document
 ownership is mandatory; no mutation, recovery, or download is inferred from
 the overview.
 
-P4.20 recovery must distinguish source CI, real external fixture availability, deployed exact SHA, native Hancom world-contact and consumer file acquisition. Product roadmap and engineering priorities are documented in
+P4.20 P4.21 continuing verification must distinguish source CI, real external fixture availability, deployed exact SHA, native Hancom world-contact and consumer file acquisition. Product roadmap and engineering priorities are documented in
 [README.md](README.md). Every runtime promotion still needs exact-head
 testing and actual production contact. GitHub Actions is test-only, never
 a committing contributor. Small bounded fixes can land directly on main; major changes use short-lived PR branches. The separate p332-brownfield historical branch is retained by explicit user choice.

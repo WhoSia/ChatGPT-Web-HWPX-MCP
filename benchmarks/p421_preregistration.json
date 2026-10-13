@@ -1,0 +1,291 @@
+{
+  "schema": "chatgpt-web-hwpx-mcp/p421/preregistration/v1",
+  "phase": "P4.21",
+  "status": "FROZEN_DESIGN_NO_OBSERVATIONS",
+  "baseline_commit": "950bff8d3ed16f1d6eda20e190b2b32cd8280733",
+  "cohorts": {
+    "pilot": 12,
+    "confirmatory": 24
+  },
+  "archetypes": [
+    "academic_report",
+    "long_table",
+    "equation_heavy",
+    "image_footnote"
+  ],
+  "cases": [
+    {
+      "case_id": "p421-pilot-academic_report-01",
+      "cohort": "pilot",
+      "archetype": "academic_report",
+      "state": "UNENROLLED",
+      "source_sha256": null
+    },
+    {
+      "case_id": "p421-pilot-academic_report-02",
+      "cohort": "pilot",
+      "archetype": "academic_report",
+      "state": "UNENROLLED",
+      "source_sha256": null
+    },
+    {
+      "case_id": "p421-pilot-academic_report-03",
+      "cohort": "pilot",
+      "archetype": "academic_report",
+      "state": "UNENROLLED",
+      "source_sha256": null
+    },
+    {
+      "case_id": "p421-pilot-long_table-01",
+      "cohort": "pilot",
+      "archetype": "long_table",
+      "state": "UNENROLLED",
+      "source_sha256": null
+    },
+    {
+      "case_id": "p421-pilot-long_table-02",
+      "cohort": "pilot",
+      "archetype": "long_table",
+      "state": "UNENROLLED",
+      "source_sha256": null
+    },
+    {
+      "case_id": "p421-pilot-long_table-03",
+      "cohort": "pilot",
+      "archetype": "long_table",
+      "state": "UNENROLLED",
+      "source_sha256": null
+    },
+    {
+      "case_id": "p421-pilot-equation_heavy-01",
+      "cohort": "pilot",
+      "archetype": "equation_heavy",
+      "state": "UNENROLLED",
+      "source_sha256": null
+    },
+    {
+      "case_id": "p421-pilot-equation_heavy-02",
+      "cohort": "pilot",
+      "archetype": "equation_heavy",
+      "state": "UNENROLLED",
+      "source_sha256": null
+    },
+    {
+      "case_id": "p421-pilot-equation_heavy-03",
+      "cohort": "pilot",
+      "archetype": "equation_heavy",
+      "state": "UNENROLLED",
+      "source_sha256": null
+    },
+    {
+      "case_id": "p421-pilot-image_footnote-01",
+      "cohort": "pilot",
+      "archetype": "image_footnote",
+      "state": "UNENROLLED",
+      "source_sha256": null
+    },
+    {
+      "case_id": "p421-pilot-image_footnote-02",
+      "cohort": "pilot",
+      "archetype": "image_footnote",
+      "state": "UNENROLLED",
+      "source_sha256": null
+    },
+    {
+      "case_id": "p421-pilot-image_footnote-03",
+      "cohort": "pilot",
+      "archetype": "image_footnote",
+      "state": "UNENROLLED",
+      "source_sha256": null
+    },
+    {
+      "case_id": "p421-confirmatory-academic_report-01",
+      "cohort": "confirmatory",
+      "archetype": "academic_report",
+      "state": "UNENROLLED",
+      "source_sha256": null
+    },
+    {
+      "case_id": "p421-confirmatory-academic_report-02",
+      "cohort": "confirmatory",
+      "archetype": "academic_report",
+      "state": "UNENROLLED",
+      "source_sha256": null
+    },
+    {
+      "case_id": "p421-confirmatory-academic_report-03",
+      "cohort": "confirmatory",
+      "archetype": "academic_report",
+      "state": "UNENROLLED",
+      "source_sha256": null
+    },
+    {
+      "case_id": "p421-confirmatory-academic_report-04",
+      "cohort": "confirmatory",
+      "archetype": "academic_report",
+      "state": "UNENROLLED",
+      "source_sha256": null
+    },
+    {
+      "case_id": "p421-confirmatory-academic_report-05",
+      "cohort": "confirmatory",
+      "archetype": "academic_report",
+      "state": "UNENROLLED",
+      "source_sha256": null
+    },
+    {
+      "case_id": "p421-confirmatory-academic_report-06",
+      "cohort": "confirmatory",
+      "archetype": "academic_report",
+      "state": "UNENROLLED",
+      "source_sha256": null
+    },
+    {
+      "case_id": "p421-confirmatory-long_table-01",
+      "cohort": "confirmatory",
+      "archetype": "long_table",
+      "state": "UNENROLLED",
+      "source_sha256": null
+    },
+    {
+      "case_id": "p421-confirmatory-long_table-02",
+      "cohort": "confirmatory",
+      "archetype": "long_table",
+      "state": "UNENROLLED",
+      "source_sha256": null
+    },
+    {
+      "case_id": "p421-confirmatory-long_table-03",
+      "cohort": "confirmatory",
+      "archetype": "long_table",
+      "state": "UNENROLLED",
+      "source_sha256": null
+    },
+    {
+      "case_id": "p421-confirmatory-long_table-04",
+      "cohort": "confirmatory",
+      "archetype": "long_table",
+      "state": "UNENROLLED",
+      "source_sha256": null
+    },
+    {
+      "case_id": "p421-confirmatory-long_table-05",
+      "cohort": "confirmatory",
+      "archetype": "long_table",
+      "state": "UNENROLLED",
+      "source_sha256": null
+    },
+    {
+      "case_id": "p421-confirmatory-long_table-06",
+      "cohort": "confirmatory",
+      "archetype": "long_table",
+      "state": "UNENROLLED",
+      "source_sha256": null
+    },
+    {
+      "case_id": "p421-confirmatory-equation_heavy-01",
+      "cohort": "confirmatory",
+      "archetype": "equation_heavy",
+      "state": "UNENROLLED",
+      "source_sha256": null
+    },
+    {
+      "case_id": "p421-confirmatory-equation_heavy-02",
+      "cohort": "confirmatory",
+      "archetype": "equation_heavy",
+      "state": "UNENROLLED",
+      "source_sha256": null
+    },
+    {
+      "case_id": "p421-confirmatory-equation_heavy-03",
+      "cohort": "confirmatory",
+      "archetype": "equation_heavy",
+      "state": "UNENROLLED",
+      "source_sha256": null
+    },
+    {
+      "case_id": "p421-confirmatory-equation_heavy-04",
+      "cohort": "confirmatory",
+      "archetype": "equation_heavy",
+      "state": "UNENROLLED",
+      "source_sha256": null
+    },
+    {
+      "case_id": "p421-confirmatory-equation_heavy-05",
+      "cohort": "confirmatory",
+      "archetype": "equation_heavy",
+      "state": "UNENROLLED",
+      "source_sha256": null
+    },
+    {
+      "case_id": "p421-confirmatory-equation_heavy-06",
+      "cohort": "confirmatory",
+      "archetype": "equation_heavy",
+      "state": "UNENROLLED",
+      "source_sha256": null
+    },
+    {
+      "case_id": "p421-confirmatory-image_footnote-01",
+      "cohort": "confirmatory",
+      "archetype": "image_footnote",
+      "state": "UNENROLLED",
+      "source_sha256": null
+    },
+    {
+      "case_id": "p421-confirmatory-image_footnote-02",
+      "cohort": "confirmatory",
+      "archetype": "image_footnote",
+      "state": "UNENROLLED",
+      "source_sha256": null
+    },
+    {
+      "case_id": "p421-confirmatory-image_footnote-03",
+      "cohort": "confirmatory",
+      "archetype": "image_footnote",
+      "state": "UNENROLLED",
+      "source_sha256": null
+    },
+    {
+      "case_id": "p421-confirmatory-image_footnote-04",
+      "cohort": "confirmatory",
+      "archetype": "image_footnote",
+      "state": "UNENROLLED",
+      "source_sha256": null
+    },
+    {
+      "case_id": "p421-confirmatory-image_footnote-05",
+      "cohort": "confirmatory",
+      "archetype": "image_footnote",
+      "state": "UNENROLLED",
+      "source_sha256": null
+    },
+    {
+      "case_id": "p421-confirmatory-image_footnote-06",
+      "cohort": "confirmatory",
+      "archetype": "image_footnote",
+      "state": "UNENROLLED",
+      "source_sha256": null
+    }
+  ],
+  "known_p411_calibration_source_exclusions": [
+    "121a5c9866ed3a1927bed5cc944f56beab3afffabf2222f02ba6463f6f408ae6",
+    "7e9050a2b1b74c06f1b40286f600a3935de2ea21e568e73d85592d0c44aab7bb",
+    "9ce0665122a72e1e33f12d29c1dbd9f6d7e6bc59974754dd09c0ab83e3ec8bb3",
+    "38a9e7e4e74dbc87fbf42f0b235bc30f13ff20a479429db60cd932a7b352896f",
+    "15e63246691368e704862dff4831c02391d0b777a73f2d8cd000cf98d3ea92c2",
+    "a35c6dedfd0d3252066a71d0ad5a97ffb26e71a3ee007d0db5e74d29eb770322",
+    "1c4055bde1ab7560e1dd0cafe653c9d9c9615c7be8e911d3c9c915c5d4a3dbae",
+    "f29ca7893802929ded39c02d1b6f12fdbddf67ffb28c440d0acc6ccc59cd0d1f"
+  ],
+  "independent_native_captures_collected": 0,
+  "independent_human_reviews_collected": 0,
+  "max_repairs": 2,
+  "factorial_capture_cells": [
+    "baseline_hancom",
+    "candidate_hancom",
+    "baseline_rival",
+    "candidate_rival"
+  ],
+  "renderer_candidate_policy": "Rival must independently layout HWPX without lossy conversion; same Hancom version family or PDF rasterizer does not qualify",
+  "promotion_authority": "NONE_PRE_REGISTRATION"
+}

@@ -4,7 +4,11 @@ on:
     branches: ["refactor/p420-python-domain-packages-20261009"]
     paths:
       - "hwpx_mcp/quality/p421_prospective_render_court.py"
+      - "hwpx_mcp/quality/p421_renderer_qualification.py"
       - "tests/test_p421_prospective_render_court.py"
+      - "tests/test_p421_renderer_qualification.py"
+      - "benchmarks/p421_renderer_qualification.json"
+      - "corpus/p421_candidate_intake.json"
       - "benchmarks/p421_preregistration.json"
       - "docs/P421_NATIVE_RENDER_FIDELITY_RESEARCH_CHARTER.md"
       - ".github/workflows/p421-native-render-ci.yml"
@@ -34,7 +38,7 @@ jobs:
       - name: Install only shadow test runner
         run: python -m pip install --disable-pip-version-check pytest==8.4.2
       - name: Run negative controls and preregistration audit
-        run: python -m pytest -q tests/test_p421_prospective_render_court.py
+        run: python -m pytest -q tests/test_p421_prospective_render_court.py tests/test_p421_renderer_qualification.py
       - name: Verify no actual native evidence was claimed
         run: |
           python - <<'PY'

@@ -3594,6 +3594,7 @@ def apply_formatting(document_id: str, expected_revision: int, operations: list[
     metadata, path = _owned_document(document_id)
     current_revision = int(metadata["revision"])
     ingress = metadata.get("source") == "existing-ingress"
+    quality_before = _p421_public_quality(document_id)
     transaction = apply_rich_formatting_atomic(
         path,
         operations,
@@ -3617,6 +3618,7 @@ def apply_formatting(document_id: str, expected_revision: int, operations: list[
         after_formatting,
         after_inline,
     )
+    quality_after = _p421_public_quality(document_id)
     return {
         "ok": True,
         "document_id": document_id,
@@ -3624,6 +3626,8 @@ def apply_formatting(document_id: str, expected_revision: int, operations: list[
         "revision_after": int(metadata["revision"]),
         "sha256": validation["sha256"],
         "formatting_diff": transaction,
+        "quality_comparison": _p421_quality_diff(quality_before, quality_after),
+        "explicit_user_operations": len(operations),
         "semantic_changed": transaction["semantic_changed"],
         "structure_changed": transaction["structure_changed"],
         "formatting_changed": transaction["formatting_changed"],

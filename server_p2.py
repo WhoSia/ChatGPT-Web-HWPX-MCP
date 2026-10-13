@@ -6024,6 +6024,41 @@ def get_product_authoring_contract() -> dict:
     return {"ok": True, **p337_product_workflow_contract(), "composition": document_plan_contract()}
 
 
+
+def _p421_public_quality(document_id: str) -> dict:
+    """Read-only quality observation; never block an already committed delivery."""
+    try:
+        from hwpx_mcp.quality.p420_document_quality import judge_document_quality
+        _metadata, source = _owned_document(document_id)
+        measured = judge_document_quality(source)
+        return {
+            "status": measured["status"],
+            "counts": measured.get("counts"),
+            "issues": measured.get("issues", []),
+            "receipt_sha256": measured.get("receipt_sha256"),
+            "document_sha256": measured.get("document_sha256"),
+            "native_visual_authority": "NOT_INFERRED_FROM_STATIC_INSPECTION",
+            "release_eligible": False,
+        }
+    except Exception as exc:
+        return {"status": "QUALITY_OBSERVATION_UNAVAILABLE",
+                "error_type": type(exc).__name__,
+                "native_visual_authority": "NOT_OBSERVED",
+                "release_eligible": False}
+
+
+def _p421_quality_diff(before: dict, after: dict) -> dict:
+    """Publicly inspectable before/after counts; no invented semantic equivalence."""
+    prior = before.get("counts") or {}
+    current = after.get("counts") or {}
+    return {
+        "before": before, "after": after,
+        "count_delta": {k: current.get(k, 0) - prior.get(k, 0)
+                        for k in sorted(set(prior) | set(current))},
+        "semantic_preservation": "NOT_CERTIFIED_FOR_USER_AUTHORED_EDITS",
+        "native_visual_authority": "NOT_OBSERVED",
+    }
+
 def _product_create_impl(plan: dict, filename: str, request_id: str, design_mode: str,
                          explicit_tokens: dict | None, link_ttl_seconds: int,
                          workflow: str) -> CallToolResult:
@@ -6040,6 +6075,8 @@ def _product_create_impl(plan: dict, filename: str, request_id: str, design_mode
         compiled = p336r2_compile_design_plan(plan, mode, explicit_tokens=explicit_tokens)
         effective_plan = compiled["plan"]
     created = create_document_from_plan(effective_plan, filename, "", request_id)
+    quality = _p421_public_quality(created["document_id"])
+    review = (created.get("composition") or {}).get("professional_authoring_review")
     context = {
         "authoring": {
             "input_design_mode": mode or "PLAN_DEFINED",
@@ -6047,6 +6084,8 @@ def _product_create_impl(plan: dict, filename: str, request_id: str, design_mode
             "composition_plan_sha256": created.get("composition_plan_sha256"),
             "composition_sha256": created.get("composition_sha256"),
             "block_count": created.get("composition_block_count"),
+            "professional_plan_review": review,
+            "quality_after_creation": quality,
             "design_plan_sha256": None if compiled is None else compiled.get("design_plan_sha256"),
             "design_authority": None if compiled is None else compiled.get("authority"),
         }
@@ -6576,9 +6615,12 @@ def edit_document_and_deliver(document_id: str, expected_revision: int, operatio
     core._caller_subject()
     core._download_secret()
     link_ttl_seconds = int(link_ttl_seconds)
+    before = _p421_public_quality(document_id)
     edited = apply_edits(document_id, expected_revision, operations, lease_token)
+    quality = _p421_quality_diff(before, _p421_public_quality(document_id))
     return _delivery_after_commit(document_id, edited["revision_after"], link_ttl_seconds,
-                                  "EDIT_VALIDATE_EXPORT_HANDOFF")
+                                  "EDIT_VALIDATE_EXPORT_HANDOFF",
+                                  extra={"product_context": {"quality_comparison": quality}})
 
 
 @core.mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True, openWorldHint=False))
@@ -6587,13 +6629,16 @@ def edit_and_deliver_document(document_id: str, expected_revision: int, operatio
     """Primary P3.37 edit path: one CAS-guarded native edit transaction followed by native file handoff."""
     core._caller_subject()
     core._download_secret()
+    before = _p421_public_quality(document_id)
     edited = apply_edits(document_id, expected_revision, operations, lease_token)
+    quality = _p421_quality_diff(before, _p421_public_quality(document_id))
     return _delivery_after_commit(
         document_id, int(edited["revision_after"]), int(link_ttl_seconds),
         "P337_EDIT_VALIDATE_DELIVER",
         extra={
             "phase": "P3.37",
-            "product_context": {"edit": {"operation_count": len(operations)}},
+            "product_context": {"edit": {"operation_count": len(operations)},
+                                "quality_comparison": quality},
         },
     )
 

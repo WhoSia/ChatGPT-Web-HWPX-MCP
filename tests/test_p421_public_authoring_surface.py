@@ -47,3 +47,22 @@ def test_diff_no_fake_visual_or_semantic_pass():
     assert '"NOT_CERTIFIED_FOR_USER_AUTHORED_EDITS"' in s
     assert '"NOT_OBSERVED"' in s
     assert '"count_delta"' in s
+
+
+def test_professional_formatting_preview_is_read_only_and_revisioned():
+    s = source("preview_professional_formatting")
+    assert 'metadata.get("composition_receipt")' in s
+    assert '"professional_plan_review"' in s
+    assert '"quality_before": _p421_public_quality(document_id)' in s
+    assert '"automatic_repairs_applied": False' in s
+    assert '"revision": int(metadata["revision"])' in s
+    assert "apply_formatting(" not in s
+
+
+def test_explicit_formatting_returns_before_after_comparison():
+    s = source("apply_formatting")
+    assert "quality_before = _p421_public_quality(document_id)" in s
+    assert "quality_after = _p421_public_quality(document_id)" in s
+    assert '"quality_comparison": _p421_quality_diff(quality_before, quality_after)' in s
+    assert s.index("quality_before =") < s.index("transaction = apply_rich_formatting_atomic")
+    assert '"explicit_user_operations": len(operations)' in s

@@ -32,6 +32,23 @@ concurrency:
 jobs:
   prospective-shadow:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: p421_ci
+          POSTGRES_PASSWORD: p421_ci_only
+          POSTGRES_DB: p421_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U p421_ci -d p421_ci"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      P12_AUTH_DATABASE_URL: postgresql://p421_ci:p421_ci_only@127.0.0.1:5432/p421_ci
+      P12_STATE_SECRET: p421-ci-ephemeral-secret-not-for-production-20261012
     steps:
       - uses: actions/checkout@v4
         with:

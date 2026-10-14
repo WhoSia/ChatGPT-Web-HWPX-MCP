@@ -1,0 +1,47 @@
+name: Open-source publication preflight
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "LICENSE"
+      - "THIRD_PARTY_NOTICES.md"
+      - "SECURITY.md"
+      - "CONTRIBUTING.md"
+      - "README.md"
+      - "PRODUCT_AUTHORITY.md"
+      - "docs/RELEASE_OPERATIONS.md"
+      - ".github/workflows/open-source-release-preflight.yml"
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  publication-metadata:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check MIT and release policy evidence
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          license = Path("LICENSE").read_text(encoding="utf-8")
+          assert license.startswith("MIT License\n"), "Missing canonical MIT license"
+          assert "Copyright (c) 2026 WhoSia" in license
+          assert 'THE SOFTWARE IS PROVIDED "AS IS"' in license
+          required = {
+              "README.md": ("LICENSE", "RELEASE_OPERATIONS"),
+              "PRODUCT_AUTHORITY.md": ("SOURCE", "Render"),
+              "THIRD_PARTY_NOTICES.md": ("third-party", "HWPX"),
+              "SECURITY.md": ("Security", "privately"),
+              "CONTRIBUTING.md": ("Contributing", "MIT"),
+              "docs/RELEASE_OPERATIONS.md": ("DEPLOYED_SHA_PASS", "NATIVE_VISUAL_PASS"),
+          }
+          for name, phrases in required.items():
+              data = Path(name).read_text(encoding="utf-8")
+              assert all(phrase.lower() in data.lower() for phrase in phrases), f"Required release/rights note missing from {name}"
+          print("Open-source publication metadata PASS; production rollout NOT inferred")
+          PY

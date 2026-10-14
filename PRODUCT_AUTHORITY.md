@@ -4,12 +4,22 @@ This file is the single compact repository-level authority note for product phas
 
 ## Current product line
 
-- Last independently observed production identifier: `0.43.0-p4.18` (observed 2026-10-09; **current deployed SHA and deployed functionality unverified**).
-- GitHub code state: **P4.20 PR #14 and PR #15 MERGED to `main`**; **P4.21 PR #16 MERGED to `main` at `dc946b73aaa33a7e1606c701647709653e8c5a6a` on 2026-10-13 12:54 KST**. The subsequently performed docs-only reconciliation commit is tracked separately. **Exact-head P4.4 and P4.12 Docker release workflows failed due to public ECR HTTP 429 base-image metadata rate limiting**; other checks passed. **Full release gate NOT PASS / production feature parity, native Hancom visual evidence, consumer roundtrip HOLD**.
+- **Directly verified Render LIVE deployment:** `dep-db6920dckfvc73cje6h0`, commit `065922057645abc9ae2b27c9c18a5cca2bce84a2` (P4.20); the authenticated MCP capability probe returned `0.43.0-p4.18`. Render had not advanced to P4.21 on the latest connector check of 2026-10-14. This is a production readback, not a claim of P4.21 feature parity.
+- GitHub code state: **P4.20 PR #14 and PR #15 MERGED to `main`**; **P4.21 PR #16 MERGED to `main` at `dc946b73aaa33a7e1606c701647709653e8c5a6a` on 2026-10-13 12:54 KST**. The subsequently performed docs-only reconciliation commit is tracked separately. **Exact-head P4.4 and P4.12 Docker release workflows failed due to public ECR HTTP 429 base-image metadata rate limiting**; other checks passed. **Post-merge release gate NOT PASS / P4.21 deployed feature parity, independent native Hancom visual evidence, consumer roundtrip HOLD**.
 - Active development program: **P4.21 — Independent Native-Render Fidelity & Bounded Professional Document Repair**, with source/CI-only progress and unresolved native/live consumer gates.
 - Production authority remains evidence-separated from native Hancom visual authority.
 - Public HWPX acquisition evidence does not imply redistribution permission.
 - Runtime/product code changes require normal exact-head CI; documentation-only hygiene commits do not retroactively change the tested runtime evidence.
+
+## Open-source and publication boundary — 2026-10-14
+
+- Original maintainer-licensed repository software is published under [MIT](LICENSE). **Do not infer** that dependencies, external HWPX files, institutional corpora, third-party texts, images or trademarks are MIT-licensed. Audit each distributable input against [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+- Repository now includes [SECURITY.md](SECURITY.md) and a [release operations runbook](docs/RELEASE_OPERATIONS.md). A public repository with a LICENSE file is *not yet* evidence of an independently verified, published stable product release.
+- GitHub P4.21 source is merged (PR #16) but the latest directly observed Render LIVE SHA remains `065922057645abc9ae2b27c9c18a5cca2bce84a2`. Later `main` source commits and doc/license commits **have not yet been verified live**. A production-boundary CI returned `PRODUCTION_VERSION_STALE` against the old SHA; it is correct to retain the production HOLD.
+- Earlier source CI around P4.21 had **AWS Public ECR HTTP 429** base-image pull errors. These are infrastructure errors, not evidence of a passing release build. Preserve the failing runs in evidence, repair/retry boundedly, and require latest-main release checks to pass for stable publication.
+- P4.21 pilot/confirmatory native-render preregistration is not the same as actual independent Hancom/native screenshots, blinded human review, or consumer-openability evidence. These remain distinct HOLD gates.
+- Operations require exact SHA matching, healthy Render, authenticated native HWPX create/edit/deliver verification, independent consumer acquisition, and tested compatible recovery before a stable GitHub Release or production certification.
+- All new commits: author and committer `WhoSia`; GitHub Actions tests only. All branch deletion stays manual, including any old safety refs.
 
 ## P4.19 package migration — merged, deployment separate
 

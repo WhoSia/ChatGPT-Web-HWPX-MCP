@@ -6,7 +6,7 @@
 
 A remote, authenticated [Model Context Protocol](https://modelcontextprotocol.io/) server for native `.hwpx` documents. It combines structured document authoring, format-aware inspection, revision-safe editing, explicit human approval for protected changes, and secure HWPX delivery.
 
-> **Release boundary (GitHub source, verified 2026-10-13):** P4.19 [PR #13](https://github.com/WhoSia/ChatGPT-Web-HWPX-MCP/pull/13) merged; P4.20 [PR #14](https://github.com/WhoSia/ChatGPT-Web-HWPX-MCP/pull/14) merged **2026-10-09 23:25 KST** (`1b28199b…`) and [PR #15](https://github.com/WhoSia/ChatGPT-Web-HWPX-MCP/pull/15) merged **2026-10-12 15:11 KST** (`950bff8d3ed16f1d6eda20e190b2b32cd8280733`); **P4.21 [PR #16](https://github.com/WhoSia/ChatGPT-Web-HWPX-MCP/pull/16) MERGED 2026-10-13 12:54 KST**, `main` at merge `dc946b73aaa33a7e1606c701647709653e8c5a6a`. No published GitHub Release was returned. This **source merge is not Render production deployment or independent native Hancom fidelity certification**. The last independently reported Render observation (2026-10-09) served `0.43.0-p4.18` (`30d536d…`); **current exact deployed SHA / P4.21 production roundtrip UNVERIFIED**. On merged `dc946b73…`, [P4.4 durable release-health](https://github.com/WhoSia/ChatGPT-Web-HWPX-MCP/actions/runs/38343908674) and [P4.12 native visual defect](https://github.com/WhoSia/ChatGPT-Web-HWPX-MCP/actions/runs/38343908727) Docker jobs **FAILED** fetching public ECR base image metadata with HTTP 429; other workflows passed. Thus **full post-merge release CI gate NOT PASS**, without calling this a proven application-code regression. P4.18-P3 independent consumer preservation/delivery remains HOLD.
+> **Current release status (2026-10-14):** GitHub PRs [#13](https://github.com/WhoSia/ChatGPT-Web-HWPX-MCP/pull/13), [#14](https://github.com/WhoSia/ChatGPT-Web-HWPX-MCP/pull/14), [#15](https://github.com/WhoSia/ChatGPT-Web-HWPX-MCP/pull/15), and **P4.21 [#16](https://github.com/WhoSia/ChatGPT-Web-HWPX-MCP/pull/16)** are merged. The P4.21 source merge SHA is `dc946b73aaa33a7e1606c701647709653e8c5a6a`, followed by WhoSia documentation-only commits. **Last directly verified Render LIVE commit:** `065922057645abc9ae2b27c9c18a5cca2bce84a2`, P4.20, with production MCP reporting `0.43.0-p4.18`. The public production-boundary CI for later main correctly reports `PRODUCTION_VERSION_STALE`; this is **not** a successful P4.21 deployment. Main release-health image builds also encountered public ECR HTTP 429; the original failures are not erased by successful PR-only tests. Independent Hancom-native visual evidence and full consumer-delivery certification remain pending. See [product authority](PRODUCT_AUTHORITY.md) and [operations runbook](docs/RELEASE_OPERATIONS.md).
 
 ## What you can do
 
@@ -44,7 +44,7 @@ The local command requires the deployment configuration documented by the runtim
 ```text
 ChatGPT-Web-HWPX-MCP/
 ├── server.py, server_p2.py           # Protocol / production entrypoints
-├── auth_store.py, document_store.py # Core authenticated custody
+├── hwpx_mcp/security/auth_store.py    # Durable OAuth custody\n├── hwpx_mcp/storage/document_store.py # Durable document custody
 ├── hwpx_mcp/
 │   ├── orchestration/               # Agent workflows, preview, staging
 │   ├── interfaces/                  # MCP tool registration facades
@@ -80,3 +80,13 @@ The layout audit checks test location, module relocation, import backlinks and w
 ## Current priorities
 
 Product quality means users can request a useful document, make understandable changes and get an actually openable `.hwpx` file. P4.20 PR #14/#15 are merged as source revisions; P4.21 PR #16 is merged source (2026-10-13), with Docker release-health CI failures caused by public ECR HTTP 429 and native/live verification still held. Priorities are current-main/PR reconciliation, native Hancom visual evidence, owner-approved formatting and revision-safe live API editing, exact deployed SHA and real consumer acquisition. Preserve earlier COM `0x80070005` failures and native manual-GUI results as separate evidence: test-only success does not certify the production service. Independent Hancom native fidelity remains an explicit gate; byte counts are diagnostic signals, not the product goal.
+
+## Open-source license, security, and releases
+
+**License:** [MIT](LICENSE) for original source/documentation that the maintainer has rights to license. See [third-party notices](THIRD_PARTY_NOTICES.md) for package licenses, external test corpora, HWPX data and trademarks. The root license never overrides third-party restrictions.
+
+**Security:** Report sensitive issues privately using [SECURITY.md](SECURITY.md); never paste passwords, tokens, confidential HWPX content or database URLs into GitHub issues.
+
+**Release qualification:** Follow [production release operations](docs/RELEASE_OPERATIONS.md), including exact source SHA/Render LIVE SHA, health, authenticated create→edit→deliver→consumer-open roundtrip, dependency license/SBOM checks, and a confirmed rollback path. Source CI, operational API success, native-render fidelity and independent consumer evidence are separate claims. Do not call a merged PR a published stable release.
+
+**Reproducible deployment:** Render uses the `main` branch and a Dockerfile, but service auto-deploy settings do not prove a new version was deployed. Inspect Render's actual deploy SHA. If the latest GitHub SHA has not deployed, the service owner may explicitly choose **Deploy → Deploy latest commit** in the Render dashboard after checking there is no pending deploy. GitHub Actions tests/builds only and never commits; development and safety branches are deleted manually by the owner.

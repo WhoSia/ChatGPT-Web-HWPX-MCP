@@ -115,6 +115,11 @@ RUN set -eux; \
     python scripts/p416_release_smoke.py; \
     python scripts/p418_release_smoke.py
 
+# Keep external fixture/benchmark corpora available to build-time smoke tests only.
+# Do not ship unreviewed third-party source material in the runtime image.
+# The release CI must verify startup and a real document lifecycle after this prune.
+RUN rm -rf /app/benchmarks /app/corpus
+
 ENV MCP_HOST=0.0.0.0
 ENV MCP_PORT=8000
 ENV MCP_PATH=/mcp

@@ -43,5 +43,5 @@ jobs:
     needs: evidence-service
     steps:
       - uses: actions/checkout@v4
-      - run: docker build --progress=plain -t hwpx-mcp-p413:${{ github.sha }} .
+      - run: docker build --progress=plain --target release-smoke-builder -t hwpx-mcp-p413:${{ github.sha }} .
       - run: docker run --rm --entrypoint python hwpx-mcp-p413:${{ github.sha }} scripts/p413_release_smoke.py

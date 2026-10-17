@@ -1,0 +1,40 @@
+name: P4.22 final image startup bootstrap
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - Dockerfile
+      - corpus/p43-immutable-external-fixtures.json
+      - hwpx_mcp/quality/p44_health_store.py
+      - .github/workflows/p422-runtime-startup.yml
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  final-image-postgres-bootstrap:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: release
+          POSTGRES_PASSWORD: release
+          POSTGRES_DB: release
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U release -d release"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Build final production image, not smoke builder
+        run: docker build --progress=plain --target production -t p422-startup:${{ github.event.pull_request.head.sha || github.sha }} .
+      - name: Confirm final stage excludes unreviewed corpus
+        run: |
+          docker run --rm --entrypoint python p422-startup:${{ github.event.pull_request.head.sha || github.sha }} -c 'from pathlib import Path; r=Path("/app"); assert not (r/"corpus/p421_candidate_intake.json").exists(); assert (r/"corpus/p43-immutable-external-fixtures.json").is_file()'
+      - name: Execute real P4.4 DB bootstrap inside final image
+        run: |
+          docker run --rm --network host -e P44_HEALTH_DATABASE_URL=postgresql://release:release@127.0.0.1:5432/release --entrypoint python p422-startup:${{ github.event.pull_request.head.sha || github.sha }} -c 'from hwpx_mcp.quality.p44_health_store import DurableHealthIntelligenceStore,default_database_url; s=DurableHealthIntelligenceStore(default_database_url()); a=s.bootstrap(); b=s.bootstrap(); assert a["release_count"]>=3 and a["corpus_count"]>=10, a; assert b["release_inserted"]==0 and b["corpus_inserted"]==0, b; print("P4.22 final image P4.4 runtime/bootstrap PASS",a)'

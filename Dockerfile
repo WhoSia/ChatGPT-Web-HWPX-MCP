@@ -1,4 +1,4 @@
-FROM public.ecr.aws/docker/library/rust:1.83-slim AS native-runtime-builder
+FROM docker.io/library/rust:1.83-slim AS native-runtime-builder
 WORKDIR /src
 COPY rust/p344_gate rust/p344_gate
 COPY benchmarks/p344_gate_golden.tsv benchmarks/p344_gate_golden.tsv
@@ -12,7 +12,7 @@ RUN cargo build --release --manifest-path rust/p344_gate/Cargo.toml && \
 RUN cargo build --release --manifest-path rust/p347_certifier/Cargo.toml && \
     cargo build --release --manifest-path rust/p348_marketplace_verifier/Cargo.toml
 
-FROM public.ecr.aws/docker/library/node:22-slim AS platform-typescript-builder
+FROM docker.io/library/node:22-slim AS platform-typescript-builder
 WORKDIR /src
 COPY contracts/p345_runtime.ts contracts/p345_runtime.ts
 COPY contracts/p345_extension_sdk.ts contracts/p345_extension_sdk.ts
@@ -28,7 +28,7 @@ COPY contracts/p349_composition_kernel.ts contracts/p349_composition_kernel.ts
 COPY scripts/p349_composition_cli.ts scripts/p349_composition_cli.ts
 RUN mkdir -p /out && npx --yes -p typescript@5.9.2 tsc --strict --target ES2022 --module commonjs --rootDir . --outDir /out contracts/p345_runtime.ts contracts/p345_extension_sdk.ts scripts/p345_runtime_cli.ts contracts/p346_capability_kernel.ts contracts/p346_extension_sdk.ts scripts/p346_platform_cli.ts contracts/p347_supply_chain_kernel.ts scripts/p347_supply_chain_cli.ts contracts/p348_marketplace_kernel.ts scripts/p348_marketplace_cli.ts contracts/p349_composition_kernel.ts scripts/p349_composition_cli.ts
 
-FROM public.ecr.aws/docker/library/python:3.12-slim AS release-smoke-builder
+FROM docker.io/library/python:3.12-slim AS release-smoke-builder
 
 WORKDIR /app
 ENV HWPX_PRODUCT_RELEASE=0.43.0-p4.18
@@ -129,7 +129,7 @@ CMD ["python", "server_p2.py"]
 
 # Distribution boundary: clean image stage, not layer-deletion of copied corpus.
 # Inherited build layers are discarded; copy only the deployable runtime.
-FROM public.ecr.aws/docker/library/python:3.12-slim AS production
+FROM docker.io/library/python:3.12-slim AS production
 WORKDIR /app
 ENV HWPX_PRODUCT_RELEASE=0.43.0-p4.18
 COPY requirements.txt ./

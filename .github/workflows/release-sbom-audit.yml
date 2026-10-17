@@ -20,14 +20,14 @@ jobs:
           python-version: "3.12"
       - name: Install environment and SBOM tooling
         run: |
-          python -m pip install --disable-pip-version-check -r requirements.txt 'cyclonedx-bom==5.4.0' 'pip-licenses==5.3.0'
+          python -m pip install --disable-pip-version-check -r requirements.txt 'cyclonedx-bom==5.4.0' 'pip-licenses==5.5.5'
           python -m pip check
       - name: Materialize exact resolved dependency and license inventories
         run: |
           mkdir -p release-audit
           python -m pip freeze --all > release-audit/python-resolved.txt
           cyclonedx-py environment --output-format JSON --output-file release-audit/cyclonedx-python.json
-          pip-licenses --format=json --with-urls --with-license-file --output-file release-audit/python-licenses.json
+          pip-licenses --format=json --with-urls --output-file release-audit/python-licenses.json
           python scripts/release_artifact_audit.py --report release-audit/audit.json
       - name: Package inventories only, not external data
         uses: actions/upload-artifact@v4

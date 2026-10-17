@@ -48,5 +48,5 @@ jobs:
     needs: oracle
     steps:
       - uses: actions/checkout@v4
-      - run: docker build --progress=plain -t hwpx-mcp-p411:${{ github.sha }} .
+      - run: docker build --progress=plain --target release-smoke-builder -t hwpx-mcp-p411:${{ github.sha }} .
       - run: docker run --rm --entrypoint python hwpx-mcp-p411:${{ github.sha }} scripts/p411_release_smoke.py

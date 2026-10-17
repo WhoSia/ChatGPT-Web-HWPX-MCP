@@ -10,10 +10,10 @@ def audit(root: Path) -> dict:
     req = (root / "requirements.txt").read_text(encoding="utf-8")
     required = ("LICENSE", "SECURITY.md", "THIRD_PARTY_NOTICES.md")
     missing = [p for p in required if not (root / p).is_file()]
-    stages = re.split(r"(?m)(?=^FROM\\s+)", docker)
+    stages = re.split(r"(?m)(?=^FROM\s+)", docker)
     final_stage = next((stage for stage in reversed(stages) if stage.strip().startswith("FROM ")), "")
-    broad_copy = [line.strip() for line in final_stage.splitlines() if re.match(r"\\s*COPY\\s+(?:benchmarks/|corpus/|fixtures/)", line)]
-    unsafe_inheritance = bool(re.search(r"(?m)^FROM\\s+release-smoke-builder(?:\\s|$)", final_stage))
+    broad_copy = [line.strip() for line in final_stage.splitlines() if re.match(r"\s*COPY\s+(?:benchmarks/|corpus/|fixtures/)", line)]
+    unsafe_inheritance = bool(re.search(r"(?m)^FROM\s+release-smoke-builder(?:\s|$)", final_stage))
     # Static boundary check: no runtime inheritance from corpus-bearing stage.
     clean_final_stage = " AS production" in final_stage.splitlines()[0] if final_stage else False
     bases = re.findall(r"(?m)^FROM\s+(\S+)", docker)

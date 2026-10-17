@@ -1,0 +1,42 @@
+"""Fail-closed, metadata-only audit of runtime release inputs (not an image scan)."""
+from __future__ import annotations
+import argparse
+import json
+import re
+from pathlib import Path
+
+def audit(root: Path) -> dict:
+    docker = (root / "Dockerfile").read_text(encoding="utf-8")
+    req = (root / "requirements.txt").read_text(encoding="utf-8")
+    required = ("LICENSE", "SECURITY.md", "THIRD_PARTY_NOTICES.md")
+    missing = [p for p in required if not (root / p).is_file()]
+    broad_copy = [s for s in ("COPY benchmarks/ benchmarks/", "COPY corpus/ corpus/", "COPY fixtures/ fixtures/") if s in docker]
+    bases = re.findall(r"(?m)^FROM\s+(\S+)", docker)
+    ranges = [s.strip() for s in req.splitlines() if s.strip() and not s.lstrip().startswith("#") and "==" not in s]
+    return {
+        "schema": "release-artifact-audit/v1",
+        "documentation_missing": missing,
+        "docker_base_images": bases,
+        "unbounded_corpus_copy": broad_copy,
+        "direct_unpinned_ranges": ranges,
+        "image_contents_verified": False,
+        "transitive_licenses_cleared": False,
+        "consumer_hancom_open_verified": False,
+        "stable_release_admitted": False,
+        "disposition": "HOLD" if missing or broad_copy else "PENDING_IMAGE_AND_CONSUMER_EVIDENCE",
+    }
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--report", default="-")
+    args = parser.parse_args()
+    result = audit(Path.cwd())
+    output = json.dumps(result, indent=2, ensure_ascii=False) + "\n"
+    if args.report == "-":
+        print(output)
+    else:
+        p = Path(args.report)
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(output, encoding="utf-8")
+    if result["documentation_missing"]:
+        raise SystemExit("Missing mandatory release rights/security documentation")

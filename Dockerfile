@@ -6,11 +6,11 @@ COPY rust/p345_replay rust/p345_replay
 COPY rust/p346_guard rust/p346_guard
 COPY rust/p347_certifier rust/p347_certifier
 COPY rust/p348_marketplace_verifier rust/p348_marketplace_verifier
-RUN cargo build --release --manifest-path rust/p344_gate/Cargo.toml
-RUN cargo build --release --manifest-path rust/p345_replay/Cargo.toml
-RUN cargo build --release --manifest-path rust/p346_guard/Cargo.toml
-RUN cargo build --release --manifest-path rust/p347_certifier/Cargo.toml
-RUN cargo build --release --manifest-path rust/p348_marketplace_verifier/Cargo.toml
+RUN cargo build --release --manifest-path rust/p344_gate/Cargo.toml && \
+    cargo build --release --manifest-path rust/p345_replay/Cargo.toml && \
+    cargo build --release --manifest-path rust/p346_guard/Cargo.toml
+RUN cargo build --release --manifest-path rust/p347_certifier/Cargo.toml && \
+    cargo build --release --manifest-path rust/p348_marketplace_verifier/Cargo.toml
 
 FROM public.ecr.aws/docker/library/node:22-slim AS platform-typescript-builder
 WORKDIR /src
@@ -140,12 +140,15 @@ COPY --from=release-smoke-builder /app/p414_evidence_store.sql /app/p414_evidenc
 COPY --from=release-smoke-builder /app/hwpx_mcp /app/hwpx_mcp
 COPY --from=release-smoke-builder /app/scripts /app/scripts
 COPY --from=release-smoke-builder /app/runtime /app/runtime
+# Explicitly required small metadata seeds, not broad copied third-party corpora.
+COPY benchmarks/p44_release_seed.json /app/benchmarks/p44_release_seed.json
+COPY corpus/p44-federation-registry.json /app/corpus/p44-federation-registry.json
 COPY --from=release-smoke-builder /usr/local/bin/p344-gate /usr/local/bin/p344-gate
 COPY --from=release-smoke-builder /usr/local/bin/p345-replay /usr/local/bin/p345-replay
 COPY --from=release-smoke-builder /usr/local/bin/p346-guard /usr/local/bin/p346-guard
 COPY --from=release-smoke-builder /usr/local/bin/p347-certifier /usr/local/bin/p347-certifier
 COPY --from=release-smoke-builder /usr/local/bin/p348-marketplace-verifier /usr/local/bin/p348-marketplace-verifier
-RUN test ! -e /app/benchmarks && test ! -e /app/corpus && \
+RUN test ! -e /app/corpus/p421_candidate_intake.json && \
     python -m py_compile server.py server_p2.py && \
     python -c "import hwpx_mcp.document.p2_document; import hwpx_mcp.quality.p421_professional_authoring_review"
 ENV P344_GATE_BIN=/usr/local/bin/p344-gate

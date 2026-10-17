@@ -28,7 +28,7 @@ COPY contracts/p349_composition_kernel.ts contracts/p349_composition_kernel.ts
 COPY scripts/p349_composition_cli.ts scripts/p349_composition_cli.ts
 RUN mkdir -p /out && npx --yes -p typescript@5.9.2 tsc --strict --target ES2022 --module commonjs --rootDir . --outDir /out contracts/p345_runtime.ts contracts/p345_extension_sdk.ts scripts/p345_runtime_cli.ts contracts/p346_capability_kernel.ts contracts/p346_extension_sdk.ts scripts/p346_platform_cli.ts contracts/p347_supply_chain_kernel.ts scripts/p347_supply_chain_cli.ts contracts/p348_marketplace_kernel.ts scripts/p348_marketplace_cli.ts contracts/p349_composition_kernel.ts scripts/p349_composition_cli.ts
 
-FROM public.ecr.aws/docker/library/python:3.12-slim
+FROM public.ecr.aws/docker/library/python:3.12-slim AS release-smoke-builder
 
 WORKDIR /app
 ENV HWPX_PRODUCT_RELEASE=0.43.0-p4.18
@@ -125,4 +125,44 @@ ENV P1_MAX_TEXT_CHARS=100000
 EXPOSE 8000
 
 # P4.18 end-user document agent product candidate
+CMD ["python", "server_p2.py"]
+
+# Distribution boundary: clean image stage, not layer-deletion of copied corpus.
+# Inherited build layers are discarded; copy only the deployable runtime.
+FROM public.ecr.aws/docker/library/python:3.12-slim AS production
+WORKDIR /app
+ENV HWPX_PRODUCT_RELEASE=0.43.0-p4.18
+COPY requirements.txt ./
+RUN apt-get update && apt-get install -y --no-install-recommends nodejs && rm -rf /var/lib/apt/lists/*
+RUN pip install --no-cache-dir -r requirements.txt
+COPY --from=release-smoke-builder /app/*.py /app/
+COPY --from=release-smoke-builder /app/p414_evidence_store.sql /app/p414_evidence_store.sql
+COPY --from=release-smoke-builder /app/hwpx_mcp /app/hwpx_mcp
+COPY --from=release-smoke-builder /app/scripts /app/scripts
+COPY --from=release-smoke-builder /app/runtime /app/runtime
+COPY --from=release-smoke-builder /usr/local/bin/p344-gate /usr/local/bin/p344-gate
+COPY --from=release-smoke-builder /usr/local/bin/p345-replay /usr/local/bin/p345-replay
+COPY --from=release-smoke-builder /usr/local/bin/p346-guard /usr/local/bin/p346-guard
+COPY --from=release-smoke-builder /usr/local/bin/p347-certifier /usr/local/bin/p347-certifier
+COPY --from=release-smoke-builder /usr/local/bin/p348-marketplace-verifier /usr/local/bin/p348-marketplace-verifier
+RUN test ! -e /app/benchmarks && test ! -e /app/corpus && \
+    python -m py_compile server.py server_p2.py && \
+    python -c "import hwpx_mcp.document.p2_document; import hwpx_mcp.quality.p421_professional_authoring_review"
+ENV P344_GATE_BIN=/usr/local/bin/p344-gate
+ENV P345_REPLAY_BIN=/usr/local/bin/p345-replay
+ENV P345_TS_RUNTIME=/app/runtime/scripts/p345_runtime_cli.js
+ENV P346_GUARD_BIN=/usr/local/bin/p346-guard
+ENV P346_TS_RUNTIME=/app/runtime/scripts/p346_platform_cli.js
+ENV P347_CERTIFIER_BIN=/usr/local/bin/p347-certifier
+ENV P347_TS_RUNTIME=/app/runtime/scripts/p347_supply_chain_cli.js
+ENV P348_VERIFIER_BIN=/usr/local/bin/p348-marketplace-verifier
+ENV P348_TS_RUNTIME=/app/runtime/scripts/p348_marketplace_cli.js
+ENV P349_TS_RUNTIME=/app/runtime/scripts/p349_composition_cli.js
+ENV MCP_HOST=0.0.0.0
+ENV MCP_PORT=8000
+ENV MCP_PATH=/mcp
+ENV P1_OBJECT_DIR=/tmp/chatgpt-web-hwpx-mcp-p1
+ENV P1_DOC_TTL_SECONDS=1800
+ENV P1_MAX_TEXT_CHARS=100000
+EXPOSE 8000
 CMD ["python", "server_p2.py"]

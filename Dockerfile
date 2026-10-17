@@ -144,6 +144,7 @@ COPY --from=release-smoke-builder /app/runtime /app/runtime
 COPY benchmarks/p43_release_history.json /app/benchmarks/p43_release_history.json
 COPY benchmarks/p44_release_seed.json /app/benchmarks/p44_release_seed.json
 COPY corpus/p44-federation-registry.json /app/corpus/p44-federation-registry.json
+COPY corpus/p43-immutable-external-fixtures.json /app/corpus/p43-immutable-external-fixtures.json
 COPY --from=release-smoke-builder /usr/local/bin/p344-gate /usr/local/bin/p344-gate
 COPY --from=release-smoke-builder /usr/local/bin/p345-replay /usr/local/bin/p345-replay
 COPY --from=release-smoke-builder /usr/local/bin/p346-guard /usr/local/bin/p346-guard
@@ -151,7 +152,7 @@ COPY --from=release-smoke-builder /usr/local/bin/p347-certifier /usr/local/bin/p
 COPY --from=release-smoke-builder /usr/local/bin/p348-marketplace-verifier /usr/local/bin/p348-marketplace-verifier
 RUN test ! -e /app/corpus/p421_candidate_intake.json && \
     python -m py_compile server.py server_p2.py && \
-    python -c "import hwpx_mcp.document.p2_document; import hwpx_mcp.quality.p421_professional_authoring_review"
+    python -c "import hwpx_mcp.document.p2_document; import hwpx_mcp.quality.p421_professional_authoring_review; from pathlib import Path; root=Path(\"/app\"); required=[root/\"benchmarks/p43_release_history.json\",root/\"benchmarks/p44_release_seed.json\",root/\"corpus/p44-federation-registry.json\",root/\"corpus/p43-immutable-external-fixtures.json\"]; assert all(p.is_file() for p in required),required"
 ENV P344_GATE_BIN=/usr/local/bin/p344-gate
 ENV P345_REPLAY_BIN=/usr/local/bin/p345-replay
 ENV P345_TS_RUNTIME=/app/runtime/scripts/p345_runtime_cli.js

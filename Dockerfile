@@ -141,6 +141,7 @@ COPY --from=release-smoke-builder /app/hwpx_mcp /app/hwpx_mcp
 COPY --from=release-smoke-builder /app/scripts /app/scripts
 COPY --from=release-smoke-builder /app/runtime /app/runtime
 # Explicitly required small metadata seeds, not broad copied third-party corpora.
+COPY benchmarks/p43_release_history.json /app/benchmarks/p43_release_history.json
 COPY benchmarks/p44_release_seed.json /app/benchmarks/p44_release_seed.json
 COPY corpus/p44-federation-registry.json /app/corpus/p44-federation-registry.json
 COPY --from=release-smoke-builder /usr/local/bin/p344-gate /usr/local/bin/p344-gate

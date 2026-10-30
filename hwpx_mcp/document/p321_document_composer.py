@@ -156,6 +156,12 @@ def document_plan_contract() -> dict:
             "title", "paragraph", "heading", "list_item", "table",
             "equation", "picture", "page_break", "section_break",
         ],
+        "heading_numbering": {
+            "default": "native",
+            "native": "Use Hancom OUTLINE numbering; strip an unambiguous inline decimal prefix to avoid doubled numbers.",
+            "literal": "Retain authored heading text; do not add native OUTLINE numbering (not a native outline/TOC heading).",
+            "authoring_hint": "For native headings send text without a numeric prefix, e.g. 연구 질문 및 가설.",
+        },
         "reference_syntax": {
             "block_id": "Each block may declare a unique id. Later operations can use $block:<id>.",
             "paragraph_fields": ["paragraph", "target_paragraph"],
@@ -289,6 +295,25 @@ def _add_caption(obj: Any, block: dict) -> None:
     obj.set_caption(text, side=side)
 
 
+# A native HWPX OUTLINE heading already renders its own number.  Plan authors
+# often prepend a second (literal) number, which Hancom renders as "1. 1.".
+# Only unambiguous leading decimal outline labels are normalized; authored
+# years, dates and prose remain untouched.
+_NATIVE_OUTLINE_NUMBER_RE = re.compile(
+    r"^\\s*(?:[1-9]\\d{0,2}\\.(?:\\d{1,3}\\.){0,5}|[1-9]\\d{0,2}(?:\\.\\d{1,3}){1,5})\\s+(?=\\S)"
+)
+
+
+def _native_outline_heading_text(text: str) -> tuple[str, str | None]:
+    match = _NATIVE_OUTLINE_NUMBER_RE.match(text)
+    if match is None:
+        return text, None
+    normalized = text[match.end():].strip()
+    if not normalized:
+        raise ValueError("native outline heading requires text after its literal number")
+    return normalized, text[:match.end()].strip()
+
+
 def _materialize_blocks(document: HwpxDocument, blocks: list[dict]) -> dict[str, dict]:
     bindings: dict[str, dict] = {}
     list_groups: dict[tuple[str, int, str], list[str]] = {}
@@ -320,11 +345,23 @@ def _materialize_blocks(document: HwpxDocument, blocks: list[dict]) -> dict[str,
             level = int(block.get("level", 1))
             if level < 1 or level > 10:
                 raise ValueError("heading level must be 1..10")
-            paragraph = document.add_heading(text, level=level)
+            numbering = str(block.get("heading_numbering", "native")).lower()
+            if numbering not in {"native", "literal"}:
+                raise ValueError("heading_numbering must be native or literal")
+            stripped_prefix = None
+            if numbering == "native":
+                text, stripped_prefix = _native_outline_heading_text(text)
+                paragraph = document.add_heading(text, level=level)
+            else:
+                # Literal headings preserve authored numbers and deliberately
+                # do not carry an extra native OUTLINE numbering field.
+                paragraph = document.add_paragraph(text, inherit_style=False)
             bindings[block_id] = {
                 "kind": kind,
                 "paragraph_id": _paragraph_id(paragraph),
                 "level": level,
+                "heading_numbering": numbering,
+                "stripped_inline_number": stripped_prefix,
             }
             continue
 

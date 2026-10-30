@@ -114,17 +114,17 @@ class P321DocumentComposerTests(unittest.TestCase):
 
             self.assertLess(
                 first_with_prefix("전자기학 실험 보고서"),
-                first_with_prefix("1. 실험 목적"),
+                first_with_prefix("실험 목적"),
             )
             self.assertLess(
-                first_with_prefix("1. 실험 목적"),
+                first_with_prefix("실험 목적"),
                 first_with_prefix("전압과 전류의 관계를 확인한다."),
             )
             # CROSSREF contributes its cached visible page text to this
             # paragraph, so the authored body remains a prefix rather than
             # necessarily the entire paragraph text.
             self.assertLess(
-                first_with_prefix("2. 결론"),
+                first_with_prefix("결론"),
                 first_with_prefix("측정 결과는 선형 관계를 보였다."),
             )
 
@@ -139,6 +139,53 @@ class P321DocumentComposerTests(unittest.TestCase):
             annotations = build_annotation_apparatus_map(out)
             self.assertEqual(annotations["counts"]["footnotes"], 1)
             self.assertEqual(annotations["counts"]["index_marks"], 1)
+
+    def test_native_outline_numbering_uses_one_source_and_literal_mode_preserves_text(self):
+        contract = document_plan_contract()
+        self.assertEqual(contract["heading_numbering"]["default"], "native")
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp) / "numbering.hwpx"
+            receipt = compose_document_plan(out, {
+                "preset": "academic-report",
+                "blocks": [
+                    {"id": "a", "type": "heading", "level": 1, "text": "1. 연구 질문"},
+                    {"id": "b", "type": "heading", "level": 2, "text": "1.2 방법"},
+                    {"id": "c", "type": "heading", "level": 1, "text": "2026. 연구 동향"},
+                    {"id": "literal", "type": "heading", "level": 1,
+                     "heading_numbering": "literal", "text": "3. 직접 지정한 번호"},
+                ],
+            })
+            self.assertEqual(receipt["bindings"]["a"]["stripped_inline_number"], "1.")
+            self.assertEqual(receipt["bindings"]["b"]["stripped_inline_number"], "1.2")
+            self.assertEqual(receipt["bindings"]["literal"]["heading_numbering"], "literal")
+            with zipfile.ZipFile(out) as archive:
+                header = etree.fromstring(archive.read("Contents/header.xml"))
+                section = etree.fromstring(archive.read("Contents/section0.xml"))
+            props = {
+                e.get("id"): e for e in header.iter()
+                if etree.QName(e).localname == "paraPr"
+            }
+            paragraphs = {}
+            for p in section.iter():
+                if etree.QName(p).localname != "p":
+                    continue
+                text = "".join((t.text or "") for t in p.iter()
+                               if etree.QName(t).localname == "t").strip()
+                if text:
+                    paragraphs[text] = p
+            self.assertTrue({"연구 질문", "방법", "2026. 연구 동향",
+                             "3. 직접 지정한 번호"}.issubset(paragraphs))
+            self.assertNotIn("1. 연구 질문", paragraphs)
+            self.assertNotIn("1.2 방법", paragraphs)
+            for title in ("연구 질문", "방법", "2026. 연구 동향"):
+                prop = props[paragraphs[title].get("paraPrIDRef")]
+                meta = next(e for e in prop.iter()
+                            if etree.QName(e).localname == "heading")
+                self.assertEqual(meta.get("type"), "OUTLINE")
+            literal_prop = props[paragraphs["3. 직접 지정한 번호"].get("paraPrIDRef")]
+            literal_meta = next(e for e in literal_prop.iter()
+                                if etree.QName(e).localname == "heading")
+            self.assertEqual(literal_meta.get("type"), "NONE")
 
     def test_template_append_preserves_existing_content(self):
         with tempfile.TemporaryDirectory() as tmp:

@@ -300,7 +300,7 @@ def _add_caption(obj: Any, block: dict) -> None:
 # Only unambiguous leading decimal outline labels are normalized; authored
 # years, dates and prose remain untouched.
 _NATIVE_OUTLINE_NUMBER_RE = re.compile(
-    r"^\\s*(?:[1-9]\\d{0,2}\\.(?:\\d{1,3}\\.){0,5}|[1-9]\\d{0,2}(?:\\.\\d{1,3}){1,5})\\s+(?=\\S)"
+    r"^\s*(?:[1-9]\d{0,2}\.(?:\d{1,3}\.){0,5}|[1-9]\d{0,2}(?:\.\d{1,3}){1,5})\s+(?=\S)"
 )
 
 

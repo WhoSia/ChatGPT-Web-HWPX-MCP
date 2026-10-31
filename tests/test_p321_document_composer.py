@@ -309,6 +309,10 @@ class P321DocumentComposerTests(unittest.TestCase):
         self.assertEqual([e["command"] for e in report["events"]], ["rm", "it"])
         self.assertFalse(report["trailing_upright_review"])
 
+    def test_p423_quoted_rm_is_literal(self):
+        report = audit_eqedit_style_flow('M_{"rm"} it')
+        self.assertEqual([e["command"] for e in report["events"]], ["it"])
+
 
 if __name__ == "__main__":
     unittest.main()

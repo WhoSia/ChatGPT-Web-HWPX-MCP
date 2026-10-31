@@ -166,7 +166,7 @@ def audit_eqedit_style_flow(script: str) -> dict[str, Any]:
         "last_command": events[-1]["command"] if events else None,
         "trailing_upright_review": is_upright,
         "has_dynamic_delimiters": "left" in script or "right" in script,
-        "has_box": bool(re.search(r"(?<![A-Za-z])box\\s*\\{", script)),
+        "has_box": bool(re.search(r"(?<![A-Za-z])box\s*\{", script)),
     }
 
 

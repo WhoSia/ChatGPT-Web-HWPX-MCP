@@ -322,6 +322,11 @@ class P321DocumentComposerTests(unittest.TestCase):
         report = audit_eqedit_style_flow("cleft rightward")
         self.assertFalse(report["has_dynamic_delimiters"])
 
+    def test_p423_quoted_box_not_command(self):
+        report = audit_eqedit_style_flow('"box{ rm }"')
+        self.assertFalse(report["has_box"])
+        self.assertEqual(report["events"], [])
+
 
 if __name__ == "__main__":
     unittest.main()

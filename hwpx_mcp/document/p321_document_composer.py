@@ -142,6 +142,34 @@ PRESETS: dict[str, dict[str, Any]] = {
 }
 
 
+# P4.23: observations from human-corrected Hangul EqEdit scripts. This
+# diagnostic is deliberately read-only; EqEdit font switches are stateful.
+# Unlike LaTeX groups, closing a brace must not be assumed to restore 'it'.
+_EQEDIT_STYLE_COMMAND = re.compile(r"(?<![A-Za-z])(?:rmbold|boldrm|rm|it)(?![A-Za-z])")
+
+
+def audit_eqedit_style_flow(script: str) -> dict[str, Any]:
+    """Report explicit EqEdit font-state changes without changing the equation.
+
+    A missing final 'it' is a REVIEW signal, not a proof of bad rendering:
+    a complete equation can validly finish with an upright label.
+    """
+    if not isinstance(script, str):
+        raise TypeError("EqEdit script must be a string")
+    events = [
+        {"command": match.group(), "offset": match.start()}
+        for match in _EQEDIT_STYLE_COMMAND.finditer(script)
+    ]
+    is_upright = bool(events and events[-1]["command"] in {"rm", "rmbold", "boldrm"})
+    return {
+        "events": events,
+        "last_command": events[-1]["command"] if events else None,
+        "trailing_upright_review": is_upright,
+        "has_dynamic_delimiters": "left" in script or "right" in script,
+        "has_box": bool(re.search(r"(?<![A-Za-z])box\\s*\\{", script)),
+    }
+
+
 def _sha(value: Any) -> str:
     return hashlib.sha256(
         json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")

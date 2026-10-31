@@ -252,6 +252,11 @@ class P321DocumentComposerTests(unittest.TestCase):
         self.assertEqual([e["command"] for e in report["events"]], ["rm", "it"])
         self.assertFalse(report["trailing_upright_review"])
 
+    def test_p423_upright_tail_needs_human_review(self):
+        report = audit_eqedit_style_flow("M _{rm echo}")
+        self.assertEqual(report["last_command"], "rm")
+        self.assertTrue(report["trailing_upright_review"])
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -289,6 +289,10 @@ class P321DocumentComposerTests(unittest.TestCase):
         report = audit_eqedit_style_flow(script)
         self.assertEqual([e["offset"] for e in report["events"]], [1, 7])
 
+    def test_p423_invalid_non_string_is_rejected(self):
+        with self.assertRaises(TypeError):
+            audit_eqedit_style_flow(None)
+
 
 if __name__ == "__main__":
     unittest.main()

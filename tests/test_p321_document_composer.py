@@ -266,6 +266,10 @@ class P321DocumentComposerTests(unittest.TestCase):
         report = audit_eqedit_style_flow("rmbold M it x")
         self.assertEqual([e["command"] for e in report["events"]], ["rmbold", "it"])
 
+    def test_p423_boldrm_alias_is_recognized(self):
+        report = audit_eqedit_style_flow("boldrm B it t")
+        self.assertEqual([e["command"] for e in report["events"]], ["boldrm", "it"])
+
 
 if __name__ == "__main__":
     unittest.main()

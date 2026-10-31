@@ -262,6 +262,10 @@ class P321DocumentComposerTests(unittest.TestCase):
         self.assertTrue(report["trailing_upright_review"])
         self.assertEqual(len(report["events"]), 1)
 
+    def test_p423_rmbold_is_recognized_whole(self):
+        report = audit_eqedit_style_flow("rmbold M it x")
+        self.assertEqual([e["command"] for e in report["events"]], ["rmbold", "it"])
+
 
 if __name__ == "__main__":
     unittest.main()

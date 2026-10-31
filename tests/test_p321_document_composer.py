@@ -22,6 +22,7 @@ from hwpx_mcp.document.p321_document_composer import (
     compose_document_plan,
     document_plan_contract,
     validate_document_plan,
+    audit_eqedit_style_flow,
 )
 
 
@@ -239,6 +240,12 @@ class P321DocumentComposerTests(unittest.TestCase):
             table_prop = para_props[table_anchor.get("paraPrIDRef")]
             table_meta = next(e for e in table_prop.iter() if etree.QName(e).localname == "heading")
             self.assertEqual(table_meta.get("type"), "NONE")
+
+    def test_p423_no_font_command(self):
+        report = audit_eqedit_style_flow("M _{ x } ( t )")
+        self.assertEqual(report["events"], [])
+        self.assertIsNone(report["last_command"])
+        self.assertFalse(report["trailing_upright_review"])
 
 
 if __name__ == "__main__":

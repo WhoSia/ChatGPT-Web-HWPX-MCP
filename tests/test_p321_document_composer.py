@@ -299,6 +299,11 @@ class P321DocumentComposerTests(unittest.TestCase):
             self.assertEqual(report["last_command"], "it")
             self.assertFalse(report["trailing_upright_review"])
 
+    def test_p423_fused_rm_capital_identifier(self):
+        report = audit_eqedit_style_flow("rmA + B")
+        self.assertEqual(report["events"][0]["command"], "rm")
+        self.assertEqual(report["events"][0]["offset"], 0)
+
 
 if __name__ == "__main__":
     unittest.main()

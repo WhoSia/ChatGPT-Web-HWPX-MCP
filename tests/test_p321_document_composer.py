@@ -279,6 +279,11 @@ class P321DocumentComposerTests(unittest.TestCase):
         self.assertTrue(report["has_box"])
         self.assertFalse(report["trailing_upright_review"])
 
+    def test_p423_dynamic_parentheses_are_observations(self):
+        report = audit_eqedit_style_flow("- left( {1} over {T _{2}} + rm i right) it m")
+        self.assertTrue(report["has_dynamic_delimiters"])
+        self.assertFalse(report["has_box"])
+
 
 if __name__ == "__main__":
     unittest.main()

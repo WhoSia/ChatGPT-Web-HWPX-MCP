@@ -284,6 +284,11 @@ class P321DocumentComposerTests(unittest.TestCase):
         self.assertTrue(report["has_dynamic_delimiters"])
         self.assertFalse(report["has_box"])
 
+    def test_p423_offset_tracks_real_script_position(self):
+        script = "{rm i} it M _{y}"
+        report = audit_eqedit_style_flow(script)
+        self.assertEqual([e["offset"] for e in report["events"]], [1, 7])
+
 
 if __name__ == "__main__":
     unittest.main()

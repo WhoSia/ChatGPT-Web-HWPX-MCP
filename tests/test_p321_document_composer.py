@@ -318,6 +318,10 @@ class P321DocumentComposerTests(unittest.TestCase):
         report = audit_eqedit_style_flow(script)
         self.assertEqual(report["events"], [{"command": "it", "offset": 5}])
 
+    def test_p423_dynamic_delimiter_ignores_prose(self):
+        report = audit_eqedit_style_flow("cleft rightward")
+        self.assertFalse(report["has_dynamic_delimiters"])
+
 
 if __name__ == "__main__":
     unittest.main()

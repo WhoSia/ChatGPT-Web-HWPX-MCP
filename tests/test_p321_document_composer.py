@@ -270,6 +270,10 @@ class P321DocumentComposerTests(unittest.TestCase):
         report = audit_eqedit_style_flow("boldrm B it t")
         self.assertEqual([e["command"] for e in report["events"]], ["boldrm", "it"])
 
+    def test_p423_font_command_does_not_match_prose_substring(self):
+        report = audit_eqedit_style_flow("normal terminate limit permissible")
+        self.assertEqual(report["events"], [])
+
 
 if __name__ == "__main__":
     unittest.main()

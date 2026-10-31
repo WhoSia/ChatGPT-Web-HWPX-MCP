@@ -156,9 +156,12 @@ def audit_eqedit_style_flow(script: str) -> dict[str, Any]:
     """
     if not isinstance(script, str):
         raise TypeError("EqEdit script must be a string")
+    # Quoted EqEdit identifiers are literal text, never executable font switches.
+    # Preserve string length so the offsets still refer to the original script.
+    visible = re.sub(r'"[^"]*"', lambda match: " " * len(match.group()), script)
     events = [
         {"command": match.group(), "offset": match.start()}
-        for match in _EQEDIT_STYLE_COMMAND.finditer(script)
+        for match in _EQEDIT_STYLE_COMMAND.finditer(visible)
     ]
     is_upright = bool(events and events[-1]["command"] in {"rm", "rmbold", "boldrm"})
     return {

@@ -145,7 +145,7 @@ PRESETS: dict[str, dict[str, Any]] = {
 # P4.23: observations from human-corrected Hangul EqEdit scripts. This
 # diagnostic is deliberately read-only; EqEdit font switches are stateful.
 # Unlike LaTeX groups, closing a brace must not be assumed to restore 'it'.
-_EQEDIT_STYLE_COMMAND = re.compile(r"(?<![A-Za-z])(?:rmbold|boldrm|rm|it)(?![A-Za-z])")
+_EQEDIT_STYLE_COMMAND = re.compile(r"(?<![A-Za-z])(?:rmbold|boldrm|rm|it)(?![a-z])")
 
 
 def audit_eqedit_style_flow(script: str) -> dict[str, Any]:

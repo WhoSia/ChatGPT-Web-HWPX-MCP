@@ -313,6 +313,11 @@ class P321DocumentComposerTests(unittest.TestCase):
         report = audit_eqedit_style_flow('M_{"rm"} it')
         self.assertEqual([e["command"] for e in report["events"]], ["it"])
 
+    def test_p423_quoted_text_preserves_offsets(self):
+        script = '"rm" itM'
+        report = audit_eqedit_style_flow(script)
+        self.assertEqual(report["events"], [{"command": "it", "offset": 5}])
+
 
 if __name__ == "__main__":
     unittest.main()

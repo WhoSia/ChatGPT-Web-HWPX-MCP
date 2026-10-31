@@ -293,6 +293,12 @@ class P321DocumentComposerTests(unittest.TestCase):
         with self.assertRaises(TypeError):
             audit_eqedit_style_flow(None)
 
+    def test_p423_human_corrected_echo_and_res_labels(self):
+        for label in ("eq", "res", "echo", "perp"):
+            report = audit_eqedit_style_flow("M _{rm " + label + "} it")
+            self.assertEqual(report["last_command"], "it")
+            self.assertFalse(report["trailing_upright_review"])
+
 
 if __name__ == "__main__":
     unittest.main()

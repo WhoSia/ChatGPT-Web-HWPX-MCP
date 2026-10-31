@@ -257,6 +257,11 @@ class P321DocumentComposerTests(unittest.TestCase):
         self.assertEqual(report["last_command"], "rm")
         self.assertTrue(report["trailing_upright_review"])
 
+    def test_p423_brace_is_not_automatic_style_reset(self):
+        report = audit_eqedit_style_flow("M _{rm perp} (0)")
+        self.assertTrue(report["trailing_upright_review"])
+        self.assertEqual(len(report["events"]), 1)
+
 
 if __name__ == "__main__":
     unittest.main()

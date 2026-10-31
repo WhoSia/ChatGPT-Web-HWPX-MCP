@@ -274,6 +274,11 @@ class P321DocumentComposerTests(unittest.TestCase):
         report = audit_eqedit_style_flow("normal terminate limit permissible")
         self.assertEqual(report["events"], [])
 
+    def test_p423_box_and_inset_spaces_are_observations(self):
+        report = audit_eqedit_style_flow("box{ ` h'(t) = - rm Var it(t) ` }")
+        self.assertTrue(report["has_box"])
+        self.assertFalse(report["trailing_upright_review"])
+
 
 if __name__ == "__main__":
     unittest.main()

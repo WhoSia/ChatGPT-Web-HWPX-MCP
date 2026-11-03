@@ -5,5 +5,8 @@ class P423EqEditLexerTests(unittest.TestCase):
     def test_braces_do_not_reset_font(self):
         self.assertEqual(scan_eqedit('M _{rm perp} (0)').final_font, 'upright')
 
+    def test_explicit_it_restores_italic(self):
+        self.assertEqual(scan_eqedit("M _{rm perp} it (0)").final_font, "italic")
+
 if __name__ == '__main__':
     unittest.main()

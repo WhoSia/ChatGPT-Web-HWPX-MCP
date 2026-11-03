@@ -12,5 +12,8 @@ class P423EqEditLexerTests(unittest.TestCase):
         report = scan_eqedit('M_{"rm"} it')
         self.assertEqual([t.value for t in report.tokens if t.kind == "font"], ["it"])
 
+    def test_unclosed_brace_reports_issue(self):
+        self.assertIn("unclosed_group", scan_eqedit("M _{rm perp").issues)
+
 if __name__ == '__main__':
     unittest.main()

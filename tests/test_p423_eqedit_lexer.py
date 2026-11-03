@@ -8,5 +8,9 @@ class P423EqEditLexerTests(unittest.TestCase):
     def test_explicit_it_restores_italic(self):
         self.assertEqual(scan_eqedit("M _{rm perp} it (0)").final_font, "italic")
 
+    def test_quote_excludes_font_switch(self):
+        report = scan_eqedit('M_{"rm"} it')
+        self.assertEqual([t.value for t in report.tokens if t.kind == "font"], ["it"])
+
 if __name__ == '__main__':
     unittest.main()

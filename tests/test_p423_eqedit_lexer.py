@@ -15,5 +15,8 @@ class P423EqEditLexerTests(unittest.TestCase):
     def test_unclosed_brace_reports_issue(self):
         self.assertIn("unclosed_group", scan_eqedit("M _{rm perp").issues)
 
+    def test_extra_brace_reports_issue(self):
+        self.assertIn("extra_closing_brace", scan_eqedit("M}").issues)
+
 if __name__ == '__main__':
     unittest.main()

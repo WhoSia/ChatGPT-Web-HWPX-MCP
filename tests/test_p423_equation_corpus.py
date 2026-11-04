@@ -44,6 +44,13 @@ class P423EquationCorpusTests(unittest.TestCase):
     def test_missing_script_fails_closed(self):
         with self.assertRaises(ValueError):
             read_fixture(fixture("<section><equation/></section>"))
+    def test_pair_reports_hashes_without_scripts(self):
+        a = read_fixture(fixture("<section><equation><script>a</script></equation></section>"))
+        b = read_fixture(fixture("<section><equation><script>b</script></equation></section>"))
+        pairs = pair_equations(a, b)
+        self.assertTrue(pairs[0]["changed"])
+        self.assertNotIn("script", pairs[0])
+        self.assertNotEqual(pairs[0]["before_sha256"], pairs[0]["after_sha256"])
 
 if __name__ == "__main__":
     unittest.main()

@@ -63,6 +63,10 @@ class P423EquationCorpusTests(unittest.TestCase):
         xml = '<!DOCTYPE section [<!ENTITY x "unsafe">]><section/>'
         with self.assertRaises(ValueError):
             read_fixture(fixture(xml))
+    def test_namespaced_native_equations(self):
+        xml = '<sec xmlns:hp="urn:hp"><hp:equation><hp:script>it M</hp:script></hp:equation></sec>'
+        rows = read_fixture(fixture(xml))
+        self.assertEqual(rows[0].script, "it M")
 
 if __name__ == "__main__":
     unittest.main()

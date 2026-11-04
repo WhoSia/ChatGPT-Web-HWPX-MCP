@@ -34,6 +34,13 @@ class P423EquationCorpusTests(unittest.TestCase):
     def test_preserves_equation_order(self):
         rows = read_fixture(fixture("<section><equation><script>a</script></equation><equation><script>b</script></equation></section>"))
         self.assertEqual([(r.index, r.script) for r in rows], [(0, "a"), (1, "b")])
+    def test_missing_section_fails_closed(self):
+        with tempfile.TemporaryDirectory() as d:
+            path = Path(d) / "none.hwpx"
+            with zipfile.ZipFile(path, "w") as z:
+                z.writestr("Contents/header.xml", "<header/>")
+            with self.assertRaises(ValueError):
+                extract_equations(path)
 
 if __name__ == "__main__":
     unittest.main()

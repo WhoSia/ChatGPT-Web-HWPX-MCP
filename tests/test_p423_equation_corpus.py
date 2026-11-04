@@ -103,5 +103,9 @@ class P423EquationCorpusTests(unittest.TestCase):
         a = read_fixture(fixture("<section><equation><script>x</script></equation><equation><script>x</script></equation></section>"))
         self.assertFalse(any(row["changed"] for row in pair_equations(a, a)))
 
+    def test_empty_pair_returns_empty_report(self):
+        a = read_fixture(fixture("<section/>"))
+        self.assertEqual(pair_equations(a, a), ())
+
 if __name__ == "__main__":
     unittest.main()

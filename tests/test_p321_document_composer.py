@@ -400,6 +400,19 @@ class P321DocumentComposerTests(unittest.TestCase):
             texts = [x.text for x in xml.iter() if local(x) == "t"]
             self.assertIn("· ", texts)
 
+    def test_p423_equation_line_retains_native_object_text_order(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp) / "order.hwpx"
+            compose_document_plan(out, {"blocks": [{"id": "line", "type": "equation_line", "parts": [
+                {"text": "앞 "}, {"latex": "x"}, {"text": ", "}, {"latex": "y"}, {"text": " 뒤"}
+            ]}]})
+            with zipfile.ZipFile(out) as z:
+                section = etree.fromstring(z.read("Contents/section0.xml"))
+            tag = lambda element: etree.QName(element).localname
+            paragraphs = [p for p in section.iter() if tag(p) == "p" and sum(tag(e) == "equation" for e in p.iter()) == 2]
+            self.assertEqual(len(paragraphs), 1)
+            events = [(tag(e), e.text) for e in paragraphs[0].iter() if tag(e) in {"equation", "t"} and (tag(e) == "equation" or e.text)]
+            self.assertEqual(events, [("t", "앞 "), ("equation", None), ("t", ", "), ("equation", None), ("t", " 뒤")])
 
 if __name__ == "__main__":
     unittest.main()

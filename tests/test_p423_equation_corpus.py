@@ -29,6 +29,8 @@ class P423EquationCorpusTests(unittest.TestCase):
         self.assertEqual([row.script for row in records], ["M_{rm perp} it"])
         self.assertNotIn("Private prose", str(records))
 
+    def test_empty_section_has_no_equations(self):
+        self.assertEqual(read_fixture(fixture("<section><p>text</p></section>")), ())
 
 if __name__ == "__main__":
     unittest.main()

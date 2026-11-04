@@ -88,5 +88,11 @@ class P423EquationCorpusTests(unittest.TestCase):
                 ("Contents/section0.xml", 0), ("Contents/section1.xml", 0)
             ])
 
+    def test_detects_reordered_scripts_even_when_count_is_equal(self):
+        a = read_fixture(fixture("<section><equation><script>a</script></equation><equation><script>b</script></equation></section>"))
+        b = read_fixture(fixture("<section><equation><script>b</script></equation><equation><script>a</script></equation></section>"))
+        with self.assertRaisesRegex(ValueError, "order changed"):
+            pair_equations(a, b)
+
 if __name__ == "__main__":
     unittest.main()

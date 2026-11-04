@@ -1,4 +1,6 @@
+import json
 import unittest
+from pathlib import Path
 from hwpx_mcp.document.p423_eqedit_lexer import scan_eqedit
 
 class P423EqEditLexerTests(unittest.TestCase):
@@ -24,6 +26,14 @@ class P423EqEditLexerTests(unittest.TestCase):
             [token.value for token in report.tokens if token.kind == "structure"],
             ["box", "left", "right"],
         )
+
+    def test_human_corrected_fixture_is_lexable(self):
+        source = Path(__file__).parent / "fixtures" / "p423_mri_human_corrected_eqedit.json"
+        data = json.loads(source.read_text(encoding="utf-8"))
+        self.assertEqual(len(data["examples"]), 6)
+        for example in data["examples"]:
+            report = scan_eqedit(example["script"])
+            self.assertEqual(report.issues, (), example["id"])
 
 if __name__ == '__main__':
     unittest.main()

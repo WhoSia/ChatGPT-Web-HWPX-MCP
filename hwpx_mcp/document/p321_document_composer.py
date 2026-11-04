@@ -185,7 +185,7 @@ def document_plan_contract() -> dict:
         "presets": sorted(PRESETS),
         "block_types": [
             "title", "paragraph", "heading", "list_item", "table",
-            "equation", "picture", "page_break", "section_break",
+            "equation", "equation_line", "picture", "page_break", "section_break",
         ],
         "reference_syntax": {
             "block_id": "Each block may declare a unique id. Later operations can use $block:<id>.",
@@ -239,7 +239,7 @@ def _normalize_plan(plan: dict) -> dict:
         kind = str(raw.get("type") or "").strip()
         if kind not in {
             "title", "paragraph", "heading", "list_item", "table",
-            "equation", "picture", "page_break", "section_break",
+            "equation", "equation_line", "picture", "page_break", "section_break",
         }:
             raise ValueError(f"unsupported plan block type: {kind}")
         block_id = str(raw.get("id") or f"b{index + 1}").strip()

@@ -51,6 +51,9 @@ class P423EquationCorpusTests(unittest.TestCase):
         self.assertTrue(pairs[0]["changed"])
         self.assertNotIn("script", pairs[0])
         self.assertNotEqual(pairs[0]["before_sha256"], pairs[0]["after_sha256"])
+    def test_identical_pair_is_unchanged(self):
+        a = read_fixture(fixture("<section><equation><script>a</script></equation></section>"))
+        self.assertFalse(pair_equations(a, a)[0]["changed"])
 
 if __name__ == "__main__":
     unittest.main()

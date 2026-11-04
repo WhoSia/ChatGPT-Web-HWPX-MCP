@@ -368,6 +368,13 @@ class P321DocumentComposerTests(unittest.TestCase):
                     {"id": "pair", "type": "equation_line", "parts": [{"latex": ""}]}
                 ]})
 
+    def test_p423_equation_line_rejects_empty_parts(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            with self.assertRaisesRegex(ValueError, "1..64"):
+                compose_document_plan(Path(tmp) / "invalid.hwpx", {"blocks": [
+                    {"id": "pair", "type": "equation_line", "parts": []}
+                ]})
+
 
 if __name__ == "__main__":
     unittest.main()

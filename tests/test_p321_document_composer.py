@@ -375,6 +375,17 @@ class P321DocumentComposerTests(unittest.TestCase):
                     {"id": "pair", "type": "equation_line", "parts": []}
                 ]})
 
+    def test_p423_equation_line_rejects_unsupported_latex_atomically(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp) / "invalid.hwpx"
+            with self.assertRaises(Exception):
+                compose_document_plan(out, {"blocks": [
+                    {"id": "pair", "type": "equation_line", "parts": [
+                        {"latex": "x"}, {"text": ", "}, {"latex": r"\\notarealcommand"}
+                    ]}
+                ]})
+            self.assertFalse(out.exists())
+
 
 if __name__ == "__main__":
     unittest.main()

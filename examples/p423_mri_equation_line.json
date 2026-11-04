@@ -1,0 +1,38 @@
+{
+  "preset": "school-report",
+  "document": {
+    "title": "MRI Equation Line Demonstration"
+  },
+  "blocks": [
+    {
+      "id": "title",
+      "type": "title",
+      "text": "MRI: 회전 좌표계의 횡자화"
+    },
+    {
+      "id": "intro",
+      "type": "paragraph",
+      "text": "서로 독립적인 미분방정식 두 개를 쉼표와 공백 한 칸으로 연결한다."
+    },
+    {
+      "id": "paired-equations",
+      "type": "equation_line",
+      "parts": [
+        {
+          "latex": "\\frac{dM_x}{dt}=\\Delta\\omega M_y-\\frac{M_x}{T_2}"
+        },
+        {
+          "text": ", "
+        },
+        {
+          "latex": "\\frac{dM_y}{dt}=-\\Delta\\omega M_x-\\frac{M_y}{T_2}"
+        }
+      ]
+    },
+    {
+      "id": "body",
+      "type": "paragraph",
+      "text": "쉼표는 수식 객체 밖의 일반 텍스트이며, 각 방정식은 독립적인 네이티브 수식이다."
+    }
+  ]
+}

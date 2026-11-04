@@ -336,6 +336,24 @@ class P321DocumentComposerTests(unittest.TestCase):
         self.assertTrue(result["ok"])
         self.assertEqual(result["block_counts"]["equation_line"], 1)
 
+    def test_p423_equation_line_native_objects_and_comma(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp) / "inline.hwpx"
+            receipt = compose_document_plan(out, {"blocks": [
+                {"id": "pair", "type": "equation_line", "parts": [
+                    {"latex": "x"}, {"text": ", "}, {"latex": "y"}
+                ]}
+            ]})
+            self.assertTrue(receipt["atomic_commit"])
+            with zipfile.ZipFile(out) as z:
+                xml = etree.fromstring(z.read("Contents/section0.xml"))
+            local = lambda node: etree.QName(node).localname
+            anchors = [p for p in xml.iter() if local(p) == "p" and sum(local(t) == "equation" for t in p.iter()) == 2]
+            self.assertEqual(len(anchors), 1)
+            events = [(local(x), x.text or "") for x in anchors[0].iter() if local(x) in {"equation", "t"}]
+            self.assertIn(("t", ", "), events)
+            self.assertEqual(sum(k == "equation" for k, _ in events), 2)
+
 
 if __name__ == "__main__":
     unittest.main()

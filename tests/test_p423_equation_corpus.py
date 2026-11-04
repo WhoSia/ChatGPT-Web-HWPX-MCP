@@ -41,6 +41,9 @@ class P423EquationCorpusTests(unittest.TestCase):
                 z.writestr("Contents/header.xml", "<header/>")
             with self.assertRaises(ValueError):
                 extract_equations(path)
+    def test_missing_script_fails_closed(self):
+        with self.assertRaises(ValueError):
+            read_fixture(fixture("<section><equation/></section>"))
 
 if __name__ == "__main__":
     unittest.main()

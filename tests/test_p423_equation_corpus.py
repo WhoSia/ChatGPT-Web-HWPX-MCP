@@ -78,6 +78,15 @@ class P423EquationCorpusTests(unittest.TestCase):
                     z.writestr("Contents/section0.xml", "<section/>")
             with self.assertRaises(ValueError):
                 extract_equations(path)
+    def test_multi_section_indexes_are_scoped(self):
+        with tempfile.TemporaryDirectory() as d:
+            path = Path(d) / "two.hwpx"
+            with zipfile.ZipFile(path, "w") as z:
+                z.writestr("Contents/section0.xml", "<section><equation><script>a</script></equation></section>")
+                z.writestr("Contents/section1.xml", "<section><equation><script>b</script></equation></section>")
+            self.assertEqual([(r.section, r.index) for r in extract_equations(path)], [
+                ("Contents/section0.xml", 0), ("Contents/section1.xml", 0)
+            ])
 
 if __name__ == "__main__":
     unittest.main()

@@ -57,6 +57,14 @@ class P423DocumentShellTests(unittest.TestCase):
         finally:
             a.cleanup()
             b.cleanup()
+    def test_shell_contains_no_source_prose(self):
+        temp, path = make_hwpx('<s><p><t>Sensitive personal narrative</t></p></s>')
+        try:
+            report = inspect_document_shell(path)
+            self.assertNotIn("Sensitive", repr(report))
+            self.assertEqual(len(report.plain_text_sha256), 64)
+        finally:
+            temp.cleanup()
 
 if __name__ == "__main__":
     unittest.main()

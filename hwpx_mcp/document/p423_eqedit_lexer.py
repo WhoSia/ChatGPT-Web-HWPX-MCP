@@ -73,7 +73,7 @@ def scan_eqedit(script: str) -> EqEditScan:
         if (i == 0 or not script[i - 1].isalpha()):
             found = False
             for command in _FONT + _STRUCTURE:
-                if not script.startswith(command, i):
+                if script[i:i + len(command)].lower() != command:
                     continue
                 end = i + len(command)
                 if end < len(script) and script[end].islower():

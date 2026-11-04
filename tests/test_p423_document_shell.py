@@ -66,5 +66,17 @@ class P423DocumentShellTests(unittest.TestCase):
         finally:
             temp.cleanup()
 
+    def test_different_text_fragment_boundaries_have_distinct_digest(self):
+        a, first = make_hwpx('<s><p><t>ab</t><t>c</t></p></s>')
+        b, second = make_hwpx('<s><p><t>a</t><t>bc</t></p></s>')
+        try:
+            left = inspect_document_shell(first)
+            right = inspect_document_shell(second)
+            self.assertEqual(left.text_fragment_count, right.text_fragment_count)
+            self.assertNotEqual(left.plain_text_sha256, right.plain_text_sha256)
+        finally:
+            a.cleanup()
+            b.cleanup()
+
 if __name__ == "__main__":
     unittest.main()

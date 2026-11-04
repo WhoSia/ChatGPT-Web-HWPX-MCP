@@ -1,0 +1,61 @@
+{
+  "schema": "p423.eqedit.human-corrected.v1",
+  "source": "MRI native HWPX manually edited in Hancom; equation-only excerpts, no report body",
+  "status": "human_edited_not_render_certified",
+  "examples": [
+    {
+      "id": "variable-after-bold",
+      "original_position": 12,
+      "script": "rmbold{B} (it x ) = ( B _{0} + G x ) hat{rmbold{z}}",
+      "focus": [
+        "font_state",
+        "vector"
+      ]
+    },
+    {
+      "id": "complex-m-and-bracket",
+      "original_position": 33,
+      "script": "eqalign{{dm} over {dt} &= {d M _{x}} over {dt} + {rm i} it{d M _{y}} over {dt} # &= - left( {1} over {T _{2}} + {rm i} DELTA omega right) itm}",
+      "focus": [
+        "font_state",
+        "dynamic_delimiter"
+      ]
+    },
+    {
+      "id": "description-subscript",
+      "original_position": 42,
+      "script": "phi _{ {rm res} } = DELTA omega tau - DELTA omega tau = 0",
+      "focus": [
+        "descriptive_subscript"
+      ]
+    },
+    {
+      "id": "box-and-perp",
+      "original_position": 45,
+      "script": "{BOX{`M _{rm echo} it (2 tau  )=M _{rm perp} it (0)e ^{-2 tau  /T _{2}} `}}",
+      "focus": [
+        "box",
+        "font_state"
+      ]
+    },
+    {
+      "id": "residual-phase-integrals",
+      "original_position": 49,
+      "script": "phi _{ {rm res} } = it gamma G left [ int _{0} ^{tau} x ( t ) dt - int _{tau} ^{2 tau} x ( t ) dt right ]",
+      "focus": [
+        "dynamic_delimiter",
+        "font_state"
+      ]
+    },
+    {
+      "id": "variance-transition",
+      "original_position": 52,
+      "script": "rm Var( phi  _{rm res} ) & = it 2D gamma  ^{2} G ^{2} LEFT [ int _{0} ^{tau } {} t ^{2} dt+ int _{tau } ^{2 tau } {} (2 tau  -t) ^{2} dt RIGHT ]#\n& = {4} over {3} D gamma  ^{2} G ^{2} tau  ^{3}",
+      "focus": [
+        "font_state",
+        "multi_line",
+        "dynamic_delimiter"
+      ]
+    }
+  ]
+}

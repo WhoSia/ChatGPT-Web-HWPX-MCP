@@ -99,5 +99,9 @@ class P423EquationCorpusTests(unittest.TestCase):
         b = read_fixture(fixture("<section><equation><script>a</script></equation><equation><script>c</script></equation></section>"))
         self.assertEqual([row["changed"] for row in pair_equations(a, b)], [False, True])
 
+    def test_repeated_identical_scripts_remain_pairable(self):
+        a = read_fixture(fixture("<section><equation><script>x</script></equation><equation><script>x</script></equation></section>"))
+        self.assertFalse(any(row["changed"] for row in pair_equations(a, a)))
+
 if __name__ == "__main__":
     unittest.main()

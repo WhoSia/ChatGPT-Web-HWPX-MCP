@@ -189,6 +189,7 @@ def document_plan_contract() -> dict:
         ],
         "reference_syntax": {
             "block_id": "Each block may declare a unique id. Later operations can use $block:<id>.",
+            "equation_line": "Ordered parts: {latex: ...} creates a native equation; {text: ...} creates literal punctuation or prose.",
             "paragraph_fields": ["paragraph", "target_paragraph"],
         },
         "top_level": {

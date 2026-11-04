@@ -31,6 +31,9 @@ class P423EquationCorpusTests(unittest.TestCase):
 
     def test_empty_section_has_no_equations(self):
         self.assertEqual(read_fixture(fixture("<section><p>text</p></section>")), ())
+    def test_preserves_equation_order(self):
+        rows = read_fixture(fixture("<section><equation><script>a</script></equation><equation><script>b</script></equation></section>"))
+        self.assertEqual([(r.index, r.script) for r in rows], [(0, "a"), (1, "b")])
 
 if __name__ == "__main__":
     unittest.main()

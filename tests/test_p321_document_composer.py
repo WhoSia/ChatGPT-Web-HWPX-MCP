@@ -354,6 +354,13 @@ class P321DocumentComposerTests(unittest.TestCase):
             self.assertIn(("t", ", "), events)
             self.assertEqual(sum(k == "equation" for k, _ in events), 2)
 
+    def test_p423_equation_line_rejects_ambiguous_part(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            with self.assertRaisesRegex(ValueError, "exactly text or latex"):
+                compose_document_plan(Path(tmp) / "invalid.hwpx", {"blocks": [
+                    {"id": "pair", "type": "equation_line", "parts": [{"latex": "x", "text": "x"}]}
+                ]})
+
 
 if __name__ == "__main__":
     unittest.main()

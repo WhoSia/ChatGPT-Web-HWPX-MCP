@@ -13,6 +13,8 @@ import zipfile
 
 MAX_SECTION_BYTES = 8 * 1024 * 1024
 MAX_EQUATIONS = 2000
+MAX_SECTIONS = 128
+MAX_MEMBERS = 5000
 MAX_SCRIPT_CHARS = 65536
 
 
@@ -33,6 +35,8 @@ def extract_equations(path: str | Path) -> tuple[EquationEvidence, ...]:
     output: list[EquationEvidence] = []
     with zipfile.ZipFile(path, "r") as archive:
         names = archive.namelist()
+        if len(names) > MAX_MEMBERS:
+            raise ValueError("HWPX has too many ZIP members")
         if len(names) != len(set(names)):
             raise ValueError("HWPX contains duplicate ZIP members")
         sections = sorted(
@@ -40,6 +44,8 @@ def extract_equations(path: str | Path) -> tuple[EquationEvidence, ...]:
              if name.startswith("Contents/section") and name.endswith(".xml")),
             key=lambda name: (len(name), name),
         )
+        if len(sections) > MAX_SECTIONS:
+            raise ValueError("HWPX has too many sections")
         if not sections:
             raise ValueError("HWPX has no Contents/section*.xml")
         for section in sections:

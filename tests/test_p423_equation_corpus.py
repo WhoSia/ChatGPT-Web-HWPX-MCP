@@ -94,5 +94,10 @@ class P423EquationCorpusTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "order changed"):
             pair_equations(a, b)
 
+    def test_keeps_same_count_single_edit_pairable(self):
+        a = read_fixture(fixture("<section><equation><script>a</script></equation><equation><script>b</script></equation></section>"))
+        b = read_fixture(fixture("<section><equation><script>a</script></equation><equation><script>c</script></equation></section>"))
+        self.assertEqual([row["changed"] for row in pair_equations(a, b)], [False, True])
+
 if __name__ == "__main__":
     unittest.main()

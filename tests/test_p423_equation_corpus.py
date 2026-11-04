@@ -59,6 +59,10 @@ class P423EquationCorpusTests(unittest.TestCase):
         b = read_fixture(fixture("<section></section>"))
         with self.assertRaises(ValueError):
             pair_equations(a, b)
+    def test_doctype_is_rejected(self):
+        xml = '<!DOCTYPE section [<!ENTITY x "unsafe">]><section/>'
+        with self.assertRaises(ValueError):
+            read_fixture(fixture(xml))
 
 if __name__ == "__main__":
     unittest.main()

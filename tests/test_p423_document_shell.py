@@ -29,6 +29,16 @@ class P423DocumentShellTests(unittest.TestCase):
             a.cleanup()
             b.cleanup()
 
+    def test_plain_text_change_changes_digest(self):
+        a, first = make_hwpx('<s><p><t>Initial</t></p></s>')
+        b, second = make_hwpx('<s><p><t>Revised</t></p></s>')
+        try:
+            diff = compare_document_shell(inspect_document_shell(first), inspect_document_shell(second))
+            self.assertFalse(diff["text_exact_fragment_digest_preserved"])
+            self.assertTrue(diff["paragraph_count_preserved"])
+        finally:
+            a.cleanup()
+            b.cleanup()
 
 if __name__ == "__main__":
     unittest.main()

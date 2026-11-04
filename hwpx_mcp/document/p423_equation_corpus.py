@@ -103,4 +103,5 @@ def pair_equations(
         "before_sha256": left.sha256,
         "after_sha256": right.sha256,
         "changed": left.script != right.script,
+        "alignment": "index_assumed_requires_review",
     } for left, right in zip(before, after))

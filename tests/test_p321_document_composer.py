@@ -327,6 +327,10 @@ class P321DocumentComposerTests(unittest.TestCase):
         self.assertFalse(report["has_box"])
         self.assertEqual(report["events"], [])
 
+    def test_p423_equation_line_contract_exposed(self):
+        contract = document_plan_contract()
+        self.assertIn("equation_line", contract["block_types"])
+
 
 if __name__ == "__main__":
     unittest.main()

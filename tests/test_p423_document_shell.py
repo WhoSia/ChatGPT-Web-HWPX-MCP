@@ -39,6 +39,15 @@ class P423DocumentShellTests(unittest.TestCase):
         finally:
             a.cleanup()
             b.cleanup()
+    def test_extra_paragraph_changes_shell_count(self):
+        a, first = make_hwpx('<s><p><t>A</t></p></s>')
+        b, second = make_hwpx('<s><p><t>A</t></p><p/></s>')
+        try:
+            diff = compare_document_shell(inspect_document_shell(first), inspect_document_shell(second))
+            self.assertFalse(diff["paragraph_count_preserved"])
+        finally:
+            a.cleanup()
+            b.cleanup()
 
 if __name__ == "__main__":
     unittest.main()

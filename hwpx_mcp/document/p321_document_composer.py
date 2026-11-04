@@ -389,6 +389,40 @@ def _materialize_blocks(document: HwpxDocument, blocks: list[dict]) -> dict[str,
             table_index += 1
             continue
 
+        if kind == "equation_line":
+            parts = block.get("parts")
+            if not isinstance(parts, list) or not 1 <= len(parts) <= 64:
+                raise ValueError("equation_line.parts must be a list of 1..64 parts")
+            prepared = []
+            for part in parts:
+                if not isinstance(part, dict) or set(part) not in ({"text"}, {"latex"}):
+                    raise ValueError("equation_line part must have exactly text or latex")
+                if "text" in part:
+                    text = part["text"]
+                    if not isinstance(text, str) or len(text) > 4096:
+                        raise ValueError("equation_line text must be at most 4096 characters")
+                    prepared.append(("text", text))
+                else:
+                    latex = part["latex"]
+                    if not isinstance(latex, str) or not latex.strip():
+                        raise ValueError("equation_line latex must be a non-empty string")
+                    prepared.append(("equation", latex_to_eqedit(latex)))
+            anchor = document.add_paragraph("", inherit_style=False)
+            count = 0
+            for part_kind, value in prepared:
+                if part_kind == "text":
+                    if value:
+                        anchor.add_run(value)
+                else:
+                    document.shapes.add_equation(value, paragraph=anchor)
+                    count += 1
+            bindings[block_id] = {
+                "kind": kind,
+                "paragraph_id": _paragraph_id(anchor),
+                "equation_count": count,
+            }
+            continue
+
         if kind == "equation":
             latex = str(block.get("latex") or "").strip()
             if not latex:

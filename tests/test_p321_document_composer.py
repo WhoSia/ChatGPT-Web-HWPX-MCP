@@ -381,7 +381,7 @@ class P321DocumentComposerTests(unittest.TestCase):
             with self.assertRaises(Exception):
                 compose_document_plan(out, {"blocks": [
                     {"id": "pair", "type": "equation_line", "parts": [
-                        {"latex": "x"}, {"text": ", "}, {"latex": r"\\notarealcommand"}
+                        {"latex": "x"}, {"text": ", "}, {"latex": r"\notarealcommand"}
                     ]}
                 ]})
             self.assertFalse(out.exists())

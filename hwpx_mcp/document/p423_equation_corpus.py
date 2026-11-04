@@ -94,6 +94,9 @@ def pair_equations(
     keys_after = [(x.section, x.index) for x in after]
     if keys_before != keys_after:
         raise ValueError("equation topology mismatch; manual alignment needed")
+    if sorted(x.sha256 for x in before) == sorted(x.sha256 for x in after):
+        if [x.sha256 for x in before] != [x.sha256 for x in after]:
+            raise ValueError("equation order changed; manual alignment needed")
     return tuple({
         "section": left.section,
         "index": left.index,

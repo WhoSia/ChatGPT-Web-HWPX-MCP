@@ -331,6 +331,11 @@ class P321DocumentComposerTests(unittest.TestCase):
         contract = document_plan_contract()
         self.assertIn("equation_line", contract["block_types"])
 
+    def test_p423_equation_line_plan_is_accepted(self):
+        result = validate_document_plan({"blocks": [{"id": "eqs", "type": "equation_line", "parts": [{"latex": "x"}, {"text": ", "}, {"latex": "y"}]}]})
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["block_counts"]["equation_line"], 1)
+
 
 if __name__ == "__main__":
     unittest.main()

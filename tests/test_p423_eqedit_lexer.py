@@ -18,5 +18,12 @@ class P423EqEditLexerTests(unittest.TestCase):
     def test_extra_brace_reports_issue(self):
         self.assertIn("extra_closing_brace", scan_eqedit("M}").issues)
 
+    def test_uppercase_structure_commands_from_hancom(self):
+        report = scan_eqedit("BOX{ M } LEFT( a RIGHT)")
+        self.assertEqual(
+            [token.value for token in report.tokens if token.kind == "structure"],
+            ["box", "left", "right"],
+        )
+
 if __name__ == '__main__':
     unittest.main()

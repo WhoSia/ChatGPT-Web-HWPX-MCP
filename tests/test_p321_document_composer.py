@@ -386,6 +386,20 @@ class P321DocumentComposerTests(unittest.TestCase):
                 ]})
             self.assertFalse(out.exists())
 
+    def test_p423_equation_line_preserves_literal_separator(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp) / "inline.hwpx"
+            compose_document_plan(out, {"blocks": [
+                {"id": "pair", "type": "equation_line", "parts": [
+                    {"latex": "x"}, {"text": "· "}, {"latex": "y"}
+                ]}
+            ]})
+            with zipfile.ZipFile(out) as z:
+                xml = etree.fromstring(z.read("Contents/section0.xml"))
+            local = lambda node: etree.QName(node).localname
+            texts = [x.text for x in xml.iter() if local(x) == "t"]
+            self.assertIn("· ", texts)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -54,6 +54,11 @@ class P423EquationCorpusTests(unittest.TestCase):
     def test_identical_pair_is_unchanged(self):
         a = read_fixture(fixture("<section><equation><script>a</script></equation></section>"))
         self.assertFalse(pair_equations(a, a)[0]["changed"])
+    def test_changed_equation_count_requires_review(self):
+        a = read_fixture(fixture("<section><equation><script>a</script></equation></section>"))
+        b = read_fixture(fixture("<section></section>"))
+        with self.assertRaises(ValueError):
+            pair_equations(a, b)
 
 if __name__ == "__main__":
     unittest.main()

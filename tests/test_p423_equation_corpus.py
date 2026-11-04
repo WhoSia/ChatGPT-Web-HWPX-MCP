@@ -67,6 +67,17 @@ class P423EquationCorpusTests(unittest.TestCase):
         xml = '<sec xmlns:hp="urn:hp"><hp:equation><hp:script>it M</hp:script></hp:equation></sec>'
         rows = read_fixture(fixture(xml))
         self.assertEqual(rows[0].script, "it M")
+    def test_duplicate_zip_members_are_rejected(self):
+        import warnings
+        with tempfile.TemporaryDirectory() as d:
+            path = Path(d) / "duplicate.hwpx"
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", UserWarning)
+                with zipfile.ZipFile(path, "w") as z:
+                    z.writestr("Contents/section0.xml", "<section/>")
+                    z.writestr("Contents/section0.xml", "<section/>")
+            with self.assertRaises(ValueError):
+                extract_equations(path)
 
 if __name__ == "__main__":
     unittest.main()

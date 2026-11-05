@@ -42,6 +42,11 @@ class P423StyleProfileTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "equation_base_unit"):
             normalize_style_profile({"equation_base_unit": True})
 
+    def test_heading_role_is_scoped_to_level(self):
+        p = normalize_style_profile({"roles": {"heading_2": {"run": {"size": 13}}}})
+        self.assertEqual(style_for_block(p, "heading", 2)["run"]["size"], 13)
+        self.assertEqual(style_for_block(p, "heading", 1), {})
+
 
 if __name__ == "__main__":
     unittest.main()

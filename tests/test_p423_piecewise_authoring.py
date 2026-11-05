@@ -29,6 +29,9 @@ class P423PiecewiseAuthoringTests(unittest.TestCase):
     def test_rejects_mixed_condition_columns(self):
         with self.assertRaisesRegex(ValueError, "consistently"):
             build_piecewise_script([{"expression": "x", "condition": "x>0"}, {"expression": "0"}])
+    def test_rejects_floating_spacing_value(self):
+        with self.assertRaisesRegex(ValueError, "condition_gap"):
+            build_piecewise_script([{"expression": "x", "condition": "x>0"}], condition_gap=1.5)
 
 if __name__ == "__main__":
     unittest.main()

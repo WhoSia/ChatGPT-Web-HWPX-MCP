@@ -106,6 +106,52 @@ class P424WSLNativePdfBridgeTests(unittest.TestCase):
                 with self.assertRaisesRegex(RuntimeError, "MISMATCH"):
                     bridge.export_wsl_native_pdf(src, out)
 
+    def test_stage_script_from_wsl_home_and_remove_after_use(self):
+        bridge = load_bridge()
+        with tempfile.TemporaryDirectory() as root:
+            root = Path(root)
+            source_script = root / "repo" / "hancom.ps1"
+            source_script.parent.mkdir()
+            source_script.write_text("Write-Output native", encoding="utf-8")
+            mount = root / "windows-drive"
+            mount.mkdir()
+            def mounted(path):
+                if path == source_script:
+                    raise ValueError("repository is in WSL home")
+                return path
+            with patch.object(bridge, "_approved_windows_mount", side_effect=mounted):
+                script, staged = bridge._stage_hancom_script(source_script, mount)
+            self.assertIsNotNone(staged)
+            self.assertTrue(script.is_file())
+            self.assertEqual(script.read_bytes(), source_script.read_bytes())
+            self.assertEqual(script.parent, mount)
+            staged.unlink()
+            self.assertFalse(staged.exists())
+
+    def test_untrusted_renderer_receipt_is_rejected(self):
+        bridge = load_bridge()
+        with tempfile.TemporaryDirectory() as root:
+            src, out = Path(root) / "source.hwpx", Path(root) / "out.pdf"
+            src.write_bytes(b"PK" + b"original" * 25)
+            pdf = b"%PDF-1.7\\n" + b"mock" * 50
+            def run(command, **kwargs):
+                out.write_bytes(pdf)
+                receipt = out.with_suffix(".pdf.receipt.json")
+                receipt.write_text(json.dumps({
+                    "status": "PDF_CREATED_UNREVIEWED",
+                    "engine": "UNVERIFIED_OTHER_RENDERER",
+                    "input_sha256": hashlib.sha256(src.read_bytes()).hexdigest(),
+                    "output_sha256": hashlib.sha256(pdf).hexdigest(),
+                }), encoding="utf-8")
+                return subprocess.CompletedProcess(command, 0, "", "")
+            with patch.object(bridge, "on_wsl", return_value=True), patch.object(
+                bridge, "_approved_windows_mount", side_effect=lambda p: p
+            ), patch.object(bridge, "_windows_path", return_value=r"C:\test\x"), patch.object(
+                bridge.subprocess, "run", side_effect=run
+            ):
+                with self.assertRaisesRegex(RuntimeError, "MISMATCH"):
+                    bridge.export_wsl_native_pdf(src, out)
+
 
 if __name__ == "__main__":
     unittest.main()

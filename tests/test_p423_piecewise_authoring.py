@@ -17,6 +17,9 @@ class P423PiecewiseAuthoringTests(unittest.TestCase):
         result = build_piecewise_script([{"expression": "x"}, {"expression": "0"}])
         self.assertEqual(result.script, "cases {x # 0}")
         self.assertFalse(result.has_conditions)
+    def test_optional_gap_is_explicit_only(self):
+        result = build_piecewise_script([{"expression": "x", "condition": "x>0"}], condition_gap=2)
+        self.assertEqual(result.script, "cases {x & ~~x > 0}")
 
 if __name__ == "__main__":
     unittest.main()

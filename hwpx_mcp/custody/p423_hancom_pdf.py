@@ -86,7 +86,7 @@ def export_native_hwp_pdf(
         ]
         try:
             completed = subprocess.run(
-                command, text=True, capture_output=True, timeout=timeout_seconds,
+                command, capture_output=True, timeout=timeout_seconds,
                 check=False,
             )
         except subprocess.TimeoutExpired as exc:
@@ -104,6 +104,9 @@ def export_native_hwp_pdf(
             or receipt.get("input_sha256") != before
             or not destination.is_file()
             or receipt.get("output_sha256") != _sha(destination)
+            or type(receipt.get("output_bytes")) is not int
+            or receipt["output_bytes"] != destination.stat().st_size
+            or _sha(source) != before
         ):
             if destination.exists():
                 destination.unlink()

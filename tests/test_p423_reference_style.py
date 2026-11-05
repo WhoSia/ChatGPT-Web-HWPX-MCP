@@ -24,6 +24,16 @@ class P423ReferenceStyleTests(unittest.TestCase):
         self.assertFalse(result["source_text_included"])
         self.assertEqual(result["reference_exemplar_sha256"], "source-certificate")
 
+    def test_unsupported_reference_fields_return_warning(self):
+        with patch("hwpx_mcp.document.p423_reference_style.build_role_aware_style_exemplars") as reader:
+            reader.return_value = {"roles": [{"role": "body", "authoring_preset": {
+                "run_format": {"size": 11, "letter_spacing_by_script_readback_only": {"hangul": -3}},
+                "paragraph_format": {"indent_left_mm": 5},
+            }}]}
+            result = profile_from_reference("ref.hwpx")
+        self.assertGreaterEqual(len(result["warnings"]), 2)
+        self.assertEqual(result["style_profile"]["roles"]["body"]["run"]["size"], 11)
+
 
 if __name__ == "__main__":
     unittest.main()

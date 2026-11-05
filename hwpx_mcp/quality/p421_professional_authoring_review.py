@@ -9,7 +9,7 @@ import json
 from typing import Any, Mapping
 
 SCHEMA = "chatgpt-web-hwpx-mcp/p421/professional-authoring-review/v1"
-VISUAL_KINDS = frozenset({"table", "picture", "equation", "chart"})
+VISUAL_KINDS = frozenset({"table", "picture", "equation", "piecewise", "chart"})
 TEXT_KINDS = frozenset({"title", "heading", "paragraph", "caption"})
 
 

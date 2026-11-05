@@ -22,6 +22,7 @@ from hwpx_mcp.document.p321_document_composer import (
     compose_document_plan,
     document_plan_contract,
     validate_document_plan,
+    audit_eqedit_style_flow,
 )
 
 
@@ -239,6 +240,193 @@ class P321DocumentComposerTests(unittest.TestCase):
             table_prop = para_props[table_anchor.get("paraPrIDRef")]
             table_meta = next(e for e in table_prop.iter() if etree.QName(e).localname == "heading")
             self.assertEqual(table_meta.get("type"), "NONE")
+
+    def test_p423_no_font_command(self):
+        report = audit_eqedit_style_flow("M _{ x } ( t )")
+        self.assertEqual(report["events"], [])
+        self.assertIsNone(report["last_command"])
+        self.assertFalse(report["trailing_upright_review"])
+
+    def test_p423_rm_then_explicit_it(self):
+        report = audit_eqedit_style_flow("M _{rm perp} it (0)")
+        self.assertEqual([e["command"] for e in report["events"]], ["rm", "it"])
+        self.assertFalse(report["trailing_upright_review"])
+
+    def test_p423_upright_tail_needs_human_review(self):
+        report = audit_eqedit_style_flow("M _{rm echo}")
+        self.assertEqual(report["last_command"], "rm")
+        self.assertTrue(report["trailing_upright_review"])
+
+    def test_p423_brace_is_not_automatic_style_reset(self):
+        report = audit_eqedit_style_flow("M _{rm perp} (0)")
+        self.assertTrue(report["trailing_upright_review"])
+        self.assertEqual(len(report["events"]), 1)
+
+    def test_p423_rmbold_is_recognized_whole(self):
+        report = audit_eqedit_style_flow("rmbold M it x")
+        self.assertEqual([e["command"] for e in report["events"]], ["rmbold", "it"])
+
+    def test_p423_boldrm_alias_is_recognized(self):
+        report = audit_eqedit_style_flow("boldrm B it t")
+        self.assertEqual([e["command"] for e in report["events"]], ["boldrm", "it"])
+
+    def test_p423_font_command_does_not_match_prose_substring(self):
+        report = audit_eqedit_style_flow("normal terminate limit permissible")
+        self.assertEqual(report["events"], [])
+
+    def test_p423_box_and_inset_spaces_are_observations(self):
+        report = audit_eqedit_style_flow("box{ ` h'(t) = - rm Var it(t) ` }")
+        self.assertTrue(report["has_box"])
+        self.assertFalse(report["trailing_upright_review"])
+
+    def test_p423_dynamic_parentheses_are_observations(self):
+        report = audit_eqedit_style_flow("- left( {1} over {T _{2}} + rm i right) it m")
+        self.assertTrue(report["has_dynamic_delimiters"])
+        self.assertFalse(report["has_box"])
+
+    def test_p423_offset_tracks_real_script_position(self):
+        script = "{rm i} it M _{y}"
+        report = audit_eqedit_style_flow(script)
+        self.assertEqual([e["offset"] for e in report["events"]], [1, 7])
+
+    def test_p423_invalid_non_string_is_rejected(self):
+        with self.assertRaises(TypeError):
+            audit_eqedit_style_flow(None)
+
+    def test_p423_human_corrected_echo_and_res_labels(self):
+        for label in ("eq", "res", "echo", "perp"):
+            report = audit_eqedit_style_flow("M _{rm " + label + "} it")
+            self.assertEqual(report["last_command"], "it")
+            self.assertFalse(report["trailing_upright_review"])
+
+    def test_p423_fused_rm_capital_identifier(self):
+        report = audit_eqedit_style_flow("rmA + B")
+        self.assertEqual(report["events"][0]["command"], "rm")
+        self.assertEqual(report["events"][0]["offset"], 0)
+
+    def test_p423_fused_it_capital_identifier(self):
+        report = audit_eqedit_style_flow("rm A itM")
+        self.assertEqual([e["command"] for e in report["events"]], ["rm", "it"])
+        self.assertFalse(report["trailing_upright_review"])
+
+    def test_p423_quoted_rm_is_literal(self):
+        report = audit_eqedit_style_flow('M_{"rm"} it')
+        self.assertEqual([e["command"] for e in report["events"]], ["it"])
+
+    def test_p423_quoted_text_preserves_offsets(self):
+        script = '"rm" itM'
+        report = audit_eqedit_style_flow(script)
+        self.assertEqual(report["events"], [{"command": "it", "offset": 5}])
+
+    def test_p423_dynamic_delimiter_ignores_prose(self):
+        report = audit_eqedit_style_flow("cleft rightward")
+        self.assertFalse(report["has_dynamic_delimiters"])
+
+    def test_p423_quoted_box_not_command(self):
+        report = audit_eqedit_style_flow('"box{ rm }"')
+        self.assertFalse(report["has_box"])
+        self.assertEqual(report["events"], [])
+
+    def test_p423_equation_line_contract_exposed(self):
+        contract = document_plan_contract()
+        self.assertIn("equation_line", contract["block_types"])
+
+    def test_p423_equation_line_plan_is_accepted(self):
+        result = validate_document_plan({"blocks": [{"id": "eqs", "type": "equation_line", "parts": [{"latex": "x"}, {"text": ", "}, {"latex": "y"}]}]})
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["block_counts"]["equation_line"], 1)
+
+    def test_p423_equation_line_native_objects_and_comma(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp) / "inline.hwpx"
+            receipt = compose_document_plan(out, {"blocks": [
+                {"id": "pair", "type": "equation_line", "parts": [
+                    {"latex": "x"}, {"text": ", "}, {"latex": "y"}
+                ]}
+            ]})
+            self.assertTrue(receipt["atomic_commit"])
+            with zipfile.ZipFile(out) as z:
+                xml = etree.fromstring(z.read("Contents/section0.xml"))
+            local = lambda node: etree.QName(node).localname
+            anchors = [p for p in xml.iter() if local(p) == "p" and sum(local(t) == "equation" for t in p.iter()) == 2]
+            self.assertEqual(len(anchors), 1)
+            events = [(local(x), x.text or "") for x in anchors[0].iter() if local(x) in {"equation", "t"}]
+            self.assertIn(("t", ", "), events)
+            self.assertEqual(sum(k == "equation" for k, _ in events), 2)
+
+    def test_p423_equation_line_rejects_ambiguous_part(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            with self.assertRaisesRegex(ValueError, "exactly text or latex"):
+                compose_document_plan(Path(tmp) / "invalid.hwpx", {"blocks": [
+                    {"id": "pair", "type": "equation_line", "parts": [{"latex": "x", "text": "x"}]}
+                ]})
+
+    def test_p423_equation_line_rejects_empty_latex(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            with self.assertRaisesRegex(ValueError, "non-empty"):
+                compose_document_plan(Path(tmp) / "invalid.hwpx", {"blocks": [
+                    {"id": "pair", "type": "equation_line", "parts": [{"latex": ""}]}
+                ]})
+
+    def test_p423_equation_line_rejects_empty_parts(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            with self.assertRaisesRegex(ValueError, "1..64"):
+                compose_document_plan(Path(tmp) / "invalid.hwpx", {"blocks": [
+                    {"id": "pair", "type": "equation_line", "parts": []}
+                ]})
+
+    def test_p423_equation_line_rejects_unsupported_latex_atomically(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp) / "invalid.hwpx"
+            with self.assertRaises(Exception):
+                compose_document_plan(out, {"blocks": [
+                    {"id": "pair", "type": "equation_line", "parts": [
+                        {"latex": "x"}, {"text": ", "}, {"latex": r"\notarealcommand"}
+                    ]}
+                ]})
+            self.assertFalse(out.exists())
+
+    def test_p423_equation_line_preserves_literal_separator(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp) / "inline.hwpx"
+            compose_document_plan(out, {"blocks": [
+                {"id": "pair", "type": "equation_line", "parts": [
+                    {"latex": "x"}, {"text": "· "}, {"latex": "y"}
+                ]}
+            ]})
+            with zipfile.ZipFile(out) as z:
+                xml = etree.fromstring(z.read("Contents/section0.xml"))
+            local = lambda node: etree.QName(node).localname
+            texts = [x.text for x in xml.iter() if local(x) == "t"]
+            self.assertIn("· ", texts)
+
+    def test_p423_equation_line_retains_native_object_text_order(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp) / "order.hwpx"
+            compose_document_plan(out, {"blocks": [{"id": "line", "type": "equation_line", "parts": [
+                {"text": "앞 "}, {"latex": "x"}, {"text": ", "}, {"latex": "y"}, {"text": " 뒤"}
+            ]}]})
+            with zipfile.ZipFile(out) as z:
+                section = etree.fromstring(z.read("Contents/section0.xml"))
+            tag = lambda element: etree.QName(element).localname
+            paragraphs = [p for p in section.iter() if tag(p) == "p" and sum(tag(e) == "equation" for e in p.iter()) == 2]
+            self.assertEqual(len(paragraphs), 1)
+            events = [(tag(e), e.text) for e in paragraphs[0].iter() if tag(e) in {"equation", "t"} and (tag(e) == "equation" or e.text)]
+            self.assertEqual(events, [("t", "앞 "), ("equation", None), ("t", ", "), ("equation", None), ("t", " 뒤")])
+    def test_p423_piecewise_generates_native_cases_equation(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "piecewise.hwpx"
+            compose_document_plan(path, {"blocks": [
+                {"id": "title", "type": "title", "text": "Piecewise"},
+                {"id": "cases", "type": "piecewise", "rows": [
+                    {"expression": "x", "condition": "x>0"},
+                    {"expression": "0", "condition": "x\\leq0"},
+                ]},
+            ]})
+            with zipfile.ZipFile(path) as archive:
+                xml = etree.fromstring(archive.read("Contents/section0.xml"))
+            scripts = [(el.text or "") for el in xml.iter() if etree.QName(el).localname == "script"]
+            self.assertIn("cases {x & x > 0 # 0 & x leq 0}", scripts)
 
 
 if __name__ == "__main__":

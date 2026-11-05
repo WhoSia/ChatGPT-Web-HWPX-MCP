@@ -1,0 +1,79 @@
+"""Existing HWPX templates outrank generic page-margin presets."""
+from __future__ import annotations
+
+import tempfile
+import unittest
+from pathlib import Path
+
+from hwpx import HwpxDocument
+
+from hwpx_mcp.document.p318_document_setup import build_document_setup_map
+from hwpx_mcp.document.p321_document_composer import (
+    _setup_operations, compose_document_plan, validate_document_plan,
+)
+
+
+class P423TemplatePreservationTests(unittest.TestCase):
+    def test_profileless_template_skips_preset_page_setup(self):
+        plan = {"preset": "school-report", "blocks": [{"type": "paragraph", "text": "내용"}]}
+        self.assertEqual(_setup_operations(plan, preserve_template_setup=True), [])
+
+    def test_new_document_still_uses_report_preset(self):
+        plan = {"preset": "school-report", "blocks": [{"type": "paragraph", "text": "내용"}]}
+        self.assertTrue(any(op["op"] == "set_page_setup" for op in _setup_operations(plan)))
+
+    def test_explicit_profile_page_override_remains_allowed(self):
+        plan = {
+            "preset": "school-report",
+            "style_profile": {"page": {"margin_left_mm": 28}},
+            "blocks": [{"type": "paragraph", "text": "내용"}],
+        }
+        ops = _setup_operations(plan, preserve_template_setup=True)
+        self.assertEqual(len(ops), 1)
+        self.assertEqual(ops[0]["margin_left_mm"], 28)
+
+    def test_native_template_margins_survive_school_report_append(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            template = Path(tmp) / "reference.hwpx"
+            result = Path(tmp) / "result.hwpx"
+            doc = HwpxDocument.new()
+            doc.add_paragraph("원본 양식")
+            doc.page.setup(section=0, margin_left_mm=31, margin_right_mm=29)
+            doc.save_to_path(str(template))
+            doc.close()
+            original_margins = build_document_setup_map(template)["sections"][0]["margins"]
+            receipt = compose_document_plan(
+                result,
+                {"preset": "school-report", "blocks": [
+                    {"id": "p", "type": "paragraph", "text": "추가한 문단"}
+                ]},
+                template_path=template,
+            )
+            changed_margins = build_document_setup_map(result)["sections"][0]["margins"]
+            self.assertEqual(original_margins, changed_margins)
+            self.assertTrue(receipt["template_page_setup_preserved"])
+
+    def test_explicit_plan_setup_overrides_profile_margins(self):
+        plan = {
+            "preset": "school-report",
+            "style_profile": {"page": {"margin_left_mm": 27}},
+            "setup": [{"op": "set_page_setup", "section_index": 0, "margin_left_mm": 33}],
+            "blocks": [{"type": "paragraph", "text": "내용"}],
+        }
+        ops = _setup_operations(plan, preserve_template_setup=True)
+        self.assertEqual([op["margin_left_mm"] for op in ops], [27, 33])
+
+    def test_template_preservation_flag_must_be_boolean(self):
+        with self.assertRaisesRegex(ValueError, "preserve_template_setup"):
+            validate_document_plan({"preserve_template_setup": "false", "blocks": [
+                {"type": "paragraph", "text": "내용"}
+            ]})
+
+    def test_opt_out_of_template_preservation_restores_preset(self):
+        plan = {"preset": "school-report", "blocks": [{"type": "paragraph", "text": "내용"}]}
+        ops = _setup_operations(plan, preserve_template_setup=False)
+        self.assertEqual(ops[0]["margin_left_mm"], 20)
+
+
+if __name__ == "__main__":
+    unittest.main()

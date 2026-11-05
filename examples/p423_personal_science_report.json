@@ -1,0 +1,87 @@
+{
+  "preset": "school-report",
+  "document": {
+    "title": "P4.23 개인화된 과학 보고서"
+  },
+  "style_profile": {
+    "schema": "chatgpt-web-hwpx-mcp/p423/document-style-profile/v1",
+    "name": "scientific-report-demonstration",
+    "page": {
+      "margin_left_mm": 25,
+      "margin_right_mm": 25,
+      "margin_top_mm": 20,
+      "margin_bottom_mm": 20
+    },
+    "roles": {
+      "body": {
+        "run": {
+          "size": 11,
+          "font_by_script": {
+            "hangul": "함초롬바탕",
+            "latin": "Malgun Gothic"
+          }
+        },
+        "paragraph": {
+          "line_spacing_percent": 160,
+          "spacing_after_pt": 4
+        }
+      },
+      "title": {
+        "inherits": "body",
+        "run": {
+          "size": 20,
+          "bold": true
+        },
+        "paragraph": {
+          "alignment": "CENTER",
+          "spacing_after_pt": 14
+        }
+      },
+      "heading_1": {
+        "inherits": "body",
+        "run": {
+          "size": 14,
+          "bold": true
+        }
+      }
+    },
+    "equation_base_unit": 1250
+  },
+  "blocks": [
+    {
+      "id": "title",
+      "type": "title",
+      "text": "과학 보고서 스타일 검증"
+    },
+    {
+      "id": "h1",
+      "type": "heading",
+      "level": 1,
+      "text": "1. 수식"
+    },
+    {
+      "id": "text",
+      "type": "paragraph",
+      "text": "다음은 사용자 선호 서체 및 수식 크기의 예시이다."
+    },
+    {
+      "id": "cases",
+      "type": "piecewise",
+      "rows": [
+        {
+          "expression": "x^2",
+          "condition": "x>0"
+        },
+        {
+          "expression": "0",
+          "condition_text": "그 외"
+        }
+      ]
+    },
+    {
+      "id": "remark",
+      "type": "paragraph",
+      "text": "개인화는 명시적 프로필에 한정되며 자동 학습으로 주장하지 않는다."
+    }
+  ]
+}

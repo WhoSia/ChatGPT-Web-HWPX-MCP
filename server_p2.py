@@ -46,6 +46,8 @@ from hwpx_mcp.document.p320_annotation_apparatus import (
     build_annotation_apparatus_map,
     apply_annotation_apparatus_atomic,
 )
+from hwpx_mcp.interfaces.p423_styles_mcp import register_p423_style_tools
+from hwpx_mcp.interfaces.p423_pdf_mcp import register_p423_native_pdf_tools
 from hwpx_mcp.document.p321_document_composer import (
     document_plan_contract,
     validate_document_plan as validate_composition_plan,
@@ -223,6 +225,19 @@ def _owned_document(document_id: str) -> tuple[dict, Path]:
         metadata["revision"] = 1
         core._write_metadata(document_id, metadata)
     return metadata, path
+
+
+# P4.23: owner-checked preview of styles from a user-supplied reference.
+# The user must review and explicitly supply the candidate when composing.
+register_p423_style_tools(
+    core,
+    owned_document=_owned_document,
+    create_adapter=lambda plan, **kwargs: create_document_from_plan(plan, **kwargs),
+)
+
+# PDF export delegates to a real licensed Windows/Hancom COM worker.
+# Render/Linux reports unavailable; it must not substitute a foreign renderer.
+register_p423_native_pdf_tools(core, owned_document=_owned_document)
 
 
 def _refresh_metadata(

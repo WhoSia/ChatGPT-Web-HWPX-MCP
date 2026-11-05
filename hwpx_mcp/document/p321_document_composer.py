@@ -13,6 +13,8 @@ from typing import Any, Callable
 
 from hwpx import HwpxDocument
 from hwpx.equation import latex_to_eqedit
+from hwpx_mcp.document.p423_piecewise_authoring import build_piecewise_script
+from hwpx_mcp.document.p423_style_profile import normalize_style_profile, profile_fingerprint, style_for_block
 
 from hwpx_mcp.quality.p421_professional_authoring_review import review_authoring_plan
 from hwpx_mcp.document.p2_document import build_document_map
@@ -142,6 +144,37 @@ PRESETS: dict[str, dict[str, Any]] = {
 }
 
 
+# P4.23: observations from human-corrected Hangul EqEdit scripts. This
+# diagnostic is deliberately read-only; EqEdit font switches are stateful.
+# Unlike LaTeX groups, closing a brace must not be assumed to restore 'it'.
+_EQEDIT_STYLE_COMMAND = re.compile(r"(?<![A-Za-z])(?:rmbold|boldrm|rm|it)(?![a-z])")
+
+
+def audit_eqedit_style_flow(script: str) -> dict[str, Any]:
+    """Report explicit EqEdit font-state changes without changing the equation.
+
+    A missing final 'it' is a REVIEW signal, not a proof of bad rendering:
+    a complete equation can validly finish with an upright label.
+    """
+    if not isinstance(script, str):
+        raise TypeError("EqEdit script must be a string")
+    # Quoted EqEdit identifiers are literal text, never executable font switches.
+    # Preserve string length so the offsets still refer to the original script.
+    visible = re.sub(r'"[^"]*"', lambda match: " " * len(match.group()), script)
+    events = [
+        {"command": match.group(), "offset": match.start()}
+        for match in _EQEDIT_STYLE_COMMAND.finditer(visible)
+    ]
+    is_upright = bool(events and events[-1]["command"] in {"rm", "rmbold", "boldrm"})
+    return {
+        "events": events,
+        "last_command": events[-1]["command"] if events else None,
+        "trailing_upright_review": is_upright,
+        "has_dynamic_delimiters": bool(re.search(r"(?<![A-Za-z])(?:left|right)\s*(?:\(|\[|\{|\||\.)", visible)),
+        "has_box": bool(re.search(r"(?<![A-Za-z])box\s*\{", visible)),
+    }
+
+
 def _sha(value: Any) -> str:
     return hashlib.sha256(
         json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
@@ -154,10 +187,11 @@ def document_plan_contract() -> dict:
         "presets": sorted(PRESETS),
         "block_types": [
             "title", "paragraph", "heading", "list_item", "table",
-            "equation", "picture", "page_break", "section_break",
+            "equation", "equation_line", "piecewise", "picture", "page_break", "section_break",
         ],
         "reference_syntax": {
             "block_id": "Each block may declare a unique id. Later operations can use $block:<id>.",
+            "equation_line": "Ordered parts: {latex: ...} creates a native equation; {text: ...} creates literal punctuation or prose.",
             "paragraph_fields": ["paragraph", "target_paragraph"],
         },
         "top_level": {
@@ -173,6 +207,16 @@ def document_plan_contract() -> dict:
             },
             "annotations": "optional annotation-apparatus operations using $block:<id>",
             "post_operations": "optional structured-publishing operations using $block:<id>",
+            "preserve_template_setup": "boolean; defaults to true when a source template is provided; prevents generic preset page geometry overwriting original margins unless explicitly opted out",
+            "style_profile": {
+                "schema": "chatgpt-web-hwpx-mcp/p423/document-style-profile/v1",
+                "roles": ["title", "body", "heading_1", "heading_2", "heading_3"],
+                "page": "optional margin_*_mm fields; 5..60 mm",
+                "table": "optional table defaults",
+                "equation_base_unit": "native equation size, 500..2400; default 1100",
+                "precedence": "built-in preset < explicit profile < per-block format overrides",
+                "persistence": "supplied per task; no implicit storage or automatic learning",
+            },
             "table_design_fields": {
                 "first_row_header": "bool; explicit semantic hint for repeat-header finishing",
                 "table_format": "optional page_break, border_color, repeat_header overrides",
@@ -208,7 +252,7 @@ def _normalize_plan(plan: dict) -> dict:
         kind = str(raw.get("type") or "").strip()
         if kind not in {
             "title", "paragraph", "heading", "list_item", "table",
-            "equation", "picture", "page_break", "section_break",
+            "equation", "equation_line", "piecewise", "picture", "page_break", "section_break",
         }:
             raise ValueError(f"unsupported plan block type: {kind}")
         block_id = str(raw.get("id") or f"b{index + 1}").strip()
@@ -225,6 +269,10 @@ def _normalize_plan(plan: dict) -> dict:
     result = dict(plan)
     result["preset"] = preset
     result["blocks"] = normalized_blocks
+    if "style_profile" in result:
+        result["style_profile"] = normalize_style_profile(result["style_profile"])
+    if "preserve_template_setup" in result and type(result["preserve_template_setup"]) is not bool:
+        raise ValueError("preserve_template_setup must be boolean")
     if "setup" in result and not isinstance(result["setup"], list):
         raise ValueError("plan.setup must be a list")
     if "annotations" in result and not isinstance(result["annotations"], list):
@@ -249,6 +297,7 @@ def validate_document_plan(plan: dict) -> dict:
         "block_count": len(normalized["blocks"]),
         "block_counts": counts,
         "preset": normalized["preset"],
+        "style_profile_sha256": (profile_fingerprint(normalized["style_profile"]) if "style_profile" in normalized else None),
         "template_compatible": True,
     }
 
@@ -289,7 +338,7 @@ def _add_caption(obj: Any, block: dict) -> None:
     obj.set_caption(text, side=side)
 
 
-def _materialize_blocks(document: HwpxDocument, blocks: list[dict]) -> dict[str, dict]:
+def _materialize_blocks(document: HwpxDocument, blocks: list[dict], *, profile: dict | None = None) -> dict[str, dict]:
     bindings: dict[str, dict] = {}
     list_groups: dict[tuple[str, int, str], list[str]] = {}
     table_index = 0
@@ -297,6 +346,7 @@ def _materialize_blocks(document: HwpxDocument, blocks: list[dict]) -> dict[str,
     for block in blocks:
         kind = block["type"]
         block_id = block["id"]
+        default_equation_unit = (profile or {}).get("equation_base_unit", 1100)
 
         if kind in {"title", "paragraph", "list_item"}:
             text = str(block.get("text") or "")
@@ -358,13 +408,68 @@ def _materialize_blocks(document: HwpxDocument, blocks: list[dict]) -> dict[str,
             table_index += 1
             continue
 
+        if kind == "piecewise":
+            compiled = build_piecewise_script(
+                block.get("rows"),
+                condition_gap=block.get("condition_gap", 0),
+            )
+            anchor = document.add_paragraph("", inherit_style=False)
+            equation = document.shapes.add_equation(
+                compiled.script,
+                paragraph=anchor,
+                base_unit=int(block.get("base_unit", default_equation_unit)),
+            )
+            _add_caption(equation, block)
+            bindings[block_id] = {
+                "kind": kind,
+                "paragraph_id": _paragraph_id(anchor),
+                "row_count": compiled.row_count,
+                "has_conditions": compiled.has_conditions,
+                "script_sha256": hashlib.sha256(compiled.script.encode("utf-8")).hexdigest(),
+            }
+            continue
+
+        if kind == "equation_line":
+            parts = block.get("parts")
+            if not isinstance(parts, list) or not 1 <= len(parts) <= 64:
+                raise ValueError("equation_line.parts must be a list of 1..64 parts")
+            prepared = []
+            for part in parts:
+                if not isinstance(part, dict) or set(part) not in ({"text"}, {"latex"}):
+                    raise ValueError("equation_line part must have exactly text or latex")
+                if "text" in part:
+                    text = part["text"]
+                    if not isinstance(text, str) or len(text) > 4096:
+                        raise ValueError("equation_line text must be at most 4096 characters")
+                    prepared.append(("text", text))
+                else:
+                    latex = part["latex"]
+                    if not isinstance(latex, str) or not latex.strip():
+                        raise ValueError("equation_line latex must be a non-empty string")
+                    prepared.append(("equation", latex_to_eqedit(latex)))
+            anchor = document.add_paragraph("", inherit_style=False)
+            count = 0
+            for part_kind, value in prepared:
+                if part_kind == "text":
+                    if value:
+                        anchor.add_run(value)
+                else:
+                    document.shapes.add_equation(value, paragraph=anchor, base_unit=int(block.get("base_unit", default_equation_unit)))
+                    count += 1
+            bindings[block_id] = {
+                "kind": kind,
+                "paragraph_id": _paragraph_id(anchor),
+                "equation_count": count,
+            }
+            continue
+
         if kind == "equation":
             latex = str(block.get("latex") or "").strip()
             if not latex:
                 raise ValueError("equation block requires latex")
             script = latex_to_eqedit(latex)
             anchor = document.add_paragraph("", inherit_style=False)
-            base_unit = int(block.get("base_unit", 1100))
+            base_unit = int(block.get("base_unit", default_equation_unit))
             size = None
             if block.get("width") is not None or block.get("height") is not None:
                 if block.get("width") is None or block.get("height") is None:
@@ -464,6 +569,8 @@ def _preset_format_operations(
     preset: str,
     blocks: list[dict],
     bindings: dict[str, dict],
+    *,
+    profile: dict | None = None,
 ) -> list[dict]:
     spec = PRESETS[preset]
     ops: list[dict] = []
@@ -485,6 +592,10 @@ def _preset_format_operations(
             run_format.update(spec.get("body_format", {}).get("run") or {})
             paragraph_format.update(spec.get("body_format", {}).get("paragraph") or {})
 
+        profile_style = style_for_block(profile or {}, kind, int(block.get("level", 1)))
+        run_format.update(profile_style.get("run") or {})
+        paragraph_format.update(profile_style.get("paragraph") or {})
+
         custom_run = block.get("run_format")
         if isinstance(custom_run, dict):
             run_format.update(custom_run)
@@ -504,6 +615,8 @@ def _table_finish_operations(
     preset: str,
     blocks: list[dict],
     bindings: dict[str, dict],
+    *,
+    profile: dict | None = None,
 ) -> list[dict]:
     table_blocks = [block for block in blocks if block["type"] == "table"]
     if not table_blocks:
@@ -518,6 +631,7 @@ def _table_finish_operations(
         if table is None:
             raise ValueError(f"composed table lost identity: {block['id']}")
         config = dict(PRESETS[preset].get("table_format") or {})
+        config.update((profile or {}).get("table") or {})
         custom = block.get("table_format")
         if custom is not None and not isinstance(custom, dict):
             raise ValueError("table_format must be an object")
@@ -607,8 +721,12 @@ def _publishing_operations(
     return ops
 
 
-def _setup_operations(plan: dict) -> list[dict]:
-    ops = [dict(item) for item in PRESETS[plan["preset"]]["setup"]]
+def _setup_operations(plan: dict, *, preserve_template_setup: bool = False) -> list[dict]:
+    # A user-supplied native template has stronger authority than a generic preset.
+    ops = [] if preserve_template_setup else [dict(item) for item in PRESETS[plan["preset"]]["setup"]]
+    page = (plan.get("style_profile") or {}).get("page") or {}
+    if page:
+        ops.append({"op": "set_page_setup", "section_index": 0, **page})
     ops.extend(dict(item) for item in (plan.get("setup") or []))
     publishing = plan.get("publishing") or {}
     if publishing.get("header") is not None:
@@ -657,7 +775,7 @@ def compose_document_plan(
             shutil.copy2(template_path, candidate)
             document = HwpxDocument.open(str(candidate))
         try:
-            materialized = _materialize_blocks(document, normalized["blocks"])
+            materialized = _materialize_blocks(document, normalized["blocks"], profile=normalized.get("style_profile"))
             _save_document(document, candidate, candidate)
         finally:
             document.close()
@@ -669,7 +787,12 @@ def compose_document_plan(
             "bindings_sha256": _sha(bindings),
         })
 
-        setup_ops = _setup_operations(normalized)
+        setup_ops = _setup_operations(
+            normalized,
+            preserve_template_setup=(
+                template_path is not None and normalized.get("preserve_template_setup", True)
+            ),
+        )
         if setup_ops:
             setup_receipt = apply_document_setup_atomic(
                 candidate,
@@ -682,7 +805,8 @@ def compose_document_plan(
             bindings = _resolve_bindings(candidate, materialized["bindings"])
 
         format_ops = _preset_format_operations(
-            normalized["preset"], normalized["blocks"], bindings
+            normalized["preset"], normalized["blocks"], bindings,
+            profile=normalized.get("style_profile"),
         )
         if format_ops:
             format_receipt = apply_rich_formatting_atomic(
@@ -700,6 +824,7 @@ def compose_document_plan(
             normalized["preset"],
             normalized["blocks"],
             bindings,
+            profile=normalized.get("style_profile"),
         )
         if table_finishing:
             stage_receipts.append({
@@ -757,7 +882,10 @@ def compose_document_plan(
             "plan_sha256": _sha(normalized),
             "professional_authoring_review": professional_review,
             "preset": normalized["preset"],
+            "style_profile_sha256": (profile_fingerprint(normalized["style_profile"]) if "style_profile" in normalized else None),
             "template_mode": "append" if template_path is not None else "blank",
+            "template_page_setup_preserved": bool(template_path is not None and normalized.get("preserve_template_setup", True) and not ((normalized.get("style_profile") or {}).get("page") or {}) and not (normalized.get("setup") or [])),
+
             "block_count": len(normalized["blocks"]),
             "bindings": bindings,
             "stages": stage_receipts,

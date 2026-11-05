@@ -63,6 +63,12 @@ class P423TemplatePreservationTests(unittest.TestCase):
         ops = _setup_operations(plan, preserve_template_setup=True)
         self.assertEqual([op["margin_left_mm"] for op in ops], [27, 33])
 
+    def test_template_preservation_flag_must_be_boolean(self):
+        with self.assertRaisesRegex(ValueError, "preserve_template_setup"):
+            validate_document_plan({"preserve_template_setup": "false", "blocks": [
+                {"type": "paragraph", "text": "내용"}
+            ]})
+
 
 if __name__ == "__main__":
     unittest.main()

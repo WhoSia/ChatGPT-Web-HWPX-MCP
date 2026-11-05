@@ -40,8 +40,6 @@ def build_piecewise_script(rows: object, *, condition_gap: int = 0) -> Piecewise
         expression = row.get("expression")
         if not isinstance(expression, str) or not expression.strip() or len(expression) > MAX_LATEX_CHARS:
             raise ValueError("piecewise expression must be non-empty bounded LaTeX")
-        if any(ch in expression for ch in ("&", "#")):
-            raise ValueError("piecewise expression may not contain native alignment separators")
         expr_script = latex_to_eqedit(expression)
         condition = row.get("condition")
         condition_flags.append(condition is not None)
@@ -52,8 +50,6 @@ def build_piecewise_script(rows: object, *, condition_gap: int = 0) -> Piecewise
             continue
         if not isinstance(condition, str) or not condition.strip() or len(condition) > MAX_LATEX_CHARS:
             raise ValueError("piecewise condition must be non-empty bounded LaTeX")
-        if any(ch in condition for ch in ("&", "#")):
-            raise ValueError("piecewise condition may not contain native alignment separators")
         cond_script = latex_to_eqedit(condition)
         # The ampersand separates real grid columns; gap is an explicit user
         # override inside the second cell, not a hard-coded heuristic.

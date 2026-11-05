@@ -12,6 +12,7 @@ import json
 import os
 from pathlib import Path
 import re
+import tempfile
 import subprocess
 import sys
 
@@ -48,6 +49,30 @@ def _windows_path(path: Path) -> str:
     return converted
 
 
+def _stage_hancom_script(script: Path, window_mount: Path) -> tuple[Path, Path | None]:
+    """Allow a repository checked out in WSL home while keeping Windows interop local.
+
+    A temporary copy of *our script only*, never an arbitrary user supplied
+    command, is staged beside the requested output and removed after handoff.
+    """
+    if not script.is_file():
+        raise FileNotFoundError("P4.24 native PDF PowerShell source missing")
+    try:
+        return _approved_windows_mount(script), None
+    except ValueError:
+        with tempfile.NamedTemporaryFile(
+            mode="wb", prefix=".p424-hancom-", suffix=".ps1",
+            dir=window_mount, delete=False,
+        ) as handle:
+            handle.write(script.read_bytes())
+            staged = Path(handle.name)
+        try:
+            return _approved_windows_mount(staged), staged
+        except BaseException:
+            staged.unlink(missing_ok=True)
+            raise
+
+
 def export_wsl_native_pdf(source: Path, destination: Path, *, timeout_seconds: int = 240) -> dict:
     if not on_wsl():
         raise RuntimeError("WSL_ENVIRONMENT_REQUIRED: run in WSL with Windows interop")
@@ -59,25 +84,29 @@ def export_wsl_native_pdf(source: Path, destination: Path, *, timeout_seconds: i
         raise ValueError("Existing .hwpx input required")
     if destination.suffix.lower() != ".pdf" or destination.exists() or not destination.parent.is_dir():
         raise ValueError("Use a new .pdf path in an existing Windows-mounted directory")
-    script = _approved_windows_mount(Path(__file__).resolve().parent / "p423_hancom_native_pdf.ps1")
-    if not script.is_file():
-        raise FileNotFoundError("P4.23 native PDF PowerShell source missing")
     source_sha = _sha(source)
     receipt = destination.with_suffix(".pdf.receipt.json")
     if receipt.exists():
         raise ValueError("Receipt destination exists; refusing to replace existing evidence")
-    cmd = [
-        "powershell.exe", "-NoProfile", "-NonInteractive", "-File", _windows_path(script),
-        "-InputPath", _windows_path(source),
-        "-OutputPath", _windows_path(destination),
-        "-ReceiptPath", _windows_path(receipt),
-    ]
+    script, staged_script = _stage_hancom_script(
+        Path(__file__).resolve().parent / "p423_hancom_native_pdf.ps1",
+        destination.parent,
+    )
     try:
-        result = subprocess.run(cmd, check=False, capture_output=True, text=True, timeout=timeout_seconds)
-    except subprocess.TimeoutExpired as exc:
-        # Do not kill any Hangul processes: the signed P4.14 worker, not this
-        # local smoke runner, owns remote process cleanup authority.
-        raise RuntimeError("HANCOM_PDF_TIMEOUT: inspect the Windows job-owned process before retry") from exc
+        cmd = [
+            "powershell.exe", "-NoProfile", "-NonInteractive", "-File", _windows_path(script),
+            "-InputPath", _windows_path(source),
+            "-OutputPath", _windows_path(destination),
+            "-ReceiptPath", _windows_path(receipt),
+        ]
+        try:
+            result = subprocess.run(cmd, check=False, capture_output=True, text=True, timeout=timeout_seconds)
+        except subprocess.TimeoutExpired as exc:
+            # Do not force-stop unowned Hangul instances.
+            raise RuntimeError("HANCOM_PDF_TIMEOUT: inspect the Windows job-owned process before retry") from exc
+    finally:
+        if staged_script is not None:
+            staged_script.unlink(missing_ok=True)
     if not receipt.is_file():
         raise RuntimeError("HANCOM_RECEIPT_MISSING: Windows export did not produce a receipt")
     parsed = json.loads(receipt.read_text(encoding="utf-8-sig"))
@@ -88,9 +117,11 @@ def export_wsl_native_pdf(source: Path, destination: Path, *, timeout_seconds: i
     with destination.open("rb") as pdf_stream:
         pdf_signature = pdf_stream.read(5)
     if (
+        parsed.get("engine") != "HANCOM_HWP_EXE_COM"
         or parsed.get("input_sha256") != source_sha
         or _sha(source) != source_sha
         or parsed.get("output_sha256") != _sha(destination)
+        or parsed.get("output_bytes") != destination.stat().st_size
         or pdf_signature != b"%PDF-"
     ):
         raise RuntimeError("HANCOM_EXPORT_RECEIPT_OR_BYTES_MISMATCH")

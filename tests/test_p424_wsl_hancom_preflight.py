@@ -5,6 +5,7 @@ from pathlib import Path
 import json
 import subprocess
 import sys
+import zipfile
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -20,7 +21,10 @@ class P424WslPreflightTests(unittest.TestCase):
         self.source = root / "source.hwpx"
         self.destination = root / "output.pdf"
         self.script = root / "p423_hancom_native_pdf.ps1"
-        self.source.write_bytes(bytes((80, 75, 3, 4)) + b"0" * 200)
+        with zipfile.ZipFile(self.source, "w") as zf:
+            zf.writestr("mimetype", "application/hwp+zip")
+            zf.writestr("Contents/content.hpf", "synthetic not a real HWPX")
+            zf.writestr("Contents/header.xml", "<header/>")
         self.script.write_text("# synthetic fixture only\n", encoding="utf-8")
 
     def _check(self):
@@ -46,6 +50,10 @@ class P424WslPreflightTests(unittest.TestCase):
     def test_wrong_input_header_is_rejected_before_render(self):
         self.source.write_bytes(b"NOTZIP" + b"0" * 200)
         self.assertIn("SOURCE_ZIP_HEADER_INVALID", self._check()["issues"])
+
+    def test_fake_zip_magic_without_directory_is_rejected(self):
+        self.source.write_bytes(bytes((80, 75, 3, 4)) + b"0" * 200)
+        self.assertIn("SOURCE_ZIP_DIRECTORY_INVALID", self._check()["issues"])
 
     def test_existing_receipt_blocks_reusing_output(self):
         self.destination.with_suffix(".pdf.receipt.json").write_text("{}")

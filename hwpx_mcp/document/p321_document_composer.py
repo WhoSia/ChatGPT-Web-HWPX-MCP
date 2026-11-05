@@ -718,8 +718,9 @@ def _publishing_operations(
     return ops
 
 
-def _setup_operations(plan: dict) -> list[dict]:
-    ops = [dict(item) for item in PRESETS[plan["preset"]]["setup"]]
+def _setup_operations(plan: dict, *, preserve_template_setup: bool = False) -> list[dict]:
+    # A user-supplied native template has stronger authority than a generic preset.
+    ops = [] if preserve_template_setup else [dict(item) for item in PRESETS[plan["preset"]]["setup"]]
     page = (plan.get("style_profile") or {}).get("page") or {}
     if page:
         ops.append({"op": "set_page_setup", "section_index": 0, **page})

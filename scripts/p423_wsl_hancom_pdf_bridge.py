@@ -25,6 +25,8 @@ def _sha(path: Path) -> str:
 
 
 def on_wsl() -> bool:
+    if os.name != "posix":
+        return False
     release = os.uname().release.lower()
     return "microsoft" in release or "wsl" in release or bool(os.environ.get("WSL_DISTRO_NAME"))
 

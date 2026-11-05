@@ -48,6 +48,16 @@ def profile_from_reference(path: str | Path, *, name: str = "reference-style") -
             if extra:
                 warnings.append(f"{source_role}.{input_key} unportable dimensions: {', '.join(extra)}")
             portable = {k: v for k, v in raw_style.items() if k in allowed}
+            if output_key == "run" and isinstance(portable.get("font_by_script"), dict):
+                fonts = portable["font_by_script"]
+                unsupported_scripts = sorted(set(fonts) - {"hangul", "latin", "hanja", "japanese", "other"})
+                if unsupported_scripts:
+                    warnings.append(f"{source_role}.font_by_script unsupported scripts: {', '.join(unsupported_scripts)}")
+                allowed_fonts = {k: v for k, v in fonts.items() if k not in unsupported_scripts}
+                if allowed_fonts:
+                    portable["font_by_script"] = allowed_fonts
+                else:
+                    del portable["font_by_script"]
             if output_key == "paragraph" and "alignment" in portable:
                 if isinstance(portable["alignment"], str):
                     portable["alignment"] = portable["alignment"].upper()

@@ -84,6 +84,10 @@ class P423StyleProfileTests(unittest.TestCase):
                 "title": {"inherits": "body"},
             }})
 
+    def test_style_inheritance_parent_must_exist(self):
+        with self.assertRaisesRegex(ValueError, "not defined"):
+            normalize_style_profile({"roles": {"heading_1": {"inherits": "body"}}})
+
 
 if __name__ == "__main__":
     unittest.main()

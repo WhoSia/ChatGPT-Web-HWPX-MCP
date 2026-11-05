@@ -58,6 +58,22 @@ class P424CompetitorBenchmarkTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "duplicate trial"):
             compare_matched([case("ours"), case("ours"), case("other")], "ours", "other")
 
+    def test_repeated_trials_match_only_same_trial_id(self):
+        result = compare_matched([
+            case("ours", 100, trial_id="r1"),
+            case("other", 90, trial_id="r1"),
+            case("ours", 120, trial_id="r2"),
+            case("other", 110, trial_id="r2"),
+            case("other", 80, trial_id="r3"),
+        ], "ours", "other")
+        self.assertEqual(result["verified_matched_pairs"], 2)
+        self.assertEqual(result["excluded"]["missing_comparator"], 1)
+        self.assertEqual(result["median_candidate_minus_baseline_ms"], -10)
+
+    def test_repeated_trial_identifier_must_be_bounded(self):
+        with self.assertRaisesRegex(ValueError, "trial_id"):
+            validate_run(case("ours", trial_id="x" * 65))
+
     def test_bad_sha_rejected(self):
         with self.assertRaisesRegex(ValueError, "fixture_sha256"):
             validate_run(case("ours", fixture_sha256="a" * 63))

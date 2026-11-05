@@ -60,6 +60,14 @@ class P423ProfiledComposerTests(unittest.TestCase):
             self.assertTrue(result["atomic_commit"])
             self.assertIsNotNone(result["style_profile_sha256"])
 
+    def test_explicit_block_overrides_profile(self):
+        plan = _plan(profile={"roles": {"body": {"run": {"size": 13}}}})
+        plan["blocks"][1]["run_format"] = {"size": 10}
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "override.hwpx"
+            result = compose_document_plan(path, plan)
+            self.assertTrue(result["atomic_commit"])
+
 
 if __name__ == "__main__":
     unittest.main()

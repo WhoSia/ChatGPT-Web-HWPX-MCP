@@ -128,6 +128,33 @@ class P423HancomPdfTests(unittest.TestCase):
                     export_native_hwp_pdf(source, dest)
             self.assertFalse(dest.exists())
 
+    def test_non_pdf_payload_with_consistent_receipt_fails_closed(self):
+        from hwpx_mcp.custody.p423_hancom_pdf import HancomPdfConversionError
+        with tempfile.TemporaryDirectory() as tmp:
+            source = Path(tmp) / "source.hwpx"
+            dest = Path(tmp) / "out.pdf"
+            source.write_bytes(b"PK" + b"1" * 200)
+            payload = b"NOT-A-PDF" + b"x" * 100
+
+            def fake_worker(argv, **kwargs):
+                dest.write_bytes(payload)
+                receipt_path = Path(argv[argv.index("-ReceiptPath") + 1])
+                receipt_path.write_text(json.dumps({
+                    "status": "PDF_CREATED_UNREVIEWED",
+                    "engine": "HANCOM_HWP_EXE_COM",
+                    "input_sha256": hashlib.sha256(source.read_bytes()).hexdigest(),
+                    "output_sha256": hashlib.sha256(payload).hexdigest(),
+                    "output_bytes": len(payload),
+                }), encoding="utf-8")
+                return subprocess.CompletedProcess(argv, 0, "", "")
+
+            with patch("hwpx_mcp.custody.p423_hancom_pdf.is_windows_hancom_host", return_value=True), patch(
+                "hwpx_mcp.custody.p423_hancom_pdf.subprocess.run", side_effect=fake_worker
+            ):
+                with self.assertRaisesRegex(HancomPdfConversionError, "RECEIPT_MISMATCH"):
+                    export_native_hwp_pdf(source, dest)
+            self.assertFalse(dest.exists())
+
     def test_preexisting_pdf_is_not_overwritten(self):
         with tempfile.TemporaryDirectory() as tmp:
             source = Path(tmp) / "source.hwpx"

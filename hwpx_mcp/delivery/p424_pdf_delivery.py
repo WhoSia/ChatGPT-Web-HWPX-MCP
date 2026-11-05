@@ -10,6 +10,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
+import re
 import time
 from typing import Any
 from urllib.parse import urlencode
@@ -41,8 +42,12 @@ def issue_pdf_delivery(
     Security requirement: authenticated_owner must come from OAuth, not an
     MCP field. The server also rechecks owner and source upon redemption.
     """
-    if not authenticated_owner or not document_id or not evidence_id:
+    if not authenticated_owner:
         raise ValueError("PDF_DELIVERY_IDENTITY_REQUIRED")
+    if not isinstance(document_id, str) or not re.fullmatch(r"doc_[A-Za-z0-9_-]{20,64}", document_id):
+        raise ValueError("PDF_DELIVERY_DOCUMENT_ID_INVALID")
+    if not isinstance(evidence_id, str) or not re.fullmatch(r"[0-9a-f]{64}", evidence_id):
+        raise ValueError("PDF_DELIVERY_EVIDENCE_ID_INVALID")
     if type(revision) is not int or revision < 1:
         raise ValueError("PDF_DELIVERY_REVISION_REQUIRED")
     if type(link_ttl_seconds) is not int:
@@ -88,6 +93,10 @@ def redeem_pdf_delivery(
 ) -> bytes:
     """Return verified PDF bytes; host must enforce OAuth and no-store headers."""
     current = int(time.time()) if now is None else int(now)
+    if (not isinstance(document_id, str) or not re.fullmatch(r"doc_[A-Za-z0-9_-]{20,64}", document_id)
+        or not isinstance(evidence_id, str) or not re.fullmatch(r"[0-9a-f]{64}", evidence_id)
+        or not isinstance(pdf_sha256, str) or not re.fullmatch(r"[0-9a-f]{64}", pdf_sha256)):
+        raise PermissionError("PDF_DELIVERY_INVALID_IDENTITY")
     if type(revision) is not int or revision < 1 or type(expires_at) is not int:
         raise PermissionError("PDF_DELIVERY_INVALID_PARAMETERS")
     if not authenticated_owner or not signature or expires_at <= current:

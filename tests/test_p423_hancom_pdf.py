@@ -79,6 +79,55 @@ class P423HancomPdfTests(unittest.TestCase):
             self.assertEqual(dest.read_bytes(), payload)
             self.assertEqual(receipt["native_visual_acceptance"] if "native_visual_acceptance" in receipt else "NOT_ADJUDICATED", "NOT_ADJUDICATED")
 
+    def test_invalid_worker_receipt_is_rejected_and_output_removed(self):
+        from hwpx_mcp.custody.p423_hancom_pdf import HancomPdfConversionError
+        with tempfile.TemporaryDirectory() as tmp:
+            source = Path(tmp) / "source.hwpx"
+            dest = Path(tmp) / "out.pdf"
+            source.write_bytes(b"PK" + b"1" * 200)
+
+            def corrupt_worker(argv, **kwargs):
+                dest.write_bytes(b"%PDF-1.7\\n" + b"0" * 100)
+                receipt_file = Path(argv[argv.index("-ReceiptPath") + 1])
+                receipt_file.write_text("{invalid JSON", encoding="utf-8")
+                return subprocess.CompletedProcess(argv, 0, "", "")
+
+            with patch("hwpx_mcp.custody.p423_hancom_pdf.is_windows_hancom_host", return_value=True), patch(
+                "hwpx_mcp.custody.p423_hancom_pdf.subprocess.run", side_effect=corrupt_worker
+            ):
+                with self.assertRaisesRegex(HancomPdfConversionError, "RECEIPT_MISMATCH"):
+                    export_native_hwp_pdf(source, dest)
+            self.assertFalse(dest.exists())
+
+    def test_native_worker_cannot_publish_pdf_if_source_changes(self):
+        from hwpx_mcp.custody.p423_hancom_pdf import HancomPdfConversionError
+        with tempfile.TemporaryDirectory() as tmp:
+            source = Path(tmp) / "source.hwpx"
+            dest = Path(tmp) / "out.pdf"
+            source.write_bytes(b"PK" + b"1" * 200)
+            payload = b"%PDF-1.7\\n" + b"0" * 100
+
+            def mutating_worker(argv, **kwargs):
+                initial_sha = hashlib.sha256(source.read_bytes()).hexdigest()
+                dest.write_bytes(payload)
+                receipt_file = Path(argv[argv.index("-ReceiptPath") + 1])
+                receipt_file.write_text(json.dumps({
+                    "status": "PDF_CREATED_UNREVIEWED",
+                    "engine": "HANCOM_HWP_EXE_COM",
+                    "input_sha256": initial_sha,
+                    "output_sha256": hashlib.sha256(payload).hexdigest(),
+                    "output_bytes": len(payload),
+                }), encoding="utf-8")
+                source.write_bytes(b"PK" + b"2" * 200)
+                return subprocess.CompletedProcess(argv, 0, "", "")
+
+            with patch("hwpx_mcp.custody.p423_hancom_pdf.is_windows_hancom_host", return_value=True), patch(
+                "hwpx_mcp.custody.p423_hancom_pdf.subprocess.run", side_effect=mutating_worker
+            ):
+                with self.assertRaisesRegex(HancomPdfConversionError, "RECEIPT_MISMATCH"):
+                    export_native_hwp_pdf(source, dest)
+            self.assertFalse(dest.exists())
+
     def test_preexisting_pdf_is_not_overwritten(self):
         with tempfile.TemporaryDirectory() as tmp:
             source = Path(tmp) / "source.hwpx"

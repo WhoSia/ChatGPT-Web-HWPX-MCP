@@ -143,6 +143,13 @@ class P423StylesMCPTests(unittest.TestCase):
                 tool("reference_doc", 2, "a" * 64, {"blocks": []})
             read.assert_not_called()
 
+    def test_approved_style_handles_custom_profile_name(self):
+        tool = self.approved_tool(lambda *args, **kwargs: {"ok": True})
+        with patch("hwpx_mcp.interfaces.p423_styles_mcp.profile_from_reference") as read:
+            read.return_value = {"style_profile": {"name": "My Lab"}, "style_profile_sha256": "c" * 64}
+            tool("reference_doc", 3, "c" * 64, {"blocks": []}, profile_name="My Lab")
+            read.assert_called_once_with(Path("/private/owned.hwpx"), name="My Lab")
+
 
 if __name__ == "__main__":
     unittest.main()

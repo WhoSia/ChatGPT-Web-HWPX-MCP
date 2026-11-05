@@ -47,6 +47,10 @@ class P423StyleProfileTests(unittest.TestCase):
         self.assertEqual(style_for_block(p, "heading", 2)["run"]["size"], 13)
         self.assertEqual(style_for_block(p, "heading", 1), {})
 
+    def test_profile_rejects_execution_payloads(self):
+        with self.assertRaisesRegex(ValueError, "unknown"):
+            normalize_style_profile({"roles": {"body": {"run": {"__import__": "os"}}}})
+
 
 if __name__ == "__main__":
     unittest.main()

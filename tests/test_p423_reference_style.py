@@ -51,6 +51,16 @@ class P423ReferenceStyleTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "no portable"):
                 profile_from_reference("ref.hwpx")
 
+    def test_reference_profile_does_not_include_private_text_or_locators(self):
+        with patch("hwpx_mcp.document.p423_reference_style.build_role_aware_style_exemplars") as reader:
+            reader.return_value = {"profile_sha256": "abc", "roles": [{
+                "role": "body", "authoring_preset": {"run_format": {"size": 11}},
+                "assignments": [{"locator": "secret_document_id", "text": "PRIVATE_REPORT_TEXT"}],
+            }]}
+            result = profile_from_reference("ref.hwpx")
+        self.assertNotIn("PRIVATE_REPORT_TEXT", repr(result))
+        self.assertNotIn("secret_document_id", repr(result))
+
 
 if __name__ == "__main__":
     unittest.main()

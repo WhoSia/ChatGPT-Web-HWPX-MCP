@@ -98,8 +98,10 @@ python3 scripts/p424_competitor_benchmark.py experiments.jsonl \
   --candidate chrisryugj/kordoc
 ```
 
-The result contains verified matched-pair counts, explicit unmatched/held
-exclusions and a descriptive median latency difference. A lower median is
+The result contains **declared-PASS matched-pair counts** (not independently
+verified evidence), explicit unmatched/held
+exclusions and a descriptive median latency difference. The output explicitly marks `independent_evidence_verified: false`.
+A lower median is
 **not** automatic evidence of broader product superiority. The deliberate
 `ranking_authorized: false` field must remain false until a separate
 preregistered evaluation with independent native/consumer evidence exists.

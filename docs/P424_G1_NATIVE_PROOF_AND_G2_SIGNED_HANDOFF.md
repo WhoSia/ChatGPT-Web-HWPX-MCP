@@ -120,3 +120,45 @@ The owner's WSL tests of the *preceding* P4.24 branch HEAD
 `da9cca4` passed 31 P4.24 + 7 P4.23 tests. These tests predate the
 new P4.24 storage commits and are not evidence that the storage integration
 has passed. CI on the newer exact HEAD is not verified.
+
+## 2026-11-06 next cycle — revision deletion and authenticated PDF links
+
+The owner executed the previous `66dfe16` WSL regression suites: 5/5
+PDF custody contract tests, and 36/36 P4.24 tests overall, both without
+failures. These are *mock and cryptographic unit tests*, not a Postgres
+round-trip or server route test.
+
+The storage FK policy was audited and corrected. `ON DELETE RESTRICT`
+would have prevented deleting/compacting HWPX source revisions whenever
+a native PDF existed. New schema uses `ON DELETE CASCADE`, ensuring the
+encrypted PDF is removed when its source revision is removed. A startup
+invariant rejects any pre-existing incompatible FK instead of silently
+accepting it; an existing database must be explicitly migrated in a
+controlled change, not silently rewritten. Distinct signed captures may
+produce the same PDF hash for a revision, so the former uniqueness on
+(document_id, revision, pdf_sha256) was removed. Evidence ID remains the
+immutable record identity.
+
+`tests/test_p424_pdf_store_postgres_integration.py` is an opt-in *real*
+Postgres integration test (owner isolation, AES-GCM ciphertext, exact
+idempotent replay and source deletion cascade). It uses an ephemeral
+schema, but must run only against an explicitly designated disposable
+test DB using BOTH `P424_TEST_DATABASE_DISPOSABLE=YES` and
+`P424_TEST_DATABASE_URL`; it skips otherwise. No real DB integration
+execution is claimed yet.
+
+`hwpx_mcp/delivery/p424_pdf_delivery.py` adds a pure delivery contract
+with HMAC-SHA256 over authenticated owner, document ID, revision, source
+SHA, evidence ID, PDF SHA and expiry (60–900 seconds bounded by source
+retention). Unlike a simple bearer URL, redemption REQUIRES a fresh
+OAuth-derived owner subject: a copied URL alone is insufficient. It
+re-validates the retained source and decrypts via the owner-scoped PDF
+store. `tests/test_p424_pdf_delivery_contract.py` supplies mocked
+cross-owner, expiration, tampering and source-retention regressions.
+
+**Important distinction:** There is still no installed P4.24 MCP
+download route, remote signed agent job transport or actual production
+PDF download. This code must not be marked deployed. To complete G2:
+wire an authenticated route and issuance tool, enforce no-store response
+headers, exercise a real disposable Postgres integration test, test
+key-rotation/revocation and delivery end-to-end, then check exact HEAD CI.

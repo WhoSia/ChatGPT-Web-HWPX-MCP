@@ -35,7 +35,12 @@ If the user **explicitly requests** extra spacing within the second column,
 never derive manual spacing from character counts. Inspect real Hancom PDF
 before claiming visual alignment or stable baseline.
 
-The condition and expression inputs are **LaTeX**, not raw EqEdit.
+Each row also accepts `"condition_text": "양수"` as a mutually exclusive
+alternative to `"condition"`. The MCP converts this literal through the
+upstream verified `\\text{...}` path so ordinary Korean labels are upright;
+dangerous control characters and malformed mixing are rejected.
+
+The expression and condition inputs are **LaTeX**, not raw EqEdit.
 The upstream converter rejects unsupported commands and incorrectly placed
 bare `&`; legitimate inner matrix column separators are allowed.
 Mixed one-column/two-column rows are rejected to avoid deceptive alignment.

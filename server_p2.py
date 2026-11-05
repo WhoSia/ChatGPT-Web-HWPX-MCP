@@ -235,6 +235,10 @@ register_p423_style_tools(
     create_adapter=lambda plan, **kwargs: create_document_from_plan(plan, **kwargs),
 )
 
+# PDF export delegates to a real licensed Windows/Hancom COM worker.
+# Render/Linux reports unavailable; it must not substitute a foreign renderer.
+register_p423_native_pdf_tools(core, owned_document=_owned_document)
+
 
 def _refresh_metadata(
     document_id: str,

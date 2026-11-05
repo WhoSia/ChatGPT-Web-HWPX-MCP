@@ -71,6 +71,17 @@ class P423ReferenceStyleTests(unittest.TestCase):
         self.assertEqual(result["style_profile"]["roles"]["body"]["run"]["font_by_script"], {"hangul": "함초롬바탕"})
         self.assertTrue(any("unsupported scripts" in x for x in result["warnings"]))
 
+    def test_reference_keeps_size_when_native_spacing_is_out_of_scope(self):
+        with patch("hwpx_mcp.document.p423_reference_style.build_role_aware_style_exemplars") as reader:
+            reader.return_value = {"roles": [{"role": "body", "authoring_preset": {
+                "run_format": {"size": 12, "letter_spacing": 30},
+                "paragraph_format": {},
+            }}]}
+            result = profile_from_reference("ref.hwpx")
+        self.assertEqual(result["style_profile"]["roles"]["body"]["run"]["size"], 12)
+        self.assertNotIn("letter_spacing", result["style_profile"]["roles"]["body"]["run"])
+        self.assertTrue(any("letter_spacing" in x for x in result["warnings"]))
+
 
 if __name__ == "__main__":
     unittest.main()

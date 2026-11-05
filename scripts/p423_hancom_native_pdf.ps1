@@ -107,6 +107,10 @@ try {
     if ($opened -eq $false) {
         throw 'HANCOM_OPEN_FAILED: Native Hangul refused the source document'
     }
+    # Native page count is an observable, not a visual acceptance verdict.
+    try { $receipt.hancom_page_count = [int]$hwp.PageCount } catch {
+        $receipt.hancom_page_count = $null
+    }
     $stage = 'save-as-pdf'
     $saved = $hwp.SaveAs($tempPdf, 'PDF', '')
     if ($saved -eq $false -or -not (Test-Path -LiteralPath $tempPdf -PathType Leaf)) {

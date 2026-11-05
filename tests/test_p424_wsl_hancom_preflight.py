@@ -2,6 +2,9 @@
 from __future__ import annotations
 
 from pathlib import Path
+import json
+import subprocess
+import sys
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -65,6 +68,17 @@ class P424WslPreflightTests(unittest.TestCase):
             )
         self.assertEqual(result["status"], "BLOCKED")
         self.assertIn("COMMAND_UNAVAILABLE_POWERSHELL_EXE", result["issues"])
+
+    def test_readonly_cli_runs_directly_without_package_import_errors(self):
+        script = Path(__file__).resolve().parents[1] / "scripts" / "p424_wsl_hancom_preflight.py"
+        result = subprocess.run(
+            [sys.executable, str(script), str(self.source), str(self.destination)],
+            capture_output=True, text=True, timeout=15,
+        )
+        self.assertEqual(result.returncode, 2, result.stderr)
+        report = json.loads(result.stdout)
+        self.assertEqual(report["status"], "BLOCKED")
+        self.assertFalse(report["powershell_or_com_executed"])
 
     def test_not_wsl_never_reports_ready(self):
         with patch("scripts.p424_wsl_hancom_preflight.on_wsl", return_value=False), patch(

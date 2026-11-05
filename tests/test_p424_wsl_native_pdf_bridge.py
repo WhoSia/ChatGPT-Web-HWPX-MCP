@@ -70,6 +70,7 @@ class P424WSLNativePdfBridgeTests(unittest.TestCase):
                     "engine": "HANCOM_HWP_EXE_COM",
                     "input_sha256": hashlib.sha256(original).hexdigest(),
                     "output_sha256": hashlib.sha256(pdf).hexdigest(),
+                    "output_bytes": len(pdf),
                     "hancom_product_version": "simulated-only",
                 }), encoding="utf-8")
                 return subprocess.CompletedProcess(command, 0, "", "")

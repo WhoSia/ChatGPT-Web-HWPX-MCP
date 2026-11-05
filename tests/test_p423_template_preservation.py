@@ -32,6 +32,27 @@ class P423TemplatePreservationTests(unittest.TestCase):
         self.assertEqual(len(ops), 1)
         self.assertEqual(ops[0]["margin_left_mm"], 28)
 
+    def test_native_template_margins_survive_school_report_append(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            template = Path(tmp) / "reference.hwpx"
+            result = Path(tmp) / "result.hwpx"
+            doc = HwpxDocument.new()
+            doc.add_paragraph("원본 양식")
+            doc.page.setup(section=0, margin_left_mm=31, margin_right_mm=29)
+            doc.save_to_path(str(template))
+            doc.close()
+            original_margins = build_document_setup_map(template)["sections"][0]["margins"]
+            receipt = compose_document_plan(
+                result,
+                {"preset": "school-report", "blocks": [
+                    {"id": "p", "type": "paragraph", "text": "추가한 문단"}
+                ]},
+                template_path=template,
+            )
+            changed_margins = build_document_setup_map(result)["sections"][0]["margins"]
+            self.assertEqual(original_margins, changed_margins)
+            self.assertTrue(receipt["template_page_setup_preserved"])
+
 
 if __name__ == "__main__":
     unittest.main()

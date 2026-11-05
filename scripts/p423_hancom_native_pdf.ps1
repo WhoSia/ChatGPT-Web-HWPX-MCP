@@ -143,8 +143,16 @@ catch {
 }
 finally {
     if ($null -ne $hwp) {
-        try { $hwp.Clear(1) } catch {}
-        try { $hwp.Quit() } catch {}
+        # Only close a COM-created process after proving this job owns it.
+        # A COM object can attach to an existing user's Hangul instance.
+        if ($ownedHwp -and $null -ne $jobHwpPid) {
+            $ownedProcess = Get-Process -Id $jobHwpPid -ErrorAction SilentlyContinue
+            if ($ownedProcess -and $ownedProcess.ProcessName -eq 'Hwp' -and
+                $ownedProcess.StartTime.ToUniversalTime().ToString('o') -eq $jobHwpStartedAtUtc) {
+                try { $hwp.Clear(1) } catch {}
+                try { $hwp.Quit() } catch {}
+            }
+        }
         try { [void][Runtime.InteropServices.Marshal]::FinalReleaseComObject($hwp) } catch {}
     }
     if ($tempPdf -and (Test-Path -LiteralPath $tempPdf -PathType Leaf)) {

@@ -53,6 +53,16 @@ class P423TemplatePreservationTests(unittest.TestCase):
             self.assertEqual(original_margins, changed_margins)
             self.assertTrue(receipt["template_page_setup_preserved"])
 
+    def test_explicit_plan_setup_overrides_profile_margins(self):
+        plan = {
+            "preset": "school-report",
+            "style_profile": {"page": {"margin_left_mm": 27}},
+            "setup": [{"op": "set_page_setup", "section_index": 0, "margin_left_mm": 33}],
+            "blocks": [{"type": "paragraph", "text": "내용"}],
+        }
+        ops = _setup_operations(plan, preserve_template_setup=True)
+        self.assertEqual([op["margin_left_mm"] for op in ops], [27, 33])
+
 
 if __name__ == "__main__":
     unittest.main()

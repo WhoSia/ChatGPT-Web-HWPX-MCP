@@ -51,6 +51,10 @@ class P423StyleProfileTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "unknown"):
             normalize_style_profile({"roles": {"body": {"run": {"__import__": "os"}}}})
 
+    def test_profile_accepts_korean_font_name(self):
+        p = normalize_style_profile({"roles": {"body": {"run": {"font_by_script": {"hangul": "함초롬바탕", "latin": "Malgun Gothic"}}}}})
+        self.assertEqual(p["roles"]["body"]["run"]["font_by_script"]["hangul"], "함초롬바탕")
+
 
 if __name__ == "__main__":
     unittest.main()

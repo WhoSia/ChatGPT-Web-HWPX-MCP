@@ -73,7 +73,7 @@ def export_wsl_native_pdf(source: Path, destination: Path, *, timeout_seconds: i
         "-ReceiptPath", _windows_path(receipt),
     ]
     try:
-        result = subprocess.run(cmd, check=False, capture_output=True, text=True, timeout=timeout_seconds)
+        result = subprocess.run(cmd, check=False, stdout=subprocess.DEVNULL,\n                                stderr=subprocess.DEVNULL, timeout=timeout_seconds)
     except subprocess.TimeoutExpired as exc:
         # Do not kill any Hangul processes: the signed P4.14 worker, not this
         # local smoke runner, owns remote process cleanup authority.

@@ -89,6 +89,16 @@ try {
     $jobHwpStartedAtUtc = $newHwpProcesses[0].StartTime.ToUniversalTime().ToString('o')
     $ownedHwp = $true
     $receipt.job_hwp_pid = $jobHwpPid
+    $exePath = $newHwpProcesses[0].Path
+    if (-not $exePath -or -not (Test-Path -LiteralPath $exePath -PathType Leaf)) {
+        throw 'HANCOM_EXECUTABLE_IDENTITY_UNAVAILABLE'
+    }
+    $hwpExe = Get-Item -LiteralPath $exePath
+    $receipt.hancom_product_version = $hwpExe.VersionInfo.ProductVersion
+    $receipt.hancom_file_version = $hwpExe.VersionInfo.FileVersion
+    $receipt.hancom_executable_sha256 = (
+        Get-FileHash -LiteralPath $exePath -Algorithm SHA256
+    ).Hash.ToLowerInvariant()
     try { $hwp.XHwpWindows.Item(0).Visible = $false } catch { }
     # Preserve native security behavior: do not auto-register an untrusted
     # path-check DLL, disable prompts globally, or kill unrelated Hwp.exe PIDs.

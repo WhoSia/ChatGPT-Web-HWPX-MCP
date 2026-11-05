@@ -872,6 +872,7 @@ def compose_document_plan(
             "plan_sha256": _sha(normalized),
             "professional_authoring_review": professional_review,
             "preset": normalized["preset"],
+            "style_profile_sha256": (profile_fingerprint(normalized["style_profile"]) if "style_profile" in normalized else None),
             "template_mode": "append" if template_path is not None else "blank",
             "block_count": len(normalized["blocks"]),
             "bindings": bindings,

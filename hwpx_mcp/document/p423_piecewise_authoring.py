@@ -44,7 +44,8 @@ def build_piecewise_script(rows: object, *, condition_gap: int = 0) -> Piecewise
             raise ValueError("piecewise expression must be non-empty bounded LaTeX")
         expr_script = latex_to_eqedit(expression)
         condition = row.get("condition")
-        condition_flags.append(condition is not None)
+        literal_condition = row.get("condition_text")
+        condition_flags.append(condition is not None or literal_condition is not None)
         if condition is None:
             if condition_gap:
                 raise ValueError("condition_gap requires a condition in each row")

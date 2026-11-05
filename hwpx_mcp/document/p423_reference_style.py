@@ -61,8 +61,23 @@ def profile_from_reference(path: str | Path, *, name: str = "reference-style") -
             if output_key == "paragraph" and "alignment" in portable:
                 if isinstance(portable["alignment"], str):
                     portable["alignment"] = portable["alignment"].upper()
-            if portable:
-                mapped[output_key] = portable
+            accepted: dict[str, Any] = {}
+            for field, field_value in portable.items():
+                # Validate per field: an unportable spacing setting must not
+                # discard an otherwise usable reference font.
+                if field == "line_spacing_percent" and type(field_value) is float and field_value.is_integer():
+                    field_value = int(field_value)
+                try:
+                    normalize_style_profile({
+                        "name": name,
+                        "roles": {target_role: {output_key: {field: field_value}}},
+                    })
+                except ValueError as exc:
+                    warnings.append(f"{source_role}.{field} omitted: {exc}")
+                else:
+                    accepted[field] = field_value
+            if accepted:
+                mapped[output_key] = accepted
         if mapped:
             try:
                 checked = normalize_style_profile({"name": name, "roles": {target_role: mapped}})

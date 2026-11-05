@@ -93,6 +93,16 @@ class P423HancomPdfTests(unittest.TestCase):
                 run.assert_not_called()
             self.assertEqual(dest.read_bytes(), b"existing pdf")
 
+    def test_native_powershell_never_quits_unowned_hangul(self):
+        from hwpx_mcp.custody import p423_hancom_pdf
+        script = Path(p423_hancom_pdf.__file__).resolve().parents[2] / "scripts" / "p423_hancom_native_pdf.ps1"
+        body = script.read_text(encoding="utf-8")
+        self.assertIn("HANCOM_COM_PROCESS_NOT_JOB_OWNED", body)
+        self.assertIn("if ($ownedHwp -and $null -ne $jobHwpPid)", body)
+        self.assertIn("HANCOM_EXECUTABLE_IDENTITY_UNAVAILABLE", body)
+        self.assertIn("hancom_executable_sha256", body)
+        self.assertNotIn("Stop-Process -Name Hwp", body)
+
 
 if __name__ == "__main__":
     unittest.main()

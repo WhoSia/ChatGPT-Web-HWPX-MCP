@@ -10,9 +10,12 @@ import json
 from pathlib import Path
 import shutil
 
-from scripts.p423_wsl_hancom_pdf_bridge import (
-    _approved_windows_mount, on_wsl,
-)
+# Both `python3 scripts/p424_wsl_hancom_preflight.py` and package imports
+# are supported without modifying sys.path or running arbitrary loaders.
+if __package__:
+    from .p423_wsl_hancom_pdf_bridge import _approved_windows_mount, on_wsl
+else:
+    from p423_wsl_hancom_pdf_bridge import _approved_windows_mount, on_wsl
 
 MAX_SOURCE_BYTES = 100 * 1024 * 1024
 

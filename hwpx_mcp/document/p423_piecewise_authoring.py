@@ -35,8 +35,10 @@ def build_piecewise_script(rows: object, *, condition_gap: int = 0) -> Piecewise
     native_rows: list[str] = []
     condition_flags: list[bool] = []
     for row in rows:
-        if not isinstance(row, dict) or not set(row).issubset({"expression", "condition"}):
-            raise ValueError("piecewise row accepts expression and optional condition only")
+        if not isinstance(row, dict) or not set(row).issubset({"expression", "condition", "condition_text"}):
+            raise ValueError("piecewise row accepts expression and condition or condition_text")
+        if "condition" in row and "condition_text" in row:
+            raise ValueError("piecewise row cannot combine condition and condition_text")
         expression = row.get("expression")
         if not isinstance(expression, str) or not expression.strip() or len(expression) > MAX_LATEX_CHARS:
             raise ValueError("piecewise expression must be non-empty bounded LaTeX")

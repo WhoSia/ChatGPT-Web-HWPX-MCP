@@ -106,6 +106,20 @@ class P423StylesMCPTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "no portable"):
                 self.tool("doc_1", expected_revision=3)
 
+    def test_approved_style_creates_using_existing_atomic_adapter(self):
+        created = []
+        def create(plan, **kwargs):
+            created.append((plan, kwargs))
+            return {"ok": True, "document_id": "new_doc"}
+        tool = self.approved_tool(create)
+        with patch("hwpx_mcp.interfaces.p423_styles_mcp.profile_from_reference") as read:
+            read.return_value = {"style_profile": {"name": "lab"}, "style_profile_sha256": "a" * 64, "warnings": []}
+            receipt = tool("reference_doc", 3, "a" * 64, {"blocks": [{"type": "paragraph", "text": "보고서"}]}, filename="lab.hwpx")
+        self.assertEqual(receipt["document_id"], "new_doc")
+        self.assertEqual(created[0][0]["style_profile"], {"name": "lab"})
+        self.assertEqual(created[0][1]["filename"], "lab.hwpx")
+        self.assertEqual(receipt["reference_style"]["approved_profile_sha256"], "a" * 64)
+
 
 if __name__ == "__main__":
     unittest.main()

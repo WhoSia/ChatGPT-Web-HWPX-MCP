@@ -44,6 +44,15 @@ class P423ProfiledComposerTests(unittest.TestCase):
             self.assertEqual(before["document"]["semantic_sha256"], after["document"]["semantic_sha256"])
             self.assertNotEqual(before["document"]["formatting_sha256"], after["document"]["formatting_sha256"])
 
+    def test_rejected_profile_never_replaces_destination(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "existing.hwpx"
+            original = b"Existing original file must remain untouched"
+            path.write_bytes(original)
+            with self.assertRaises(ValueError):
+                compose_document_plan(path, _plan(profile={"roles": {"body": {"run": {"unknown": 123}}}}))
+            self.assertEqual(path.read_bytes(), original)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -48,6 +48,12 @@ def _sha(path: Path) -> str:
     return digest.hexdigest()
 
 
+def _has_pdf_magic(path: Path) -> bool:
+    """Check PDF signature with a closed file handle, not a format verdict."""
+    with path.open("rb") as pdf:
+        return pdf.read(5) == b"%PDF-"
+
+
 def export_native_hwp_pdf(
     source: str | Path,
     destination: str | Path,
@@ -112,7 +118,7 @@ def export_native_hwp_pdf(
                 and receipt.get("output_sha256") == _sha(destination)
                 and receipt.get("output_bytes") == destination.stat().st_size
                 and destination.stat().st_size >= 64
-                and destination.open("rb").read(5) == b"%PDF-"
+                and _has_pdf_magic(destination)
             )
         except (OSError, ValueError, TypeError, json.JSONDecodeError):
             valid = False

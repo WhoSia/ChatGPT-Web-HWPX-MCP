@@ -30,6 +30,20 @@ class P423ProfiledComposerTests(unittest.TestCase):
         self.assertIn("style_profile", contract["top_level"])
         self.assertEqual(contract["top_level"]["style_profile"]["persistence"], "supplied per task; no implicit storage or automatic learning")
 
+    def test_profile_and_default_both_emit_native_documents(self):
+        profile = {"name": "MRI", "roles": {"body": {"run": {"size": 12}, "paragraph": {"line_spacing_percent": 180}}}}
+        with tempfile.TemporaryDirectory() as directory:
+            vanilla = Path(directory) / "vanilla.hwpx"
+            personalized = Path(directory) / "personalized.hwpx"
+            before = compose_document_plan(vanilla, _plan())
+            after = compose_document_plan(personalized, _plan(profile=profile))
+            self.assertTrue(vanilla.is_file())
+            self.assertTrue(personalized.is_file())
+            self.assertIsNone(before["style_profile_sha256"])
+            self.assertEqual(len(after["style_profile_sha256"]), 64)
+            self.assertEqual(before["document"]["semantic_sha256"], after["document"]["semantic_sha256"])
+            self.assertNotEqual(before["document"]["formatting_sha256"], after["document"]["formatting_sha256"])
+
 
 if __name__ == "__main__":
     unittest.main()

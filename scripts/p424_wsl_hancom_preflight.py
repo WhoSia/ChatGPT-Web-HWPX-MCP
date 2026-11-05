@@ -9,6 +9,7 @@ import argparse
 import json
 from pathlib import Path
 import shutil
+import zipfile
 
 # Both `python3 scripts/p424_wsl_hancom_preflight.py` and package imports
 # are supported without modifying sys.path or running arbitrary loaders.
@@ -61,13 +62,17 @@ def inspect_wsl_hancom_preflight(
         checks["source_size"] = 100 <= size <= MAX_SOURCE_BYTES
         with src.open("rb") as inp:
             checks["source_zip_header"] = inp.read(4) in (bytes((80, 75, 3, 4)), bytes((80, 75, 5, 6)))
+        checks["source_zip_directory"] = zipfile.is_zipfile(src)
     else:
         checks["source_size"] = False
         checks["source_zip_header"] = False
+        checks["source_zip_directory"] = False
     if not checks["source_size"]:
         errors.append("SOURCE_SIZE_INVALID")
     if not checks["source_zip_header"]:
         errors.append("SOURCE_ZIP_HEADER_INVALID")
+    if not checks["source_zip_directory"]:
+        errors.append("SOURCE_ZIP_DIRECTORY_INVALID")
     checks["destination_new_pdf"] = (
         dst.suffix.lower() == ".pdf" and not dst.exists()
         and not dst.is_symlink() and dst.parent.is_dir()

@@ -33,7 +33,7 @@ def build_piecewise_script(rows: object, *, condition_gap: int = 0) -> Piecewise
     if type(condition_gap) is not int or not 0 <= condition_gap <= 4:
         raise ValueError("condition_gap must be an integer from 0 to 4")
     native_rows: list[str] = []
-    has_conditions = False
+    condition_flags: list[bool] = []
     for row in rows:
         if not isinstance(row, dict) or not set(row).issubset({"expression", "condition"}):
             raise ValueError("piecewise row accepts expression and optional condition only")
@@ -44,6 +44,7 @@ def build_piecewise_script(rows: object, *, condition_gap: int = 0) -> Piecewise
             raise ValueError("piecewise expression may not contain native alignment separators")
         expr_script = latex_to_eqedit(expression)
         condition = row.get("condition")
+        condition_flags.append(condition is not None)
         if condition is None:
             if condition_gap:
                 raise ValueError("condition_gap requires a condition in each row")
@@ -57,11 +58,10 @@ def build_piecewise_script(rows: object, *, condition_gap: int = 0) -> Piecewise
         # The ampersand separates real grid columns; gap is an explicit user
         # override inside the second cell, not a hard-coded heuristic.
         native_rows.append(expr_script + " & " + ("~" * condition_gap) + cond_script)
-        has_conditions = True
-    if any((" & " in row) != has_conditions for row in native_rows):
+    if any(flag != condition_flags[0] for flag in condition_flags):
         raise ValueError("piecewise rows must consistently have conditions")
     return PiecewiseAuthoring(
         script="cases {" + " # ".join(native_rows) + "}",
         row_count=len(native_rows),
-        has_conditions=has_conditions,
+        has_conditions=condition_flags[0],
     )

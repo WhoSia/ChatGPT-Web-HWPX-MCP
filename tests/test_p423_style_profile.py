@@ -38,6 +38,10 @@ class P423StyleProfileTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "margin"):
             normalize_style_profile({"page": {"margin_left_mm": -5}})
 
+    def test_equation_size_cannot_be_boolean(self):
+        with self.assertRaisesRegex(ValueError, "equation_base_unit"):
+            normalize_style_profile({"equation_base_unit": True})
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -26,6 +26,10 @@ class P423StyleProfileTests(unittest.TestCase):
         b = {"roles": {"body": {"run": {"size": 11}}}}
         self.assertNotEqual(profile_fingerprint(a), profile_fingerprint(b))
 
+    def test_unknown_style_key_fails(self):
+        with self.assertRaisesRegex(ValueError, "unknown"):
+            normalize_style_profile({"roles": {"body": {"run": {"magic_font": "x"}}}})
+
 
 if __name__ == "__main__":
     unittest.main()

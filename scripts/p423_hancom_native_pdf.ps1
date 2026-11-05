@@ -65,7 +65,30 @@ try {
     $receipt.output_path = $fullOutput
     $tempPdf = Join-Path $outputParent ('.p423-' + [guid]::NewGuid().ToString('N') + '.pdf')
     $stage = 'com'
+    # Never attach to an unrelated user's existing Hangul document and invoke Quit.
+    # Native Hangul may register a running single-instance COM server: reject it.
+    $session = (Get-Process -Id $PID).SessionId
+    if ($session -eq 0) {
+        throw 'INTERACTIVE_WINDOWS_SESSION_REQUIRED'
+    }
+    $beforeHwpPids = @(Get-Process -Name Hwp -ErrorAction SilentlyContinue |
+        Where-Object { $_.SessionId -eq $session } | Select-Object -ExpandProperty Id)
     $hwp = New-Object -ComObject HWPFrame.HwpObject
+    $stage = 'verify-com-ownership'
+    $newHwpProcesses = @()
+    for ($probe = 0; $probe -lt 20; $probe++) {
+        $newHwpProcesses = @(Get-Process -Name Hwp -ErrorAction SilentlyContinue |
+            Where-Object { $_.SessionId -eq $session -and $_.Id -notin $beforeHwpPids })
+        if ($newHwpProcesses.Count -gt 0) { break }
+        Start-Sleep -Milliseconds 250
+    }
+    if ($newHwpProcesses.Count -ne 1) {
+        throw 'HANCOM_COM_PROCESS_NOT_JOB_OWNED: refuse Open/SaveAs/Quit'
+    }
+    $jobHwpPid = [int]$newHwpProcesses[0].Id
+    $jobHwpStartedAtUtc = $newHwpProcesses[0].StartTime.ToUniversalTime().ToString('o')
+    $ownedHwp = $true
+    $receipt.job_hwp_pid = $jobHwpPid
     try { $hwp.XHwpWindows.Item(0).Visible = $false } catch { }
     # Preserve native security behavior: do not auto-register an untrusted
     # path-check DLL, disable prompts globally, or kill unrelated Hwp.exe PIDs.

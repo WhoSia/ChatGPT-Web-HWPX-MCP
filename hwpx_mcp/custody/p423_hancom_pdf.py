@@ -31,6 +31,8 @@ def native_pdf_capability() -> dict[str, Any]:
     return {
         "engine": "HANCOM_HWP_EXE_COM",
         "available": is_windows_hancom_host(),
+        "installation_verified": False,
+        "availability_basis": "OS platform only; COM activation attempted at conversion time",
         "required_platform": "Windows",
         "requires_interactive_hancom_installation": True,
         "native_pdf_visual_adjudication": "SEPARATE_REQUIRED",

@@ -59,6 +59,16 @@ class P423StyleProfileTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "border_color"):
             normalize_style_profile({"table": {"border_color": "blue"}})
 
+    def test_inherited_body_style_flows_into_heading(self):
+        p = normalize_style_profile({"roles": {
+            "body": {"run": {"font_by_script": {"hangul": "함초롬바탕", "latin": "Malgun Gothic"}, "size": 11}},
+            "heading_1": {"inherits": "body", "run": {"size": 15, "bold": True}},
+        }})
+        heading = style_for_block(p, "heading", 1)["run"]
+        self.assertEqual(heading["size"], 15)
+        self.assertTrue(heading["bold"])
+        self.assertEqual(heading["font_by_script"]["hangul"], "함초롬바탕")
+
 
 if __name__ == "__main__":
     unittest.main()

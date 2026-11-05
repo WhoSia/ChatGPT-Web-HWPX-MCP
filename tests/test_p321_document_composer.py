@@ -413,6 +413,21 @@ class P321DocumentComposerTests(unittest.TestCase):
             self.assertEqual(len(paragraphs), 1)
             events = [(tag(e), e.text) for e in paragraphs[0].iter() if tag(e) in {"equation", "t"} and (tag(e) == "equation" or e.text)]
             self.assertEqual(events, [("t", "앞 "), ("equation", None), ("t", ", "), ("equation", None), ("t", " 뒤")])
+    def test_p423_piecewise_generates_native_cases_equation(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "piecewise.hwpx"
+            compose_document_plan(path, {"blocks": [
+                {"id": "title", "type": "title", "text": "Piecewise"},
+                {"id": "cases", "type": "piecewise", "rows": [
+                    {"expression": "x", "condition": "x>0"},
+                    {"expression": "0", "condition": "x\\leq0"},
+                ]},
+            ]})
+            with zipfile.ZipFile(path) as archive:
+                xml = etree.fromstring(archive.read("Contents/section0.xml"))
+            scripts = [(el.text or "") for el in xml.iter() if etree.QName(el).localname == "script"]
+            self.assertIn("cases {x & x > 0 # 0 & x leq 0}", scripts)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -77,5 +77,20 @@ a separate renderer they did not request.
 - Previously stored owner-approved local Work acceptance packet and
   MRI native reference/edited outputs.
 
-**Do not restart unrelated analysis projects or claim user-facing P4.24
-delivery until Gate G0 and G1 are actually completed.**
+## 2026-11-06 — Observed local G1 and new G2 admission work
+
+The older status language above describes the pre-local-test situation.
+The owner subsequently executed real licensed Hancom PDF conversion using
+WSL2 and Windows PowerShell. A 55,235-byte native PDF with matching SHA-256
+was independently parsed: 12 near-A4 pages with an intentionally blank
+first page. The owner reports visual equivalence for this document; an
+independent per-equation audit is not complete.
+
+The new P4.24 signed PDF handoff checker reuses P4.14 Ed25519 validation
+and adds strict owner, revision, source digest, actual PDF bytes, human
+adjudication and single-document requirements. It is not deployed or
+connected to an encrypted PDF store. Persistent replay checks, encrypted
+custody, owner-scoped delivery and exact-head CI pass remain pending.
+See [the G1/G2 evidence and boundary specification](P424_G1_NATIVE_PROOF_AND_G2_SIGNED_HANDOFF.md).
+
+**Do not claim P4.24 production delivery before remaining gates pass.**

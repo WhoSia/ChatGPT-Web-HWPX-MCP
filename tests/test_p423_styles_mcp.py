@@ -150,6 +150,13 @@ class P423StylesMCPTests(unittest.TestCase):
             tool("reference_doc", 3, "c" * 64, {"blocks": []}, profile_name="My Lab")
             read.assert_called_once_with(Path("/private/owned.hwpx"), name="My Lab")
 
+    def test_approved_style_rejects_invalid_digest_format(self):
+        tool = self.approved_tool(lambda *args, **kwargs: {"ok": True})
+        with patch("hwpx_mcp.interfaces.p423_styles_mcp.profile_from_reference") as read:
+            with self.assertRaisesRegex(ValueError, "64 lowercase"):
+                tool("reference_doc", 3, "XYZ", {"blocks": []})
+            read.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()

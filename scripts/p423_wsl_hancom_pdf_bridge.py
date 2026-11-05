@@ -84,25 +84,29 @@ def export_wsl_native_pdf(source: Path, destination: Path, *, timeout_seconds: i
         raise ValueError("Existing .hwpx input required")
     if destination.suffix.lower() != ".pdf" or destination.exists() or not destination.parent.is_dir():
         raise ValueError("Use a new .pdf path in an existing Windows-mounted directory")
-    script = _approved_windows_mount(Path(__file__).resolve().parent / "p423_hancom_native_pdf.ps1")
-    if not script.is_file():
-        raise FileNotFoundError("P4.23 native PDF PowerShell source missing")
     source_sha = _sha(source)
     receipt = destination.with_suffix(".pdf.receipt.json")
     if receipt.exists():
         raise ValueError("Receipt destination exists; refusing to replace existing evidence")
-    cmd = [
-        "powershell.exe", "-NoProfile", "-NonInteractive", "-File", _windows_path(script),
-        "-InputPath", _windows_path(source),
-        "-OutputPath", _windows_path(destination),
-        "-ReceiptPath", _windows_path(receipt),
-    ]
+    script, staged_script = _stage_hancom_script(
+        Path(__file__).resolve().parent / "p423_hancom_native_pdf.ps1",
+        destination.parent,
+    )
     try:
-        result = subprocess.run(cmd, check=False, capture_output=True, text=True, timeout=timeout_seconds)
-    except subprocess.TimeoutExpired as exc:
-        # Do not kill any Hangul processes: the signed P4.14 worker, not this
-        # local smoke runner, owns remote process cleanup authority.
-        raise RuntimeError("HANCOM_PDF_TIMEOUT: inspect the Windows job-owned process before retry") from exc
+        cmd = [
+            "powershell.exe", "-NoProfile", "-NonInteractive", "-File", _windows_path(script),
+            "-InputPath", _windows_path(source),
+            "-OutputPath", _windows_path(destination),
+            "-ReceiptPath", _windows_path(receipt),
+        ]
+        try:
+            result = subprocess.run(cmd, check=False, capture_output=True, text=True, timeout=timeout_seconds)
+        except subprocess.TimeoutExpired as exc:
+            # Do not force-stop unowned Hangul instances.
+            raise RuntimeError("HANCOM_PDF_TIMEOUT: inspect the Windows job-owned process before retry") from exc
+    finally:
+        if staged_script is not None:
+            staged_script.unlink(missing_ok=True)
     if not receipt.is_file():
         raise RuntimeError("HANCOM_RECEIPT_MISSING: Windows export did not produce a receipt")
     parsed = json.loads(receipt.read_text(encoding="utf-8-sig"))

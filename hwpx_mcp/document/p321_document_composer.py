@@ -707,6 +707,9 @@ def _publishing_operations(
 
 def _setup_operations(plan: dict) -> list[dict]:
     ops = [dict(item) for item in PRESETS[plan["preset"]]["setup"]]
+    page = (plan.get("style_profile") or {}).get("page") or {}
+    if page:
+        ops.append({"op": "set_page_setup", "section_index": 0, **page})
     ops.extend(dict(item) for item in (plan.get("setup") or []))
     publishing = plan.get("publishing") or {}
     if publishing.get("header") is not None:

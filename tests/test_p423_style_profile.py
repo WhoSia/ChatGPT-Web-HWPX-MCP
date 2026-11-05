@@ -16,6 +16,11 @@ class P423StyleProfileTests(unittest.TestCase):
         self.assertEqual(profile["roles"]["body"]["run"]["size"], 11)
         self.assertEqual(style_for_block(profile, "paragraph")["paragraph"]["line_spacing_percent"], 155)
 
+    def test_profile_fingerprint_is_order_independent(self):
+        a = {"roles": {"body": {"run": {"size": 11, "bold": False}}}, "name": "lab"}
+        b = {"name": "lab", "roles": {"body": {"run": {"bold": False, "size": 11}}}}
+        self.assertEqual(profile_fingerprint(a), profile_fingerprint(b))
+
 
 if __name__ == "__main__":
     unittest.main()

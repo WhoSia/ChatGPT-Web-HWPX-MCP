@@ -94,3 +94,29 @@ No local evidence can independently certify steps 6–9.
 - The G2 admission checker deliberately always reports
   `production_delivery_authorized=false` to prevent accidental
   promotion ahead of durable replay, encrypted storage and download.
+
+## 2026-11-06 follow-up — encrypted PDF custody primitive (still not deployed)
+
+`hwpx_mcp/storage/p424_pdf_store.py` adds a separate Postgres-backed AES-GCM
+ciphertext store. The encryption key is domain-separated from HWPX revision
+encryption and derived from the server-side secret, never from the PDF receipt.
+The AEAD associated data binds accepted signed evidence ID, document ID,
+revision, authenticated owner subject, source HWPX SHA-256, and PDF SHA-256.
+The table forbids overwriting an existing evidence ID with a different
+artifact. Its `put_verified` method requires the previous G2 admission
+result and checks for a matching **durably accepted P4.14 evidence record**
+through `P414EvidenceStore.accepted_receipt_by_id`. Its
+`load_owned` method checks the live `DurableDocumentStore.load_revision`
+owner and digest before decrypting and rehashing the PDF.
+
+Companion `tests/test_p424_pdf_store_contract.py` checks the cryptographic
+AAD and rejection contract, but Postgres transaction and schema integration
+have not yet been exercised in an actual database, and the store has not
+been wired into the deployed MCP. No URL endpoint exists and no download
+is marked delivered. The source revision's retention/pinning lifecycle
+must be designed before production activation.
+
+The owner's WSL tests of the *preceding* P4.24 branch HEAD
+`da9cca4` passed 31 P4.24 + 7 P4.23 tests. These tests predate the
+new P4.24 storage commits and are not evidence that the storage integration
+has passed. CI on the newer exact HEAD is not verified.

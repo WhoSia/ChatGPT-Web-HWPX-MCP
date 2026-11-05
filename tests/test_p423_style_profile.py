@@ -55,6 +55,10 @@ class P423StyleProfileTests(unittest.TestCase):
         p = normalize_style_profile({"roles": {"body": {"run": {"font_by_script": {"hangul": "함초롬바탕", "latin": "Malgun Gothic"}}}}})
         self.assertEqual(p["roles"]["body"]["run"]["font_by_script"]["hangul"], "함초롬바탕")
 
+    def test_bad_table_color_is_rejected(self):
+        with self.assertRaisesRegex(ValueError, "border_color"):
+            normalize_style_profile({"table": {"border_color": "blue"}})
+
 
 if __name__ == "__main__":
     unittest.main()

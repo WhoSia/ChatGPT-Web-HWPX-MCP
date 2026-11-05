@@ -72,6 +72,7 @@ def register_p423_style_tools(
             expected_reference_revision: int,
             accepted_profile_sha256: str,
             plan: dict,
+            profile_name: str = "reference-style",
             filename: str = "document.hwpx",
             template_document_id: str = "",
             request_id: str = "",
@@ -93,7 +94,7 @@ def register_p423_style_tools(
             metadata, path = owned_document(reference_document_id)
             if int(metadata["revision"]) != expected_reference_revision:
                 raise ValueError("reference document revision mismatch")
-            proposal = profile_from_reference(path)
+            proposal = profile_from_reference(path, name=profile_name)
             fingerprint = proposal["style_profile_sha256"]
             if not hmac.compare_digest(fingerprint, accepted_profile_sha256):
                 raise ValueError("reference style has changed or was not approved")

@@ -61,6 +61,16 @@ class P423ReferenceStyleTests(unittest.TestCase):
         self.assertNotIn("PRIVATE_REPORT_TEXT", repr(result))
         self.assertNotIn("secret_document_id", repr(result))
 
+    def test_reference_filters_native_symbol_and_user_font_slots(self):
+        with patch("hwpx_mcp.document.p423_reference_style.build_role_aware_style_exemplars") as reader:
+            reader.return_value = {"roles": [{"role": "body", "authoring_preset": {
+                "run_format": {"font_by_script": {"hangul": "함초롬바탕", "symbol": "Symbol", "user": "Unknown"}},
+                "paragraph_format": {},
+            }}]}
+            result = profile_from_reference("ref.hwpx")
+        self.assertEqual(result["style_profile"]["roles"]["body"]["run"]["font_by_script"], {"hangul": "함초롬바탕"})
+        self.assertTrue(any("unsupported scripts" in x for x in result["warnings"]))
+
 
 if __name__ == "__main__":
     unittest.main()

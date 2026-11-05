@@ -30,6 +30,10 @@ class P423StyleProfileTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "unknown"):
             normalize_style_profile({"roles": {"body": {"run": {"magic_font": "x"}}}})
 
+    def test_unknown_top_level_key_fails(self):
+        with self.assertRaisesRegex(ValueError, "unknown"):
+            normalize_style_profile({"execute": "anything"})
+
 
 if __name__ == "__main__":
     unittest.main()

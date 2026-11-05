@@ -57,7 +57,7 @@ def inspect_wsl_hancom_preflight(
         size = src.stat().st_size
         checks["source_size"] = 100 <= size <= MAX_SOURCE_BYTES
         with src.open("rb") as inp:
-            checks["source_zip_header"] = inp.read(4) in (b"PK\\x03\\x04", b"PK\\x05\\x06")
+            checks["source_zip_header"] = inp.read(4) in (bytes((80, 75, 3, 4)), bytes((80, 75, 5, 6)))
     else:
         checks["source_size"] = False
         checks["source_zip_header"] = False

@@ -30,15 +30,16 @@ def case(product: str, elapsed: int = 100, **override):
 class P424CompetitorBenchmarkTests(unittest.TestCase):
     def test_matched_pair_delta_is_descriptive_not_ranked(self):
         result = compare_matched([case("ours", 120), case("other", 80)], "ours", "other")
-        self.assertEqual(result["verified_matched_pairs"], 1)
+        self.assertEqual(result["declared_pass_matched_pairs"], 1)
         self.assertEqual(result["median_candidate_minus_baseline_ms"], -40)
         self.assertFalse(result["ranking_authorized"])
+        self.assertFalse(result["independent_evidence_verified"])
 
     def test_unmatched_hardware_cannot_be_paired(self):
         result = compare_matched([
             case("ours"), case("other", environment="linux-mock")
         ], "ours", "other")
-        self.assertEqual(result["verified_matched_pairs"], 0)
+        self.assertEqual(result["declared_pass_matched_pairs"], 0)
         self.assertEqual(result["excluded"]["missing_comparator"], 2)
         self.assertIsNone(result["median_candidate_minus_baseline_ms"])
 
@@ -66,7 +67,7 @@ class P424CompetitorBenchmarkTests(unittest.TestCase):
             case("other", 110, trial_id="r2"),
             case("other", 80, trial_id="r3"),
         ], "ours", "other")
-        self.assertEqual(result["verified_matched_pairs"], 2)
+        self.assertEqual(result["declared_pass_matched_pairs"], 2)
         self.assertEqual(result["excluded"]["missing_comparator"], 1)
         self.assertEqual(result["median_candidate_minus_baseline_ms"], -10)
 
@@ -88,7 +89,7 @@ class P424CompetitorBenchmarkTests(unittest.TestCase):
                        consumer_verified=False, native_visual_accepted=False)
         result = compare_matched([case("ours"), waiting], "ours", "other")
         self.assertEqual(result["excluded"]["not_both_verified_pass"], 1)
-        self.assertEqual(result["verified_matched_pairs"], 0)
+        self.assertEqual(result["declared_pass_matched_pairs"], 0)
 
     def test_jsonl_rejects_corrupt_and_preserves_line_number(self):
         with tempfile.TemporaryDirectory() as folder:
@@ -99,7 +100,7 @@ class P424CompetitorBenchmarkTests(unittest.TestCase):
 
     def test_no_leaderboard_without_matched_runs(self):
         r = compare_matched([], "ours", "other")
-        self.assertEqual(r["verified_matched_pairs"], 0)
+        self.assertEqual(r["declared_pass_matched_pairs"], 0)
         self.assertFalse(r["ranking_authorized"])
 
 

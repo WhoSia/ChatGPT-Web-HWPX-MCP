@@ -97,21 +97,28 @@ def export_native_hwp_pdf(
             if destination.exists():
                 destination.unlink()
             raise HancomPdfConversionError("HANCOM_PDF_CONVERSION_FAILED")
-        receipt = json.loads(receipt_path.read_text(encoding="utf-8-sig"))
-        if (
-            receipt.get("status") != "PDF_CREATED_UNREVIEWED"
-            or receipt.get("engine") != "HANCOM_HWP_EXE_COM"
-            or receipt.get("input_sha256") != before
-            or not destination.is_file()
-            or receipt.get("output_sha256") != _sha(destination)
-        ):
+        # The worker is an external process: its receipt is untrusted until
+        # parsed, checked against the real bytes, and bound to unchanged input.
+        try:
+            receipt = json.loads(receipt_path.read_text(encoding="utf-8-sig"))
+            if not isinstance(receipt, dict):
+                raise ValueError("receipt must be an object")
+            valid = (
+                receipt.get("status") == "PDF_CREATED_UNREVIEWED"
+                and receipt.get("engine") == "HANCOM_HWP_EXE_COM"
+                and receipt.get("input_sha256") == before
+                and _sha(source) == before
+                and destination.is_file()
+                and receipt.get("output_sha256") == _sha(destination)
+                and receipt.get("output_bytes") == destination.stat().st_size
+                and destination.stat().st_size >= 64
+            )
+        except (OSError, ValueError, TypeError, json.JSONDecodeError):
+            valid = False
+        if not valid:
             if destination.exists():
                 destination.unlink()
             raise HancomPdfConversionError("HANCOM_PDF_RECEIPT_MISMATCH")
-        with destination.open("rb") as f:
-            if f.read(5) != b"%PDF-":
-                destination.unlink()
-                raise HancomPdfConversionError("HANCOM_PDF_HEADER_INVALID")
         receipt["source_path"] = None
         receipt["output_path"] = None
         receipt["pdf_sha256"] = receipt.pop("output_sha256")

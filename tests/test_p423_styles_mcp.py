@@ -61,6 +61,12 @@ class P423StylesMCPTests(unittest.TestCase):
                 self.tool("doc_1", expected_revision=2)
             read.assert_not_called()
 
+    def test_reference_rejects_noninteger_revision(self):
+        with patch("hwpx_mcp.interfaces.p423_styles_mcp.profile_from_reference") as read:
+            with self.assertRaisesRegex(ValueError, "revision mismatch"):
+                self.tool("doc_1", expected_revision=True)
+            read.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()

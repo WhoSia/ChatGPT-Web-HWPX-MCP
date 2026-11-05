@@ -77,6 +77,13 @@ class P423StyleProfileTests(unittest.TestCase):
         fonts = style_for_block(p, "title")["run"]["font_by_script"]
         self.assertEqual(fonts, {"hangul": "맑은 고딕", "latin": "Arial"})
 
+    def test_style_inheritance_cycle_is_rejected(self):
+        with self.assertRaisesRegex(ValueError, "cycle"):
+            normalize_style_profile({"roles": {
+                "body": {"inherits": "title"},
+                "title": {"inherits": "body"},
+            }})
+
 
 if __name__ == "__main__":
     unittest.main()

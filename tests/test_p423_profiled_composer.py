@@ -53,6 +53,13 @@ class P423ProfiledComposerTests(unittest.TestCase):
                 compose_document_plan(path, _plan(profile={"roles": {"body": {"run": {"unknown": 123}}}}))
             self.assertEqual(path.read_bytes(), original)
 
+    def test_style_profile_can_control_native_equation_unit(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "equation.hwpx"
+            result = compose_document_plan(path, _plan(profile={"equation_base_unit": 1350}))
+            self.assertTrue(result["atomic_commit"])
+            self.assertIsNotNone(result["style_profile_sha256"])
+
 
 if __name__ == "__main__":
     unittest.main()

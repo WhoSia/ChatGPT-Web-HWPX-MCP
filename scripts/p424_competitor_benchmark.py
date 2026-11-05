@@ -97,14 +97,15 @@ def compare_matched(
     return {
         "schema": "p424/competitor-pair-comparison/v1",
         "baseline": baseline, "candidate": candidate,
-        "verified_matched_pairs": len(valid_pairs),
+        "declared_pass_matched_pairs": len(valid_pairs),
+        "independent_evidence_verified": False,
         "excluded": dict(sorted(excluded.items())),
         "median_candidate_minus_baseline_ms": (
             median(p["difference_ms"] for p in valid_pairs) if valid_pairs else None
         ),
         "ranking_authorized": False,
         "pairs": valid_pairs,
-        "notice": "Descriptive matched pairs only; not statistical or native release certification.",
+        "notice": "Self-reported PASS flags only; independent native and consumer evidence was not checked.",
     }
 
 

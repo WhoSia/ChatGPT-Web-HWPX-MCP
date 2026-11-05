@@ -34,6 +34,17 @@ class P423ReferenceStyleTests(unittest.TestCase):
         self.assertGreaterEqual(len(result["warnings"]), 2)
         self.assertEqual(result["style_profile"]["roles"]["body"]["run"]["size"], 11)
 
+    def test_unknown_reference_roles_are_not_assigned_to_body(self):
+        with patch("hwpx_mcp.document.p423_reference_style.build_role_aware_style_exemplars") as reader:
+            reader.return_value = {"roles": [
+                {"role": "footer", "authoring_preset": {"run_format": {"size": 9}}},
+                {"role": "body", "authoring_preset": {"run_format": {"size": 11}}},
+            ]}
+            result = profile_from_reference("ref.hwpx")
+        self.assertIn("body", result["style_profile"]["roles"])
+        self.assertEqual(set(result["style_profile"]["roles"]), {"body"})
+        self.assertTrue(any("footer" in warning for warning in result["warnings"]))
+
 
 if __name__ == "__main__":
     unittest.main()

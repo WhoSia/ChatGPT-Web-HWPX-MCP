@@ -91,6 +91,20 @@ def normalize_style_profile(value: object) -> dict[str, Any]:
         }
         if parent is not None:
             clean_roles[role]["inherits"] = parent
+    # Reject missing parents and cycles before any document is modified.
+    for role in clean_roles:
+        current = role
+        seen: set[str] = set()
+        while current in clean_roles:
+            if current in seen:
+                raise ValueError("style inheritance cycle")
+            seen.add(current)
+            parent = clean_roles[current].get("inherits")
+            if parent is None:
+                break
+            if parent not in clean_roles:
+                raise ValueError("style inherited role is not defined")
+            current = parent
     page = value.get("page", {})
     if not isinstance(page, dict) or set(page) - PAGE_KEYS:
         raise ValueError("style_profile.page contains unknown fields")

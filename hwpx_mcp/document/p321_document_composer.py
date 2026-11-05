@@ -259,6 +259,8 @@ def _normalize_plan(plan: dict) -> dict:
     result = dict(plan)
     result["preset"] = preset
     result["blocks"] = normalized_blocks
+    if "style_profile" in result:
+        result["style_profile"] = normalize_style_profile(result["style_profile"])
     if "setup" in result and not isinstance(result["setup"], list):
         raise ValueError("plan.setup must be a list")
     if "annotations" in result and not isinstance(result["annotations"], list):

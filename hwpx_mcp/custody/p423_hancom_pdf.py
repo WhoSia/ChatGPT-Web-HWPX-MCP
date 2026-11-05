@@ -92,8 +92,8 @@ def export_native_hwp_pdf(
         ]
         try:
             completed = subprocess.run(
-                command, text=True, capture_output=True, timeout=timeout_seconds,
-                check=False,
+                command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                timeout=timeout_seconds, check=False,
             )
         except subprocess.TimeoutExpired as exc:
             if destination.exists():

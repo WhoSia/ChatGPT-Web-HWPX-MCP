@@ -128,7 +128,45 @@ try {
         }
     }
     finally { $stream.Dispose() }
-    if ((Get-FileHash -LiteralPath $inputInfo.FullName -Algorithm SHA256).Hash.ToLowerInvariant() -ne $sourceHash) {
+    # Hangul can hold an exclusive handle on the opened HWPX. Release the
+    # job-owned COM document *before* hashing the source for custody.
+    # Never terminate a process whose identity cannot be proven.
+    $stage = 'release-com'
+    if (-not $ownedHwp -or $null -eq $jobHwpPid) {
+        throw 'HANCOM_COM_PROCESS_NOT_JOB_OWNED: refuse source verification'
+    }
+    $ownedProcess = Get-Process -Id $jobHwpPid -ErrorAction SilentlyContinue
+    if (-not $ownedProcess -or $ownedProcess.ProcessName -ne 'Hwp' -or
+        $ownedProcess.StartTime.ToUniversalTime().ToString('o') -ne $jobHwpStartedAtUtc) {
+        throw 'HANCOM_COM_OWNER_IDENTITY_CHANGED: refuse cleanup and commit'
+    }
+    try {
+        $hwp.Clear(1)
+        $hwp.Quit()
+    }
+    catch {
+        throw 'HANCOM_COM_RELEASE_FAILED: source remains locked; no commit'
+    }
+    finally {
+        try { [void][Runtime.InteropServices.Marshal]::FinalReleaseComObject($hwp) } catch {}
+        $hwp = $null
+    }
+
+    # A just-closed COM server may release its file lock asynchronously.
+    # Retry the read only; do not kill processes or modify the source.
+    $stage = 'verify-source-after-release'
+    $verifiedSourceHash = $null
+    for ($retry = 0; $retry -lt 20; $retry++) {
+        try {
+            $verifiedSourceHash = (Get-FileHash -LiteralPath $inputInfo.FullName -Algorithm SHA256 -ErrorAction Stop).Hash.ToLowerInvariant()
+            break
+        }
+        catch [System.IO.IOException] {
+            if ($retry -eq 19) { throw 'SOURCE_REMAINED_LOCKED_AFTER_HANCOM_CLOSE' }
+            Start-Sleep -Milliseconds 250
+        }
+    }
+    if ($verifiedSourceHash -ne $sourceHash) {
         throw 'SOURCE_CHANGED_DURING_RENDER: no output can be committed'
     }
     $stage = 'commit'

@@ -82,6 +82,15 @@ class P423ReferenceStyleTests(unittest.TestCase):
         self.assertNotIn("letter_spacing", result["style_profile"]["roles"]["body"]["run"])
         self.assertTrue(any("letter_spacing" in x for x in result["warnings"]))
 
+    def test_reference_accepts_integral_float_line_spacing(self):
+        with patch("hwpx_mcp.document.p423_reference_style.build_role_aware_style_exemplars") as reader:
+            reader.return_value = {"roles": [{"role": "body", "authoring_preset": {
+                "run_format": {"size": 11},
+                "paragraph_format": {"line_spacing_percent": 160.0},
+            }}]}
+            result = profile_from_reference("ref.hwpx")
+        self.assertEqual(result["style_profile"]["roles"]["body"]["paragraph"]["line_spacing_percent"], 160)
+
 
 if __name__ == "__main__":
     unittest.main()

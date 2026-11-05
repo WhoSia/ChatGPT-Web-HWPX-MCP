@@ -100,7 +100,11 @@ def export_wsl_native_pdf(source: Path, destination: Path, *, timeout_seconds: i
             "-ReceiptPath", _windows_path(receipt),
         ]
         try:
-            result = subprocess.run(cmd, check=False, capture_output=True, text=True, timeout=timeout_seconds)
+            # Windows PowerShell 5.1 can emit OEM/ANSI encoded diagnostics (e.g. CP949).
+            # Keep the subprocess streams as bytes: the authoritative receipt is
+            # written separately as UTF-8 and verified below. No implicit UTF-8
+            # decoding of incidental console text must block receipt validation.
+            result = subprocess.run(cmd, check=False, capture_output=True, timeout=timeout_seconds)
         except subprocess.TimeoutExpired as exc:
             # Do not force-stop unowned Hangul instances.
             raise RuntimeError("HANCOM_PDF_TIMEOUT: inspect the Windows job-owned process before retry") from exc

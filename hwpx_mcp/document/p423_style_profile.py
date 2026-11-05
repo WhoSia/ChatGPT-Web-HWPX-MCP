@@ -143,4 +143,33 @@ def profile_fingerprint(profile: dict[str, Any]) -> str:
 
 def style_for_block(profile: dict[str, Any], kind: str, level: int = 1) -> dict[str, Any]:
     role = "heading_" + str(level) if kind == "heading" else ("body" if kind in ("paragraph", "list_item", "equation", "piecewise", "equation_line") else kind)
-    return dict(profile.get("roles", {}).get(role, {}))
+    roles = profile.get("roles", {})
+    if role not in roles:
+        return {}
+    chain: list[dict] = []
+    visited: set[str] = set()
+    current = role
+    while current in roles:
+        if current in visited:
+            raise ValueError("style inheritance cycle")
+        visited.add(current)
+        definition = roles[current]
+        chain.append(definition)
+        current = definition.get("inherits")
+        if current is None:
+            break
+    out: dict[str, Any] = {}
+    for definition in reversed(chain):
+        for area in ("run", "paragraph"):
+            incoming = definition.get(area, {})
+            merged = dict(out.get(area, {}))
+            for key, value in incoming.items():
+                if key == "font_by_script":
+                    fonts = dict(merged.get(key, {}))
+                    fonts.update(value)
+                    merged[key] = fonts
+                else:
+                    merged[key] = value
+            if incoming:
+                out[area] = merged
+    return out

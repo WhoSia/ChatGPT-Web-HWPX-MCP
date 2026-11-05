@@ -59,5 +59,9 @@ class P423PiecewiseAuthoringTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "control characters"):
             build_piecewise_script([{"expression": "x", "condition_text": "x & y"}])
 
+    def test_explicit_and_plain_conditions_are_mutually_exclusive(self):
+        with self.assertRaisesRegex(ValueError, "cannot combine"):
+            build_piecewise_script([{"expression": "x", "condition": "x>0", "condition_text": "양수"}])
+
 if __name__ == "__main__":
     unittest.main()

@@ -45,6 +45,12 @@ class P423ReferenceStyleTests(unittest.TestCase):
         self.assertEqual(set(result["style_profile"]["roles"]), {"body"})
         self.assertTrue(any("footer" in warning for warning in result["warnings"]))
 
+    def test_unportable_reference_cannot_be_silently_accepted(self):
+        with patch("hwpx_mcp.document.p423_reference_style.build_role_aware_style_exemplars") as reader:
+            reader.return_value = {"roles": [{"role": "table_cell", "authoring_preset": {"run_format": {"size": 9}}}]}
+            with self.assertRaisesRegex(ValueError, "no portable"):
+                profile_from_reference("ref.hwpx")
+
 
 if __name__ == "__main__":
     unittest.main()

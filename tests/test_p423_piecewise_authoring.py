@@ -24,7 +24,7 @@ class P423PiecewiseAuthoringTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             build_piecewise_script([{"expression": "x&y", "condition": "x>0"}])
     def test_rejects_row_separator_in_user_condition(self):
-        with self.assertRaisesRegex(ValueError, "alignment separators"):
+        with self.assertRaisesRegex(ValueError, "unsupported character"):
             build_piecewise_script([{"expression": "x", "condition": "x#0"}])
     def test_rejects_mixed_condition_columns(self):
         with self.assertRaisesRegex(ValueError, "consistently"):

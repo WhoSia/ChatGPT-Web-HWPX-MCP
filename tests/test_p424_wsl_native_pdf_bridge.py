@@ -63,6 +63,10 @@ class P424WSLNativePdfBridgeTests(unittest.TestCase):
             pdf = b"%PDF-1.7\n" + b"native-pdf-mock" * 10
             src.write_bytes(original)
             def execute(command, **kwargs):
+                # Windows PowerShell 5.1 may output CP949 bytes. The bridge
+                # must never request implicit UTF-8 decoding of this stream.
+                self.assertNotIn("text", kwargs)
+                self.assertNotIn("encoding", kwargs)
                 out.write_bytes(pdf)
                 receipt = out.with_suffix(".pdf.receipt.json")
                 receipt.write_text(json.dumps({
@@ -73,7 +77,7 @@ class P424WSLNativePdfBridgeTests(unittest.TestCase):
                     "output_bytes": len(pdf),
                     "hancom_product_version": "simulated-only",
                 }), encoding="utf-8")
-                return subprocess.CompletedProcess(command, 0, "", "")
+                return subprocess.CompletedProcess(command, 0, "진단".encode("cp949"), b"")
             with patch.object(bridge, "on_wsl", return_value=True), patch.object(
                 bridge, "_approved_windows_mount", side_effect=lambda p: p
             ), patch.object(bridge, "_windows_path", return_value=r"C:\test\x"), patch.object(

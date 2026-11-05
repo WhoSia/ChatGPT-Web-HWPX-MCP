@@ -80,7 +80,12 @@ def export_wsl_native_pdf(source: Path, destination: Path, *, timeout_seconds: i
         raise RuntimeError("HANCOM_PDF_TIMEOUT: inspect the Windows job-owned process before retry") from exc
     if not receipt.is_file():
         raise RuntimeError("HANCOM_RECEIPT_MISSING: Windows export did not produce a receipt")
-    parsed = json.loads(receipt.read_text(encoding="utf-8-sig"))
+    try:
+        parsed = json.loads(receipt.read_text(encoding="utf-8-sig"))
+    except (OSError, UnicodeError, ValueError) as exc:
+        raise RuntimeError("HANCOM_RECEIPT_MALFORMED") from exc
+    if not isinstance(parsed, dict):
+        raise RuntimeError("HANCOM_RECEIPT_MALFORMED")
     if result.returncode != 0 or parsed.get("status") != "PDF_CREATED_UNREVIEWED":
         raise RuntimeError("HANCOM_NATIVE_EXPORT_FAILED: inspect the local receipt")
     if not destination.is_file():
@@ -88,9 +93,12 @@ def export_wsl_native_pdf(source: Path, destination: Path, *, timeout_seconds: i
     with destination.open("rb") as pdf_stream:
         pdf_signature = pdf_stream.read(5)
     if (
-        parsed.get("input_sha256") != source_sha
+        parsed.get("engine") != "HANCOM_HWP_EXE_COM"
+        or parsed.get("input_sha256") != source_sha
         or _sha(source) != source_sha
         or parsed.get("output_sha256") != _sha(destination)
+        or parsed.get("output_bytes") != destination.stat().st_size
+        or destination.stat().st_size < 64
         or pdf_signature != b"%PDF-"
     ):
         raise RuntimeError("HANCOM_EXPORT_RECEIPT_OR_BYTES_MISMATCH")

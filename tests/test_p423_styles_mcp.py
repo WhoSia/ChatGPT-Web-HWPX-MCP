@@ -74,6 +74,16 @@ class P423StylesMCPTests(unittest.TestCase):
             read.assert_not_called()
             self.assertEqual(self.owned_calls, [])
 
+    def test_reference_owner_error_blocks_extraction(self):
+        with patch("hwpx_mcp.interfaces.p423_styles_mcp.profile_from_reference") as read:
+            def deny(document_id):
+                raise PermissionError("not your document")
+            guarded = FakeCore()
+            register_p423_style_tools(guarded, owned_document=deny)
+            with self.assertRaises(PermissionError):
+                guarded.mcp.tools["get_p423_reference_style_candidate"]("doc_foreign")
+            read.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()

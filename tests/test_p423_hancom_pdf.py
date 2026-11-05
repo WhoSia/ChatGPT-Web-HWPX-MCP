@@ -5,6 +5,9 @@ import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
+import hashlib
+import json
+import subprocess
 
 from hwpx_mcp.custody.p423_hancom_pdf import (
     native_pdf_capability, export_native_hwp_pdf, HancomPdfUnavailable,
@@ -32,6 +35,63 @@ class P423HancomPdfTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, "source must be"):
                     export_native_hwp_pdf(input_file, Path(folder) / "out.pdf")
                 execute.assert_not_called()
+
+    def test_timeout_never_claims_pdf_created(self):
+        from hwpx_mcp.custody.p423_hancom_pdf import HancomPdfConversionError
+        with tempfile.TemporaryDirectory() as tmp:
+            source = Path(tmp) / "source.hwpx"
+            dest = Path(tmp) / "out.pdf"
+            source.write_bytes(b"PK" + b"0" * 200)
+            with patch("hwpx_mcp.custody.p423_hancom_pdf.is_windows_hancom_host", return_value=True), patch(
+                "hwpx_mcp.custody.p423_hancom_pdf.subprocess.run",
+                side_effect=subprocess.TimeoutExpired(cmd="powershell.exe", timeout=180),
+            ):
+                with self.assertRaisesRegex(HancomPdfConversionError, "TIMED_OUT"):
+                    export_native_hwp_pdf(source, dest)
+            self.assertFalse(dest.exists())
+
+    def test_valid_mocked_native_export_receipt_and_pdf_header(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            source = Path(tmp) / "source.hwpx"
+            dest = Path(tmp) / "out.pdf"
+            source.write_bytes(b"PK" + b"1" * 200)
+            payload = b"%PDF-1.7\n" + b"dummy-test-only" * 12
+
+            def native_process(argv, **kwargs):
+                receipt_file = Path(argv[argv.index("-ReceiptPath") + 1])
+                output_file = Path(argv[argv.index("-OutputPath") + 1])
+                output_file.write_bytes(payload)
+                receipt_file.write_text(json.dumps({
+                    "status": "PDF_CREATED_UNREVIEWED",
+                    "engine": "HANCOM_HWP_EXE_COM",
+                    "input_sha256": hashlib.sha256(source.read_bytes()).hexdigest(),
+                    "output_sha256": hashlib.sha256(payload).hexdigest(),
+                    "output_bytes": len(payload),
+                }))
+                return subprocess.CompletedProcess(argv, 0, "", "")
+
+            with patch("hwpx_mcp.custody.p423_hancom_pdf.is_windows_hancom_host", return_value=True), patch(
+                "hwpx_mcp.custody.p423_hancom_pdf.subprocess.run", side_effect=native_process
+            ):
+                receipt = export_native_hwp_pdf(source, dest)
+            self.assertEqual(receipt["status"], "PDF_CREATED_UNREVIEWED")
+            self.assertEqual(receipt["pdf_sha256"], hashlib.sha256(payload).hexdigest())
+            self.assertEqual(dest.read_bytes(), payload)
+            self.assertEqual(receipt["native_visual_acceptance"] if "native_visual_acceptance" in receipt else "NOT_ADJUDICATED", "NOT_ADJUDICATED")
+
+    def test_preexisting_pdf_is_not_overwritten(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            source = Path(tmp) / "source.hwpx"
+            dest = Path(tmp) / "out.pdf"
+            source.write_bytes(b"PK" + b"1" * 200)
+            dest.write_bytes(b"existing pdf")
+            with patch("hwpx_mcp.custody.p423_hancom_pdf.is_windows_hancom_host", return_value=True), patch(
+                "hwpx_mcp.custody.p423_hancom_pdf.subprocess.run"
+            ) as run:
+                with self.assertRaisesRegex(ValueError, "must not exist"):
+                    export_native_hwp_pdf(source, dest)
+                run.assert_not_called()
+            self.assertEqual(dest.read_bytes(), b"existing pdf")
 
 
 if __name__ == "__main__":

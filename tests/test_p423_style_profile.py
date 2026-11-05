@@ -69,6 +69,14 @@ class P423StyleProfileTests(unittest.TestCase):
         self.assertTrue(heading["bold"])
         self.assertEqual(heading["font_by_script"]["hangul"], "함초롬바탕")
 
+    def test_inheritance_can_override_one_font_without_erasing_others(self):
+        p = normalize_style_profile({"roles": {
+            "body": {"run": {"font_by_script": {"hangul": "바탕", "latin": "Arial"}}},
+            "title": {"inherits": "body", "run": {"font_by_script": {"hangul": "맑은 고딕"}}},
+        }})
+        fonts = style_for_block(p, "title")["run"]["font_by_script"]
+        self.assertEqual(fonts, {"hangul": "맑은 고딕", "latin": "Arial"})
+
 
 if __name__ == "__main__":
     unittest.main()

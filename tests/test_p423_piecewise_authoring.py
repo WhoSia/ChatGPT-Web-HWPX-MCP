@@ -35,6 +35,9 @@ class P423PiecewiseAuthoringTests(unittest.TestCase):
     def test_rejects_gap_without_conditions(self):
         with self.assertRaisesRegex(ValueError, "condition_gap"):
             build_piecewise_script([{"expression": "x"}], condition_gap=1)
+    def test_rejects_unsupported_latex(self):
+        with self.assertRaises(Exception):
+            build_piecewise_script([{"expression": r"\\notarealcommand", "condition": "x>0"}])
 
 if __name__ == "__main__":
     unittest.main()

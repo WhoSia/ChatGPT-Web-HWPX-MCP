@@ -23,6 +23,9 @@ class P423PiecewiseAuthoringTests(unittest.TestCase):
     def test_rejects_ampersand_in_user_expression(self):
         with self.assertRaisesRegex(ValueError, "alignment separators"):
             build_piecewise_script([{"expression": "x&y", "condition": "x>0"}])
+    def test_rejects_row_separator_in_user_condition(self):
+        with self.assertRaisesRegex(ValueError, "alignment separators"):
+            build_piecewise_script([{"expression": "x", "condition": "x#0"}])
 
 if __name__ == "__main__":
     unittest.main()

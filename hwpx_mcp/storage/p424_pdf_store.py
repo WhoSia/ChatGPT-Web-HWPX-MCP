@@ -1,4 +1,4 @@
-"""P4.24 immutable encrypted native PDF artifact custody (not a download service).
+"""P4.24 revision-scoped encrypted native PDF artifact custody (not a download service).
 
 Requires an existing verified document revision and P4.14 accepted evidence
 from trusted server-side loaders. This storage primitive never authorizes
@@ -19,7 +19,7 @@ MAX_PDF_BYTES = 100 * 1024 * 1024
 
 
 class P424PdfStore:
-    """Owner-scoped AES-GCM PDF bytes in a separate append-only Postgres table.
+    """Owner-scoped AES-GCM PDF bytes in a separate revision-bound Postgres table.
 
     Intentionally does not edit hwpx_documents and does not expose URLs.
     The connection URL and 32+ character secret must be server-side only.
@@ -39,6 +39,8 @@ class P424PdfStore:
         return psycopg.connect(self.database_url, autocommit=autocommit)
 
     def _ensure_schema(self) -> None:
+        # Revision deletion/expiry is the source of truth for PDF retention.
+        # PDF custody must not block owner deletion or revision compaction.
         with self._connect(autocommit=False) as conn:
             with conn.cursor() as cur:
                 cur.execute("""
@@ -54,8 +56,7 @@ class P424PdfStore:
                       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
                       FOREIGN KEY (document_id, revision)
                         REFERENCES hwpx_document_revisions(document_id, revision)
-                        ON DELETE RESTRICT,
-                      UNIQUE (document_id, revision, pdf_sha256)
+                        ON DELETE CASCADE
                     )
                 """)
 

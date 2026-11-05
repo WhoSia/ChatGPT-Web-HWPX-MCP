@@ -602,6 +602,8 @@ def _table_finish_operations(
     preset: str,
     blocks: list[dict],
     bindings: dict[str, dict],
+    *,
+    profile: dict | None = None,
 ) -> list[dict]:
     table_blocks = [block for block in blocks if block["type"] == "table"]
     if not table_blocks:
@@ -616,6 +618,7 @@ def _table_finish_operations(
         if table is None:
             raise ValueError(f"composed table lost identity: {block['id']}")
         config = dict(PRESETS[preset].get("table_format") or {})
+        config.update((profile or {}).get("table") or {})
         custom = block.get("table_format")
         if custom is not None and not isinstance(custom, dict):
             raise ValueError("table_format must be an object")
@@ -802,6 +805,7 @@ def compose_document_plan(
             normalized["preset"],
             normalized["blocks"],
             bindings,
+            profile=normalized.get("style_profile"),
         )
         if table_finishing:
             stage_receipts.append({

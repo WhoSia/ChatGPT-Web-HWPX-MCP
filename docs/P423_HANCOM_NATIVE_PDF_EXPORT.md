@@ -141,7 +141,7 @@ interop enabled (no local daemon and no broad filesystem watcher):
 
 ```bash
 # Run inside WSL, from a checkout placed under /mnt/c/... 
-python3 -m unittest tests.test_p423_hancom_pdf tests.test_p423_wsl_hancom_pdf_bridge
+python3 -m pytest -q tests/test_p423_hancom_pdf.py tests/test_p423_wsl_hancom_pdf_bridge.py
 python3 scripts/p423_wsl_hancom_pdf_bridge.py \
   /mnt/c/path/to/source.hwpx \
   /mnt/c/path/to/source.native-hancom.pdf

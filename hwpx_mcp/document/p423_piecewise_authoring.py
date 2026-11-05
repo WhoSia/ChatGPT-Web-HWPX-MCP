@@ -25,8 +25,8 @@ def build_piecewise_script(rows: object, *, condition_gap: int = 0) -> Piecewise
     """Compile declarative rows to the native EqEdit cases environment.
 
     Each row is {"expression": LaTeX, "condition": LaTeX}. No raw EqEdit
-    input is admitted, and callers cannot inject '&' or '#' delimiters as
-    arbitrary row content. The converter validates supported LaTeX.
+    input is admitted. The upstream LaTeX grammar rejects misplaced alignment
+    markers while permitting nested matrix and cases environments.
     """
     if not isinstance(rows, list) or not 1 <= len(rows) <= MAX_ROWS:
         raise ValueError("piecewise rows must contain 1..24 objects")

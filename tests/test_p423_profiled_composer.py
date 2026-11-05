@@ -76,6 +76,12 @@ class P423ProfiledComposerTests(unittest.TestCase):
             self.assertEqual(result["block_count"], 3)
             self.assertTrue(any(stage["stage"] == "setup" for stage in result["stages"]))
 
+    def test_profile_validation_is_available_without_generating_file(self):
+        plan = _plan(profile={"roles": {"title": {"run": {"bold": True, "size": 21}}}})
+        result = validate_document_plan(plan)
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["preset"], "school-report")
+
 
 if __name__ == "__main__":
     unittest.main()

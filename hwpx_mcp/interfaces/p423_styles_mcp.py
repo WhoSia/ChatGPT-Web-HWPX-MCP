@@ -60,3 +60,61 @@ def register_p423_style_tools(
             "stored_preference": False,
             "document_modified": False,
         }
+
+    if create_adapter is not None:
+        write = ToolAnnotations(
+            readOnlyHint=False, destructiveHint=False, openWorldHint=False,
+        )
+
+        @core.mcp.tool(annotations=write)
+        def create_p423_document_with_approved_reference_style(
+            reference_document_id: str,
+            expected_reference_revision: int,
+            accepted_profile_sha256: str,
+            plan: dict,
+            filename: str = "document.hwpx",
+            template_document_id: str = "",
+            request_id: str = "",
+        ) -> dict:
+            """Generate with an explicitly approved, revision-pinned reference style.
+
+            This uses the existing validated atomic document composer. Merely
+            providing a reference ID does not count as approval.
+            """
+            core._caller_subject()
+            if not isinstance(reference_document_id, str) or not reference_document_id.strip():
+                raise ValueError("reference_document_id is required")
+            if type(expected_reference_revision) is not int:
+                raise ValueError("expected_reference_revision must be an integer")
+            if not isinstance(accepted_profile_sha256, str) or re.fullmatch(r"[0-9a-f]{64}", accepted_profile_sha256) is None:
+                raise ValueError("accepted_profile_sha256 must be 64 lowercase hex characters")
+            if not isinstance(plan, dict) or "style_profile" in plan:
+                raise ValueError("plan must be an object without an implicit style_profile")
+            metadata, path = owned_document(reference_document_id)
+            if int(metadata["revision"]) != expected_reference_revision:
+                raise ValueError("reference document revision mismatch")
+            proposal = profile_from_reference(path)
+            fingerprint = proposal["style_profile_sha256"]
+            if not hmac.compare_digest(fingerprint, accepted_profile_sha256):
+                raise ValueError("reference style has changed or was not approved")
+            approved_plan = dict(plan)
+            approved_plan["style_profile"] = proposal["style_profile"]
+            result = create_adapter(
+                approved_plan,
+                filename=filename,
+                template_document_id=template_document_id,
+                request_id=request_id,
+            )
+            if not isinstance(result, dict):
+                raise TypeError("create adapter must return a document receipt")
+            return {
+                **result,
+                "reference_style": {
+                    "source_document_id": reference_document_id,
+                    "source_revision": int(metadata["revision"]),
+                    "approved_profile_sha256": fingerprint,
+                    "source_sha256": metadata.get("sha256"),
+                    "warnings": proposal.get("warnings", []),
+                    "user_approval_required_before_call": True,
+                },
+            }

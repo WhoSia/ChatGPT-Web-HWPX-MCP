@@ -39,5 +39,13 @@ class P423PiecewiseAuthoringTests(unittest.TestCase):
         with self.assertRaises(Exception):
             build_piecewise_script([{"expression": r"\notarealcommand", "condition": "x>0"}])
 
+    def test_nested_matrix_does_not_fake_case_condition(self):
+        result = build_piecewise_script([
+            {"expression": r"\\begin{matrix}a&b\\\\c&d\\end{matrix}"},
+            {"expression": "0"},
+        ])
+        self.assertFalse(result.has_conditions)
+        self.assertTrue(result.script.startswith("cases {matrix {"))
+
 if __name__ == "__main__":
     unittest.main()

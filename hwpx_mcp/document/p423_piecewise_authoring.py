@@ -46,14 +46,24 @@ def build_piecewise_script(rows: object, *, condition_gap: int = 0) -> Piecewise
         condition = row.get("condition")
         literal_condition = row.get("condition_text")
         condition_flags.append(condition is not None or literal_condition is not None)
-        if condition is None:
+        if condition is None and literal_condition is None:
             if condition_gap:
                 raise ValueError("condition_gap requires a condition in each row")
             native_rows.append(expr_script)
             continue
-        if not isinstance(condition, str) or not condition.strip() or len(condition) > MAX_LATEX_CHARS:
-            raise ValueError("piecewise condition must be non-empty bounded LaTeX")
-        cond_script = latex_to_eqedit(condition)
+        if literal_condition is not None:
+            if (
+                not isinstance(literal_condition, str)
+                or not literal_condition.strip()
+                or len(literal_condition) > 160
+                or any(ch in literal_condition for ch in ("{", "}", "\\", "&", "#", "\n", "\r"))
+            ):
+                raise ValueError("condition_text must be plain text without EqEdit control characters")
+            cond_script = latex_to_eqedit("\\text{" + literal_condition + "}")
+        else:
+            if not isinstance(condition, str) or not condition.strip() or len(condition) > MAX_LATEX_CHARS:
+                raise ValueError("piecewise condition must be non-empty bounded LaTeX")
+            cond_script = latex_to_eqedit(condition)
         # The ampersand separates real grid columns; gap is an explicit user
         # override inside the second cell, not a hard-coded heuristic.
         native_rows.append(expr_script + " & " + ("~" * condition_gap) + cond_script)

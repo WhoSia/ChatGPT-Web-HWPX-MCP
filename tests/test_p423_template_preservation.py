@@ -69,6 +69,11 @@ class P423TemplatePreservationTests(unittest.TestCase):
                 {"type": "paragraph", "text": "내용"}
             ]})
 
+    def test_opt_out_of_template_preservation_restores_preset(self):
+        plan = {"preset": "school-report", "blocks": [{"type": "paragraph", "text": "내용"}]}
+        ops = _setup_operations(plan, preserve_template_setup=False)
+        self.assertEqual(ops[0]["margin_left_mm"], 20)
+
 
 if __name__ == "__main__":
     unittest.main()

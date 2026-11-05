@@ -34,6 +34,10 @@ class P423StyleProfileTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "unknown"):
             normalize_style_profile({"execute": "anything"})
 
+    def test_style_profile_rejects_bad_page_margin(self):
+        with self.assertRaisesRegex(ValueError, "margin"):
+            normalize_style_profile({"page": {"margin_left_mm": -5}})
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -556,6 +556,8 @@ def _preset_format_operations(
     preset: str,
     blocks: list[dict],
     bindings: dict[str, dict],
+    *,
+    profile: dict | None = None,
 ) -> list[dict]:
     spec = PRESETS[preset]
     ops: list[dict] = []
@@ -576,6 +578,10 @@ def _preset_format_operations(
         elif kind in {"paragraph", "list_item"}:
             run_format.update(spec.get("body_format", {}).get("run") or {})
             paragraph_format.update(spec.get("body_format", {}).get("paragraph") or {})
+
+        profile_style = style_for_block(profile or {}, kind, int(block.get("level", 1)))
+        run_format.update(profile_style.get("run") or {})
+        paragraph_format.update(profile_style.get("paragraph") or {})
 
         custom_run = block.get("run_format")
         if isinstance(custom_run, dict):
@@ -774,7 +780,8 @@ def compose_document_plan(
             bindings = _resolve_bindings(candidate, materialized["bindings"])
 
         format_ops = _preset_format_operations(
-            normalized["preset"], normalized["blocks"], bindings
+            normalized["preset"], normalized["blocks"], bindings,
+            profile=normalized.get("style_profile"),
         )
         if format_ops:
             format_receipt = apply_rich_formatting_atomic(

@@ -207,6 +207,7 @@ def document_plan_contract() -> dict:
             },
             "annotations": "optional annotation-apparatus operations using $block:<id>",
             "post_operations": "optional structured-publishing operations using $block:<id>",
+            "preserve_template_setup": "boolean; defaults to true when a source template is provided; prevents generic preset page geometry overwriting original margins unless explicitly opted out",
             "style_profile": {
                 "schema": "chatgpt-web-hwpx-mcp/p423/document-style-profile/v1",
                 "roles": ["title", "body", "heading_1", "heading_2", "heading_3"],

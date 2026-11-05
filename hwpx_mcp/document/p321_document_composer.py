@@ -391,6 +391,27 @@ def _materialize_blocks(document: HwpxDocument, blocks: list[dict]) -> dict[str,
             table_index += 1
             continue
 
+        if kind == "piecewise":
+            compiled = build_piecewise_script(
+                block.get("rows"),
+                condition_gap=block.get("condition_gap", 0),
+            )
+            anchor = document.add_paragraph("", inherit_style=False)
+            equation = document.shapes.add_equation(
+                compiled.script,
+                paragraph=anchor,
+                base_unit=int(block.get("base_unit", 1100)),
+            )
+            _add_caption(equation, block)
+            bindings[block_id] = {
+                "kind": kind,
+                "paragraph_id": _paragraph_id(anchor),
+                "row_count": compiled.row_count,
+                "has_conditions": compiled.has_conditions,
+                "script_sha256": hashlib.sha256(compiled.script.encode("utf-8")).hexdigest(),
+            }
+            continue
+
         if kind == "equation_line":
             parts = block.get("parts")
             if not isinstance(parts, list) or not 1 <= len(parts) <= 64:

@@ -73,7 +73,7 @@ def issue_pdf_delivery(
         "document_id": document_id, "revision": revision,
         "evidence_id": evidence_id, "pdf_sha256": pdf_sha,
         "pdf_bytes": len(pdf), "mime_type": "application/pdf",
-        "download_url": public_base_url.rstrip() .rstrip("/") + "/p424/native-pdf/" + document_id + "?" + params,
+        "download_url": public_base_url.strip().rstrip("/") + "/p424/native-pdf/" + document_id + "?" + params,
         "expires_at_epoch": expiry,
         "redemption_requires_oauth_subject": True,
         "owner_scoped_delivery_performed": False,

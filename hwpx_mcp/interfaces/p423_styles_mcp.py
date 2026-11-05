@@ -18,6 +18,7 @@ def register_p423_style_tools(
     core: Any,
     *,
     owned_document: Callable[[str], tuple[dict, Any]],
+    create_adapter: Callable[..., Any] | None = None,
 ) -> None:
     read = ToolAnnotations(
         readOnlyHint=True,

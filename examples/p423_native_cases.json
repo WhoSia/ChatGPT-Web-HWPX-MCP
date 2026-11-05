@@ -1,0 +1,38 @@
+{
+  "preset": "school-report",
+  "document": {
+    "title": "Piecewise — native cases example"
+  },
+  "blocks": [
+    {
+      "id": "title",
+      "type": "title",
+      "text": "구간별 정의 함수"
+    },
+    {
+      "id": "intro",
+      "type": "paragraph",
+      "text": "조건부 함수는 수식의 셀과 행을 정렬하여 작성합니다."
+    },
+    {
+      "id": "piece",
+      "type": "piecewise",
+      "rows": [
+        {
+          "expression": "x^2",
+          "condition": "x>0"
+        },
+        {
+          "expression": "0",
+          "condition": "x\\leq0"
+        }
+      ],
+      "caption": "식 1. 조각별 함수"
+    },
+    {
+      "id": "discussion",
+      "type": "paragraph",
+      "text": "조건은 수식 내부에서 &에 의해 별도 열로 배치됩니다."
+    }
+  ]
+}

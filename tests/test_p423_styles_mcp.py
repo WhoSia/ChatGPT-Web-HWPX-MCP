@@ -39,6 +39,13 @@ class P423StylesMCPTests(unittest.TestCase):
         register_p423_style_tools(self.core, owned_document=owned)
         self.tool = self.core.mcp.tools["get_p423_reference_style_candidate"]
 
+    def approved_tool(self, create_adapter):
+        core = FakeCore()
+        def owned(document_id):
+            return {"revision": 3, "sha256": "src-hash"}, Path("/private/owned.hwpx")
+        register_p423_style_tools(core, owned_document=owned, create_adapter=create_adapter)
+        return core.mcp.tools["create_p423_document_with_approved_reference_style"]
+
     @patch("hwpx_mcp.interfaces.p423_styles_mcp.profile_from_reference")
     def test_candidate_is_read_only_and_requires_approval(self, read):
         read.return_value = {

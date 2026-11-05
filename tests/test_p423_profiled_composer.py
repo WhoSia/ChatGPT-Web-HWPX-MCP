@@ -68,6 +68,14 @@ class P423ProfiledComposerTests(unittest.TestCase):
             result = compose_document_plan(path, plan)
             self.assertTrue(result["atomic_commit"])
 
+    def test_profiled_page_margins_apply_without_losing_text(self):
+        profile = {"page": {"margin_left_mm": 27, "margin_right_mm": 27}}
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "margin.hwpx"
+            result = compose_document_plan(path, _plan(profile=profile))
+            self.assertEqual(result["block_count"], 3)
+            self.assertTrue(any(stage["stage"] == "setup" for stage in result["stages"]))
+
 
 if __name__ == "__main__":
     unittest.main()

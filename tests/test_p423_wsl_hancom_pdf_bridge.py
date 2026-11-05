@@ -42,6 +42,8 @@ class P423WslHancomBridgeTests(unittest.TestCase):
                 receipt = destination.with_suffix(".pdf.receipt.json")
                 receipt.write_text(json.dumps({
                     "status": "PDF_CREATED_UNREVIEWED",
+                    "engine": "HANCOM_HWP_EXE_COM",
+                    "output_bytes": len(payload),
                     "input_sha256": hashlib.sha256(source.read_bytes()).hexdigest(),
                     "output_sha256": hashlib.sha256(payload).hexdigest(),
                     "hancom_page_count": 4,

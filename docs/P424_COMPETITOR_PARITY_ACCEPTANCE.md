@@ -67,3 +67,49 @@ by a spoofed-payload test. The full PDF format and visual quality still
 require separate validation; a magic header is only a low-level predicate.
 
 Source history: 20261018.md Chat Archive; P4.23 Notion development log.
+
+
+## Executable benchmark ledger (P4.24-R1)
+
+A strictly descriptive, stdlib-only recorder is available at
+[scripts/p424_competitor_benchmark.py](../scripts/p424_competitor_benchmark.py).
+It accepts newline-delimited JSON (one independently evidenced run per line).
+The program **does not run** competitors and does not validate that a claimed
+human acceptance actually occurred. Treat all records as untrusted until an
+operator reconciles source revisions and native/consumer receipts.
+
+Each record must identify:
+
+- `product`, `task`, lowercase `fixture_sha256`, and `environment`.
+- Optional `trial_id` (default `"1"`); match repeated trials using the *same*
+  trial identifier, environment and fixture across competing products.
+- `status`: `PASS`, `FAIL`, `UNSUPPORTED`, or `UNVERIFIED`.
+- To claim `PASS`, separately observed
+  `consumer_verified: true`, `native_visual_accepted: true`,
+  `artifact_sha256` and strictly positive `elapsed_ms`.
+- Preserve independent evidence references outside this public record;
+  never store personal HWPX texts, tokens, cloud credentials or signed URLs.
+
+Run:
+
+```bash
+python3 scripts/p424_competitor_benchmark.py experiments.jsonl \
+  --baseline WhoSia/ChatGPT-Web-HWPX-MCP \
+  --candidate chrisryugj/kordoc
+```
+
+The result contains verified matched-pair counts, explicit unmatched/held
+exclusions and a descriptive median latency difference. A lower median is
+**not** automatic evidence of broader product superiority. The deliberate
+`ranking_authorized: false` field must remain false until a separate
+preregistered evaluation with independent native/consumer evidence exists.
+
+Local regression:
+
+```bash
+python3 -m unittest tests.test_p424_competitor_benchmark -v
+python3 -m py_compile scripts/p424_competitor_benchmark.py \
+  scripts/p423_wsl_hancom_pdf_bridge.py
+```
+
+Do not merge or deploy based solely on these synthetic tests.

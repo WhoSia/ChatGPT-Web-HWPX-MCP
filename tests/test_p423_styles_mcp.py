@@ -84,6 +84,15 @@ class P423StylesMCPTests(unittest.TestCase):
                 guarded.mcp.tools["get_p423_reference_style_candidate"]("doc_foreign")
             read.assert_not_called()
 
+    def test_reference_preview_does_not_write_profile(self):
+        with patch("hwpx_mcp.interfaces.p423_styles_mcp.profile_from_reference") as read:
+            read.return_value = {"style_profile": {"name": "a"}, "warnings": ["unsupported"]}
+            receipt = self.tool("doc_1")
+            self.assertEqual(receipt["reference_revision"], 3)
+            self.assertEqual(receipt["reference_sha256"], "abc")
+            self.assertEqual(receipt["candidate"]["warnings"], ["unsupported"])
+            self.assertIn("create_document_from_plan", receipt["next_step"])
+
 
 if __name__ == "__main__":
     unittest.main()

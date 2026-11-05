@@ -20,6 +20,16 @@ class P423WslHancomBridgeTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "WSL_ENVIRONMENT_REQUIRED"):
                 export_wsl_native_pdf(Path("/tmp/input.hwpx"), Path("/tmp/output.pdf"))
 
+    def test_wsl_env_variable_without_kernel_identity_does_not_enable_bridge(self):
+        from scripts.p423_wsl_hancom_pdf_bridge import on_wsl
+        import os
+        from types import SimpleNamespace
+        with patch("scripts.p423_wsl_hancom_pdf_bridge.os.name", "posix"), patch(
+            "scripts.p423_wsl_hancom_pdf_bridge.os.uname",
+            return_value=SimpleNamespace(release="6.8.0-generic"),
+        ), patch.dict(os.environ, {"WSL_DISTRO_NAME": "forged"}, clear=False):
+            self.assertFalse(on_wsl())
+
     def test_local_linux_temp_dir_cannot_be_passed_to_windows_hangul(self):
         with tempfile.TemporaryDirectory() as folder:
             with self.assertRaisesRegex(ValueError, "Windows-mounted"):

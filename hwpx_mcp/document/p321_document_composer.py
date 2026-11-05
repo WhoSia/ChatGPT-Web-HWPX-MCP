@@ -13,6 +13,7 @@ from typing import Any, Callable
 
 from hwpx import HwpxDocument
 from hwpx.equation import latex_to_eqedit
+from hwpx_mcp.document.p423_piecewise_authoring import build_piecewise_script
 
 from hwpx_mcp.quality.p421_professional_authoring_review import review_authoring_plan
 from hwpx_mcp.document.p2_document import build_document_map

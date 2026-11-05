@@ -49,6 +49,30 @@ def _windows_path(path: Path) -> str:
     return converted
 
 
+def _stage_hancom_script(script: Path, window_mount: Path) -> tuple[Path, Path | None]:
+    """Allow a repository checked out in WSL home while keeping Windows interop local.
+
+    A temporary copy of *our script only*, never an arbitrary user supplied
+    command, is staged beside the requested output and removed after handoff.
+    """
+    if not script.is_file():
+        raise FileNotFoundError("P4.24 native PDF PowerShell source missing")
+    try:
+        return _approved_windows_mount(script), None
+    except ValueError:
+        with tempfile.NamedTemporaryFile(
+            mode="wb", prefix=".p424-hancom-", suffix=".ps1",
+            dir=window_mount, delete=False,
+        ) as handle:
+            handle.write(script.read_bytes())
+            staged = Path(handle.name)
+        try:
+            return _approved_windows_mount(staged), staged
+        except BaseException:
+            staged.unlink(missing_ok=True)
+            raise
+
+
 def export_wsl_native_pdf(source: Path, destination: Path, *, timeout_seconds: int = 240) -> dict:
     if not on_wsl():
         raise RuntimeError("WSL_ENVIRONMENT_REQUIRED: run in WSL with Windows interop")

@@ -68,5 +68,62 @@ class P423WslHancomBridgeTests(unittest.TestCase):
             self.assertEqual(result["hancom_page_count"], 4)
 
 
+    def test_malformed_windows_receipt_fails_with_explicit_error(self):
+        with tempfile.TemporaryDirectory() as folder:
+            source = Path(folder) / "source.hwpx"
+            destination = Path(folder) / "result.pdf"
+            source.write_bytes(b"PK" + b"source" * 50)
+
+            def malformed_runner(argv, **kwargs):
+                destination.with_suffix(".pdf.receipt.json").write_text(
+                    "{broken", encoding="utf-8"
+                )
+                return subprocess.CompletedProcess(argv, 0, "", "")
+
+            with patch("scripts.p423_wsl_hancom_pdf_bridge.on_wsl", return_value=True), patch(
+                "scripts.p423_wsl_hancom_pdf_bridge._approved_windows_mount",
+                side_effect=lambda path: Path(path).resolve(),
+            ), patch(
+                "scripts.p423_wsl_hancom_pdf_bridge._windows_path",
+                return_value=r"C:\\test\\input.hwpx",
+            ), patch(
+                "scripts.p423_wsl_hancom_pdf_bridge.subprocess.run",
+                side_effect=malformed_runner,
+            ):
+                with self.assertRaisesRegex(RuntimeError, "HANCOM_RECEIPT_MALFORMED"):
+                    export_wsl_native_pdf(source, destination)
+
+    def test_forged_pdf_engine_fails_even_when_hash_matches(self):
+        with tempfile.TemporaryDirectory() as folder:
+            source = Path(folder) / "source.hwpx"
+            destination = Path(folder) / "result.pdf"
+            source.write_bytes(b"PK" + b"source" * 50)
+            payload = b"%PDF-1.7\\n" + b"mock-pdf" * 40
+
+            def fake_runner(argv, **kwargs):
+                destination.write_bytes(payload)
+                destination.with_suffix(".pdf.receipt.json").write_text(json.dumps({
+                    "status": "PDF_CREATED_UNREVIEWED",
+                    "engine": "UNVERIFIED_RENDERER",
+                    "input_sha256": hashlib.sha256(source.read_bytes()).hexdigest(),
+                    "output_sha256": hashlib.sha256(payload).hexdigest(),
+                    "output_bytes": len(payload),
+                }), encoding="utf-8")
+                return subprocess.CompletedProcess(argv, 0, "", "")
+
+            with patch("scripts.p423_wsl_hancom_pdf_bridge.on_wsl", return_value=True), patch(
+                "scripts.p423_wsl_hancom_pdf_bridge._approved_windows_mount",
+                side_effect=lambda path: Path(path).resolve(),
+            ), patch(
+                "scripts.p423_wsl_hancom_pdf_bridge._windows_path",
+                return_value=r"C:\\test\\input.hwpx",
+            ), patch(
+                "scripts.p423_wsl_hancom_pdf_bridge.subprocess.run",
+                side_effect=fake_runner,
+            ):
+                with self.assertRaisesRegex(RuntimeError, "HANCOM_EXPORT_RECEIPT_OR_BYTES_MISMATCH"):
+                    export_wsl_native_pdf(source, destination)
+
+
 if __name__ == "__main__":
     unittest.main()

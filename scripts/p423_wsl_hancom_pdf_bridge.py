@@ -12,6 +12,7 @@ import json
 import os
 from pathlib import Path
 import re
+import tempfile
 import subprocess
 import sys
 

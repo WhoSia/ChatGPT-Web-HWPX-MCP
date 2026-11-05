@@ -112,6 +112,7 @@ def export_native_hwp_pdf(
                 and receipt.get("output_sha256") == _sha(destination)
                 and receipt.get("output_bytes") == destination.stat().st_size
                 and destination.stat().st_size >= 64
+                and destination.open("rb").read(5) == b"%PDF-"
             )
         except (OSError, ValueError, TypeError, json.JSONDecodeError):
             valid = False

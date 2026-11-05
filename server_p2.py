@@ -46,6 +46,7 @@ from hwpx_mcp.document.p320_annotation_apparatus import (
     build_annotation_apparatus_map,
     apply_annotation_apparatus_atomic,
 )
+from hwpx_mcp.interfaces.p423_styles_mcp import register_p423_style_tools
 from hwpx_mcp.document.p321_document_composer import (
     document_plan_contract,
     validate_document_plan as validate_composition_plan,

@@ -80,12 +80,17 @@ def normalize_style_profile(value: object) -> dict[str, Any]:
         raise ValueError("style_profile.roles contains unsupported roles")
     clean_roles = {}
     for role, style in roles.items():
-        if not isinstance(style, dict) or set(style) - {"run", "paragraph"}:
-            raise ValueError("style role must contain run and/or paragraph")
+        if not isinstance(style, dict) or set(style) - {"run", "paragraph", "inherits"}:
+            raise ValueError("style role must contain run, paragraph and/or inherits")
+        parent = style.get("inherits")
+        if parent is not None and (not isinstance(parent, str) or parent not in ROLE_KEYS):
+            raise ValueError("style inherits must name a supported role")
         clean_roles[role] = {
             key: _format_profile_field(item, category=key)
-            for key, item in style.items()
+            for key, item in style.items() if key != "inherits"
         }
+        if parent is not None:
+            clean_roles[role]["inherits"] = parent
     page = value.get("page", {})
     if not isinstance(page, dict) or set(page) - PAGE_KEYS:
         raise ValueError("style_profile.page contains unknown fields")

@@ -103,6 +103,19 @@ class PdfDeliveryContractTests(unittest.TestCase):
         with self.assertRaisesRegex(PermissionError, "NOT_OWNED"):
             self.redeem(issued)
 
+    def test_malformed_document_or_evidence_id_cannot_be_issued(self):
+        with self.assertRaisesRegex(ValueError, "DOCUMENT_ID_INVALID"):
+            self.issue(document_id="../cross-tenant")
+        with self.assertRaisesRegex(ValueError, "EVIDENCE_ID_INVALID"):
+            self.issue(evidence_id="not-a-sha256")
+
+    def test_malformed_document_or_evidence_id_cannot_be_redeemed(self):
+        issued = self.issue()
+        with self.assertRaisesRegex(PermissionError, "INVALID_IDENTITY"):
+            self.redeem(issued, evidence_id="../forged")
+        with self.assertRaisesRegex(PermissionError, "INVALID_IDENTITY"):
+            self.redeem(issued, document_id="invalid-doc")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -228,7 +228,11 @@ def _owned_document(document_id: str) -> tuple[dict, Path]:
 
 # P4.23: owner-checked preview of styles from a user-supplied reference.
 # The user must review and explicitly supply the candidate when composing.
-register_p423_style_tools(core, owned_document=_owned_document)
+register_p423_style_tools(
+    core,
+    owned_document=_owned_document,
+    create_adapter=lambda plan, **kwargs: create_document_from_plan(plan, **kwargs),
+)
 
 
 def _refresh_metadata(

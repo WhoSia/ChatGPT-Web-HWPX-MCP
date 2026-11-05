@@ -83,10 +83,11 @@ def export_wsl_native_pdf(source: Path, destination: Path, *, timeout_seconds: i
     parsed = json.loads(receipt.read_text(encoding="utf-8-sig"))
     if result.returncode != 0 or parsed.get("status") != "PDF_CREATED_UNREVIEWED":
         raise RuntimeError("HANCOM_NATIVE_EXPORT_FAILED: inspect the local receipt")
+    if not destination.is_file():
+        raise RuntimeError("HANCOM_EXPORT_PDF_MISSING")
     with destination.open("rb") as pdf_stream:
         pdf_signature = pdf_stream.read(5)
     if (
-        not destination.is_file()
         or parsed.get("input_sha256") != source_sha
         or _sha(source) != source_sha
         or parsed.get("output_sha256") != _sha(destination)

@@ -325,7 +325,7 @@ def _add_caption(obj: Any, block: dict) -> None:
     obj.set_caption(text, side=side)
 
 
-def _materialize_blocks(document: HwpxDocument, blocks: list[dict]) -> dict[str, dict]:
+def _materialize_blocks(document: HwpxDocument, blocks: list[dict], *, profile: dict | None = None) -> dict[str, dict]:
     bindings: dict[str, dict] = {}
     list_groups: dict[tuple[str, int, str], list[str]] = {}
     table_index = 0
@@ -748,7 +748,7 @@ def compose_document_plan(
             shutil.copy2(template_path, candidate)
             document = HwpxDocument.open(str(candidate))
         try:
-            materialized = _materialize_blocks(document, normalized["blocks"])
+            materialized = _materialize_blocks(document, normalized["blocks"], profile=normalized.get("style_profile"))
             _save_document(document, candidate, candidate)
         finally:
             document.close()

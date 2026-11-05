@@ -57,7 +57,7 @@ def export_wsl_native_pdf(source: Path, destination: Path, *, timeout_seconds: i
         raise ValueError("Existing .hwpx input required")
     if destination.suffix.lower() != ".pdf" or destination.exists() or not destination.parent.is_dir():
         raise ValueError("Use a new .pdf path in an existing Windows-mounted directory")
-    script = _approved_windows_mount(Path(__file__).resolve().parents[1] / "scripts" / "p423_hancom_native_pdf.ps1")
+    script = _approved_windows_mount(Path(__file__).resolve().parent / "p423_hancom_native_pdf.ps1")
     if not script.is_file():
         raise FileNotFoundError("P4.23 native PDF PowerShell source missing")
     source_sha = _sha(source)

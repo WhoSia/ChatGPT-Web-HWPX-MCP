@@ -68,6 +68,14 @@ def register_p423_native_pdf_tools(
             destination = Path(temp) / "native.pdf"
             receipt = export_native_hwp_pdf(source, destination)
             content = destination.read_bytes()
+            pdf_sha = hashlib.sha256(content).hexdigest()
+            if receipt.get("pdf_sha256") != pdf_sha or not content.startswith(b"%PDF-"):
+                raise ValueError("native PDF output does not match worker receipt")
+            # A long-running Hancom conversion must not publish an obsolete
+            # revision after another caller edits the owned document.
+            current_metadata, _ = owned_document(document_id)
+            if int(current_metadata["revision"]) != expected_revision:
+                raise ValueError("document revision changed during native export")
             if len(content) > MAX_INLINE_PDF_BYTES:
                 return {
                     "ok": False,
@@ -83,7 +91,7 @@ def register_p423_native_pdf_tools(
                 "source_revision": expected_revision,
                 "native_pdf_created": True,
                 "engine": "HANCOM_HWP_EXE_COM",
-                "pdf_sha256": hashlib.sha256(content).hexdigest(),
+                "pdf_sha256": pdf_sha,
                 "pdf_bytes": len(content),
                 "pdf_base64": base64.b64encode(content).decode("ascii"),
                 "mime_type": "application/pdf",

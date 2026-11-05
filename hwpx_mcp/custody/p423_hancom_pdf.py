@@ -23,10 +23,14 @@ class HancomPdfConversionError(RuntimeError):
     """Hangul opened or saved unsuccessfully; no PDF may be published."""
 
 
+def is_windows_hancom_host() -> bool:
+    return os.name == "nt"
+
+
 def native_pdf_capability() -> dict[str, Any]:
     return {
         "engine": "HANCOM_HWP_EXE_COM",
-        "available": os.name == "nt",
+        "available": is_windows_hancom_host(),
         "required_platform": "Windows",
         "requires_interactive_hancom_installation": True,
         "native_pdf_visual_adjudication": "SEPARATE_REQUIRED",
@@ -55,7 +59,7 @@ def export_native_hwp_pdf(
     caller; output is a new .pdf path. Caller is responsible for user approval,
     access control, durable revision binding and download delivery.
     """
-    if os.name != "nt":
+    if not is_windows_hancom_host():
         raise HancomPdfUnavailable("WINDOWS_HANCOM_AGENT_REQUIRED")
     source = Path(source).resolve(strict=True)
     destination = Path(destination).absolute()

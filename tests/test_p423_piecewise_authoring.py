@@ -55,5 +55,9 @@ class P423PiecewiseAuthoringTests(unittest.TestCase):
         self.assertTrue(result.has_conditions)
         self.assertIn('rm "양수" it', result.script)
 
+    def test_plain_text_cannot_inject_eqedit_grid(self):
+        with self.assertRaisesRegex(ValueError, "control characters"):
+            build_piecewise_script([{"expression": "x", "condition_text": "x & y"}])
+
 if __name__ == "__main__":
     unittest.main()

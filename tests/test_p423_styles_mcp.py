@@ -120,6 +120,15 @@ class P423StylesMCPTests(unittest.TestCase):
         self.assertEqual(created[0][1]["filename"], "lab.hwpx")
         self.assertEqual(receipt["reference_style"]["approved_profile_sha256"], "a" * 64)
 
+    def test_approved_style_requires_exact_fingerprint_before_creating(self):
+        created = []
+        tool = self.approved_tool(lambda *args, **kwargs: created.append(args))
+        with patch("hwpx_mcp.interfaces.p423_styles_mcp.profile_from_reference") as read:
+            read.return_value = {"style_profile": {"name": "lab"}, "style_profile_sha256": "a" * 64}
+            with self.assertRaisesRegex(ValueError, "not approved"):
+                tool("reference_doc", 3, "b" * 64, {"blocks": [{"type": "paragraph", "text": "Hi"}]})
+        self.assertEqual(created, [])
+
 
 if __name__ == "__main__":
     unittest.main()

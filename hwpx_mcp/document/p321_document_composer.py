@@ -294,6 +294,7 @@ def validate_document_plan(plan: dict) -> dict:
         "block_count": len(normalized["blocks"]),
         "block_counts": counts,
         "preset": normalized["preset"],
+        "style_profile_sha256": (profile_fingerprint(normalized["style_profile"]) if "style_profile" in normalized else None),
         "template_compatible": True,
     }
 

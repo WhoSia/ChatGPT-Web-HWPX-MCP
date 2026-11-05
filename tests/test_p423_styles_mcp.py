@@ -129,6 +129,13 @@ class P423StylesMCPTests(unittest.TestCase):
                 tool("reference_doc", 3, "b" * 64, {"blocks": [{"type": "paragraph", "text": "Hi"}]})
         self.assertEqual(created, [])
 
+    def test_approved_style_rejects_implicit_style_override(self):
+        tool = self.approved_tool(lambda *args, **kwargs: {"ok": True})
+        with patch("hwpx_mcp.interfaces.p423_styles_mcp.profile_from_reference") as read:
+            with self.assertRaisesRegex(ValueError, "implicit style_profile"):
+                tool("reference_doc", 3, "a" * 64, {"style_profile": {"name": "surprise"}, "blocks": []})
+            read.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()

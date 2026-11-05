@@ -21,6 +21,11 @@ class P423StyleProfileTests(unittest.TestCase):
         b = {"name": "lab", "roles": {"body": {"run": {"bold": False, "size": 11}}}}
         self.assertEqual(profile_fingerprint(a), profile_fingerprint(b))
 
+    def test_profile_fingerprint_changes_with_font_size(self):
+        a = {"roles": {"body": {"run": {"size": 10}}}}
+        b = {"roles": {"body": {"run": {"size": 11}}}}
+        self.assertNotEqual(profile_fingerprint(a), profile_fingerprint(b))
+
 
 if __name__ == "__main__":
     unittest.main()

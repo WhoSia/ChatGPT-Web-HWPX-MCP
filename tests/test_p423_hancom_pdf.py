@@ -99,6 +99,26 @@ class P423HancomPdfTests(unittest.TestCase):
                     export_native_hwp_pdf(source, dest)
             self.assertFalse(dest.exists())
 
+    def test_non_utf8_receipt_fails_closed(self):
+        from hwpx_mcp.custody.p423_hancom_pdf import HancomPdfConversionError
+        with tempfile.TemporaryDirectory() as tmp:
+            source = Path(tmp) / "source.hwpx"
+            dest = Path(tmp) / "out.pdf"
+            source.write_bytes(b"PK" + b"1" * 200)
+
+            def invalid_utf8_worker(argv, **kwargs):
+                dest.write_bytes(b"%PDF-1.7\\n" + b"1" * 100)
+                receipt_file = Path(argv[argv.index("-ReceiptPath") + 1])
+                receipt_file.write_bytes(b"\\xff\\xfe\\xff")
+                return subprocess.CompletedProcess(argv, 0, "", "")
+
+            with patch("hwpx_mcp.custody.p423_hancom_pdf.is_windows_hancom_host", return_value=True), patch(
+                "hwpx_mcp.custody.p423_hancom_pdf.subprocess.run", side_effect=invalid_utf8_worker
+            ):
+                with self.assertRaisesRegex(HancomPdfConversionError, "RECEIPT_MISMATCH"):
+                    export_native_hwp_pdf(source, dest)
+            self.assertFalse(dest.exists())
+
     def test_native_worker_cannot_publish_pdf_if_source_changes(self):
         from hwpx_mcp.custody.p423_hancom_pdf import HancomPdfConversionError
         with tempfile.TemporaryDirectory() as tmp:

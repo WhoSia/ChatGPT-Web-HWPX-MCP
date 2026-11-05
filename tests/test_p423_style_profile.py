@@ -88,6 +88,10 @@ class P423StyleProfileTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "not defined"):
             normalize_style_profile({"roles": {"heading_1": {"inherits": "body"}}})
 
+    def test_style_profile_unsupported_inheritance_role_fails(self):
+        with self.assertRaisesRegex(ValueError, "supported role"):
+            normalize_style_profile({"roles": {"body": {"inherits": "other_unknown_role"}}})
+
 
 if __name__ == "__main__":
     unittest.main()

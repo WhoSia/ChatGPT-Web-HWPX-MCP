@@ -55,6 +55,12 @@ class P423StylesMCPTests(unittest.TestCase):
         self.assertEqual(self.core.subjects, 1)
         read.assert_called_once_with(Path("/private/owned.hwpx"), name="example")
 
+    def test_reference_revision_mismatch_fails_before_extraction(self):
+        with patch("hwpx_mcp.interfaces.p423_styles_mcp.profile_from_reference") as read:
+            with self.assertRaisesRegex(ValueError, "revision mismatch"):
+                self.tool("doc_1", expected_revision=2)
+            read.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()

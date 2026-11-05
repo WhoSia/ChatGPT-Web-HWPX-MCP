@@ -63,5 +63,13 @@ class P423PiecewiseAuthoringTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "cannot combine"):
             build_piecewise_script([{"expression": "x", "condition": "x>0", "condition_text": "양수"}])
 
+    def test_mixed_plain_text_and_latex_conditions(self):
+        result = build_piecewise_script([
+            {"expression": "x", "condition": "x>0"},
+            {"expression": "0", "condition_text": "그 외"},
+        ])
+        self.assertEqual(result.row_count, 2)
+        self.assertTrue(result.has_conditions)
+
 if __name__ == "__main__":
     unittest.main()

@@ -59,6 +59,22 @@ class P424PdfStore:
                         ON DELETE CASCADE
                     )
                 """)
+                cur.execute("""
+                    CREATE INDEX IF NOT EXISTS hwpx_p424_native_pdf_revision_idx
+                    ON hwpx_p424_native_pdf(document_id, revision)
+                """)
+                # CREATE TABLE IF NOT EXISTS cannot repair a stale schema.
+                # An older RESTRICT FK would block document deletion and
+                # retention compaction. Fail startup instead of hiding that.
+                cur.execute("""
+                    SELECT confdeltype FROM pg_constraint
+                    WHERE conrelid='hwpx_p424_native_pdf'::regclass
+                      AND confrelid='hwpx_document_revisions'::regclass
+                      AND contype='f'
+                """)
+                policies = cur.fetchall()
+                if len(policies) != 1 or policies[0][0] != "c":
+                    raise RuntimeError("P424_PDF_REVISION_FK_MUST_CASCADE")
 
     @staticmethod
     def _aad(evidence_id: str, document_id: str, revision: int,

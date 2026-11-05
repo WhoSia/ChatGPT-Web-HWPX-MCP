@@ -5,6 +5,8 @@ and explicitly supplies an approved profile to existing create_document_from_pla
 """
 from __future__ import annotations
 
+import hmac
+import re
 from typing import Callable, Any
 
 from mcp.types import ToolAnnotations

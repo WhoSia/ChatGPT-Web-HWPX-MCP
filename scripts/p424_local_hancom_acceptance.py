@@ -54,8 +54,11 @@ def run_local_acceptance(
         raise ValueError("baseline must be an existing PDF")
     before = _sha(source)
     native_receipt = export_wsl_native_pdf(source, native_pdf)
-    if not native_pdf.is_file() or native_pdf.read_bytes()[:5] != b"%PDF-":
-        raise RuntimeError("native conversion has not produced a recognized PDF")
+    if not native_pdf.is_file():
+        raise RuntimeError("native conversion has not produced a PDF")
+    with native_pdf.open("rb") as reader:
+        if reader.read(5) != b"%PDF-":
+            raise RuntimeError("native conversion has not produced a recognized PDF")
     if _sha(source) != before:
         raise RuntimeError("source HWPX changed during native conversion")
     pdf_sha = _sha(native_pdf)

@@ -81,6 +81,7 @@ class P423ProfiledComposerTests(unittest.TestCase):
         result = validate_document_plan(plan)
         self.assertTrue(result["ok"])
         self.assertEqual(result["preset"], "school-report")
+        self.assertIsNotNone(result["style_profile_sha256"])
 
 
 if __name__ == "__main__":

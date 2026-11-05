@@ -270,6 +270,8 @@ def _normalize_plan(plan: dict) -> dict:
     result["blocks"] = normalized_blocks
     if "style_profile" in result:
         result["style_profile"] = normalize_style_profile(result["style_profile"])
+    if "preserve_template_setup" in result and type(result["preserve_template_setup"]) is not bool:
+        raise ValueError("preserve_template_setup must be boolean")
     if "setup" in result and not isinstance(result["setup"], list):
         raise ValueError("plan.setup must be a list")
     if "annotations" in result and not isinstance(result["annotations"], list):

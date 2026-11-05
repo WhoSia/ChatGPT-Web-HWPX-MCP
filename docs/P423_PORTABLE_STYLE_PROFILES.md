@@ -88,3 +88,36 @@ readback against the intent, and inspect the **real Hancom-rendered** PDF for
 font substitution, line wrapping, table borders, equation baselines and
 pagination. A source-level signature or passing parser test alone is not a
 native visual quality certificate.
+
+## Learning a style from an existing HWPX (opt-in developer API)
+
+The reference-style adapter reuses P3.35's established role-aware style
+exemplar extractor, rather than writing another XML parser:
+
+```python
+from hwpx_mcp.document.p423_reference_style import profile_from_reference
+
+candidate = profile_from_reference("my-accepted-report.hwpx", name="my-report")
+print(candidate["warnings"])  # review unsupported typography/geometry
+assert candidate["status"] == "CANDIDATE_REQUIRES_USER_APPROVAL"
+
+# Only after the user reviews and accepts the extracted candidate:
+plan["style_profile"] = candidate["style_profile"]
+```
+
+Its return value is a *candidate profile*, source-exemplar SHA-256,
+warnings, and no paragraph text. Only the explicitly supported style
+dimensions are copied; unsupported script-font slots, readback-only tab and
+indent dimensions and out-of-range spacing produce warnings.
+
+This is intentionally **not yet a connected MCP tool**. A production
+user-facing command needs explicit document-owner authorization, an
+approval/preview screen, a versioned private profile store, and CRUD/delete
+controls. Do not imply this developer adapter makes a learned profile
+persist across ChatGPT conversations or accounts.
+
+This approach was motivated by [kordoc's institution packs](https://github.com/chrisryugj/kordoc/blob/main/docs/agency-pack.md),
+which use a user's exemplar documents to reproduce an institution's style
+while warning when samples disagree or contain leftover material. We use
+the existing P3.35 role exemplars and do not copy the agency-pack file
+format or claim equivalent template-layout fidelity.

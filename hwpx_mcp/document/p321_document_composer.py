@@ -883,6 +883,8 @@ def compose_document_plan(
             "preset": normalized["preset"],
             "style_profile_sha256": (profile_fingerprint(normalized["style_profile"]) if "style_profile" in normalized else None),
             "template_mode": "append" if template_path is not None else "blank",
+            "template_page_setup_preserved": bool(template_path is not None and normalized.get("preserve_template_setup", True) and not ((normalized.get("style_profile") or {}).get("page") or {}) and not (normalized.get("setup") or [])),
+
             "block_count": len(normalized["blocks"]),
             "bindings": bindings,
             "stages": stage_receipts,

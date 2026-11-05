@@ -120,7 +120,7 @@ def export_native_hwp_pdf(
                 and destination.stat().st_size >= 64
                 and _has_pdf_magic(destination)
             )
-        except (OSError, ValueError, TypeError, json.JSONDecodeError):
+        except (OSError, UnicodeError, ValueError, TypeError):
             valid = False
         if not valid:
             if destination.exists():

@@ -333,6 +333,7 @@ def _materialize_blocks(document: HwpxDocument, blocks: list[dict], *, profile: 
     for block in blocks:
         kind = block["type"]
         block_id = block["id"]
+        default_equation_unit = (profile or {}).get("equation_base_unit", 1100)
 
         if kind in {"title", "paragraph", "list_item"}:
             text = str(block.get("text") or "")
@@ -403,7 +404,7 @@ def _materialize_blocks(document: HwpxDocument, blocks: list[dict], *, profile: 
             equation = document.shapes.add_equation(
                 compiled.script,
                 paragraph=anchor,
-                base_unit=int(block.get("base_unit", 1100)),
+                base_unit=int(block.get("base_unit", default_equation_unit)),
             )
             _add_caption(equation, block)
             bindings[block_id] = {
@@ -440,7 +441,7 @@ def _materialize_blocks(document: HwpxDocument, blocks: list[dict], *, profile: 
                     if value:
                         anchor.add_run(value)
                 else:
-                    document.shapes.add_equation(value, paragraph=anchor)
+                    document.shapes.add_equation(value, paragraph=anchor, base_unit=int(block.get("base_unit", default_equation_unit)))
                     count += 1
             bindings[block_id] = {
                 "kind": kind,
@@ -455,7 +456,7 @@ def _materialize_blocks(document: HwpxDocument, blocks: list[dict], *, profile: 
                 raise ValueError("equation block requires latex")
             script = latex_to_eqedit(latex)
             anchor = document.add_paragraph("", inherit_style=False)
-            base_unit = int(block.get("base_unit", 1100))
+            base_unit = int(block.get("base_unit", default_equation_unit))
             size = None
             if block.get("width") is not None or block.get("height") is not None:
                 if block.get("width") is None or block.get("height") is None:

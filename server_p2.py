@@ -226,6 +226,11 @@ def _owned_document(document_id: str) -> tuple[dict, Path]:
     return metadata, path
 
 
+# P4.23: owner-checked preview of styles from a user-supplied reference.
+# The user must review and explicitly supply the candidate when composing.
+register_p423_style_tools(core, owned_document=_owned_document)
+
+
 def _refresh_metadata(
     document_id: str,
     metadata: dict,

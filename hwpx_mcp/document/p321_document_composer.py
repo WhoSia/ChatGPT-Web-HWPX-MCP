@@ -784,7 +784,12 @@ def compose_document_plan(
             "bindings_sha256": _sha(bindings),
         })
 
-        setup_ops = _setup_operations(normalized)
+        setup_ops = _setup_operations(
+            normalized,
+            preserve_template_setup=(
+                template_path is not None and normalized.get("preserve_template_setup", True)
+            ),
+        )
         if setup_ops:
             setup_receipt = apply_document_setup_atomic(
                 candidate,

@@ -207,6 +207,15 @@ def document_plan_contract() -> dict:
             },
             "annotations": "optional annotation-apparatus operations using $block:<id>",
             "post_operations": "optional structured-publishing operations using $block:<id>",
+            "style_profile": {
+                "schema": "chatgpt-web-hwpx-mcp/p423/document-style-profile/v1",
+                "roles": ["title", "body", "heading_1", "heading_2", "heading_3"],
+                "page": "optional margin_*_mm fields; 5..60 mm",
+                "table": "optional table defaults",
+                "equation_base_unit": "native equation size, 500..2400; default 1100",
+                "precedence": "built-in preset < explicit profile < per-block format overrides",
+                "persistence": "supplied per task; no implicit storage or automatic learning",
+            },
             "table_design_fields": {
                 "first_row_header": "bool; explicit semantic hint for repeat-header finishing",
                 "table_format": "optional page_break, border_color, repeat_header overrides",

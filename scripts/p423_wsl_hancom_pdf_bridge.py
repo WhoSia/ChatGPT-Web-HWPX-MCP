@@ -88,7 +88,7 @@ def export_wsl_native_pdf(source: Path, destination: Path, *, timeout_seconds: i
     with destination.open("rb") as pdf_stream:
         pdf_signature = pdf_stream.read(5)
     if (
-        or parsed.get("input_sha256") != source_sha
+        parsed.get("input_sha256") != source_sha
         or _sha(source) != source_sha
         or parsed.get("output_sha256") != _sha(destination)
         or pdf_signature != b"%PDF-"

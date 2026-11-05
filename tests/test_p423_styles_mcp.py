@@ -93,6 +93,12 @@ class P423StylesMCPTests(unittest.TestCase):
             self.assertEqual(receipt["candidate"]["warnings"], ["unsupported"])
             self.assertIn("create_document_from_plan", receipt["next_step"])
 
+    def test_reference_extractor_failure_does_not_fake_candidate(self):
+        with patch("hwpx_mcp.interfaces.p423_styles_mcp.profile_from_reference") as read:
+            read.side_effect = ValueError("reference has no portable supported style roles")
+            with self.assertRaisesRegex(ValueError, "no portable"):
+                self.tool("doc_1", expected_revision=3)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -24,6 +24,7 @@ def ingest_signed_native_pdf(
     expected_fixture_id: str,
     expected_head: str,
     authenticated_owner: str,
+    authorized_job: Mapping[str, Any],
     document_store: Any,
     evidence_store: Any,
     pdf_store: Any,
@@ -56,6 +57,35 @@ def ingest_signed_native_pdf(
         raise ValueError("SOURCE_REVISION_DIGEST_MISMATCH")
     if document.get("document_id") != document_id or document.get("revision") != revision:
         raise PermissionError("SOURCE_REVISION_IDENTITY_MISMATCH")
+
+    # A signature from a trusted Windows agent does NOT itself prove that
+    # the server dispatched this job. Require server-authored job authorization
+    # retrieved from durable job custody, never supplied by the client.
+    signed = receipt.get("signed_payload") if isinstance(receipt, Mapping) else None
+    if not isinstance(signed, Mapping) or not isinstance(authorized_job, Mapping):
+        raise PermissionError("AUTHORIZED_CAPTURE_JOB_REQUIRED")
+    expected_binding = {
+        "document_id": document_id, "revision": revision,
+        "document_sha256": source_hash, "owner_subject": authenticated_owner,
+    }
+    if (
+        not isinstance(authorized_job.get("job_id"), str)
+        or not isinstance(authorized_job.get("nonce"), str)
+        or len(authorized_job["nonce"]) < 22
+        or authorized_job.get("owner_subject") != authenticated_owner
+        or authorized_job.get("document_id") != document_id
+        or type(authorized_job.get("revision")) is not int
+        or authorized_job["revision"] != revision
+        or authorized_job.get("source_sha256") != source_hash
+        or authorized_job.get("exact_head") != expected_head
+        or authorized_job.get("fixture_id") != expected_fixture_id
+        or authorized_job.get("status") != "ISSUED"
+        or signed.get("job_id") != authorized_job["job_id"]
+        or signed.get("nonce") != authorized_job["nonce"]
+        or signed.get("exact_head") != authorized_job["exact_head"]
+        or signed.get("document_binding") != expected_binding
+    ):
+        raise PermissionError("SIGNED_JOB_NOT_AUTHORIZED_FOR_DOCUMENT")
 
     registry = evidence_store.list_keys(active_only=False)
     admission = assess_signed_pdf_handoff(

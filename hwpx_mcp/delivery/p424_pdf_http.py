@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import os
 import re
+from functools import lru_cache
 from typing import Any
 from urllib.parse import quote
 
@@ -32,6 +33,13 @@ def _secret(core: Any) -> bytes:
     return raw
 
 
+@lru_cache(maxsize=1)
+def _cached_store(database_url: str, state_secret: str) -> P424PdfStore:
+    # Schema DDL executes only on first use, never on each PDF download.
+    # Runtime configuration or key rotation requires an application restart.
+    return P424PdfStore(database_url, state_secret)
+
+
 def _store(core: Any):
     if not enabled():
         raise RuntimeError("P424_NATIVE_PDF_DELIVERY_DISABLED")
@@ -40,7 +48,7 @@ def _store(core: Any):
     database_url = os.environ.get("P424_PDF_DATABASE_URL", "")
     if not database_url:
         raise RuntimeError("P424_PDF_DATABASE_URL_REQUIRED")
-    return P424PdfStore(database_url, core.STATE_SECRET)
+    return _cached_store(database_url, core.STATE_SECRET)
 
 
 def issue_authenticated_pdf_link(core: Any, *,

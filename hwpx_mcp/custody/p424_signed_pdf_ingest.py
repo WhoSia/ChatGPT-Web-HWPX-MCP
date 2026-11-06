@@ -77,6 +77,8 @@ def ingest_signed_native_pdf(
         or type(authorized_job.get("revision")) is not int
         or authorized_job["revision"] != revision
         or authorized_job.get("source_sha256") != source_hash
+        or not isinstance(authorized_job.get("source_manifest_sha256"), str)
+        or signed.get("source_manifest_sha256") != authorized_job["source_manifest_sha256"]
         or authorized_job.get("exact_head") != expected_head
         or authorized_job.get("fixture_id") != expected_fixture_id
         or authorized_job.get("status") != "ISSUED"

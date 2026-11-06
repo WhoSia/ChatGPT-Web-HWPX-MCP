@@ -156,6 +156,7 @@ class SignedPdfIngestTests(unittest.TestCase):
         self.receipt, keys = signed_fixture()
         self.docs, self.ev, self.pdfs = Documents(), Evidence(keys), PdfCustody()
         self.authorized_job = {
+            "agent_id": "test-agent",
             "job_id": self.receipt["signed_payload"]["job_id"],
             "nonce": self.receipt["signed_payload"]["nonce"],
             "status": "ISSUED", "owner_subject": OWNER,
@@ -206,7 +207,7 @@ class SignedPdfIngestTests(unittest.TestCase):
         self.assertEqual(self.ev.calls, 0)
 
     def test_unissued_or_different_nonce_job_blocks_signed_receipt(self):
-        for changes in [{"status": "DRAFT"}, {"nonce": "different-job-nonce-with-22-chars"},
+        for changes in [{"status": "DRAFT"}, {"agent_id": "another-agent"}, {"nonce": "different-job-nonce-with-22-chars"},
                         {"owner_subject": "some-other-owner"},
                         {"source_sha256": "0" * 64},
                         {"exact_head": "2" * 40}, {"source_manifest_sha256": "0" * 64}]:

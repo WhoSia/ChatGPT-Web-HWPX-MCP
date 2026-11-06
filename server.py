@@ -588,6 +588,32 @@ async def download_delivery(request):
 
 
 @mcp.tool()
+def issue_p424_native_pdf_download(
+    document_id: str, revision: int, evidence_id: str,
+    link_ttl_seconds: int = 300,
+) -> dict:
+    """Issue an OAuth-required PDF link only for a durably admitted native PDF.
+
+    Feature disabled by default. This cannot create or ingest a PDF, and a
+    browser must supply an OAuth Authorization header to redeem the link.
+    """
+    import sys
+    from hwpx_mcp.delivery.p424_pdf_http import issue_authenticated_pdf_link
+    return issue_authenticated_pdf_link(
+        sys.modules[__name__], document_id=document_id, revision=revision,
+        evidence_id=evidence_id, link_ttl_seconds=link_ttl_seconds,
+    )
+
+
+@mcp.custom_route("/p424/native-pdf/{document_id}", methods=["GET"])
+async def p424_native_pdf_download(request):
+    """Owner-scoped PDF GET; signed URL alone is never an access credential."""
+    import sys
+    from hwpx_mcp.delivery.p424_pdf_http import download_authenticated_pdf
+    return await download_authenticated_pdf(sys.modules[__name__], request)
+
+
+@mcp.tool()
 def delete_document(document_id: str) -> dict:
     metadata = _load_metadata(document_id, allow_expired=True)
     _require_owner(metadata)

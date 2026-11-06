@@ -15,6 +15,8 @@ from typing import Any, Mapping
 import psycopg
 from psycopg.rows import dict_row
 
+from hwpx_mcp.evidence.p414_evidence_service import canonical_sha256, validate_source_manifest
+
 _JOB_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{2,127}$")
 _HEX40 = re.compile(r"^[0-9a-f]{40}$")
 _HEX64 = re.compile(r"^[0-9a-f]{64}$")
@@ -84,7 +86,7 @@ class P424IssuedJobStore:
         job_id, nonce = job["job_id"], job["nonce"]
         if not isinstance(job_id, str) or not _JOB_ID.fullmatch(job_id):
             raise ValueError("INVALID_JOB_ID")
-        if not isinstance(nonce, str) or not 22 <= len(nonce) <= 256 or not nonce.isascii() or not nonce.isprintable():
+        if not isinstance(nonce, str) or not 22 <= len(nonce) <= 256 or not all(33 <= ord(ch) <= 126 for ch in nonce):
             raise ValueError("INVALID_JOB_NONCE")
         if any(not isinstance(job[k], str) or not rx.fullmatch(job[k]) for k,rx in
                (("source_sha256",_HEX64),("source_manifest_sha256",_HEX64),("exact_head",_HEX40))):
@@ -110,6 +112,19 @@ class P424IssuedJobStore:
             raise ValueError("HWPX_SOURCE_DIGEST_MISMATCH")
         if not hmac.compare_digest(source["sha256"],job["source_sha256"]):
             raise ValueError("JOB_SOURCE_MISMATCH")
+        # A nominal manifest digest is insufficient: derive it from the
+        # exact one-file server-authorized manifest and check source identity.
+        manifest = job.get("source_manifest")
+        if validate_source_manifest(manifest):
+            raise ValueError("JOB_SOURCE_MANIFEST_INVALID")
+        files = manifest.get("files", [])
+        if (len(files) != 1 or not isinstance(files[0], Mapping)
+            or files[0].get("fixture_id") != job["fixture_id"]
+            or files[0].get("sha256") != source["sha256"]
+            or type(files[0].get("bytes")) is not int
+            or files[0]["bytes"] != len(payload)
+            or canonical_sha256(manifest) != job["source_manifest_sha256"]):
+            raise ValueError("JOB_SOURCE_MANIFEST_BINDING_MISMATCH")
         if int(source["expires_at_epoch"]) <= int(expires.timestamp()):
             raise ValueError("JOB_OUTLIVES_SOURCE")
         with self._connect(autocommit=False) as conn:

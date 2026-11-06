@@ -145,7 +145,16 @@ class SignedPdfIngestTests(unittest.TestCase):
     def setUp(self):
         self.receipt, keys = signed_fixture()
         self.docs, self.ev, self.pdfs = Documents(), Evidence(keys), PdfCustody()
+        self.authorized_job = {
+            "job_id": self.receipt["signed_payload"]["job_id"],
+            "nonce": self.receipt["signed_payload"]["nonce"],
+            "status": "ISSUED", "owner_subject": OWNER,
+            "document_id": DOC, "revision": 2,
+            "source_sha256": SOURCE_SHA, "exact_head": HEAD,
+            "fixture_id": FIXTURE,
+        }
         self.args = {
+            "authorized_job": self.authorized_job,
             "receipt": self.receipt, "pdf_bytes": PDF, "document_id": DOC,
             "revision": 2, "expected_fixture_id": FIXTURE, "expected_head": HEAD,
             "authenticated_owner": OWNER, "document_store": self.docs,
@@ -178,6 +187,20 @@ class SignedPdfIngestTests(unittest.TestCase):
         result = self.ingest()
         self.assertEqual(result["status"], "ENCRYPTED_PDF_CUSTODY_CONFIRMED")
         self.assertEqual(len(self.pdfs.results), 1)
+
+    def test_missing_durable_job_authorization_blocks_signed_receipt(self):
+        with self.assertRaisesRegex(PermissionError, "AUTHORIZED_CAPTURE_JOB_REQUIRED"):
+            self.ingest(authorized_job=None)
+        self.assertEqual(self.ev.calls, 0)
+
+    def test_unissued_or_different_nonce_job_blocks_signed_receipt(self):
+        for changes in [{"status": "DRAFT"}, {"nonce": "different-job-nonce-with-22-chars"},
+                        {"owner_subject": "some-other-owner"},
+                        {"source_sha256": "0" * 64},
+                        {"exact_head": "2" * 40}]:
+            with self.assertRaisesRegex(PermissionError, "SIGNED_JOB_NOT_AUTHORIZED"):
+                self.ingest(authorized_job={**self.authorized_job, **changes})
+        self.assertEqual(self.ev.calls, 0)
 
     def test_wrong_owner_denied_without_writing_evidence(self):
         with self.assertRaises(PermissionError):

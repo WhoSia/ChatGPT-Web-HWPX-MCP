@@ -126,11 +126,21 @@ class P424PostgresRoundTripTests(unittest.TestCase):
             self.assertEqual(again["status"], "ENCRYPTED_CUSTODY_ALREADY_EXISTS")
             self.assertEqual(store.load_owned(
                 evidence_id=EVIDENCE, authenticated_owner=OWNER,
-                document_store=source), PDF)
+                document_store=source, expected_document_id=DOC_ID,
+                expected_revision=1, expected_source_sha256=SOURCE_SHA), PDF)
             with self.assertRaises(FileNotFoundError):
                 store.load_owned(evidence_id=EVIDENCE,
                                  authenticated_owner="wrong-owner",
-                                 document_store=source)
+                                 document_store=source,
+                                 expected_document_id=DOC_ID,
+                                 expected_revision=1,
+                                 expected_source_sha256=SOURCE_SHA)
+            with self.assertRaisesRegex(PermissionError, "BINDING_MISMATCH"):
+                store.load_owned(evidence_id=EVIDENCE, authenticated_owner=OWNER,
+                                 document_store=source,
+                                 expected_document_id="another-document",
+                                 expected_revision=1,
+                                 expected_source_sha256=SOURCE_SHA)
             with self.assertRaises(PermissionError):
                 store.put_verified(**{**kwargs, "authenticated_owner": "wrong-owner"})
             with psycopg.connect(schema_url, autocommit=True) as conn:

@@ -162,3 +162,58 @@ PDF download. This code must not be marked deployed. To complete G2:
 wire an authenticated route and issuance tool, enforce no-store response
 headers, exercise a real disposable Postgres integration test, test
 key-rotation/revocation and delivery end-to-end, then check exact HEAD CI.
+
+## 2026-11-06 — Feature-gated OAuth PDF route (not deployed)
+
+The P4.24 development branch now registers a PDF link-issuance MCP tool
+`issue_p424_native_pdf_download` and HTTP GET path
+`/p424/native-pdf/{document_id}` in `server.py`.
+`hwpx_mcp/delivery/p424_pdf_http.py` validates a **fresh OAuth bearer
+Authorization header** on every request through the existing OAuth provider,
+including expected scope, subject and resource/audience. A copied signed URL
+*without* an Authorization header returns HTTP 401: this is NOT a normal
+browser-click download. A client must support authenticated HTTP retrieval.
+Never append access tokens to the PDF URL or include them in logs.
+
+The route is **disabled by default**. Activating it requires an explicit
+`P424_NATIVE_PDF_DELIVERY_ENABLED=YES` flag, valid HTTPS public URL,
+`P424_PDF_DATABASE_URL` pointing to the *same database* holding source
+revision tables, an existing >=32-byte server secret and already accepted
+native PDF ciphertext. The first enabled use initializes the PDF store;
+subsequent uses reuse the initialized instance. The route does not import
+private PDF bytes from Windows, deploy a remote capture worker, or generate
+new HWPX/PDF content. It will return 404 for missing/invalid/expired document
+bindings without revealing document owner existence.
+
+Security corrections in this development cycle:
+
+- Explicit artifact retrieval now **requires** document ID, exact revision
+  and source SHA-256. Owner identity alone was insufficient: the same owner
+  could have multiple HWPX documents and previously could mix signed URLs
+  with another document's PDF artifact. A read without exact binding is no
+  longer allowed by the storage API.
+- The PDF route's signed URL binds owner, document, revision, source SHA,
+  signed evidence ID, actual PDF digest and short expiry. Every redemption
+  retrieves the retained source revision and owner-matched encrypted PDF.
+- Invalid opaque document IDs or evidence IDs are rejected; PDF failure
+  responses never expose database secrets, filesystem paths or source data.
+- The page uses `Cache-Control: private, no-store`,
+  `X-Content-Type-Options: nosniff` and a fixed safe download filename.
+
+Tests: `tests/test_p424_pdf_http_adapter.py` (feature flag disabled,
+missing/malformed/invalid bearer, missing OAuth scope/wrong audience/owner,
+authorized GET, URL tampering); modified PDF store/delivery tests cover
+same-owner cross-document confusion. These latest commits have **not** yet
+been run on the owner's WSL or in a deployed MCP host. Do not call G2
+production complete.
+
+Activation prerequisites before use:
+1. Complete and test real signed P4.14 job creation, upload, verification,
+   replay gate and `put_verified` ingestion into Postgres.
+2. Execute full P4.24 suite, including the opt-in real disposable Postgres
+   test; verify no old RESTRICT foreign-key schema remains.
+3. Prove OAuth-authenticated GET roundtrip from a real MCP client, including
+   missing/expired bearer and cross-user denial. Browser-click support is
+   not implied.
+4. Validate retention/deletion/key revocation, CI exact HEAD, rollback and
+   Render staging; do not change production configuration before these gates.

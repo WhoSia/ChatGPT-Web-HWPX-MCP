@@ -217,3 +217,50 @@ Activation prerequisites before use:
    not implied.
 4. Validate retention/deletion/key revocation, CI exact HEAD, rollback and
    Render staging; do not change production configuration before these gates.
+
+## 2026-11-06 — P4.24 signed-job ingest coordinator and durable job authority
+
+New server-side primitives (NOT enabled as public ingestion endpoints):
+
+- `hwpx_mcp/custody/p424_job_store.py` persists one server-issued,
+  expiring job authority in PostgreSQL. Its issuer checks the authenticated
+  owner against the retained source revision and SHA-256, validates the
+  one-file P4.14 source manifest including fixture ID, source digest and
+  byte count, and stores nonce, job ID, exact HEAD and expiration.
+  `load_issued_job` returns only still-`ISSUED`, unexpired jobs.
+  Revocation is owner-scoped. Source revision deletion cascades to jobs.
+- `hwpx_mcp/custody/p424_signed_pdf_ingest.py` coordinates existing
+  `verify_signed_receipt`, `P414EvidenceStore.record_attempt` and
+  `P424PdfStore.put_verified`. It loads the job authorization from the
+  trusted job store by the signed `job_id`, never from untrusted request
+  data. Signed nonce, owner, source digest, source manifest, fixture,
+  exact HEAD and document revision must agree before any evidence insert.
+  It passes the complete authoritative P4.14 verifier result to
+  `record_attempt`. Stored evidence is independently required before
+  ciphertext commit.
+
+The evidence and PDF records are two durable transactions, **not an
+atomic distributed transaction**. A crash after evidence acceptance but
+before PDF storage leaves a recoverable evidence-only record. A repeat
+using the *identical* signed receipt and immutable PDF bytes can finish
+custody idempotently while the signed job and receipt remain valid.
+Do not claim the PDF delivered until the ciphertext has been verified
+and an authenticated retrieval actually succeeds.
+
+New tests `test_p424_signed_pdf_ingest.py` and
+`test_p424_issued_job_store.py` cover synthetic Ed25519 evidence,
+source mutation, wrong user, mismatched job/nonce/manifest, replay
+denial, transient PDF-write failure followed by identical receipt
+recovery, owner-scoped job issuance and revocation. These tests have
+been committed but **not yet executed by the owner** at this exact HEAD.
+
+**Outstanding gates:**
+- The server-side source-to-agent job envelope creation, secure Windows
+  transport, remote agent upload protocol and server-hosted ingest route
+  are NOT implemented in this cycle.
+- An independent one-time job authorization record needs a real,
+  disposable PostgreSQL integration test and operational retention audit.
+- `P424_NATIVE_PDF_DELIVERY_ENABLED` must remain OFF until the signed
+  job-to-PDF chain has been demonstrated end to end with owner OAuth.
+- Latest-head Python suite, CI, key revocation behavior and actual
+  Postgres integration still require execution; no production deploy.

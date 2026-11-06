@@ -62,6 +62,30 @@ class PdfCustodyContractTests(unittest.TestCase):
             owner_subject="subject-test-1", pdf=PDF)
         self.assertEqual(got, SHA)
 
+    def test_same_owner_wrong_document_is_rejected_before_decryption(self):
+        class Cursor:
+            def __enter__(self): return self
+            def __exit__(self, *args): return False
+            def execute(self, *_args): return None
+            def fetchone(self):
+                return ("doc-A", 2, "subject-test-1", SOURCE_SHA,
+                        SHA, len(PDF), b"not-even-encrypted")
+        class Connection:
+            def __enter__(self): return self
+            def __exit__(self, *args): return False
+            def cursor(self): return Cursor()
+        class Documents:
+            def load_revision(self, *_args):
+                raise AssertionError("wrong document must be rejected before source lookup")
+        store = P424PdfStore.__new__(P424PdfStore)
+        store._connect = lambda **_kwargs: Connection()
+        with self.assertRaisesRegex(PermissionError, "BINDING_MISMATCH"):
+            store.load_owned(
+                evidence_id=EVIDENCE, authenticated_owner="subject-test-1",
+                document_store=Documents(), expected_document_id="doc-B",
+                expected_revision=2, expected_source_sha256=SOURCE_SHA,
+            )
+
     def test_aad_binds_document_owner_revision_and_pdf_digest(self):
         base = (EVIDENCE, "doc-1", 3, "owner-1", SOURCE_SHA, SHA)
         a = P424PdfStore._aad(*base)

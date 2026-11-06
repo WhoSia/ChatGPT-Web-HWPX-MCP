@@ -10,6 +10,7 @@ from datetime import datetime,timedelta,timezone
 import unittest
 
 from hwpx_mcp.custody.p424_job_store import P424IssuedJobStore
+from hwpx_mcp.evidence.p414_evidence_service import canonical_sha256
 
 SOURCE=b"PK"+b"synthetic-document"*30
 SHA=hashlib.sha256(SOURCE).hexdigest()
@@ -48,10 +49,14 @@ class Connection:
 
 
 def job(now):
-    return {"job_id":"job-test-001",
+    manifest = {"files": [{"fixture_id": "p424-private-fixture",
+                           "path": "source.hwpx", "sha256": SHA,
+                           "bytes": len(SOURCE), "lowering_family": "SYNTHETIC"}]}
+    return {"source_manifest": manifest,
+            "job_id":"job-test-001",
             "nonce":"random-server-issued-nonce-123456",
             "document_id":DOC,"revision":2,"source_sha256":SHA,
-            "source_manifest_sha256":"c"*64,
+            "source_manifest_sha256":canonical_sha256(manifest),
             "exact_head":"d"*40,"fixture_id":"p424-private-fixture",
             "expires_at":now+timedelta(minutes=15)}
 
@@ -95,6 +100,20 @@ class P424IssuedJobTests(unittest.TestCase):
                                      document_store=self.document,
                                      authenticated_owner=OWNER,now=self.now)
         self.assertEqual(len(self.cursor.queries),0)
+
+    def test_manifest_mismatch_or_extra_fixture_rejected_before_insert(self):
+        baseline = job(self.now)
+        manifest = {"files": [*baseline["source_manifest"]["files"],
+                              {**baseline["source_manifest"]["files"][0],
+                               "fixture_id": "another-fixture", "path": "second.hwpx"}]}
+        for changes in [{"source_manifest_sha256": "0"*64},
+                        {"source_manifest": manifest,
+                         "source_manifest_sha256": canonical_sha256(manifest)}]:
+            with self.assertRaisesRegex(ValueError, "MANIFEST_BINDING_MISMATCH"):
+                self.store.issue_job(job={**baseline, **changes},
+                                     document_store=self.document,
+                                     authenticated_owner=OWNER, now=self.now)
+        self.assertEqual(len(self.cursor.queries), 0)
 
     def test_expired_or_long_running_job_cannot_be_issued(self):
         for expiry in (self.now-timedelta(seconds=1),

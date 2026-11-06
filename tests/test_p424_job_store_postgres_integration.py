@@ -68,6 +68,7 @@ class IssuedJobPostgresIntegrationTests(unittest.TestCase):
                                 "sha256":SOURCE_SHA,"bytes":len(SOURCE),
                                 "lowering_family":"SYNTHETIC"}]}
             job={
+                "agent_id":"test-agent",
                 "job_id":"p424-db-integration-001",
                 "nonce":"dedicated-disposable-nonce-12345678",
                 "document_id":DOC,"revision":1,"source_sha256":SOURCE_SHA,
@@ -82,6 +83,7 @@ class IssuedJobPostgresIntegrationTests(unittest.TestCase):
             loaded=store.load_issued_job(job["job_id"])
             self.assertIsNotNone(loaded)
             self.assertEqual(loaded["nonce"],job["nonce"])
+            self.assertEqual(loaded["agent_id"],job["agent_id"])
             self.assertEqual(loaded["source_manifest_sha256"],
                              job["source_manifest_sha256"])
             with self.assertRaises(psycopg.errors.UniqueViolation):

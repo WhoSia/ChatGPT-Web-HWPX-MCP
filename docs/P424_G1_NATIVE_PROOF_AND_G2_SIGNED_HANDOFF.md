@@ -264,3 +264,13 @@ been committed but **not yet executed by the owner** at this exact HEAD.
   job-to-PDF chain has been demonstrated end to end with owner OAuth.
 - Latest-head Python suite, CI, key revocation behavior and actual
   Postgres integration still require execution; no production deploy.
+
+### Disposable PostgreSQL test for job authority
+
+`tests/test_p424_job_store_postgres_integration.py` is an additional
+opt-in test requiring the same explicit `P424_TEST_DATABASE_DISPOSABLE=YES`
+and `P424_TEST_DATABASE_URL` as the PDF storage integration test. It
+creates a random schema, issues a synthetic job, checks exact retrieval,
+duplicate rejection, owner-scoped revocation and source deletion cascade.
+Absent the explicit opt-in, it **SKIPs**, which is not proof of PostgreSQL
+integration. A disposable DB is required; never aim it at production.

@@ -274,3 +274,18 @@ creates a random schema, issues a synthetic job, checks exact retrieval,
 duplicate rejection, owner-scoped revocation and source deletion cascade.
 Absent the explicit opt-in, it **SKIPs**, which is not proof of PostgreSQL
 integration. A disposable DB is required; never aim it at production.
+
+### 2026-11-06 final authorization tightening
+
+Issued jobs now bind `agent_id` as well as `job_id`, `nonce`,
+`document_id`, exact revision, source SHA-256, canonical single-file
+source manifest digest, exact head, owner and short expiry. Ingestion
+compares the receipt's signed `agent_id` with the server-authorized
+agent, so a different *registered* agent cannot substitute a signature
+for a job it was not assigned. This is separate from checking whether
+the public key is registered and active.
+
+No production bearer upload or native Windows job transport was exposed.
+Until the server schedules a real job, obtains an agent response and
+verifies the final PDF bytes over authenticated transport, the G2 lane
+remains a prototype. Full integration tests are pending.

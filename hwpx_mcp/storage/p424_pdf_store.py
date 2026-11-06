@@ -187,6 +187,9 @@ class P424PdfStore:
     def load_owned(
         self, *, evidence_id: str, authenticated_owner: str,
         document_store: Any,
+        expected_document_id: str | None = None,
+        expected_revision: int | None = None,
+        expected_source_sha256: str | None = None,
     ) -> bytes:
         """Decrypt only when the live revision exists and belongs to this owner."""
         with self._connect() as conn, conn.cursor() as cur:
@@ -200,6 +203,15 @@ class P424PdfStore:
         if row is None:
             raise FileNotFoundError("PDF_NOT_FOUND_OR_NOT_OWNED")
         doc_id, revision, owner, source_sha, pdf_sha, byte_count, encrypted = row
+        # Owner identity alone is not enough: one owner has many documents.
+        # Without these checks, a valid PDF for document B could be served
+        # under a signed URL claiming to represent document A.
+        if (
+            (expected_document_id is not None and doc_id != expected_document_id)
+            or (expected_revision is not None and revision != expected_revision)
+            or (expected_source_sha256 is not None and not hmac.compare_digest(str(source_sha), expected_source_sha256))
+        ):
+            raise PermissionError("PDF_ARTIFACT_DOCUMENT_REVISION_BINDING_MISMATCH")
         revision_record = document_store.load_revision(doc_id, revision)
         if (revision_record is None or revision_record.get("owner_subject") != authenticated_owner
             or revision_record.get("sha256") != source_sha):

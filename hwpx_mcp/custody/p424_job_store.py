@@ -40,6 +40,7 @@ class P424IssuedJobStore:
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS hwpx_p424_issued_native_job (
                   job_id TEXT PRIMARY KEY,
+                  agent_id TEXT NOT NULL,
                   nonce TEXT NOT NULL UNIQUE,
                   owner_subject TEXT NOT NULL,
                   document_id TEXT NOT NULL,
@@ -79,11 +80,13 @@ class P424IssuedJobStore:
         clock = now or datetime.now(timezone.utc)
         if clock.tzinfo is None:
             raise ValueError("AWARE_CLOCK_REQUIRED")
-        fields = ("job_id","nonce","document_id","revision","source_sha256",
+        fields = ("job_id","agent_id","nonce","document_id","revision","source_sha256",
                   "source_manifest_sha256","exact_head","fixture_id","expires_at")
         if not isinstance(job, Mapping) or any(job.get(k) in (None, "") for k in fields):
             raise ValueError("ISSUED_JOB_MISSING_FIELDS")
         job_id, nonce = job["job_id"], job["nonce"]
+        if not isinstance(job["agent_id"], str) or not re.fullmatch(r"[A-Za-z0-9_.-]{3,128}", job["agent_id"]):
+            raise ValueError("INVALID_AGENT_ID")
         if not isinstance(job_id, str) or not _JOB_ID.fullmatch(job_id):
             raise ValueError("INVALID_JOB_ID")
         if not isinstance(nonce, str) or not 22 <= len(nonce) <= 256 or not all(33 <= ord(ch) <= 126 for ch in nonce):
@@ -130,11 +133,11 @@ class P424IssuedJobStore:
         with self._connect(autocommit=False) as conn:
             row = conn.execute("""
                 INSERT INTO hwpx_p424_issued_native_job
-                  (job_id,nonce,owner_subject,document_id,revision,
+                  (job_id,agent_id,nonce,owner_subject,document_id,revision,
                    source_sha256,source_manifest_sha256,exact_head,fixture_id,expires_at)
-                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
                 RETURNING job_id
-            """, (job_id,nonce,authenticated_owner,job["document_id"],
+            """, (job_id,job["agent_id"],nonce,authenticated_owner,job["document_id"],
                   job["revision"],job["source_sha256"],
                   job["source_manifest_sha256"],job["exact_head"],
                   job["fixture_id"],expires)).fetchone()
@@ -148,7 +151,7 @@ class P424IssuedJobStore:
             return None
         with self._connect() as conn:
             row = conn.execute("""
-                SELECT job_id,nonce,owner_subject,document_id,revision,
+                SELECT job_id,agent_id,nonce,owner_subject,document_id,revision,
                        source_sha256,source_manifest_sha256,exact_head,fixture_id,status
                 FROM hwpx_p424_issued_native_job
                 WHERE job_id=%s AND status='ISSUED' AND expires_at>NOW()

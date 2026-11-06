@@ -77,6 +77,7 @@ def ingest_signed_native_pdf(
         not isinstance(authorized_job.get("job_id"), str)
         or not isinstance(authorized_job.get("nonce"), str)
         or len(authorized_job["nonce"]) < 22
+        or authorized_job.get("agent_id") != receipt.get("agent_id")
         or authorized_job.get("owner_subject") != authenticated_owner
         or authorized_job.get("document_id") != document_id
         or type(authorized_job.get("revision")) is not int

@@ -30,9 +30,14 @@ class Documents:
 
 
 class PDFs:
-    def load_owned(self, *, evidence_id, authenticated_owner, document_store):
+    def load_owned(self, *, evidence_id, authenticated_owner, document_store,
+                   expected_document_id=None, expected_revision=None,
+                   expected_source_sha256=None):
         if evidence_id != EVIDENCE or authenticated_owner != OWNER:
             raise FileNotFoundError("not-owned")
+        if (expected_document_id != DOC or expected_revision != 2
+            or expected_source_sha256 != hashlib.sha256(SOURCE).hexdigest()):
+            raise PermissionError("PDF_ARTIFACT_DOCUMENT_REVISION_BINDING_MISMATCH")
         return PDF
 
 
@@ -96,6 +101,16 @@ class PdfDeliveryContractTests(unittest.TestCase):
     def test_invalid_insecure_base_url_rejected(self):
         with self.assertRaisesRegex(ValueError, "HTTPS"):
             self.issue(public_base_url="http://example.test")
+
+    def test_one_owner_cannot_mix_pdf_artifact_with_another_document(self):
+        other = "doc_" + "x" * 24
+        self.docs.load_revision = lambda _doc, rev: {
+            "owner_subject": OWNER, "revision": 2,
+            "sha256": hashlib.sha256(SOURCE).hexdigest(),
+            "bytes": SOURCE, "expires_at_epoch": NOW + 900,
+        } if rev == 2 else None
+        with self.assertRaisesRegex(PermissionError, "BINDING_MISMATCH"):
+            self.issue(document_id=other)
 
     def test_deleted_source_revokes_link(self):
         issued = self.issue()

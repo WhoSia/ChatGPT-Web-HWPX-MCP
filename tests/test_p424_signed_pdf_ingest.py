@@ -141,6 +141,16 @@ class PdfCustody:
                 else "ENCRYPTED_CUSTODY_CREATED"}
 
 
+class Jobs:
+    def __init__(self, job):
+        self.job = job
+        self.lookups = []
+
+    def load_issued_job(self, job_id):
+        self.lookups.append(job_id)
+        return self.job if self.job and self.job["job_id"] == job_id else None
+
+
 class SignedPdfIngestTests(unittest.TestCase):
     def setUp(self):
         self.receipt, keys = signed_fixture()
@@ -154,8 +164,9 @@ class SignedPdfIngestTests(unittest.TestCase):
             "source_manifest_sha256": self.receipt["signed_payload"]["source_manifest_sha256"],
             "fixture_id": FIXTURE,
         }
+        self.jobs = Jobs(self.authorized_job)
         self.args = {
-            "authorized_job": self.authorized_job,
+            "job_store": self.jobs,
             "receipt": self.receipt, "pdf_bytes": PDF, "document_id": DOC,
             "revision": 2, "expected_fixture_id": FIXTURE, "expected_head": HEAD,
             "authenticated_owner": OWNER, "document_store": self.docs,
@@ -191,7 +202,7 @@ class SignedPdfIngestTests(unittest.TestCase):
 
     def test_missing_durable_job_authorization_blocks_signed_receipt(self):
         with self.assertRaisesRegex(PermissionError, "AUTHORIZED_CAPTURE_JOB_REQUIRED"):
-            self.ingest(authorized_job=None)
+            self.ingest(job_store=Jobs(None))
         self.assertEqual(self.ev.calls, 0)
 
     def test_unissued_or_different_nonce_job_blocks_signed_receipt(self):
@@ -200,7 +211,7 @@ class SignedPdfIngestTests(unittest.TestCase):
                         {"source_sha256": "0" * 64},
                         {"exact_head": "2" * 40}, {"source_manifest_sha256": "0" * 64}]:
             with self.assertRaisesRegex(PermissionError, "SIGNED_JOB_NOT_AUTHORIZED"):
-                self.ingest(authorized_job={**self.authorized_job, **changes})
+                self.ingest(job_store=Jobs({**self.authorized_job, **changes}))
         self.assertEqual(self.ev.calls, 0)
 
     def test_wrong_owner_denied_without_writing_evidence(self):

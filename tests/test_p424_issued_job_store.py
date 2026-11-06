@@ -53,6 +53,7 @@ def job(now):
                            "path": "source.hwpx", "sha256": SHA,
                            "bytes": len(SOURCE), "lowering_family": "SYNTHETIC"}]}
     return {"source_manifest": manifest,
+            "agent_id": "test-agent",
             "job_id":"job-test-001",
             "nonce":"random-server-issued-nonce-123456",
             "document_id":DOC,"revision":2,"source_sha256":SHA,
@@ -92,7 +93,7 @@ class P424IssuedJobTests(unittest.TestCase):
 
     def test_replay_nonce_or_invalid_digest_is_rejected_before_insert(self):
         for changes in [
-            {"nonce":"short"}, {"source_sha256":"0"*64},
+            {"nonce":"short"}, {"agent_id":""}, {"source_sha256":"0"*64},
             {"revision":0},{"exact_head":"z"*40},
         ]:
             with self.assertRaises(ValueError):

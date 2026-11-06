@@ -24,7 +24,7 @@ def ingest_signed_native_pdf(
     expected_fixture_id: str,
     expected_head: str,
     authenticated_owner: str,
-    authorized_job: Mapping[str, Any],
+    job_store: Any,
     document_store: Any,
     evidence_store: Any,
     pdf_store: Any,
@@ -62,7 +62,12 @@ def ingest_signed_native_pdf(
     # the server dispatched this job. Require server-authored job authorization
     # retrieved from durable job custody, never supplied by the client.
     signed = receipt.get("signed_payload") if isinstance(receipt, Mapping) else None
-    if not isinstance(signed, Mapping) or not isinstance(authorized_job, Mapping):
+    if not isinstance(signed, Mapping) or not isinstance(signed.get("job_id"), str):
+        raise PermissionError("AUTHORIZED_CAPTURE_JOB_REQUIRED")
+    # No caller-supplied authorization mapping: independently load the
+    # server-issued job from durable, trusted custody.
+    authorized_job = job_store.load_issued_job(signed["job_id"])
+    if not isinstance(authorized_job, Mapping):
         raise PermissionError("AUTHORIZED_CAPTURE_JOB_REQUIRED")
     expected_binding = {
         "document_id": document_id, "revision": revision,

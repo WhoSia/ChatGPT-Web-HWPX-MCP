@@ -12,7 +12,7 @@ import hmac
 from typing import Any, Mapping
 
 from hwpx_mcp.custody.p424_signed_pdf_handoff import assess_signed_pdf_handoff
-from hwpx_mcp.evidence.p414_evidence_service import canonical_sha256
+from hwpx_mcp.evidence.p414_evidence_service import canonical_sha256, verify_signed_receipt
 
 
 def ingest_signed_native_pdf(
@@ -76,15 +76,15 @@ def ingest_signed_native_pdf(
     # P4.14's database stores signed evidence and rejects altered job/nonce
     # replay. Exact receipt replay is idempotent. Commit occurs before PDF
     # storage; an interrupted run may resume with the identical receipt.
-    evidence_result = evidence_store.record_attempt(
-        receipt, {
-            "status": "PASS",
-            "accepted": True,
-            "canonical_sha256": admission["signed_evidence_sha256"],
-            "authority": "P414_SIGNED_NATIVE_RECEIPT_VERIFIER",
-            "issues": [],
-        }
+    # Persist the authoritative complete P4.14 verifier decision: never
+    # synthesize or downgrade signature validation fields at the DB boundary.
+    full_validation = verify_signed_receipt(
+        receipt, registry, now=now, expected_head=expected_head,
+        allow_test_receipts=False,
     )
+    if full_validation.get("accepted") is not True:
+        raise PermissionError("P414_SIGNED_EVIDENCE_REVALIDATION_FAILED")
+    evidence_result = evidence_store.record_attempt(receipt, full_validation)
     if evidence_result.get("accepted") is not True:
         return {
             "status": "REJECTED", "stage": "DURABLE_REPLAY_GATE",

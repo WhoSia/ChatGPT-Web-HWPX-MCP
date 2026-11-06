@@ -151,6 +151,7 @@ class SignedPdfIngestTests(unittest.TestCase):
             "status": "ISSUED", "owner_subject": OWNER,
             "document_id": DOC, "revision": 2,
             "source_sha256": SOURCE_SHA, "exact_head": HEAD,
+            "source_manifest_sha256": self.receipt["signed_payload"]["source_manifest_sha256"],
             "fixture_id": FIXTURE,
         }
         self.args = {
@@ -197,7 +198,7 @@ class SignedPdfIngestTests(unittest.TestCase):
         for changes in [{"status": "DRAFT"}, {"nonce": "different-job-nonce-with-22-chars"},
                         {"owner_subject": "some-other-owner"},
                         {"source_sha256": "0" * 64},
-                        {"exact_head": "2" * 40}]:
+                        {"exact_head": "2" * 40}, {"source_manifest_sha256": "0" * 64}]:
             with self.assertRaisesRegex(PermissionError, "SIGNED_JOB_NOT_AUTHORIZED"):
                 self.ingest(authorized_job={**self.authorized_job, **changes})
         self.assertEqual(self.ev.calls, 0)

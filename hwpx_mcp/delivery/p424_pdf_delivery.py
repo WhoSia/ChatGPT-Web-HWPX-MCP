@@ -61,8 +61,11 @@ def issue_pdf_delivery(
     original = source.get("bytes")
     if not isinstance(original, bytes) or hashlib.sha256(original).hexdigest() != source.get("sha256"):
         raise ValueError("PDF_SOURCE_REVISION_INVALID")
-    pdf = pdf_store.load_owned(evidence_id=evidence_id, authenticated_owner=authenticated_owner,
-                               document_store=document_store)
+    pdf = pdf_store.load_owned(
+        evidence_id=evidence_id, authenticated_owner=authenticated_owner,
+        document_store=document_store, expected_document_id=document_id,
+        expected_revision=revision, expected_source_sha256=source["sha256"],
+    )
     pdf_sha = hashlib.sha256(pdf).hexdigest()
     expiry = min(current + max(MIN_TTL_SECONDS, min(link_ttl_seconds, MAX_TTL_SECONDS)),
                  int(source["expires_at_epoch"]))
@@ -115,8 +118,11 @@ def redeem_pdf_delivery(
     )
     if not hmac.compare_digest(calculated, signature):
         raise PermissionError("PDF_DELIVERY_BAD_SIGNATURE")
-    pdf = pdf_store.load_owned(evidence_id=evidence_id, authenticated_owner=authenticated_owner,
-                               document_store=document_store)
+    pdf = pdf_store.load_owned(
+        evidence_id=evidence_id, authenticated_owner=authenticated_owner,
+        document_store=document_store, expected_document_id=document_id,
+        expected_revision=revision, expected_source_sha256=source["sha256"],
+    )
     if not hmac.compare_digest(hashlib.sha256(pdf).hexdigest(), pdf_sha256):
         raise ValueError("PDF_DELIVERY_BYTES_CHANGED")
     return pdf

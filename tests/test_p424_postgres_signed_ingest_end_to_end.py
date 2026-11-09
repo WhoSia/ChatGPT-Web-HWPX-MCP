@@ -112,7 +112,25 @@ class P424RealPostgresSignedIngestTests(unittest.TestCase):
                 n = conn.execute("SELECT COUNT(*) FROM hwpx_p414_receipt_attempt").fetchone()[0]
                 self.assertEqual(n, 0)
 
+            class FailingPdfStore:
+                def put_verified(self, **_kwargs):
+                    raise RuntimeError("SIMULATED_PDF_DB_COMMIT_FAILURE")
+
+            # Durable evidence commits first. A failed PDF write must NOT
+            # create an encrypted PDF row; the exact receipt must be
+            # recoverable by a later retry.
+            with self.assertRaisesRegex(RuntimeError, "SIMULATED_PDF_DB_COMMIT_FAILURE"):
+                ingest_signed_native_pdf(**{**params, "pdf_store": FailingPdfStore()})
+            with psycopg.connect(scoped) as conn:
+                self.assertEqual(conn.execute(
+                    "SELECT COUNT(*) FROM hwpx_p414_receipt_attempt WHERE accepted=TRUE"
+                ).fetchone()[0], 1)
+                self.assertEqual(conn.execute(
+                    "SELECT COUNT(*) FROM hwpx_p424_native_pdf"
+                ).fetchone()[0], 0)
+
             first = ingest_signed_native_pdf(**params)
+            self.assertTrue(first["idempotent_receipt_retry"])
             self.assertEqual(first["status"], "ENCRYPTED_PDF_CUSTODY_CONFIRMED")
             second = ingest_signed_native_pdf(**params)
             self.assertTrue(second["idempotent_receipt_retry"])

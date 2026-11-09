@@ -79,12 +79,14 @@ def convert_batch(
         target = Path(user_path).resolve(strict=True)
         candidates = (
             [target] if target.is_file()
-            else (target.rglob("*.hwpx") if recursive else target.glob("*.hwpx"))
+            else (target.rglob("*") if recursive else target.glob("*"))
         )
         for item in candidates:
             if item.is_file() and item.suffix.lower() == ".hwpx":
                 source = item.resolve(strict=True)
                 sources[str(source)] = source
+    if not sources:
+        raise ValueError("No .hwpx source files found in the requested paths")
     results: list[dict] = []
     for source in sorted(sources.values(), key=lambda x: str(x)):
         job_dir = output_directory / _directory_name(source)

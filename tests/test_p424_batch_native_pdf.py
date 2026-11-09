@@ -104,6 +104,26 @@ class BatchNativePdfTests(unittest.TestCase):
         self.assertEqual(result["summary"]["SKIPPED_OUTPUT_TREE"], 1)
         self.assertEqual(self.calls, [])
 
+    def test_dry_run_plans_jobs_without_creating_files_or_invoking_com(self):
+        file = self.source("planned.hwpx")
+        result = convert_batch([file], self.outputs,
+                               conversion=self.convert, dry_run=True)
+        self.assertEqual(result["summary"]["WOULD_CREATE"], 1)
+        self.assertTrue(result["dry_run"])
+        self.assertEqual(self.calls, [])
+        self.assertFalse((self.outputs / _directory_name(file)).exists())
+        self.assertFalse((self.outputs / "p424-batch-report.json").exists())
+
+    def test_dry_run_reports_verified_existing_pdf_without_modifying_it(self):
+        file = self.source("already.hwpx")
+        convert_batch([file], self.outputs, conversion=self.convert)
+        original = (self.outputs / "p424-batch-report.json").read_bytes()
+        result = convert_batch([file], self.outputs,
+                               conversion=self.convert, dry_run=True)
+        self.assertEqual(result["summary"]["REUSED_VERIFIED"], 1)
+        self.assertEqual(self.calls, ["already.hwpx"])
+        self.assertEqual((self.outputs / "p424-batch-report.json").read_bytes(), original)
+
     def test_same_filename_in_different_directories_isolated(self):
         a = self.source("x/a.hwpx", b"PK-1")
         b = self.source("y/a.hwpx", b"PK-2")

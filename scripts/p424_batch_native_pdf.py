@@ -52,9 +52,11 @@ def _reuse_verified(source: Path, job_dir: Path) -> dict | None:
             or record.get("native_pdf_sha256") != _sha(pdf)
             or record.get("native_pdf_bytes") != pdf.stat().st_size
             or record.get("native_pdf_file") != pdf.name
-            or pdf.open("rb").read(5) != b"%PDF-"
         ):
             return None
+        with pdf.open("rb") as reader:
+            if reader.read(5) != b"%PDF-":
+                return None
         return record
     except (OSError, ValueError, KeyError, TypeError):
         return None
@@ -66,6 +68,7 @@ def convert_batch(
     *,
     recursive: bool = False,
     conversion: Callable = run_local_acceptance,
+    dry_run: bool = False,
 ) -> dict:
     """Sequential conversion: minimize COM conflicts and preserve failures."""
     output_directory = Path(output_directory).resolve()
@@ -89,7 +92,14 @@ def convert_batch(
         if source.is_relative_to(output_directory):
             results.append({"source": str(source), "status": "SKIPPED_OUTPUT_TREE"})
             continue
-        job_dir.mkdir(exist_ok=True)
+        if dry_run and not job_dir.exists():
+            results.append({
+                "source": str(source), "status": "WOULD_CREATE",
+                "output_directory": str(job_dir),
+            })
+            continue
+        if not dry_run:
+            job_dir.mkdir(exist_ok=True)
         reusable = _reuse_verified(source, job_dir)
         if reusable is not None:
             results.append({
@@ -99,10 +109,16 @@ def convert_batch(
                 "visual_acceptance": reusable["visual_acceptance"],
             })
             continue
-        if any(job_dir.iterdir()):
+        if job_dir.exists() and any(job_dir.iterdir()):
             results.append({
                 "source": str(source), "status": "BLOCKED_EXISTING_ARTIFACTS",
                 "error": "Existing artifacts differ from source or are incomplete; move to a fresh output root",
+            })
+            continue
+        if dry_run:
+            results.append({
+                "source": str(source), "status": "WOULD_CREATE",
+                "output_directory": str(job_dir),
             })
             continue
         try:
@@ -122,7 +138,7 @@ def convert_batch(
             })
     tally = {s: sum(x["status"] == s for x in results) for s in (
         "CREATED_UNREVIEWED", "REUSED_VERIFIED", "FAILED",
-        "BLOCKED_EXISTING_ARTIFACTS", "SKIPPED_OUTPUT_TREE",
+        "BLOCKED_EXISTING_ARTIFACTS", "SKIPPED_OUTPUT_TREE", "WOULD_CREATE",
     )}
     report = {
         "schema": "p424.local-native-batch.v1",
@@ -132,11 +148,13 @@ def convert_batch(
         "results": results,
         "production_approved": False,
         "visual_review_required": True,
+        "dry_run": bool(dry_run),
     }
     # A stable report filename is convenient for local use; the report is
     # aggregate metadata only, not a replacement for each job's evidence.
     report_path = output_directory / "p424-batch-report.json"
-    report_path.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    if not dry_run:
+        report_path.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     return report
 
 
@@ -145,9 +163,12 @@ def main() -> int:
     parser.add_argument("paths", nargs="+", type=Path, help="HWPX files or directories")
     parser.add_argument("--output-dir", required=True, type=Path)
     parser.add_argument("--recursive", action="store_true")
+    parser.add_argument("--dry-run", action="store_true",
+                        help="List conversion and reuse decisions without writing or invoking Hancom")
     args = parser.parse_args()
     try:
-        report = convert_batch(args.paths, args.output_dir, recursive=args.recursive)
+        report = convert_batch(args.paths, args.output_dir, recursive=args.recursive,
+                               dry_run=args.dry_run)
     except (OSError, ValueError) as error:
         print(f"FAILED: {error}", file=sys.stderr)
         return 2

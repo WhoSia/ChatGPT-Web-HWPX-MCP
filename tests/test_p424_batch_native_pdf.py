@@ -97,6 +97,18 @@ class BatchNativePdfTests(unittest.TestCase):
         self.assertEqual(result["total_inputs"], 2)
         self.assertEqual(result["summary"]["CREATED_UNREVIEWED"], 2)
 
+    def test_uppercase_hwpx_extension_found_in_directory(self):
+        file = self.source("uppercase.HWPX")
+        result = convert_batch([self.inputs], self.outputs,
+                               conversion=self.convert)
+        self.assertEqual(result["summary"]["CREATED_UNREVIEWED"], 1)
+
+    def test_empty_directory_raises_clear_error(self):
+        with self.assertRaisesRegex(ValueError, "No .hwpx"):
+            convert_batch([self.inputs], self.outputs,
+                          conversion=self.convert)
+        self.assertEqual(self.calls, [])
+
     def test_output_tree_input_is_skipped(self):
         source = self.outputs / "generated.hwpx"
         source.write_bytes(b"PKsynthetic")

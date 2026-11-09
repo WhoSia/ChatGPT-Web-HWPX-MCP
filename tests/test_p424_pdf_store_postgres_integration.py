@@ -17,6 +17,8 @@ import unittest
 import psycopg
 from psycopg.conninfo import make_conninfo
 
+from hwpx_mcp.testing.p424_disposable_database import disposable_test_database_url
+
 from hwpx_mcp.storage.p424_pdf_store import P424PdfStore
 
 
@@ -77,7 +79,7 @@ def _admission():
 )
 class P424PostgresRoundTripTests(unittest.TestCase):
     def test_encrypt_insert_idempotent_retrieve_owner_isolation_and_cascade(self):
-        url = os.environ["P424_TEST_DATABASE_URL"]
+        url = disposable_test_database_url()
         schema = "p424_test_" + uuid.uuid4().hex
         # Construct a DB-specific schema search path: no shared app tables.
         schema_url = make_conninfo(url, options=f"-csearch_path={schema}")

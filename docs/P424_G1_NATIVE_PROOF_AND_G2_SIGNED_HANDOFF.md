@@ -289,3 +289,50 @@ No production bearer upload or native Windows job transport was exposed.
 Until the server schedules a real job, obtains an agent response and
 verifies the final PDF bytes over authenticated transport, the G2 lane
 remains a prototype. Full integration tests are pending.
+
+## 2026-11-09 — Executable disposable Postgres G2 verification lane
+
+Previously, the owner confirmed P4.24 `0abefc6` WSL test result:
+75 discovered, 73 PASS, 2 SKIP (the separate real PostgreSQL suites).
+The skipped tests are not evidence of transactional DB correctness.
+
+This development cycle adds the following **unexecuted on owner WSL**
+verification infrastructure:
+
+- `hwpx_mcp/testing/p424_disposable_database.py` refuses PostgreSQL
+  integration without explicit `P424_TEST_DATABASE_DISPOSABLE=YES`,
+  a database whose name starts `p424_disposable_` and has sufficient
+  length, and an explicit loopback host/hostaddr. Remote, multi-host,
+  default-socket, misleading production-looking names and arbitrary
+  connection options fail closed *before a DB connection*. This is
+  a defense against accidental targeting, not a proof a localhost
+  tunnel cannot be connected to production.
+- Both previous PostgreSQL suites now use this guard.
+  `tests/test_p424_disposable_db_guard.py` exercises its rejection rules.
+- `tests/test_p424_postgres_signed_ingest_end_to_end.py` connects
+  the actual `P424IssuedJobStore`, `P414EvidenceStore` with real
+  Ed25519-signed synthetic receipts, and `P424PdfStore` in a random
+  throwaway PostgreSQL schema. It checks malicious PDF rejection
+  before any evidence insert, an evidence-only committed state after
+  simulated PDF-store failure, exact-receipt retry to finish encrypted
+  storage, idempotent replays, owner-isolated PDF readback, ciphertext
+  distinct from plaintext, and cascade deletion of source-dependent
+  artifacts while P4.14 append-only evidence remains.
+- `scripts/p424_run_disposable_postgres_tests.sh` provides a
+  localhost-only Docker Postgres 16 test container with randomly
+  named test DB, generated short-lived password, automatic teardown,
+  no private filesystem mounts and no reuse of production DB settings.
+  Run from an activated project virtualenv with:
+  `bash scripts/p424_run_disposable_postgres_tests.sh`.
+  This requires an operational local Docker daemon and may download
+  the official `postgres:16-alpine` image. It runs the entire
+  `test_p424_*.py` suite with all three Postgres integration cases
+  enabled. Docker itself and its running containers are **not**
+  modified other than the newly named disposable container.
+
+**Verification labels:** New files committed to the P4.24 development
+branch; neither the Docker integration runner nor its tests have yet
+been executed here. Never describe them as PASS until the user's
+CLI logs establish actual counts, exact HEAD and cleanup. The
+production feature flag remains OFF, as do signed-agent transport
+and upload integration gates.

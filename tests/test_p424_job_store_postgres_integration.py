@@ -14,6 +14,8 @@ from datetime import datetime,timedelta,timezone
 import psycopg
 from psycopg.conninfo import make_conninfo
 
+from hwpx_mcp.testing.p424_disposable_database import disposable_test_database_url
+
 from hwpx_mcp.custody.p424_job_store import P424IssuedJobStore
 from hwpx_mcp.evidence.p414_evidence_service import canonical_sha256
 
@@ -40,7 +42,7 @@ class Documents:
 )
 class IssuedJobPostgresIntegrationTests(unittest.TestCase):
     def test_issue_lookup_revocation_duplicate_and_source_cascade(self):
-        url=os.environ["P424_TEST_DATABASE_URL"]
+        url=disposable_test_database_url()
         schema="p424_jobs_"+uuid.uuid4().hex
         scoped=make_conninfo(url,options=f"-csearch_path={schema}")
         with psycopg.connect(url,autocommit=True) as admin:

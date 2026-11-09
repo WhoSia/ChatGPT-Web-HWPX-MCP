@@ -7,6 +7,15 @@ if ! command -v docker >/dev/null 2>&1 || ! docker info >/dev/null 2>&1; then
   echo "Docker daemon unavailable. No DB or tests started." >&2
   exit 2
 fi
+# A Docker client can silently target a remote daemon. Never launch
+# disposable test containers on a host selected by DOCKER_HOST/remote context.
+context_endpoint="$(docker context inspect --format '{{ .Endpoints.docker.Host }}' 2>/dev/null || true)"
+for endpoint in "${DOCKER_HOST:-}" "$context_endpoint"; do
+  case "$endpoint" in
+    ""|unix://*|npipe://*) ;;
+    *) echo "Refusing remote/non-local Docker daemon for P4.24 test." >&2; exit 2 ;;
+  esac
+done
 if [[ ! -d tests || ! -f hwpx_mcp/testing/p424_disposable_database.py ]]; then
   echo "Run from the P4.24 repository root." >&2
   exit 2

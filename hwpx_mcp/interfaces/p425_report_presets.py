@@ -176,6 +176,7 @@ def build_report_plan(
     if type(table_of_contents) is not bool:
         raise ValueError("REPORT_TOC_SETTING_INVALID")
 
+    notes: list[dict] = []
     blocks = [{"type": "title", "text": title.strip()}]
     if subtitle.strip():
         blocks.append({"type": "paragraph", "text": subtitle.strip()})
@@ -195,7 +196,27 @@ def build_report_plan(
             content = section["content"]
             if not isinstance(content, list) or len(content) > 240:
                 raise ValueError("REPORT_CONTENT_INVALID")
-            blocks.extend(_as_ordered_block(item) for item in content)
+            for item in content:
+                block = _as_ordered_block(item)
+                # Keep the note attached to the native paragraph identity,
+                # not a printed superscript that loses HWPX semantics.
+                if isinstance(item, dict) and "footnote" in item:
+                    if block["type"] != "paragraph":
+                        raise ValueError("REPORT_FOOTNOTE_REQUIRES_PARAGRAPH")
+                    footnote = item["footnote"]
+                    if (not isinstance(footnote, str) or not footnote.strip()
+                            or len(footnote) > 4000):
+                        raise ValueError("REPORT_FOOTNOTE_TEXT_INVALID")
+                    if len(notes) >= 100:
+                        raise ValueError("REPORT_FOOTNOTE_LIMIT_EXCEEDED")
+                    block_id = f"p425_note_{len(notes) + 1}"
+                    block["id"] = block_id
+                    notes.append({
+                        "op": "add_footnote",
+                        "paragraph": "$block:" + block_id,
+                        "text": footnote.strip(),
+                    })
+                blocks.append(block)
             continue
         paragraphs = section.get("paragraphs", [])
         if not isinstance(paragraphs, list) or len(paragraphs) > 100:
@@ -228,6 +249,7 @@ def build_report_plan(
         "sections": [{"blocks": blocks, "page_numbers": page_numbers}],
         **({"publishing": {"toc": {"at_index": 1, "title": "목차", "level": 3}}}
            if table_of_contents else {}),
+        **({"annotations": notes} if notes else {}),
     }
 
 

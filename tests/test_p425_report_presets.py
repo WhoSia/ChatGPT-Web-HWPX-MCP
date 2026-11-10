@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import unittest
+from unittest.mock import patch
 from types import SimpleNamespace
 
 from hwpx_mcp.interfaces.p425_report_presets import (
@@ -38,6 +39,7 @@ class ReportPresetTests(unittest.TestCase):
         self.assertTrue(result["ok"])
         self.assertEqual({x["id"] for x in result["presets"]}, set(PRESETS))
         self.assertEqual(result["next_tool"], "create_report_from_sections_and_deliver")
+        self.assertIn("preview_report_plan", self.mcp.tools)
 
     def test_single_call_creates_science_report_with_real_table_blocks(self):
         result = self.mcp.tools["create_report_from_sections_and_deliver"](
@@ -88,6 +90,63 @@ class ReportPresetTests(unittest.TestCase):
                     title="보고서",
                     sections=[{"heading": "수식", "equations": equations}],
                 )
+        self.assertEqual(self.calls, [])
+
+    def test_ordered_content_keeps_paragraph_formula_table_discussion_order(self):
+        plan = build_report_plan(
+            title="물리 탐구",
+            sections=[{"heading": "결과와 논의", "content": [
+                {"type": "paragraph", "text": "실험 설정"},
+                {"type": "equation", "latex": "V=IR", "caption": "옴의 법칙"},
+                {"type": "paragraph", "text": "오차 해석"},
+                {"type": "table", "caption": "측정값", "first_row_header": True,
+                 "cells": [["전압", "전류"], ["5", "0.1"]]},
+                {"type": "list_item", "kind": "number", "text": "조건 확인"},
+            ]}],
+            table_of_contents=True,
+        )
+        blocks = plan["sections"][0]["blocks"]
+        self.assertEqual([block["type"] for block in blocks],
+                         ["title", "heading", "paragraph", "equation",
+                          "paragraph", "table", "list_item"])
+        self.assertEqual(blocks[5]["cells"][1], ["5", "0.1"])
+        self.assertTrue(blocks[5]["first_row_header"])
+        self.assertEqual(plan["publishing"]["toc"]["title"], "목차")
+        self.assertTrue(plan["sections"][0]["page_numbers"])
+
+    def test_ordered_content_rejects_ambiguous_legacy_lists(self):
+        with self.assertRaisesRegex(ValueError, "ORDERED_CONTENT_CONFLICT"):
+            build_report_plan(
+                title="보고서", sections=[{"heading": "결과",
+                    "content": [{"type": "paragraph", "text": "순서"}],
+                    "paragraphs": ["기존 배열"]}],
+            )
+
+    def test_unsupported_ordered_block_does_not_create_file(self):
+        for content in [[{"type": "picture", "text": "unknown"}],
+                        [{"type": "heading", "level": 9, "text": "잘못된 레벨"}],
+                        [{"type": "table", "cells": [["A"], ["A", "B"]]}]]:
+            with self.subTest(content=content), self.assertRaises(ValueError):
+                self.mcp.tools["create_report_from_sections_and_deliver"](
+                    title="보고서", sections=[{"heading": "결과", "content": content}],
+                )
+        self.assertEqual(self.calls, [])
+
+    def test_preview_uses_real_compile_contract_without_composing(self):
+        fake = {"block_count": 5, "block_counts": {"title": 1, "heading": 2, "paragraph": 2},
+                "section_count": 1, "setup_operation_count": 1,
+                "plan_sha256": "f" * 64}
+        with patch("hwpx_mcp.orchestration.p338_rich_builder.compile_rich_document_plan",
+                   return_value=fake) as compiler:
+            result = self.mcp.tools["preview_report_plan"](
+                title="테스트", sections=[{"heading": "방법",
+                 "content": [{"type": "paragraph", "text": "실험 절차"}]}],
+                table_of_contents=True)
+        self.assertTrue(result["ok"])
+        self.assertFalse(result["committed"])
+        self.assertEqual(result["block_count"], 5)
+        self.assertTrue(result["table_of_contents_requested"])
+        self.assertEqual(compiler.call_args.args[0]["publishing"]["toc"]["at_index"], 1)
         self.assertEqual(self.calls, [])
 
     def test_unknown_preset_or_invalid_cells_never_calls_composer(self):

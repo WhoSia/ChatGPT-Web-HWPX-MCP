@@ -74,7 +74,9 @@ class ReportPresetTests(unittest.TestCase):
         ]:
             with self.subTest(args=args), self.assertRaises(ValueError):
                 self.mcp.tools["create_report_from_sections_and_deliver"](
-                    title="실험", sections=[{"heading": "본론"}], **args,
+                    title="실험", **{
+                        "sections": [{"heading": "본론"}], **args,
+                    },
                 )
         self.assertEqual(self.calls, [])
 
@@ -82,7 +84,9 @@ class ReportPresetTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "TOO_MANY_BLOCKS"):
             build_report_plan(
                 title="큰 문서",
-                sections=[{"heading": "본문", "paragraphs": ["내용"] * 240}],
+                sections=[{"heading": "본문 1", "paragraphs": ["내용"] * 100},
+                          {"heading": "본문 2", "paragraphs": ["내용"] * 100},
+                          {"heading": "본문 3", "paragraphs": ["내용"] * 100}],
             )
 
     def test_page_setting_is_boolean(self):

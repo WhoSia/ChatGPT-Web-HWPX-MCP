@@ -30,6 +30,80 @@ def register_competitive_workflows(core):
         return metadata, row
 
     @core.mcp.tool()
+    def discover_hwpx_workflows(
+        task: str = "",
+        limit: int = 5,
+    ) -> dict:
+        """Find the smallest useful user-facing HWPX MCP workflow.
+
+        This is a lightweight gateway inspired by peer tool-search
+        patterns. It describes real, registered actions, not imaginary
+        capabilities and never executes document modifications.
+        """
+        core._caller_subject()
+        if type(limit) is not int or not 1 <= limit <= 10:
+            raise ValueError("WORKFLOW_LIMIT_INVALID")
+        if not isinstance(task, str) or len(task) > 500:
+            raise ValueError("WORKFLOW_QUERY_INVALID")
+        workflows = [
+            ("create_and_deliver_document", "create",
+             "Create a simple HWPX and return a file attachment in one call.",
+             "text; optional title, filename, request_id"),
+            ("create_rich_document_and_deliver", "create rich report",
+             "Create a native multi-section HWPX with tables, equations and images.",
+             "rich_plan; optional filename"),
+            ("read_document_structure", "read inspect outline paragraphs",
+             "Read structured sections and nested paragraph text.",
+             "document_id; optional offset, limit, include_text"),
+            ("find_document_text", "search find text",
+             "Search normal and table-cell text with exact locators.",
+             "document_id, query; optional max_matches, case_sensitive"),
+            ("preview_template_fill", "preview template fill",
+             "Preview placeholder replacements without modifying the document.",
+             "document_id, values; optional require_each, require_unique"),
+            ("fill_template_and_deliver", "fill template apply",
+             "Fill HWPX placeholders and return the revised attachment.",
+             "document_id, values, expected_revision"),
+            ("replace_text_and_deliver", "replace batch find",
+             "Replace multiple literal strings in one durable revision.",
+             "document_id, replacements, expected_revision"),
+            ("list_document_tables", "table list inspect cells",
+             "Inspect grids, merged cells and captions.",
+             "document_id; optional offset, limit"),
+            ("edit_table_and_deliver", "table edit merge cell row column",
+             "Edit HWPX table cells/structure and return revised attachment.",
+             "document_id, expected_revision, operations"),
+        ]
+        tokens = {word.casefold() for word in task.split() if word.strip()}
+        synonyms = {
+            "표": "table", "셀": "cell", "병합": "merge", "읽기": "read",
+            "검색": "search", "찾기": "find", "치환": "replace",
+            "수정": "edit", "작성": "create", "생성": "create",
+            "템플릿": "template", "미리보기": "preview",
+            "수식": "equations", "보고서": "report",
+        }
+        tokens |= {synonyms[word] for word in tokens if word in synonyms}
+        ranked = []
+        for index, (name, keywords, description, inputs) in enumerate(workflows):
+            hay = (name + " " + keywords).casefold()
+            score = sum(1 for token in tokens if token in hay)
+            ranked.append((score, index, {
+                "tool": name, "purpose": description, "inputs": inputs,
+            }))
+        if tokens:
+            ranked = [row for row in ranked if row[0] > 0]
+        ranked.sort(key=lambda row: (-row[0], row[1]))
+        selected = [row[2] for row in ranked[:limit]]
+        return {
+            "ok": True, "phase": "P4.25",
+            "matching_workflows": selected,
+            "matching_count": len(ranked),
+            "no_matches": not bool(selected),
+            "executes_mutations": False,
+            "next_step": "Call the suggested MCP tool with its required arguments.",
+        }
+
+    @core.mcp.tool()
     def create_and_deliver_document(
         text: str,
         title: str = "",

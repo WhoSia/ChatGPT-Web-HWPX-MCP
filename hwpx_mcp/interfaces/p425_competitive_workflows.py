@@ -30,6 +30,45 @@ def register_competitive_workflows(core):
         return metadata, row
 
     @core.mcp.tool()
+    def create_and_deliver_document(
+        text: str,
+        title: str = "",
+        filename: str = "document.hwpx",
+        request_id: str = "",
+    ) -> dict:
+        """Create a real HWPX and provide its download in one MCP call.
+
+        Uses the existing replay-safe create_document and P3.33 file
+        delivery. There is no second document format or extra database.
+        If a previous creation succeeded but the response was lost,
+        repeat the same request_id with identical content.
+        """
+        if not isinstance(text, str) or not text.strip():
+            raise ValueError("DOCUMENT_TEXT_REQUIRED")
+        created = core.create_document(
+            text=text, title=title, filename=filename,
+            request_id=request_id,
+        )
+        from hwpx_mcp.delivery.p333_file_delivery import export_revision
+        delivered = export_revision(
+            core, document_id=created["document_id"],
+            link_ttl_seconds=900,
+        )
+        return {
+            "ok": True,
+            "document_id": created["document_id"],
+            "revision": delivered["revision"],
+            "sha256": delivered["sha256"],
+            "filename": delivered["filename"],
+            "mime_type": delivered["mime_type"],
+            "download_url": delivered["download_url"],
+            "delivery_status": delivered["delivery_status"],
+            "idempotent_replay": created.get("idempotent_replay", False),
+            "request_id": request_id or None,
+            "native_pdf_created": False,
+        }
+
+    @core.mcp.tool()
     def read_document_structure(
         document_id: str,
         offset: int = 0,

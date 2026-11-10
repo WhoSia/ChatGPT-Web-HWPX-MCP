@@ -435,6 +435,7 @@ def probe_capabilities() -> dict:
             "export_document",
             "delete_document",
             "inspect_document_formatting",
+            "preview_document_formatting",
             "format_document_and_deliver",
             "export_document_markdown",
             "discover_hwpx_workflows",
@@ -452,6 +453,7 @@ def probe_capabilities() -> dict:
         ],
         "user_facing_workflows": [
             "inspect_document_formatting",
+            "preview_document_formatting",
             "format_document_and_deliver",
             "export_document_markdown",
             "discover_hwpx_workflows",

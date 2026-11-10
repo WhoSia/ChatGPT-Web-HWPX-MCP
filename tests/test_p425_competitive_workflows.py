@@ -66,6 +66,13 @@ class CompetitorPatternToolsTests(unittest.TestCase):
         )
         register_competitive_workflows(self.core)
 
+    def test_native_rich_authoring_callback_reused_by_report_presets(self):
+        self.assertTrue(callable(self.core._p425_create_rich_document_and_deliver))
+        self.assertIs(
+            self.core._p425_create_rich_document_and_deliver,
+            self.mcp.tools["create_rich_document_and_deliver"],
+        )
+
     def test_eleven_working_tools_registered(self):
         self.assertEqual(set(self.mcp.tools), {
             "read_document_structure", "preview_template_fill",

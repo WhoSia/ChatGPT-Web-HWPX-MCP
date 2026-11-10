@@ -279,3 +279,71 @@ Example section:
 This adds a real scientific-report user workflow enhancement without
 introducing another MCP tool or signing layer. Tests were committed,
 but not observed passing at this latest HEAD.
+
+## 2026-11-10 — Ordered scientific reports, preview, and native CI acceptance
+
+A real end-user limitation was fixed: the original report frontend
+grouped every section's paragraphs first, equations next, and tables last,
+silently losing the user's intended narrative order. P4.25 now accepts
+an optional **ordered** `sections[].content` array and emits blocks in
+exact input order. Each item can be a native paragraph, heading, numbered
+or bullet list item, equation, table, or page break. Mixing ordered
+`content` with the older `paragraphs`, `equations` or `tables`
+fields in the same section is rejected explicitly; the older simple
+interface still works unchanged.
+
+For example:
+
+```json
+{
+  "title": "회로 특성 분석",
+  "preset": "science-report",
+  "table_of_contents": true,
+  "page_numbers": true,
+  "sections": [{
+    "heading": "결과 및 논의",
+    "content": [
+      {"type": "paragraph", "text": "전압과 전류를 측정하였다."},
+      {"type": "equation", "latex": "V=IR", "caption": "옴의 법칙"},
+      {"type": "paragraph", "text": "이론과 측정값을 비교하였다."},
+      {"type": "table", "caption": "측정 결과",
+       "first_row_header": true,
+       "cells": [["전압 (V)", "전류 (A)"], ["3.0", "0.15"]]},
+      {"type": "paragraph", "text": "측정 오차를 해석하였다."}
+    ]
+  }]
+}
+```
+
+The new `preview_report_plan` tool compiles this request using the real
+P3.38 plan compiler and returns block counts, section setup count, plan
+SHA and TOC/page-number flags, without creating a document. The
+`create_report_from_sections_and_deliver` tool sends the exact
+same native block plan to the shared P3.38/P3.21 composer. Explicit
+`table_of_contents=true` uses the existing structured-publishing
+native TOC operation; `first_row_header=true` uses the existing
+native table header-finishing path. Neither is a fake printed heading.
+
+A dedicated **P4.25 CI workflow** was added:
+`.github/workflows/p425-ci.yml` installs the actual native HWPX/MCP
+dependencies, compiles P4.25 modules and runs focused tests on PR #24.
+The first run exposed real API incompatibilities: assignments to
+`CallToolResult.structuredContent` after instantiation failed with
+Pydantic, some synthetic delivery receipts omitted their required
+`download_expires_at` value, and Markdown pipe escaping was doubled.
+These were repaired in production code and test fixtures; MCP file
+receipt metadata is now supplied to `handoff()` **at construction
+time** and accessed in tests through the actual Python field
+`structured_content` (wire alias: `structuredContent`).
+
+At GitHub HEAD `7d77b97dc4b36bd7fd55e734fffb64fcdc609ad1`,
+a real **49-test P4.25 CI run passed**, including two synthetic
+end-to-end tests that wrote actual native HWPX in temporary directories
+and reopened them to inspect table and equation objects and native
+TOC authoring. Additional workflow discovery/capability changes after
+that HEAD must be checked independently before claiming their CI pass.
+No deleted user HWPX or `C:\\p424-validation` path was used.
+
+P4.25 currently exposes **18** user-facing MCP tools (nine inherited,
+one discovery, four formatting and Markdown-read tools, one
+Markdown-to-native-HWPX author, and three report-preset tools).

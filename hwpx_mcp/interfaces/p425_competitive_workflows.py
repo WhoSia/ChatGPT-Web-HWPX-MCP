@@ -146,6 +146,9 @@ def register_competitive_workflows(core):
             ("replace_text_and_deliver", "replace batch find",
              "Replace multiple literal strings in one durable revision.",
              "document_id, replacements, expected_revision"),
+            ("list_document_figures", "figure image graph chart list inspect",
+             "Inspect native HWPX figure placement and object references.",
+             "document_id; optional offset, limit"),
             ("list_document_tables", "table list inspect cells",
              "Inspect grids, merged cells and captions.",
              "document_id; optional offset, limit"),
@@ -187,7 +190,8 @@ def register_competitive_workflows(core):
             "글꼴": "font", "서식": "format", "스타일": "style",
             "문단": "paragraph", "마크다운": "markdown",
             "변환": "convert", "추출": "export",
-            "탐구": "science", "실험": "experiment", "프리셋": "preset",
+            "탐구": "science", "실험": "experiment",
+            "그림": "figure", "그래프": "graph", "사진": "image", "프리셋": "preset",
             "양식": "preset", "학교": "school",
         }
         tokens |= {synonyms[word] for word in tokens if word in synonyms}
@@ -301,6 +305,49 @@ def register_competitive_workflows(core):
             "native_pdf_created": False,
         })
         return result
+
+    @core.mcp.tool()
+    def list_document_figures(
+        document_id: str, offset: int = 0, limit: int = 20,
+    ) -> dict:
+        """Inspect retained native HWPX images, position and media metadata.
+
+        This reads existing P2.9 object topology, not image bytes or
+        a renderer screenshot. Use returned locators for future edits.
+        """
+        if type(offset) is not int or offset < 0:
+            raise ValueError("OFFSET_INVALID")
+        if type(limit) is not int or not 1 <= limit <= 50:
+            raise ValueError("LIMIT_INVALID")
+        _metadata, row = _owned(document_id)
+        from hwpx_mcp.document.p29_objects import build_object_map
+        with tempfile.TemporaryDirectory(prefix="p425-figures-") as tmp:
+            path = Path(tmp) / "owned.hwpx"
+            path.write_bytes(row["bytes"])
+            result = build_object_map(path)
+        pictures = result["pictures"]
+        return {
+            "ok": True, "document_id": document_id,
+            "revision": row["revision"],
+            "figure_count": len(pictures),
+            "figures": [
+                {
+                    "locator": item["locator"],
+                    "paragraph_locator": item["paragraph_locator"],
+                    "section_index": item["section_index"],
+                    "picture_index": item["picture_index"],
+                    "width": item["width"], "height": item["height"],
+                    "placement": item["placement"],
+                    "binary_item_id_ref": item["binary_item_id_ref"],
+                }
+                for item in pictures[offset:offset + limit]
+            ],
+            "next_offset": (
+                offset + limit if offset + limit < len(pictures) else None
+            ),
+            "media_item_count": result["media_item_count"],
+            "object_structure_sha256": result["object_structure_sha256"],
+        }
 
     @core.mcp.tool()
     def list_document_tables(

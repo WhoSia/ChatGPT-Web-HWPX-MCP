@@ -210,6 +210,32 @@ class ReportPresetTests(unittest.TestCase):
                 ]}],
             )
 
+    def test_auto_numbering_follows_native_object_order(self):
+        png = base64.b64encode(b"\\x89PNG\\r\\n\\x1a\\n" + b"sample").decode("ascii")
+        plan = build_report_plan(
+            title="캡션 보고서", number_captions=True,
+            sections=[{"heading": "결과", "content": [
+                {"type": "equation", "latex": "V=IR", "caption": "옴의 법칙"},
+                {"type": "figure", "content_base64": png, "caption": "그래프"},
+                {"type": "table", "caption": "측정 결과", "cells": [["A"], ["B"]]},
+                {"type": "figure", "content_base64": png,
+                 "caption": "그림 2. 이미 번호 붙인 그림"},
+                {"type": "equation", "latex": "P=VI", "caption": "전력"},
+            ]}],
+        )
+        blocks = plan["sections"][0]["blocks"]
+        self.assertEqual([item["caption"] for item in blocks if item.get("caption")],
+                         ["식 1. 옴의 법칙", "그림 1. 그래프",
+                          "표 1. 측정 결과", "그림 2. 이미 번호 붙인 그림",
+                          "식 2. 전력"])
+
+    def test_caption_numbering_disabled_preserves_exact_user_text(self):
+        plan = build_report_plan(
+            title="보고서", number_captions=False,
+            sections=[{"heading": "본문", "equations": [{"latex": "V=IR", "caption": "옴의 법칙"}]}],
+        )
+        self.assertEqual(plan["sections"][0]["blocks"][-1]["caption"], "옴의 법칙")
+
     def test_unknown_preset_or_invalid_cells_never_calls_composer(self):
         for args in [
             {"preset": "nonexistent"},

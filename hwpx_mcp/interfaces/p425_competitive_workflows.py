@@ -173,12 +173,12 @@ def register_competitive_workflows(core):
             ("list_report_presets", "report preset style science school institution",
              "List available report presets and example section layouts.",
              "no required inputs"),
-            ("preview_report_plan", "preview report science sections toc layout",
-             "Preview a native HWPX report's block counts, page setup and plan digest without writing.",
-             "title, sections; optional preset, subtitle, author, page_numbers, table_of_contents"),
-            ("create_report_from_sections_and_deliver", "report science school experiment tables equation create",
-             "Create a native report from ordered paragraphs, tables and editable equations.",
-             "title, sections; optional preset, subtitle, author, filename, page_numbers, table_of_contents"),
+            ("preview_report_plan", "preview report science sections toc layout caption",
+             "Preview real native report block counts, setup and plan digest without writing.",
+             "title, sections; optional preset, subtitle, author, page_numbers, table_of_contents, number_captions"),
+            ("create_report_from_sections_and_deliver", "report science school experiment tables figure image graph footnote caption equation create",
+             "Create a native report interleaving text, editable formulas, tables, images, footnotes and numbered captions.",
+             "title, sections; optional preset, subtitle, author, filename, page_numbers, table_of_contents, number_captions"),
         ]
         tokens = {word.casefold() for word in task.split() if word.strip()}
         synonyms = {
@@ -191,7 +191,8 @@ def register_competitive_workflows(core):
             "문단": "paragraph", "마크다운": "markdown",
             "변환": "convert", "추출": "export",
             "탐구": "science", "실험": "experiment",
-            "그림": "figure", "그래프": "graph", "사진": "image", "프리셋": "preset",
+            "그림": "figure", "그래프": "graph", "사진": "image",
+            "각주": "footnote", "출처": "footnote", "캡션": "caption", "프리셋": "preset",
             "양식": "preset", "학교": "school",
         }
         tokens |= {synonyms[word] for word in tokens if word in synonyms}

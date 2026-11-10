@@ -323,7 +323,7 @@ class MarkdownToNativePlanTests(unittest.TestCase):
         self.assertEqual(blocks[-1]["cells"][1], ["온도", "27"])
 
     def test_escaped_pipe_is_not_a_table_column_break(self):
-        sample = "| 명칭 | 값 |\n| --- | --- |\n| a\\\\|b | 42 |"
+        sample = "| 명칭 | 값 |\n| --- | --- |\n| a\\|b | 42 |"
         blocks = markdown_to_rich_plan(sample)["sections"][0]["blocks"]
         self.assertEqual(blocks[0]["cols"], 2)
         self.assertEqual(blocks[0]["cells"][1][0], "a|b")

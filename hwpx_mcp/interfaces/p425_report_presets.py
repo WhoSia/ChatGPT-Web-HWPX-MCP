@@ -96,8 +96,8 @@ def _as_native_figure(figure: dict) -> dict:
         raise ValueError("REPORT_FIGURE_BASE64_INVALID") from error
     if not raw or len(raw) > 8 * 1024 * 1024:
         raise ValueError("REPORT_FIGURE_BYTES_INVALID")
-    is_png = raw.startswith(b"\\x89PNG\\r\\n\\x1a\\n")
-    is_jpeg = raw.startswith(b"\\xff\\xd8\\xff")
+    is_png = raw.startswith(b"\x89PNG\r\n\x1a\n")
+    is_jpeg = raw.startswith(b"\xff\xd8\xff")
     if not (is_png if fmt.lower() == "png" else is_jpeg):
         raise ValueError("REPORT_FIGURE_SIGNATURE_MISMATCH")
     width, height = figure.get("width", 10000), figure.get("height", 8000)

@@ -63,11 +63,11 @@ class FormattingInterchangeTests(unittest.TestCase):
         )
         register_format_interchange_tools(self.core)
 
-    def test_three_real_tools_registered(self):
+    def test_four_real_tools_registered(self):
         self.assertEqual(set(self.mcp.tools), {
             "inspect_document_formatting",
             "format_document_and_deliver",
-            "export_document_markdown",
+            "export_document_markdown", "preview_document_formatting",
         })
 
     def test_formatting_reader_returns_native_locator_and_runs(self):
@@ -88,6 +88,29 @@ class FormattingInterchangeTests(unittest.TestCase):
         self.assertEqual(got["paragraphs"][0]["locator"], "p0")
         self.assertEqual(got["paragraphs"][0]["runs"][0]["text"], "연구")
         self.assertEqual(got["property_counts"]["char"], 2)
+
+    def test_formatting_preview_uses_native_operation_normalizer(self):
+        native_map = {
+            "formatting_sha256": "d" * 64,
+            "paragraphs": [{"locator": "p0", "runs": [
+                {"run_index": 0, "text": "실험"}]}],
+        }
+        normalized = [{"op": "set_run_format", "target": "p0",
+                       "run_indexes": [0], "format": {"bold": True}}]
+        with patch("hwpx_mcp.document.p22_formatting.build_formatting_map",
+                   return_value=native_map), patch(
+            "hwpx_mcp.document.p22_formatting._normalize_formatting_operations",
+            return_value=normalized,
+        ) as norm:
+            result = self.mcp.tools["preview_document_formatting"](
+                DOC, [{"op": "set_run_format", "target": "p0",
+                       "format": {"bold": True}}],
+            )
+        norm.assert_called_once()
+        self.assertFalse(result["committed"])
+        self.assertEqual(result["operation_count"], 1)
+        self.assertEqual(result["targets"][0]["target"], "p0")
+        self.assertEqual(self.store.writes, [])
 
     def test_formatting_edit_commits_one_revision_and_delivers_attachment(self):
         def fake_edit(path, operations, **kwargs):

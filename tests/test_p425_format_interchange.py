@@ -12,6 +12,7 @@ from unittest.mock import patch
 
 from hwpx_mcp.interfaces.p425_format_interchange import (
     register_format_interchange_tools, document_to_markdown,
+    tables_to_markdown,
 )
 
 DOC = "doc_" + "z" * 24
@@ -174,7 +175,10 @@ class FormattingInterchangeTests(unittest.TestCase):
             ],
         }
         with patch("hwpx_mcp.document.p2_document.build_document_map",
-                   return_value=paragraphs):
+                   return_value=paragraphs), patch(
+            "hwpx_mcp.document.p27_tables.build_table_map",
+            return_value={"tables": []},
+        ):
             got = self.mcp.tools["export_document_markdown"](DOC, max_chars=14)
         self.assertTrue(got["truncated"])
         self.assertIn("\\# 본문", got["markdown"])
@@ -198,6 +202,32 @@ class MarkdownSemanticsTests(unittest.TestCase):
         ]}
         result = document_to_markdown(doc)
         self.assertTrue(result["markdown"].startswith("\\#"))
+
+    def test_native_table_grid_preserves_rows_columns_and_escapes_pipes(self):
+        source = {"tables": [{
+            "rows": 2, "cols": 2,
+            "cells": [
+                {"row": 0, "col": 0, "row_span": 1, "col_span": 1, "text": "변수"},
+                {"row": 0, "col": 1, "row_span": 1, "col_span": 1, "text": "값"},
+                {"row": 1, "col": 0, "row_span": 1, "col_span": 1, "text": "a|b"},
+                {"row": 1, "col": 1, "row_span": 1, "col_span": 1, "text": "42"},
+            ],
+        }]}
+        table = tables_to_markdown(source)
+        self.assertIn(r"a\|b", table["markdown"])
+        self.assertIn("| 열 1 | 열 2 |", table["markdown"])
+        self.assertEqual(table["table_count"], 1)
+        self.assertEqual(table["merged_cell_warnings"], [])
+
+    def test_merged_cell_explicitly_reports_markdown_limitation(self):
+        source = {"tables": [{
+            "rows": 2, "cols": 2,
+            "cells": [{"row": 0, "col": 0, "row_span": 2,
+                       "col_span": 2, "text": "병합 영역"}],
+        }]}
+        table = tables_to_markdown(source)
+        self.assertEqual(table["merged_cell_warnings"][0]["row_span"], 2)
+        self.assertEqual(table["merged_cell_warnings"][0]["col_span"], 2)
 
     def test_nested_cell_annotation_makes_fidelity_limit_clear(self):
         doc = {"sections": [{}], "paragraphs": [

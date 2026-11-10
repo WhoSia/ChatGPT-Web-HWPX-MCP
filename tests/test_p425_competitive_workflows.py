@@ -10,7 +10,7 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from hwpx_mcp.interfaces.p425_competitive_workflows import register_competitive_workflows
+from hwpx_mcp.interfaces.p425_competitive_workflows import register_competitive_workflows, markdown_to_rich_plan
 
 SOURCE = b"PK" + b"synthetic-hwpx" * 10
 UPDATED = b"PK" + b"synthetic-filled-hwpx" * 10
@@ -66,14 +66,14 @@ class CompetitorPatternToolsTests(unittest.TestCase):
         )
         register_competitive_workflows(self.core)
 
-    def test_ten_working_tools_registered(self):
+    def test_eleven_working_tools_registered(self):
         self.assertEqual(set(self.mcp.tools), {
             "read_document_structure", "preview_template_fill",
             "fill_template_and_deliver", "find_document_text",
             "replace_text_and_deliver", "create_and_deliver_document",
             "create_rich_document_and_deliver",
             "list_document_tables", "edit_table_and_deliver",
-            "discover_hwpx_workflows",
+            "discover_hwpx_workflows", "create_from_markdown_and_deliver",
         })
 
     def test_discovery_recommends_table_edit_in_korean(self):
@@ -310,6 +310,32 @@ class CompetitorPatternToolsTests(unittest.TestCase):
         for args in ({"offset": -1}, {"limit": 0}, {"limit": 1000}):
             with self.subTest(args=args), self.assertRaises(ValueError):
                 self.mcp.tools["read_document_structure"](DOCUMENT_ID, **args)
+
+
+class MarkdownToNativePlanTests(unittest.TestCase):
+    def test_headings_lists_and_tables_compile_to_native_blocks(self):
+        sample = "# 연구 보고서\n\n연구 목적\n\n- 가설\n1. 측정\n\n| 변수 | 값 |\n| --- | --- |\n| 온도 | 27 |"
+        plan = markdown_to_rich_plan(sample)
+        blocks = plan["sections"][0]["blocks"]
+        self.assertEqual([b["type"] for b in blocks],
+                         ["heading", "paragraph", "list_item", "list_item", "table"])
+        self.assertEqual(blocks[0]["level"], 1)
+        self.assertEqual(blocks[-1]["cells"][1], ["온도", "27"])
+
+    def test_escaped_pipe_is_not_a_table_column_break(self):
+        sample = "| 명칭 | 값 |\n| --- | --- |\n| a\\\\|b | 42 |"
+        blocks = markdown_to_rich_plan(sample)["sections"][0]["blocks"]
+        self.assertEqual(blocks[0]["cols"], 2)
+        self.assertEqual(blocks[0]["cells"][1][0], "a|b")
+
+    def test_table_width_mismatch_fails_before_any_doc_creation(self):
+        sample = "| A | B |\n| --- | --- |\n| only-one |"
+        with self.assertRaisesRegex(ValueError, "ROW_WIDTH_MISMATCH"):
+            markdown_to_rich_plan(sample)
+
+    def test_empty_markdown_is_rejected(self):
+        with self.assertRaisesRegex(ValueError, "TEXT_REQUIRED"):
+            markdown_to_rich_plan("   ")
 
 
 if __name__ == "__main__":

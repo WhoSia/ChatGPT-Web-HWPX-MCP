@@ -165,6 +165,12 @@ def register_competitive_workflows(core):
             ("create_from_markdown_and_deliver", "markdown import create convert",
              "Compile Markdown headings, lists and simple tables into native HWPX.",
              "markdown; optional filename"),
+            ("list_report_presets", "report preset style science school institution",
+             "List available report presets and example section layouts.",
+             "no required inputs"),
+            ("create_report_from_sections_and_deliver", "report science school experiment tables create",
+             "Create a polished native report with headings, paragraphs and tables.",
+             "title, sections; optional preset, subtitle, author, filename, page_numbers"),
         ]
         tokens = {word.casefold() for word in task.split() if word.strip()}
         synonyms = {
@@ -176,6 +182,8 @@ def register_competitive_workflows(core):
             "글꼴": "font", "서식": "format", "스타일": "style",
             "문단": "paragraph", "마크다운": "markdown",
             "변환": "convert", "추출": "export",
+            "탐구": "science", "실험": "experiment", "프리셋": "preset",
+            "양식": "preset", "학교": "school",
         }
         tokens |= {synonyms[word] for word in tokens if word in synonyms}
         ranked = []

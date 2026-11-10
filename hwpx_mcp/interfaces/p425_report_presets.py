@@ -5,6 +5,8 @@ rich-plan schema and delegates final composition to the registered tool.
 """
 from __future__ import annotations
 
+import base64
+import binascii
 from copy import deepcopy
 
 PRESETS = {
@@ -78,6 +80,43 @@ def _as_native_equation(equation: str | dict) -> dict:
     return block
 
 
+def _as_native_figure(figure: dict) -> dict:
+    """Validate an in-memory PNG/JPEG and reuse the P3.21 native picture object."""
+    if not isinstance(figure, dict):
+        raise ValueError("REPORT_FIGURE_INVALID")
+    fmt = figure.get("image_format", "png")
+    if not isinstance(fmt, str) or fmt.lower() not in ("png", "jpg", "jpeg"):
+        raise ValueError("REPORT_FIGURE_FORMAT_INVALID")
+    encoded = figure.get("content_base64")
+    if not isinstance(encoded, str) or not encoded or len(encoded) > 12_000_000:
+        raise ValueError("REPORT_FIGURE_PAYLOAD_INVALID")
+    try:
+        raw = base64.b64decode(encoded, validate=True)
+    except (ValueError, binascii.Error) as error:
+        raise ValueError("REPORT_FIGURE_BASE64_INVALID") from error
+    if not raw or len(raw) > 8 * 1024 * 1024:
+        raise ValueError("REPORT_FIGURE_BYTES_INVALID")
+    is_png = raw.startswith(b"\\x89PNG\\r\\n\\x1a\\n")
+    is_jpeg = raw.startswith(b"\\xff\\xd8\\xff")
+    if not (is_png if fmt.lower() == "png" else is_jpeg):
+        raise ValueError("REPORT_FIGURE_SIGNATURE_MISMATCH")
+    width, height = figure.get("width", 10000), figure.get("height", 8000)
+    if (type(width) is not int or type(height) is not int
+            or not 100 <= width <= 100000 or not 100 <= height <= 100000):
+        raise ValueError("REPORT_FIGURE_SIZE_INVALID")
+    caption = figure.get("caption")
+    if caption is not None and (not isinstance(caption, str) or len(caption) > 500):
+        raise ValueError("REPORT_FIGURE_CAPTION_INVALID")
+    inline = figure.get("inline", True)
+    if type(inline) is not bool:
+        raise ValueError("REPORT_FIGURE_INLINE_INVALID")
+    return {
+        "type": "picture", "content_base64": encoded,
+        "image_format": fmt.lower(), "width": width, "height": height,
+        "inline": inline, **({"caption": caption} if caption else {}),
+    }
+
+
 def _as_ordered_block(item: dict) -> dict:
     """Transform a small semantic report DSL into existing native block types."""
     if not isinstance(item, dict):
@@ -106,6 +145,8 @@ def _as_ordered_block(item: dict) -> dict:
         return _as_native_equation(item)
     if kind == "table":
         return _as_native_table(item)
+    if kind in ("figure", "picture", "image"):
+        return _as_native_figure(item)
     if kind == "page_break":
         return {"type": "page_break"}
     raise ValueError("REPORT_CONTENT_TYPE_UNSUPPORTED")
@@ -149,7 +190,7 @@ def build_report_plan(
             raise ValueError("REPORT_HEADING_INVALID")
         blocks.append({"type": "heading", "level": 1, "text": heading.strip()})
         if "content" in section:
-            if any(field in section for field in ("paragraphs", "equations", "tables")):
+            if any(field in section for field in ("paragraphs", "equations", "tables", "figures")):
                 raise ValueError("REPORT_ORDERED_CONTENT_CONFLICT")
             content = section["content"]
             if not isinstance(content, list) or len(content) > 240:
@@ -172,6 +213,10 @@ def build_report_plan(
         if not isinstance(tables, list) or len(tables) > 20:
             raise ValueError("REPORT_TABLES_INVALID")
         blocks.extend(_as_native_table(value) for value in tables)
+        figures = section.get("figures", [])
+        if not isinstance(figures, list) or len(figures) > 20:
+            raise ValueError("REPORT_FIGURES_INVALID")
+        blocks.extend(_as_native_figure(value) for value in figures)
 
     # Existing P3.21 composer has a 240-block limit. Validate here too,
     # before invoking native authoring or producing any bytes.

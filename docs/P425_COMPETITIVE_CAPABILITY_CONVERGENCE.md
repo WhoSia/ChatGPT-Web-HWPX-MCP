@@ -108,3 +108,47 @@ and adds discovery as the tenth first-class P4.25 MCP tool. Synthetic
 regression tests were added for Korean table-edit lookup, rich report
 lookup, and bounds. Run the tests against the current P4.25 branch;
 none of these new tests has been executed on the owner's WSL yet.
+
+## 2026-11-10 development cycle — Native formatting and Markdown interchange
+
+New actual MCP registrations, in `hwpx_mcp/interfaces/p425_format_interchange.py`:
+
+- `inspect_document_formatting(document_id, offset, limit, include_runs)`
+  returns the P2.2-native paragraph/run formatting model with original
+  paragraph locators, style properties and run-level font formatting.
+- `preview_document_formatting(document_id, operations)` reuses the
+  **same P2.2 native operation normalization** as the final commit path:
+  checks target locator and permissible formatting fields without
+  modifying the document. Returns current revision and target changes.
+- `format_document_and_deliver(document_id, expected_revision, operations)`
+  runs the existing P2.2 native formatting engine on owned revision bytes,
+  preserves semantic text, commits one P3.0 CAS revision and returns the
+  P3.33 MCP `resource_link` HWPX attachment.
+- `export_document_markdown(document_id, include_table_cells,
+  max_chars, include_tables)` reads native P2 paragraphs and optionally
+  native P2.7 table grids; produces semantic Markdown directly in the
+  MCP result. It escapes literal Markdown metacharacters, emits synthetic
+  table column headings rather than inventing header rows, reports merged
+  cell row/column spans that Markdown cannot preserve and marks tables
+  as appended after paragraphs (not a layout-faithful reconstruction).
+  It explicitly does not render pages, equations or embedded images.
+
+The existing P4.25 agent discovery gateway now advertises the new
+formatting/Markdown workflows and recognizes Korean keywords such as
+`글꼴`, `서식`, `문단`, `마크다운`, `추출`.
+The server's `probe_capabilities` listing and actual tool registration
+are updated. The branch now exposes **14 P4.25 user workflow tools**
+(9 inherited + 1 agent discover + 4 formatting/interchange).
+
+Tests `tests/test_p425_format_interchange.py` exercise registered
+tool contracts, run/paragraph inspection, formatting preview without
+mutation, optimistic revision CAS, resource_link delivery, owner
+isolation, Markdown escaping, table rows/columns, merged-cell caveats
+and size bounds, using synthetic data only.
+
+These new commits have been written to GitHub but **not executed in
+the user's WSL environment or deployed to the hosted MCP**. They do
+not require or recreate the user's deleted local Windows validation
+folder. Next practical engineering work: real controlled HWPX fixture
+test of P2.2 style operations, richer Markdown heading/list semantics,
+and live ChatGPT attachment usability.

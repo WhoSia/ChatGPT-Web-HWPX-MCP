@@ -816,6 +816,13 @@ def _transport_security() -> TransportSecuritySettings:
     )
 
 
+# P4.25: expose the existing P3.37 template-edit engine as actual MCP tools.
+# No new parser, renderer or local Windows dependency is introduced.
+import sys as _p425_sys
+from hwpx_mcp.interfaces.p425_competitive_workflows import register_competitive_workflows
+register_competitive_workflows(_p425_sys.modules[__name__])
+
+
 if __name__ == "__main__":
     host = os.environ.get("MCP_HOST", "0.0.0.0")
     port = int(os.environ.get("PORT", os.environ.get("MCP_PORT", "8000")))

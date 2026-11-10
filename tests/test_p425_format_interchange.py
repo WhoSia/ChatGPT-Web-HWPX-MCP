@@ -142,8 +142,8 @@ class FormattingInterchangeTests(unittest.TestCase):
                 operations=[{"op": "set_run_format", "target": "p0",
                              "format": {"font": "함초롬바탕", "bold": True}}],
             )
-        self.assertTrue(result.structuredContent["formatting_changed"])
-        self.assertFalse(result.structuredContent["text_changed"])
+        self.assertTrue(result.structured_content["formatting_changed"])
+        self.assertFalse(result.structured_content["text_changed"])
         self.assertEqual(result.content[1].type, "resource_link")
         self.assertEqual(self.store.writes[0]["expected_revision"], 2)
         self.assertEqual(self.store.writes[0]["data"], REVISED)

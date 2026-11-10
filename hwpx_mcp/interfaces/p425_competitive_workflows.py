@@ -102,8 +102,10 @@ def register_competitive_workflows(core):
         if metadata["owner_subject"] != subject:
             raise PermissionError("DOCUMENT_NOT_OWNED")
         row = core.DOCUMENT_STORE.load_current(document_id)
-        if row is None or row["owner_subject"] != subject:
+        if row is None:
             raise FileNotFoundError("DOCUMENT_REVISION_NOT_AVAILABLE")
+        if row["owner_subject"] != subject:
+            raise PermissionError("DOCUMENT_NOT_OWNED")
         return metadata, row
 
     @core.mcp.tool()
@@ -231,14 +233,13 @@ def register_competitive_workflows(core):
             core, document_id=created["document_id"],
             link_ttl_seconds=900,
         )
-        attachment = handoff(delivered)
-        attachment.structuredContent = {
+        attachment = handoff({
             **delivered,
             "created": True,
             "idempotent_replay": created.get("idempotent_replay", False),
             "request_id": request_id or None,
             "native_pdf_created": False,
-        }
+        })
         return attachment
 
     @core.mcp.tool()
@@ -287,8 +288,7 @@ def register_competitive_workflows(core):
                 hwpx_path.unlink(missing_ok=True)
             raise
         delivered = export_revision(core, document_id, link_ttl_seconds=900)
-        result = handoff(delivered)
-        result.structuredContent = {
+        result = handoff({
             **delivered, "ok": True, "created": True,
             "rich_plan_sha256": compiled["plan_sha256"],
             "rich_block_count": compiled["block_count"],
@@ -296,7 +296,7 @@ def register_competitive_workflows(core):
             "composer_receipt": composition,
             "commit_receipt": committed,
             "native_pdf_created": False,
-        }
+        })
         return result
 
     @core.mcp.tool()
@@ -374,14 +374,13 @@ def register_competitive_workflows(core):
         )
         core._load_metadata(document_id)
         delivered = export_revision(core, document_id, link_ttl_seconds=900)
-        result = handoff(delivered)
-        result.structuredContent = {
+        result = handoff({
             **delivered, "ok": True,
             "operation_count": receipt["operation_count"],
             "table_structure_changed": receipt["table_structure_changed"],
             "table_format_changed": receipt["table_format_changed"],
             "commit_receipt": commit,
-        }
+        })
         return result
 
     @core.mcp.tool()
@@ -565,8 +564,7 @@ def register_competitive_workflows(core):
         from hwpx_mcp.delivery.p333_file_delivery import export_revision
         export = export_revision(core, document_id, link_ttl_seconds=900)
         from hwpx_mcp.delivery.p333_file_delivery import handoff
-        attachment = handoff(export)
-        attachment.structuredContent = {
+        attachment = handoff({
             **export,
             "ok": True, "document_id": document_id,
             "revision": expected_revision + 1,
@@ -576,7 +574,7 @@ def register_competitive_workflows(core):
             "fill_receipt_sha256": receipt["fill_sha256"],
             "commit_receipt": commit,
             "source_template_mutated": False,
-        }
+        })
         return attachment
 
     # Share the same rich-authoring closure with the preset frontend.

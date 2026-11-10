@@ -251,3 +251,31 @@ interchange, 1 Markdown→HWPX authoring, 2 report preset tools).
 table/section validation, native callback delegation and mutation
 isolation tests; latest-HEAD execution is pending. No local Windows
 validation directory or deleted private source is used.
+
+### Native equation blocks in P4.25 science reports
+
+The same `create_report_from_sections_and_deliver` tool now accepts
+`sections[].equations`, each either a LaTeX string or
+`{"latex": "V=IR", "caption": "옴의 법칙"}`. These become P3.21
+`equation` blocks and are converted by the existing native
+`latex_to_eqedit` authoring path, not raster images or copied
+plaintext. The existing native engine governs EqEdit compatibility
+and geometry; the P4.25 API refuses missing/empty LaTeX and malformed
+captions before initiating document composition.
+
+Example section:
+
+```json
+{
+  "heading": "이론",
+  "paragraphs": ["측정값에 옴의 법칙을 적용하였다."],
+  "equations": [
+    {"latex": "V=IR", "caption": "옴의 법칙"},
+    "P=VI"
+  ]
+}
+```
+
+This adds a real scientific-report user workflow enhancement without
+introducing another MCP tool or signing layer. Tests were committed,
+but not observed passing at this latest HEAD.

@@ -7,7 +7,6 @@ inline editing and the P3.0 durable revision store, not a new XML engine.
 from __future__ import annotations
 
 import hashlib
-import os
 from pathlib import Path
 import tempfile
 
@@ -29,6 +28,49 @@ def register_competitive_workflows(core):
         if row is None or row["owner_subject"] != subject:
             raise FileNotFoundError("DOCUMENT_REVISION_NOT_AVAILABLE")
         return metadata, row
+
+    @core.mcp.tool()
+    def read_document_structure(
+        document_id: str,
+        offset: int = 0,
+        limit: int = 50,
+        include_text: bool = True,
+    ) -> dict:
+        """Read ordered HWPX paragraphs, including text inside table cells.
+
+        Returns section/paragraph coordinates for follow-up edits. Pages
+        are not inferred from XML structure; a native renderer is required
+        for actual page layout.
+        """
+        if type(offset) is not int or offset < 0:
+            raise ValueError("OFFSET_INVALID")
+        if type(limit) is not int or not 1 <= limit <= 100:
+            raise ValueError("LIMIT_INVALID")
+        _metadata, row = _owned(document_id)
+        from hwpx_mcp.document.p2_document import build_document_map
+        with tempfile.TemporaryDirectory(prefix="p425-read-") as tmp:
+            source = Path(tmp) / "owned.hwpx"
+            source.write_bytes(row["bytes"])
+            document = build_document_map(source)
+        page = document["paragraphs"][offset:offset + limit]
+        return {
+            "ok": True, "document_id": document_id,
+            "revision": row["revision"],
+            "section_count": len(document["sections"]),
+            "sections": document["sections"],
+            "paragraph_count": document["paragraph_count"],
+            "offset": offset, "limit": limit,
+            "next_offset": offset + limit if offset + limit < document["paragraph_count"] else None,
+            "paragraphs": [
+                {key: item[key] for key in (
+                    "locator", "section_index", "paragraph_index",
+                    "container", "text_sha256"
+                )} | ({"text": item["text"]} if include_text else {})
+                for item in page
+            ],
+            "semantic_sha256": document["semantic_sha256"],
+            "pagination": "PARAGRAPH_OFFSET_NOT_NATIVE_PAGE_NUMBER",
+        }
 
     @core.mcp.tool()
     def preview_template_fill(

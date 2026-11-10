@@ -66,12 +66,38 @@ class CompetitorPatternToolsTests(unittest.TestCase):
         )
         register_competitive_workflows(self.core)
 
-    def test_five_working_tools_registered(self):
+    def test_six_working_tools_registered(self):
         self.assertEqual(set(self.mcp.tools), {
             "read_document_structure", "preview_template_fill",
             "fill_template_and_deliver", "find_document_text",
-            "replace_text_and_deliver",
+            "replace_text_and_deliver", "create_and_deliver_document",
         })
+
+    def test_create_and_deliver_one_call(self):
+        calls = []
+        def create(**kwargs):
+            calls.append(kwargs)
+            return {"ok": True, "document_id": DOCUMENT_ID,
+                    "idempotent_replay": False}
+        self.core.create_document = create
+        exported = {
+            "revision": 1, "sha256": "a" * 64,
+            "filename": "new.hwpx", "mime_type": "application/hwp+zip",
+            "download_url": "https://example.test/new.hwpx",
+            "delivery_status": "READY_FOR_DOWNLOAD",
+        }
+        with patch("hwpx_mcp.delivery.p333_file_delivery.export_revision",
+                   return_value=exported):
+            result = self.mcp.tools["create_and_deliver_document"](
+                "새 한글 문서입니다.", title="제목",
+                filename="new.hwpx", request_id="test-replay-key")
+        self.assertEqual(result["download_url"], exported["download_url"])
+        self.assertEqual(calls[0]["request_id"], "test-replay-key")
+        self.assertFalse(result["native_pdf_created"])
+
+    def test_create_and_deliver_rejects_empty_body(self):
+        with self.assertRaisesRegex(ValueError, "DOCUMENT_TEXT_REQUIRED"):
+            self.mcp.tools["create_and_deliver_document"]("  ")
 
     def test_preview_returns_matches_without_writing(self):
         example = {"operation_count": 2, "matches": {"{{NAME}}": 2},

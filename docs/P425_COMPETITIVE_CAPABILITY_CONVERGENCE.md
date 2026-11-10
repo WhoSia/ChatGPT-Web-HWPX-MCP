@@ -180,3 +180,74 @@ The P4.25 development branch now contains **15 first-class workflows**
 tools, and this new Markdown-to-HWPX authoring tool). Newly authored
 synthetic tests verify Markdown blocks and table parser behavior;
 new HEAD test execution in WSL remains outstanding.
+
+## 2026-11-10 — Native report presets and one-call section authoring
+
+New implementation `hwpx_mcp/interfaces/p425_report_presets.py` adds two
+registered user-facing MCP tools:
+
+- `list_report_presets()`: four grounded native P3.21 style presets
+  with Korean labels and example report outlines. The display-oriented
+  science-report alias maps to native `academic-report`, school-report
+  maps to `school-report`, institutional-report to the native
+  `institutional-report`, and polished-report to `polished-report`.
+- `create_report_from_sections_and_deliver(title, sections, preset,
+  subtitle, author, filename, page_numbers)`: takes plain section
+  headings, paragraph arrays and nested `tables: [{caption, cells}]`
+  and produces a native P3.38 rich plan. It delegates to the **same
+  registered** P4.25 `create_rich_document_and_deliver` implementation
+  and P3.21 HWPX composer, with no separate XML generation or renderer.
+  The result is the pre-existing P3.33 resource_link attachment result.
+
+Example MCP tool arguments:
+
+```json
+{
+  "title": "산화환원 반응 실험 보고서",
+  "preset": "science-report",
+  "author": "연구팀",
+  "filename": "oxidation-report.hwpx",
+  "sections": [
+    {
+      "heading": "실험 방법",
+      "paragraphs": [
+        "반응 조건을 일정하게 유지하고 흡광도를 기록하였다."
+      ]
+    },
+    {
+      "heading": "실험 결과",
+      "paragraphs": ["조건에 따른 흡광도 변화를 비교하였다."],
+      "tables": [
+        {
+          "caption": "조건별 흡광도",
+          "cells": [
+            ["조건", "흡광도"],
+            ["A", "0.31"],
+            ["B", "0.27"]
+          ]
+        }
+      ]
+    }
+  ]
+}
+```
+
+This is an **example using invented illustrative values**, not a
+reproduction of a user's private chemistry experiment. Page numbers,
+native A4 geometry, spacing and fonts are delegated to pre-existing
+P3.21 presets. To keep API calls predictable, invalid headings,
+excessively long paragraphs, ragged cell grids and more than 240
+native blocks fail before creation. The template list is deep-copied so
+callers cannot change global preset definitions.
+
+The existing `discover_hwpx_workflows` gateway now recognizes Korean
+report terms and exposes both new tools. The real `server.py` registers
+both after the underlying rich authoring callback.
+
+There are now **17 first-class user-facing P4.25 MCP workflows**
+(9 inherited P4.24, 1 tool discovery, 4 native formatting/Markdown
+interchange, 1 Markdown→HWPX authoring, 2 report preset tools).
+`tests/test_p425_report_presets.py` provides synthetic plan,
+table/section validation, native callback delegation and mutation
+isolation tests; latest-HEAD execution is pending. No local Windows
+validation directory or deleted private source is used.

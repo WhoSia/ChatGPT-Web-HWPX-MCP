@@ -66,10 +66,11 @@ class CompetitorPatternToolsTests(unittest.TestCase):
         )
         register_competitive_workflows(self.core)
 
-    def test_three_working_tools_registered(self):
+    def test_five_working_tools_registered(self):
         self.assertEqual(set(self.mcp.tools), {
             "read_document_structure", "preview_template_fill",
-            "fill_template_and_deliver",
+            "fill_template_and_deliver", "find_document_text",
+            "replace_text_and_deliver",
         })
 
     def test_preview_returns_matches_without_writing(self):
@@ -101,6 +102,37 @@ class CompetitorPatternToolsTests(unittest.TestCase):
         self.assertEqual(self.store.writes[0]["expected_revision"], 2)
         self.assertEqual(self.store.writes[0]["data"], UPDATED)
         self.assertEqual(result["download_url"], "https://example.test/signed.hwpx")
+
+    def test_batch_replace_reuses_template_edit_commit(self):
+        def fake_fill(source, output, values, **kwargs):
+            self.assertEqual(values, {"old": "new", "{{DATE}}": "2026-11-10"})
+            output.write_bytes(UPDATED)
+            return {"fill_sha256": "e" * 64, "operation_count": 2,
+                    "matches": {"old": 1, "{{DATE}}": 1}}
+        with patch("hwpx_mcp.interfaces.p425_competitive_workflows.fill_template_atomic", side_effect=fake_fill), patch(
+            "hwpx_mcp.delivery.p333_file_delivery.export_revision",
+            return_value={"download_url": "https://example.test/doc.hwpx",
+                          "filename": "doc.hwpx", "mime_type": "application/hwp+zip",
+                          "delivery_status": "READY_FOR_DOWNLOAD"},
+        ):
+            result = self.mcp.tools["replace_text_and_deliver"](
+                DOCUMENT_ID, {"old": "new", "{{DATE}}": "2026-11-10"},
+                expected_revision=2)
+        self.assertEqual(result["revision"], 3)
+        self.assertEqual(result["operation_count"], 2)
+
+    def test_find_text_in_body_and_table(self):
+        sample = {"paragraphs": [
+            {"locator": "p_body", "section_index": 0, "paragraph_index": 0,
+             "container": "section-body", "text": "자연어 검색"},
+            {"locator": "p_cell", "section_index": 0, "paragraph_index": 1,
+             "container": "tc", "text": "표 안에서도 검색"},
+        ]}
+        with patch("hwpx_mcp.document.p2_document.build_document_map", return_value=sample):
+            result = self.mcp.tools["find_document_text"](
+                DOCUMENT_ID, "검색")
+        self.assertEqual(result["total_matches"], 2)
+        self.assertEqual(result["matches"][1]["container"], "tc")
 
     def test_stale_revision_refused_before_edit(self):
         with self.assertRaisesRegex(RuntimeError, "REVISION_CONFLICT"):

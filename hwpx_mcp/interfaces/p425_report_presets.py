@@ -201,6 +201,36 @@ def register_report_preset_tools(core):
         }
 
     @core.mcp.tool()
+    def preview_report_plan(
+        title: str, sections: list[dict],
+        preset: str = "science-report",
+        subtitle: str = "", author: str = "",
+        page_numbers: bool = True,
+        table_of_contents: bool = False,
+    ) -> dict:
+        """Preview the exact native report composition plan without writing a file."""
+        core._caller_subject()
+        from hwpx_mcp.orchestration.p338_rich_builder import compile_rich_document_plan
+        requested = build_report_plan(
+            title=title, sections=sections, preset=preset,
+            subtitle=subtitle, author=author, page_numbers=page_numbers,
+            table_of_contents=table_of_contents,
+        )
+        compiled = compile_rich_document_plan(requested)
+        return {
+            "ok": True, "committed": False, "native_pdf_created": False,
+            "preset": requested["preset"],
+            "block_count": compiled["block_count"],
+            "block_counts": compiled["block_counts"],
+            "section_count": compiled["section_count"],
+            "setup_operation_count": compiled["setup_operation_count"],
+            "plan_sha256": compiled["plan_sha256"],
+            "table_of_contents_requested": table_of_contents,
+            "page_numbers_requested": page_numbers,
+            "next_tool": "create_report_from_sections_and_deliver",
+        }
+
+    @core.mcp.tool()
     def create_report_from_sections_and_deliver(
         title: str, sections: list[dict],
         preset: str = "science-report",

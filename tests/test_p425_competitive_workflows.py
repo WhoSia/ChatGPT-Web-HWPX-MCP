@@ -66,12 +66,13 @@ class CompetitorPatternToolsTests(unittest.TestCase):
         )
         register_competitive_workflows(self.core)
 
-    def test_seven_working_tools_registered(self):
+    def test_nine_working_tools_registered(self):
         self.assertEqual(set(self.mcp.tools), {
             "read_document_structure", "preview_template_fill",
             "fill_template_and_deliver", "find_document_text",
             "replace_text_and_deliver", "create_and_deliver_document",
             "create_rich_document_and_deliver",
+            "list_document_tables", "edit_table_and_deliver",
         })
 
     def test_create_and_deliver_one_call(self):
@@ -204,6 +205,44 @@ class CompetitorPatternToolsTests(unittest.TestCase):
                 DOCUMENT_ID, "검색")
         self.assertEqual(result["total_matches"], 2)
         self.assertEqual(result["matches"][1]["container"], "tc")
+
+    def test_list_tables_returns_cell_grid(self):
+        fixture = {"tables": [
+            {"locator": "t_1", "table_index": 0, "rows": 2, "cols": 2,
+             "caption_text": "측정표",
+             "cells": [
+                 {"locator": "c_1", "row": 0, "col": 0,
+                  "row_span": 1, "col_span": 1, "text": "실험"},
+             ]},
+        ]}
+        with patch("hwpx_mcp.document.p27_tables.build_table_map", return_value=fixture):
+            result = self.mcp.tools["list_document_tables"](DOCUMENT_ID)
+        self.assertEqual(result["table_count"], 1)
+        self.assertEqual(result["tables"][0]["cells"][0]["text"], "실험")
+
+    def test_table_edit_commits_one_revision_with_file_attachment(self):
+        def edit(path, operations, **kwargs):
+            self.assertEqual(operations[0]["op"], "set_cell_text")
+            path.write_bytes(UPDATED)
+            return {"operation_count": 1, "table_structure_changed": False,
+                    "table_format_changed": False}
+        with patch("hwpx_mcp.document.p27_tables.apply_table_edits_atomic", side_effect=edit), patch(
+            "hwpx_mcp.delivery.p333_file_delivery.export_revision",
+            return_value={"filename": "table.hwpx",
+                          "download_url": "https://example.test/table.hwpx",
+                          "download_expires_at": "2026-11-10T23:59:00Z",
+                          "bytes": len(UPDATED), "mime_type": "application/hwp+zip",
+                          "sha256": hashlib.sha256(UPDATED).hexdigest(),
+                          "revision": 3, "delivery_status": "READY_FOR_DOWNLOAD"},
+        ):
+            result = self.mcp.tools["edit_table_and_deliver"](
+                DOCUMENT_ID, expected_revision=2,
+                operations=[{"op": "set_cell_text", "table": "t_1",
+                             "cell": "c_1", "text": "결과"}])
+        self.assertEqual(result.structuredContent["revision"], 3)
+        self.assertEqual(result.structuredContent["operation_count"], 1)
+        self.assertEqual(self.store.writes[0]["expected_revision"], 2)
+        self.assertEqual(result.content[1].type, "resource_link")
 
     def test_stale_revision_refused_before_edit(self):
         with self.assertRaisesRegex(RuntimeError, "REVISION_CONFLICT"):

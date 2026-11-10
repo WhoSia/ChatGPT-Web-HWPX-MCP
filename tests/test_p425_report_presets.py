@@ -151,7 +151,7 @@ class ReportPresetTests(unittest.TestCase):
         self.assertEqual(self.calls, [])
 
     def test_embedded_picture_preserves_order_and_caption(self):
-        image = base64.b64encode(b"\\x89PNG\\r\\n\\x1a\\n" + b"fake-image").decode("ascii")
+        image = base64.b64encode(b"\x89PNG\r\n\x1a\n" + b"fake-image").decode("ascii")
         plan = build_report_plan(
             title="그림 보고서",
             sections=[{"heading": "결과", "content": [
@@ -175,7 +175,7 @@ class ReportPresetTests(unittest.TestCase):
             {"image_format": "bmp", "content_base64": "Zm9v"},
             {"image_format": "png", "content_base64": "bad base64"},
             {"image_format": "png",
-             "content_base64": base64.b64encode(b"\\x89PNG\\r\\n\\x1a\\n").decode("ascii"),
+             "content_base64": base64.b64encode(b"\x89PNG\r\n\x1a\n").decode("ascii"),
              "width": 0},
         ]:
             with self.subTest(figure=figure), self.assertRaises(ValueError):

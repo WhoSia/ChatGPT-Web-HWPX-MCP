@@ -85,15 +85,16 @@ class CompetitorPatternToolsTests(unittest.TestCase):
             "filename": "new.hwpx", "mime_type": "application/hwp+zip",
             "download_url": "https://example.test/new.hwpx",
             "delivery_status": "READY_FOR_DOWNLOAD",
+            "download_expires_at": "2026-11-10T23:59:00Z", "bytes": 256,
         }
         with patch("hwpx_mcp.delivery.p333_file_delivery.export_revision",
                    return_value=exported):
             result = self.mcp.tools["create_and_deliver_document"](
                 "새 한글 문서입니다.", title="제목",
                 filename="new.hwpx", request_id="test-replay-key")
-        self.assertEqual(result["download_url"], exported["download_url"])
+        self.assertEqual(result.structuredContent["download_url"], exported["download_url"])
         self.assertEqual(calls[0]["request_id"], "test-replay-key")
-        self.assertFalse(result["native_pdf_created"])
+        self.assertFalse(result.structuredContent["native_pdf_created"])
 
     def test_create_and_deliver_rejects_empty_body(self):
         with self.assertRaisesRegex(ValueError, "DOCUMENT_TEXT_REQUIRED"):
@@ -123,11 +124,11 @@ class CompetitorPatternToolsTests(unittest.TestCase):
         ):
             result = self.mcp.tools["fill_template_and_deliver"](
                 DOCUMENT_ID, {"{{NAME}}": "홍길동"}, expected_revision=2)
-        self.assertTrue(result["ok"])
-        self.assertEqual(result["revision"], 3)
+        self.assertTrue(result.structuredContent["ok"])
+        self.assertEqual(result.structuredContent["revision"], 3)
         self.assertEqual(self.store.writes[0]["expected_revision"], 2)
         self.assertEqual(self.store.writes[0]["data"], UPDATED)
-        self.assertEqual(result["download_url"], "https://example.test/signed.hwpx")
+        self.assertEqual(result.structuredContent["download_url"], "https://example.test/signed.hwpx")
 
     def test_batch_replace_reuses_template_edit_commit(self):
         def fake_fill(source, output, values, **kwargs):
@@ -144,8 +145,8 @@ class CompetitorPatternToolsTests(unittest.TestCase):
             result = self.mcp.tools["replace_text_and_deliver"](
                 DOCUMENT_ID, {"old": "new", "{{DATE}}": "2026-11-10"},
                 expected_revision=2)
-        self.assertEqual(result["revision"], 3)
-        self.assertEqual(result["operation_count"], 2)
+        self.assertEqual(result.structuredContent["revision"], 3)
+        self.assertEqual(result.structuredContent["operation_count"], 2)
 
     def test_find_text_in_body_and_table(self):
         sample = {"paragraphs": [

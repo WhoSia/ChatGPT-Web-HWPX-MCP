@@ -7,6 +7,7 @@ inline editing and the P3.0 durable revision store, not a new XML engine.
 from __future__ import annotations
 
 import hashlib
+import re
 from pathlib import Path
 import tempfile
 
@@ -14,6 +15,82 @@ from hwpx_mcp.orchestration.p337_product_workflow import (
     fill_template_atomic,
     plan_literal_placeholder_fill,
 )
+
+
+def markdown_to_rich_plan(markdown: str) -> dict:
+    """Compile Markdown headings, lists and simple pipe tables to P3.38.
+
+    Inline formatting/HTML/media are preserved only as literal text.
+    This is a supported subset rather than a round-trip Markdown parser.
+    """
+    if not isinstance(markdown, str) or not markdown.strip():
+        raise ValueError("MARKDOWN_TEXT_REQUIRED")
+    if len(markdown) > 200000:
+        raise ValueError("MARKDOWN_TOO_LONG")
+    lines = markdown.replace("\r\n", "\n").replace("\r", "\n").split("\n")
+    blocks = []
+    i = 0
+
+    def cells(value):
+        return [part.replace(r"\|", "|").strip()
+                for part in re.split(r"(?<!\\)\|", value.strip().strip("|"))]
+
+    def separator(value):
+        pieces = cells(value)
+        return bool(pieces) and all(re.fullmatch(r":?-{3,}:?", p) for p in pieces)
+
+    def special(value):
+        return bool(re.match(r"^#{1,6}\s+", value)
+                    or re.match(r"^\s{0,6}(?:[-*+]\s+|\d+[.)]\s+)", value)
+                    or value.strip().startswith("|"))
+
+    while i < len(lines):
+        line = lines[i]
+        if not line.strip():
+            i += 1
+            continue
+        heading = re.match(r"^(#{1,6})\s+(.+)$", line)
+        if heading:
+            blocks.append({"type": "heading", "level": len(heading.group(1)),
+                           "text": heading.group(2).strip()})
+            i += 1
+            continue
+        entry = re.match(r"^(\s{0,6})([-*+]|\d+[.)])\s+(.+)$", line)
+        if entry:
+            indent, marker, value = entry.groups()
+            blocks.append({"type": "list_item",
+                           "kind": "number" if marker[0].isdigit() else "bullet",
+                           "level": min(3, len(indent) // 2 + 1),
+                           "text": value.strip()})
+            i += 1
+            continue
+        if line.strip().startswith("|") and i + 1 < len(lines) and separator(lines[i + 1]):
+            header = cells(line)
+            width = len(header)
+            if not 1 <= width <= 100 or len(cells(lines[i + 1])) != width:
+                raise ValueError("MARKDOWN_TABLE_WIDTH_INVALID")
+            rows = [header]
+            i += 2
+            while i < len(lines) and lines[i].strip().startswith("|"):
+                row = cells(lines[i])
+                if len(row) != width:
+                    raise ValueError("MARKDOWN_TABLE_ROW_WIDTH_MISMATCH")
+                rows.append(row)
+                i += 1
+            if len(rows) > 200:
+                raise ValueError("MARKDOWN_TABLE_ROWS_INVALID")
+            blocks.append({"type": "table", "rows": len(rows),
+                           "cols": width, "cells": rows})
+            continue
+        paragraph = [line.strip()]
+        i += 1
+        while i < len(lines) and lines[i].strip() and not special(lines[i]):
+            paragraph.append(lines[i].strip())
+            i += 1
+        blocks.append({"type": "paragraph", "text": "\n".join(paragraph)})
+    if not blocks:
+        raise ValueError("MARKDOWN_NO_BLOCKS")
+    return {"sections": [{"blocks": blocks}], "preset": "polished-report"}
 
 
 def register_competitive_workflows(core):
@@ -85,6 +162,9 @@ def register_competitive_workflows(core):
             ("export_document_markdown", "markdown export text read convert",
              "Extract semantic HWPX text to Markdown, including nested paragraphs.",
              "document_id; optional include_table_cells, max_chars"),
+            ("create_from_markdown_and_deliver", "markdown import create convert",
+             "Compile Markdown headings, lists and simple tables into native HWPX.",
+             "markdown; optional filename"),
         ]
         tokens = {word.casefold() for word in task.split() if word.strip()}
         synonyms = {
@@ -295,6 +375,15 @@ def register_competitive_workflows(core):
             "commit_receipt": commit,
         }
         return result
+
+    @core.mcp.tool()
+    def create_from_markdown_and_deliver(
+        markdown: str, filename: str = "document.hwpx",
+    ):
+        """Create native HWPX from Markdown headings, lists and tables."""
+        return create_rich_document_and_deliver(
+            markdown_to_rich_plan(markdown), filename=filename,
+        )
 
     @core.mcp.tool()
     def read_document_structure(

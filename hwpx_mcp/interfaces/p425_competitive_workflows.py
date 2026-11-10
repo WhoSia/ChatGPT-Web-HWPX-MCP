@@ -170,9 +170,12 @@ def register_competitive_workflows(core):
             ("list_report_presets", "report preset style science school institution",
              "List available report presets and example section layouts.",
              "no required inputs"),
-            ("create_report_from_sections_and_deliver", "report science school experiment tables create",
-             "Create a polished native report with headings, paragraphs and tables.",
-             "title, sections; optional preset, subtitle, author, filename, page_numbers"),
+            ("preview_report_plan", "preview report science sections toc layout",
+             "Preview a native HWPX report's block counts, page setup and plan digest without writing.",
+             "title, sections; optional preset, subtitle, author, page_numbers, table_of_contents"),
+            ("create_report_from_sections_and_deliver", "report science school experiment tables equation create",
+             "Create a native report from ordered paragraphs, tables and editable equations.",
+             "title, sections; optional preset, subtitle, author, filename, page_numbers, table_of_contents"),
         ]
         tokens = {word.casefold() for word in task.split() if word.strip()}
         synonyms = {

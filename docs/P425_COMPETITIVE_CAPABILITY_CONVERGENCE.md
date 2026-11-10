@@ -152,3 +152,31 @@ not require or recreate the user's deleted local Windows validation
 folder. Next practical engineering work: real controlled HWPX fixture
 test of P2.2 style operations, richer Markdown heading/list semantics,
 and live ChatGPT attachment usability.
+
+## 2026-11-10 — Markdown → native HWPX composition (P425-C)
+
+A new first-class `create_from_markdown_and_deliver(markdown, filename)`
+MCP workflow converts a deliberately bounded Markdown subset into
+P3.38 `rich_plan` blocks and delegates the result to the **existing**
+`create_rich_document_and_deliver` tool. It produces a genuinely
+native HWPX using the P3.21 composer and current P3.33 attachment flow,
+rather than a ZIP of Markdown text.
+
+Supported input: `#`–`######` headings, paragraphs, bullet/numbered
+list items and simple pipe tables with separator rows. Escaped pipe
+characters inside cells remain literal text. Invalid table dimensions
+are rejected before document creation. This is not a general CommonMark
+implementation: inline emphasis, embedded media, HTML, code fences,
+complex table spans and equation syntax are not interpreted as native
+objects. Such content may remain literal paragraphs and should not be
+described as losslessly converted.
+
+The output-side Markdown exporter independently supports semantic
+paragraphs plus appended HWPX table grids. Asymmetric features of the
+two representations are declared rather than silently hidden.
+
+The P4.25 development branch now contains **15 first-class workflows**
+(nine inherited, discovery, four native formatting/Markdown reading
+tools, and this new Markdown-to-HWPX authoring tool). Newly authored
+synthetic tests verify Markdown blocks and table parser behavior;
+new HEAD test execution in WSL remains outstanding.

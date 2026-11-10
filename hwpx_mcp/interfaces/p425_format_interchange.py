@@ -34,7 +34,10 @@ def document_to_markdown(document: dict, *, include_table_cells: bool = True) ->
             continue
         container = paragraph.get("container", "section-body")
         if container != "section-body":
-            if not include_table_cells:
+            # Only table cells are suppressed when exporting structured
+            # tables separately. Captions and other nested text remain
+            # available even when a document includes at least one table.
+            if container == "tc" and not include_table_cells:
                 continue
             text = f"> [nested {container}; paragraph {paragraph.get('paragraph_index', '?')}] " + text.replace("\n", " ")
         else:
@@ -257,7 +260,9 @@ def register_format_interchange_tools(core):
                 from hwpx_mcp.document.p27_tables import build_table_map
                 table_data = tables_to_markdown(build_table_map(path))
         result = document_to_markdown(
-            document, include_table_cells=(include_table_cells and not include_tables)
+            document, include_table_cells=(
+                include_table_cells and not (include_tables and table_data and table_data["table_count"])
+            )
         )
         md = result.pop("markdown")
         if table_data is not None and table_data["table_count"]:

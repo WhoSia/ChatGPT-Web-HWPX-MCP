@@ -7,6 +7,7 @@ inline editing and the P3.0 durable revision store, not a new XML engine.
 from __future__ import annotations
 
 import hashlib
+import re
 from pathlib import Path
 import tempfile
 
@@ -14,6 +15,82 @@ from hwpx_mcp.orchestration.p337_product_workflow import (
     fill_template_atomic,
     plan_literal_placeholder_fill,
 )
+
+
+def markdown_to_rich_plan(markdown: str) -> dict:
+    """Compile Markdown headings, lists and simple pipe tables to P3.38.
+
+    Inline formatting/HTML/media are preserved only as literal text.
+    This is a supported subset rather than a round-trip Markdown parser.
+    """
+    if not isinstance(markdown, str) or not markdown.strip():
+        raise ValueError("MARKDOWN_TEXT_REQUIRED")
+    if len(markdown) > 200000:
+        raise ValueError("MARKDOWN_TOO_LONG")
+    lines = markdown.replace("\r\n", "\n").replace("\r", "\n").split("\n")
+    blocks = []
+    i = 0
+
+    def cells(value):
+        return [part.replace(r"\|", "|").strip()
+                for part in re.split(r"(?<!\\)\|", value.strip().strip("|"))]
+
+    def separator(value):
+        pieces = cells(value)
+        return bool(pieces) and all(re.fullmatch(r":?-{3,}:?", p) for p in pieces)
+
+    def special(value):
+        return bool(re.match(r"^#{1,6}\s+", value)
+                    or re.match(r"^\s{0,6}(?:[-*+]\s+|\d+[.)]\s+)", value)
+                    or value.strip().startswith("|"))
+
+    while i < len(lines):
+        line = lines[i]
+        if not line.strip():
+            i += 1
+            continue
+        heading = re.match(r"^(#{1,6})\s+(.+)$", line)
+        if heading:
+            blocks.append({"type": "heading", "level": len(heading.group(1)),
+                           "text": heading.group(2).strip()})
+            i += 1
+            continue
+        entry = re.match(r"^(\s{0,6})([-*+]|\d+[.)])\s+(.+)$", line)
+        if entry:
+            indent, marker, value = entry.groups()
+            blocks.append({"type": "list_item",
+                           "kind": "number" if marker[0].isdigit() else "bullet",
+                           "level": min(3, len(indent) // 2 + 1),
+                           "text": value.strip()})
+            i += 1
+            continue
+        if line.strip().startswith("|") and i + 1 < len(lines) and separator(lines[i + 1]):
+            header = cells(line)
+            width = len(header)
+            if not 1 <= width <= 100 or len(cells(lines[i + 1])) != width:
+                raise ValueError("MARKDOWN_TABLE_WIDTH_INVALID")
+            rows = [header]
+            i += 2
+            while i < len(lines) and lines[i].strip().startswith("|"):
+                row = cells(lines[i])
+                if len(row) != width:
+                    raise ValueError("MARKDOWN_TABLE_ROW_WIDTH_MISMATCH")
+                rows.append(row)
+                i += 1
+            if len(rows) > 200:
+                raise ValueError("MARKDOWN_TABLE_ROWS_INVALID")
+            blocks.append({"type": "table", "rows": len(rows),
+                           "cols": width, "cells": rows})
+            continue
+        paragraph = [line.strip()]
+        i += 1
+        while i < len(lines) and lines[i].strip() and not special(lines[i]):
+            paragraph.append(lines[i].strip())
+            i += 1
+        blocks.append({"type": "paragraph", "text": "\n".join(paragraph)})
+    if not blocks:
+        raise ValueError("MARKDOWN_NO_BLOCKS")
+    return {"sections": [{"blocks": blocks}], "preset": "polished-report"}
 
 
 def register_competitive_workflows(core):
@@ -25,9 +102,119 @@ def register_competitive_workflows(core):
         if metadata["owner_subject"] != subject:
             raise PermissionError("DOCUMENT_NOT_OWNED")
         row = core.DOCUMENT_STORE.load_current(document_id)
-        if row is None or row["owner_subject"] != subject:
+        if row is None:
             raise FileNotFoundError("DOCUMENT_REVISION_NOT_AVAILABLE")
+        if row["owner_subject"] != subject:
+            raise PermissionError("DOCUMENT_NOT_OWNED")
         return metadata, row
+
+    @core.mcp.tool()
+    def discover_hwpx_workflows(
+        task: str = "",
+        limit: int = 5,
+    ) -> dict:
+        """Find the smallest useful user-facing HWPX MCP workflow.
+
+        This is a lightweight gateway inspired by peer tool-search
+        patterns. It describes real, registered actions, not imaginary
+        capabilities and never executes document modifications.
+        """
+        core._caller_subject()
+        if type(limit) is not int or not 1 <= limit <= 10:
+            raise ValueError("WORKFLOW_LIMIT_INVALID")
+        if not isinstance(task, str) or len(task) > 500:
+            raise ValueError("WORKFLOW_QUERY_INVALID")
+        workflows = [
+            ("create_and_deliver_document", "create",
+             "Create a simple HWPX and return a file attachment in one call.",
+             "text; optional title, filename, request_id"),
+            ("create_rich_document_and_deliver", "create rich report",
+             "Create a native multi-section HWPX with tables, equations and images.",
+             "rich_plan; optional filename"),
+            ("read_document_structure", "read inspect outline paragraphs",
+             "Read structured sections and nested paragraph text.",
+             "document_id; optional offset, limit, include_text"),
+            ("find_document_text", "search find text",
+             "Search normal and table-cell text with exact locators.",
+             "document_id, query; optional max_matches, case_sensitive"),
+            ("preview_template_fill", "preview template fill",
+             "Preview placeholder replacements without modifying the document.",
+             "document_id, values; optional require_each, require_unique"),
+            ("fill_template_and_deliver", "fill template apply",
+             "Fill HWPX placeholders and return the revised attachment.",
+             "document_id, values, expected_revision"),
+            ("replace_text_and_deliver", "replace batch find",
+             "Replace multiple literal strings in one durable revision.",
+             "document_id, replacements, expected_revision"),
+            ("list_document_figures", "figure image graph chart list inspect",
+             "Inspect native HWPX figure placement and object references.",
+             "document_id; optional offset, limit"),
+            ("list_document_tables", "table list inspect cells",
+             "Inspect grids, merged cells and captions.",
+             "document_id; optional offset, limit"),
+            ("edit_table_and_deliver", "table edit merge cell row column",
+             "Edit HWPX table cells/structure and return revised attachment.",
+             "document_id, expected_revision, operations"),
+            ("inspect_document_formatting", "format style inspect font paragraph",
+             "Inspect native paragraph and run formatting before editing.",
+             "document_id; optional offset, limit, include_runs"),
+            ("preview_document_formatting", "preview format style font paragraph",
+             "Validate formatting changes without writing a new revision.",
+             "document_id, operations"),
+            ("format_document_and_deliver", "format edit font paragraph style",
+             "Change native font and paragraph styles and deliver an updated HWPX.",
+             "document_id, expected_revision, operations"),
+            ("export_document_markdown", "markdown export text read convert",
+             "Extract semantic HWPX text to Markdown, including nested paragraphs.",
+             "document_id; optional include_table_cells, max_chars"),
+            ("create_from_markdown_and_deliver", "markdown import create convert",
+             "Compile Markdown headings, lists and simple tables into native HWPX.",
+             "markdown; optional filename"),
+            ("list_report_presets", "report preset style science school institution",
+             "List available report presets and example section layouts.",
+             "no required inputs"),
+            ("preview_report_plan", "preview report science sections toc layout caption",
+             "Preview real native report block counts, setup and plan digest without writing.",
+             "title, sections; optional preset, subtitle, author, page_numbers, table_of_contents, number_captions"),
+            ("create_report_from_sections_and_deliver", "report science school experiment tables figure image graph footnote caption equation create",
+             "Create a native report interleaving text, editable formulas, tables, images, footnotes and numbered captions.",
+             "title, sections; optional preset, subtitle, author, filename, page_numbers, table_of_contents, number_captions"),
+        ]
+        tokens = {word.casefold() for word in task.split() if word.strip()}
+        synonyms = {
+            "표": "table", "셀": "cell", "병합": "merge", "읽기": "read",
+            "검색": "search", "찾기": "find", "치환": "replace",
+            "수정": "edit", "작성": "create", "생성": "create",
+            "템플릿": "template", "미리보기": "preview",
+            "수식": "equations", "보고서": "report",
+            "글꼴": "font", "서식": "format", "스타일": "style",
+            "문단": "paragraph", "마크다운": "markdown",
+            "변환": "convert", "추출": "export",
+            "탐구": "science", "실험": "experiment",
+            "그림": "figure", "그래프": "graph", "사진": "image",
+            "각주": "footnote", "출처": "footnote", "캡션": "caption", "프리셋": "preset",
+            "양식": "preset", "학교": "school",
+        }
+        tokens |= {synonyms[word] for word in tokens if word in synonyms}
+        ranked = []
+        for index, (name, keywords, description, inputs) in enumerate(workflows):
+            hay = (name + " " + keywords).casefold()
+            score = sum(1 for token in tokens if token in hay)
+            ranked.append((score, index, {
+                "tool": name, "purpose": description, "inputs": inputs,
+            }))
+        if tokens:
+            ranked = [row for row in ranked if row[0] > 0]
+        ranked.sort(key=lambda row: (-row[0], row[1]))
+        selected = [row[2] for row in ranked[:limit]]
+        return {
+            "ok": True, "phase": "P4.25",
+            "matching_workflows": selected,
+            "matching_count": len(ranked),
+            "no_matches": not bool(selected),
+            "executes_mutations": False,
+            "next_step": "Call the suggested MCP tool with its required arguments.",
+        }
 
     @core.mcp.tool()
     def create_and_deliver_document(
@@ -54,14 +241,13 @@ def register_competitive_workflows(core):
             core, document_id=created["document_id"],
             link_ttl_seconds=900,
         )
-        attachment = handoff(delivered)
-        attachment.structuredContent = {
+        attachment = handoff({
             **delivered,
             "created": True,
             "idempotent_replay": created.get("idempotent_replay", False),
             "request_id": request_id or None,
             "native_pdf_created": False,
-        }
+        })
         return attachment
 
     @core.mcp.tool()
@@ -110,8 +296,7 @@ def register_competitive_workflows(core):
                 hwpx_path.unlink(missing_ok=True)
             raise
         delivered = export_revision(core, document_id, link_ttl_seconds=900)
-        result = handoff(delivered)
-        result.structuredContent = {
+        result = handoff({
             **delivered, "ok": True, "created": True,
             "rich_plan_sha256": compiled["plan_sha256"],
             "rich_block_count": compiled["block_count"],
@@ -119,8 +304,51 @@ def register_competitive_workflows(core):
             "composer_receipt": composition,
             "commit_receipt": committed,
             "native_pdf_created": False,
-        }
+        })
         return result
+
+    @core.mcp.tool()
+    def list_document_figures(
+        document_id: str, offset: int = 0, limit: int = 20,
+    ) -> dict:
+        """Inspect retained native HWPX images, position and media metadata.
+
+        This reads existing P2.9 object topology, not image bytes or
+        a renderer screenshot. Use returned locators for future edits.
+        """
+        if type(offset) is not int or offset < 0:
+            raise ValueError("OFFSET_INVALID")
+        if type(limit) is not int or not 1 <= limit <= 50:
+            raise ValueError("LIMIT_INVALID")
+        _metadata, row = _owned(document_id)
+        from hwpx_mcp.document.p29_objects import build_object_map
+        with tempfile.TemporaryDirectory(prefix="p425-figures-") as tmp:
+            path = Path(tmp) / "owned.hwpx"
+            path.write_bytes(row["bytes"])
+            result = build_object_map(path)
+        pictures = result["pictures"]
+        return {
+            "ok": True, "document_id": document_id,
+            "revision": row["revision"],
+            "figure_count": len(pictures),
+            "figures": [
+                {
+                    "locator": item["locator"],
+                    "paragraph_locator": item["paragraph_locator"],
+                    "section_index": item["section_index"],
+                    "picture_index": item["picture_index"],
+                    "width": item["width"], "height": item["height"],
+                    "placement": item["placement"],
+                    "binary_item_id_ref": item["binary_item_id_ref"],
+                }
+                for item in pictures[offset:offset + limit]
+            ],
+            "next_offset": (
+                offset + limit if offset + limit < len(pictures) else None
+            ),
+            "media_item_count": result["media_item_count"],
+            "object_structure_sha256": result["object_structure_sha256"],
+        }
 
     @core.mcp.tool()
     def list_document_tables(
@@ -197,15 +425,23 @@ def register_competitive_workflows(core):
         )
         core._load_metadata(document_id)
         delivered = export_revision(core, document_id, link_ttl_seconds=900)
-        result = handoff(delivered)
-        result.structuredContent = {
+        result = handoff({
             **delivered, "ok": True,
             "operation_count": receipt["operation_count"],
             "table_structure_changed": receipt["table_structure_changed"],
             "table_format_changed": receipt["table_format_changed"],
             "commit_receipt": commit,
-        }
+        })
         return result
+
+    @core.mcp.tool()
+    def create_from_markdown_and_deliver(
+        markdown: str, filename: str = "document.hwpx",
+    ):
+        """Create native HWPX from Markdown headings, lists and tables."""
+        return create_rich_document_and_deliver(
+            markdown_to_rich_plan(markdown), filename=filename,
+        )
 
     @core.mcp.tool()
     def read_document_structure(
@@ -379,8 +615,7 @@ def register_competitive_workflows(core):
         from hwpx_mcp.delivery.p333_file_delivery import export_revision
         export = export_revision(core, document_id, link_ttl_seconds=900)
         from hwpx_mcp.delivery.p333_file_delivery import handoff
-        attachment = handoff(export)
-        attachment.structuredContent = {
+        attachment = handoff({
             **export,
             "ok": True, "document_id": document_id,
             "revision": expected_revision + 1,
@@ -390,8 +625,13 @@ def register_competitive_workflows(core):
             "fill_receipt_sha256": receipt["fill_sha256"],
             "commit_receipt": commit,
             "source_template_mutated": False,
-        }
+        })
         return attachment
+
+    # Share the same rich-authoring closure with the preset frontend.
+    # FastMCP registers this as a tool but does not automatically attach
+    # the Python function as an attribute of its hosting server module.
+    core._p425_create_rich_document_and_deliver = create_rich_document_and_deliver
 
     @core.mcp.tool()
     def replace_text_and_deliver(

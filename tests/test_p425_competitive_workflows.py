@@ -10,7 +10,7 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from hwpx_mcp.interfaces.p425_competitive_workflows import register_competitive_workflows
+from hwpx_mcp.interfaces.p425_competitive_workflows import register_competitive_workflows, markdown_to_rich_plan
 
 SOURCE = b"PK" + b"synthetic-hwpx" * 10
 UPDATED = b"PK" + b"synthetic-filled-hwpx" * 10
@@ -66,14 +66,50 @@ class CompetitorPatternToolsTests(unittest.TestCase):
         )
         register_competitive_workflows(self.core)
 
-    def test_nine_working_tools_registered(self):
+    def test_native_rich_authoring_callback_reused_by_report_presets(self):
+        self.assertTrue(callable(self.core._p425_create_rich_document_and_deliver))
+        self.assertIs(
+            self.core._p425_create_rich_document_and_deliver,
+            self.mcp.tools["create_rich_document_and_deliver"],
+        )
+
+    def test_twelve_working_tools_registered(self):
         self.assertEqual(set(self.mcp.tools), {
             "read_document_structure", "preview_template_fill",
             "fill_template_and_deliver", "find_document_text",
             "replace_text_and_deliver", "create_and_deliver_document",
             "create_rich_document_and_deliver",
             "list_document_tables", "edit_table_and_deliver",
+            "list_document_figures",
+            "discover_hwpx_workflows", "create_from_markdown_and_deliver",
         })
+
+    def test_discovery_recommends_table_edit_in_korean(self):
+        result = self.mcp.tools["discover_hwpx_workflows"]("표 셀 수정", limit=3)
+        self.assertTrue(result["ok"])
+        self.assertIn("edit_table_and_deliver",
+                      [item["tool"] for item in result["matching_workflows"]])
+        self.assertFalse(result["executes_mutations"])
+
+    def test_discovery_recommends_one_call_report_authoring(self):
+        result = self.mcp.tools["discover_hwpx_workflows"]("rich report", limit=3)
+        self.assertEqual(result["matching_workflows"][0]["tool"],
+                         "create_rich_document_and_deliver")
+
+    def test_discovery_exposes_native_report_preview_without_mutation(self):
+        result = self.mcp.tools["discover_hwpx_workflows"](
+            "preview report", limit=5,
+        )
+        self.assertIn(
+            "preview_report_plan",
+            [entry["tool"] for entry in result["matching_workflows"]],
+        )
+        self.assertFalse(result["executes_mutations"])
+
+    def test_discovery_invalid_limit_does_not_execute_any_edit(self):
+        with self.assertRaisesRegex(ValueError, "LIMIT"):
+            self.mcp.tools["discover_hwpx_workflows"]("table", limit=100)
+        self.assertEqual(self.store.writes, [])
 
     def test_create_and_deliver_one_call(self):
         calls = []
@@ -94,9 +130,9 @@ class CompetitorPatternToolsTests(unittest.TestCase):
             result = self.mcp.tools["create_and_deliver_document"](
                 "새 한글 문서입니다.", title="제목",
                 filename="new.hwpx", request_id="test-replay-key")
-        self.assertEqual(result.structuredContent["download_url"], exported["download_url"])
+        self.assertEqual(result.structured_content["download_url"], exported["download_url"])
         self.assertEqual(calls[0]["request_id"], "test-replay-key")
-        self.assertFalse(result.structuredContent["native_pdf_created"])
+        self.assertFalse(result.structured_content["native_pdf_created"])
 
     def test_rich_composer_commits_document_and_returns_resource_link(self):
         self.core._new_document_id = lambda: DOCUMENT_ID
@@ -131,14 +167,15 @@ class CompetitorPatternToolsTests(unittest.TestCase):
                               "download_expires_at": "2026-11-10T23:59:00Z",
                               "bytes": len(UPDATED), "mime_type": "application/hwp+zip",
                               "sha256": hashlib.sha256(UPDATED).hexdigest(),
-                              "revision": 1, "delivery_status": "READY_FOR_DOWNLOAD"},
+                              "revision": 1, "delivery_status": "READY_FOR_DOWNLOAD",
+                          "download_expires_at": "2026-11-10T23:59:00Z", "bytes": 256},
             ):
                 result = self.mcp.tools["create_rich_document_and_deliver"](
                     {"sections": [{"blocks": [{"type": "heading", "text": "연구"}]}]},
                     "report.hwpx")
             self.assertEqual(self._rich_output.read_bytes(), UPDATED)
             self.assertEqual(len(writes), 1)
-            self.assertEqual(result.structuredContent["rich_block_count"], 2)
+            self.assertEqual(result.structured_content["rich_block_count"], 2)
             self.assertEqual(result.content[1].type, "resource_link")
 
     def test_create_and_deliver_rejects_empty_body(self):
@@ -165,15 +202,16 @@ class CompetitorPatternToolsTests(unittest.TestCase):
             "hwpx_mcp.delivery.p333_file_delivery.export_revision",
             return_value={"download_url": "https://example.test/signed.hwpx",
                           "filename": "filled.hwpx", "mime_type": "application/hwp+zip",
-                          "delivery_status": "READY_FOR_DOWNLOAD"},
+                          "delivery_status": "READY_FOR_DOWNLOAD",
+                          "download_expires_at": "2026-11-10T23:59:00Z", "bytes": 256},
         ):
             result = self.mcp.tools["fill_template_and_deliver"](
                 DOCUMENT_ID, {"{{NAME}}": "홍길동"}, expected_revision=2)
-        self.assertTrue(result.structuredContent["ok"])
-        self.assertEqual(result.structuredContent["revision"], 3)
+        self.assertTrue(result.structured_content["ok"])
+        self.assertEqual(result.structured_content["revision"], 3)
         self.assertEqual(self.store.writes[0]["expected_revision"], 2)
         self.assertEqual(self.store.writes[0]["data"], UPDATED)
-        self.assertEqual(result.structuredContent["download_url"], "https://example.test/signed.hwpx")
+        self.assertEqual(result.structured_content["download_url"], "https://example.test/signed.hwpx")
 
     def test_batch_replace_reuses_template_edit_commit(self):
         def fake_fill(source, output, values, **kwargs):
@@ -185,13 +223,14 @@ class CompetitorPatternToolsTests(unittest.TestCase):
             "hwpx_mcp.delivery.p333_file_delivery.export_revision",
             return_value={"download_url": "https://example.test/doc.hwpx",
                           "filename": "doc.hwpx", "mime_type": "application/hwp+zip",
-                          "delivery_status": "READY_FOR_DOWNLOAD"},
+                          "delivery_status": "READY_FOR_DOWNLOAD",
+                          "download_expires_at": "2026-11-10T23:59:00Z", "bytes": 256},
         ):
             result = self.mcp.tools["replace_text_and_deliver"](
                 DOCUMENT_ID, {"old": "new", "{{DATE}}": "2026-11-10"},
                 expected_revision=2)
-        self.assertEqual(result.structuredContent["revision"], 3)
-        self.assertEqual(result.structuredContent["operation_count"], 2)
+        self.assertEqual(result.structured_content["revision"], 3)
+        self.assertEqual(result.structured_content["operation_count"], 2)
 
     def test_find_text_in_body_and_table(self):
         sample = {"paragraphs": [
@@ -205,6 +244,25 @@ class CompetitorPatternToolsTests(unittest.TestCase):
                 DOCUMENT_ID, "검색")
         self.assertEqual(result["total_matches"], 2)
         self.assertEqual(result["matches"][1]["container"], "tc")
+
+    def test_list_native_figures_returns_object_metadata_only(self):
+        example = {
+            "pictures": [{
+                "locator": "o_1", "paragraph_locator": "p_2",
+                "section_index": 0, "picture_index": 0,
+                "width": 5000, "height": 3000,
+                "placement": "inline", "binary_item_id_ref": "image1",
+            }],
+            "media_item_count": 1, "object_structure_sha256": "a" * 64,
+        }
+        with patch("hwpx_mcp.document.p29_objects.build_object_map",
+                   return_value=example):
+            result = self.mcp.tools["list_document_figures"](
+                DOCUMENT_ID)
+        self.assertEqual(result["figure_count"], 1)
+        self.assertEqual(result["figures"][0]["locator"], "o_1")
+        self.assertEqual(result["figures"][0]["placement"], "inline")
+        self.assertEqual(result["media_item_count"], 1)
 
     def test_list_tables_returns_cell_grid(self):
         fixture = {"tables": [
@@ -233,14 +291,15 @@ class CompetitorPatternToolsTests(unittest.TestCase):
                           "download_expires_at": "2026-11-10T23:59:00Z",
                           "bytes": len(UPDATED), "mime_type": "application/hwp+zip",
                           "sha256": hashlib.sha256(UPDATED).hexdigest(),
-                          "revision": 3, "delivery_status": "READY_FOR_DOWNLOAD"},
+                          "revision": 3, "delivery_status": "READY_FOR_DOWNLOAD",
+                          "download_expires_at": "2026-11-10T23:59:00Z", "bytes": 256},
         ):
             result = self.mcp.tools["edit_table_and_deliver"](
                 DOCUMENT_ID, expected_revision=2,
                 operations=[{"op": "set_cell_text", "table": "t_1",
                              "cell": "c_1", "text": "결과"}])
-        self.assertEqual(result.structuredContent["revision"], 3)
-        self.assertEqual(result.structuredContent["operation_count"], 1)
+        self.assertEqual(result.structured_content["revision"], 3)
+        self.assertEqual(result.structured_content["operation_count"], 1)
         self.assertEqual(self.store.writes[0]["expected_revision"], 2)
         self.assertEqual(result.content[1].type, "resource_link")
 
@@ -292,6 +351,32 @@ class CompetitorPatternToolsTests(unittest.TestCase):
         for args in ({"offset": -1}, {"limit": 0}, {"limit": 1000}):
             with self.subTest(args=args), self.assertRaises(ValueError):
                 self.mcp.tools["read_document_structure"](DOCUMENT_ID, **args)
+
+
+class MarkdownToNativePlanTests(unittest.TestCase):
+    def test_headings_lists_and_tables_compile_to_native_blocks(self):
+        sample = "# 연구 보고서\n\n연구 목적\n\n- 가설\n1. 측정\n\n| 변수 | 값 |\n| --- | --- |\n| 온도 | 27 |"
+        plan = markdown_to_rich_plan(sample)
+        blocks = plan["sections"][0]["blocks"]
+        self.assertEqual([b["type"] for b in blocks],
+                         ["heading", "paragraph", "list_item", "list_item", "table"])
+        self.assertEqual(blocks[0]["level"], 1)
+        self.assertEqual(blocks[-1]["cells"][1], ["온도", "27"])
+
+    def test_escaped_pipe_is_not_a_table_column_break(self):
+        sample = "| 명칭 | 값 |\n| --- | --- |\n| a\\|b | 42 |"
+        blocks = markdown_to_rich_plan(sample)["sections"][0]["blocks"]
+        self.assertEqual(blocks[0]["cols"], 2)
+        self.assertEqual(blocks[0]["cells"][1][0], "a|b")
+
+    def test_table_width_mismatch_fails_before_any_doc_creation(self):
+        sample = "| A | B |\n| --- | --- |\n| only-one |"
+        with self.assertRaisesRegex(ValueError, "ROW_WIDTH_MISMATCH"):
+            markdown_to_rich_plan(sample)
+
+    def test_empty_markdown_is_rejected(self):
+        with self.assertRaisesRegex(ValueError, "TEXT_REQUIRED"):
+            markdown_to_rich_plan("   ")
 
 
 if __name__ == "__main__":

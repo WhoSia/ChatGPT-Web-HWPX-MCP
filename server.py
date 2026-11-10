@@ -434,8 +434,18 @@ def probe_capabilities() -> dict:
             "inspect_document",
             "export_document",
             "delete_document",
+            "inspect_document_formatting",
+            "preview_document_formatting",
+            "format_document_and_deliver",
+            "export_document_markdown",
+            "list_report_presets",
+            "preview_report_plan",
+            "create_report_from_sections_and_deliver",
+            "discover_hwpx_workflows",
             "create_and_deliver_document",
             "create_rich_document_and_deliver",
+            "create_from_markdown_and_deliver",
+            "list_document_figures",
             "list_document_tables",
             "edit_table_and_deliver",
             "read_document_structure",
@@ -447,8 +457,18 @@ def probe_capabilities() -> dict:
             "issue_p424_native_pdf_download",
         ],
         "user_facing_workflows": [
+            "inspect_document_formatting",
+            "preview_document_formatting",
+            "format_document_and_deliver",
+            "export_document_markdown",
+            "list_report_presets",
+            "preview_report_plan",
+            "create_report_from_sections_and_deliver",
+            "discover_hwpx_workflows",
             "create_and_deliver_document",
             "create_rich_document_and_deliver",
+            "create_from_markdown_and_deliver",
+            "list_document_figures",
             "list_document_tables",
             "edit_table_and_deliver",
             "read_document_structure",
@@ -844,6 +864,10 @@ def _transport_security() -> TransportSecuritySettings:
 import sys as _p425_sys
 from hwpx_mcp.interfaces.p425_competitive_workflows import register_competitive_workflows
 register_competitive_workflows(_p425_sys.modules[__name__])
+from hwpx_mcp.interfaces.p425_format_interchange import register_format_interchange_tools
+register_format_interchange_tools(_p425_sys.modules[__name__])
+from hwpx_mcp.interfaces.p425_report_presets import register_report_preset_tools
+register_report_preset_tools(_p425_sys.modules[__name__])
 
 
 if __name__ == "__main__":

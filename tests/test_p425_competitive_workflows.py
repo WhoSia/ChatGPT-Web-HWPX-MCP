@@ -156,7 +156,8 @@ class CompetitorPatternToolsTests(unittest.TestCase):
                               "download_expires_at": "2026-11-10T23:59:00Z",
                               "bytes": len(UPDATED), "mime_type": "application/hwp+zip",
                               "sha256": hashlib.sha256(UPDATED).hexdigest(),
-                              "revision": 1, "delivery_status": "READY_FOR_DOWNLOAD"},
+                              "revision": 1, "delivery_status": "READY_FOR_DOWNLOAD",
+                          "download_expires_at": "2026-11-10T23:59:00Z", "bytes": 256},
             ):
                 result = self.mcp.tools["create_rich_document_and_deliver"](
                     {"sections": [{"blocks": [{"type": "heading", "text": "연구"}]}]},
@@ -190,7 +191,8 @@ class CompetitorPatternToolsTests(unittest.TestCase):
             "hwpx_mcp.delivery.p333_file_delivery.export_revision",
             return_value={"download_url": "https://example.test/signed.hwpx",
                           "filename": "filled.hwpx", "mime_type": "application/hwp+zip",
-                          "delivery_status": "READY_FOR_DOWNLOAD"},
+                          "delivery_status": "READY_FOR_DOWNLOAD",
+                          "download_expires_at": "2026-11-10T23:59:00Z", "bytes": 256},
         ):
             result = self.mcp.tools["fill_template_and_deliver"](
                 DOCUMENT_ID, {"{{NAME}}": "홍길동"}, expected_revision=2)
@@ -210,7 +212,8 @@ class CompetitorPatternToolsTests(unittest.TestCase):
             "hwpx_mcp.delivery.p333_file_delivery.export_revision",
             return_value={"download_url": "https://example.test/doc.hwpx",
                           "filename": "doc.hwpx", "mime_type": "application/hwp+zip",
-                          "delivery_status": "READY_FOR_DOWNLOAD"},
+                          "delivery_status": "READY_FOR_DOWNLOAD",
+                          "download_expires_at": "2026-11-10T23:59:00Z", "bytes": 256},
         ):
             result = self.mcp.tools["replace_text_and_deliver"](
                 DOCUMENT_ID, {"old": "new", "{{DATE}}": "2026-11-10"},
@@ -258,7 +261,8 @@ class CompetitorPatternToolsTests(unittest.TestCase):
                           "download_expires_at": "2026-11-10T23:59:00Z",
                           "bytes": len(UPDATED), "mime_type": "application/hwp+zip",
                           "sha256": hashlib.sha256(UPDATED).hexdigest(),
-                          "revision": 3, "delivery_status": "READY_FOR_DOWNLOAD"},
+                          "revision": 3, "delivery_status": "READY_FOR_DOWNLOAD",
+                          "download_expires_at": "2026-11-10T23:59:00Z", "bytes": 256},
         ):
             result = self.mcp.tools["edit_table_and_deliver"](
                 DOCUMENT_ID, expected_revision=2,

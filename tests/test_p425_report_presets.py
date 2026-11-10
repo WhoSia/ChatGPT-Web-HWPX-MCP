@@ -1,6 +1,7 @@
 """P4.25 one-call report authoring: native preset plan and MCP delegation."""
 from __future__ import annotations
 
+import base64
 import unittest
 from unittest.mock import patch
 from types import SimpleNamespace
@@ -148,6 +149,39 @@ class ReportPresetTests(unittest.TestCase):
         self.assertTrue(result["table_of_contents_requested"])
         self.assertEqual(compiler.call_args.args[0]["publishing"]["toc"]["at_index"], 1)
         self.assertEqual(self.calls, [])
+
+    def test_embedded_picture_preserves_order_and_caption(self):
+        image = base64.b64encode(b"\\x89PNG\\r\\n\\x1a\\n" + b"fake-image").decode("ascii")
+        plan = build_report_plan(
+            title="그림 보고서",
+            sections=[{"heading": "결과", "content": [
+                {"type": "paragraph", "text": "그림 전"},
+                {"type": "figure", "image_format": "png",
+                 "content_base64": image,
+                 "caption": "그림 1. 그래프", "width": 4000, "height": 3000},
+                {"type": "paragraph", "text": "그림 후"},
+            ]}],
+        )
+        blocks = plan["sections"][0]["blocks"]
+        self.assertEqual([b["type"] for b in blocks],
+                         ["title", "heading", "paragraph", "picture", "paragraph"])
+        self.assertEqual(blocks[3]["caption"], "그림 1. 그래프")
+        self.assertEqual(blocks[3]["width"], 4000)
+
+    def test_picture_rejects_nonimage_signature_and_invalid_size(self):
+        for figure in [
+            {"image_format": "png",
+             "content_base64": base64.b64encode(b"NOT-PNG").decode("ascii")},
+            {"image_format": "bmp", "content_base64": "Zm9v"},
+            {"image_format": "png", "content_base64": "bad base64"},
+            {"image_format": "png",
+             "content_base64": base64.b64encode(b"\\x89PNG\\r\\n\\x1a\\n").decode("ascii"),
+             "width": 0},
+        ]:
+            with self.subTest(figure=figure), self.assertRaises(ValueError):
+                build_report_plan(title="그림 보고서", sections=[
+                    {"heading": "결과", "content": [{"type": "figure", **figure}]},
+                ])
 
     def test_unknown_preset_or_invalid_cells_never_calls_composer(self):
         for args in [

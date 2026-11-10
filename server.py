@@ -434,6 +434,21 @@ def probe_capabilities() -> dict:
             "inspect_document",
             "export_document",
             "delete_document",
+            "read_document_structure",
+            "find_document_text",
+            "preview_template_fill",
+            "fill_template_and_deliver",
+            "replace_text_and_deliver",
+            "list_p424_native_pdfs",
+            "issue_p424_native_pdf_download",
+        ],
+        "user_facing_workflows": [
+            "read_document_structure",
+            "find_document_text",
+            "preview_template_fill",
+            "fill_template_and_deliver",
+            "replace_text_and_deliver",
+            "export_document",
         ],
         "p12_scope": [
             "durable encrypted OAuth client/token state",
@@ -448,8 +463,8 @@ def probe_capabilities() -> dict:
         ],
         "not_in_scope_yet": [
             "large-file streaming ingress",
-            "rich editing/formatting",
-            "Hancom renderer fidelity oracle",
+            "native layout-equivalent preview without a renderer",
+            "unified remote Hancom PDF workflow",
         ],
     }
 

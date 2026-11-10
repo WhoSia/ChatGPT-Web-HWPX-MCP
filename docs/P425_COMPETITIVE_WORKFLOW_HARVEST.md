@@ -60,7 +60,7 @@ revision bytes (no raw file path parameters):
    performs multiple literal replacements in the same durable commit
    through that same editor rather than reimplementing XML manipulation.
 
-All six are registered at server import. `probe_capabilities` now
+All seven are registered at server import. `probe_capabilities` now
 advertises them. The new test module exercises the tool registration,
 preview without writes, CAS errors, owned-document boundary, output link,
 structured read and body/table search with synthetic byte fixtures.
@@ -91,3 +91,15 @@ URL. The private HWPX payload is still delivered through existing
 revision-scoped URL semantics; ChatGPT host attachment rendering still
 requires a live host test. Tests assert structured receipts and link
 handoff using fake P3.0 revision state and synthetic files.
+
+## 2026-11-10 rich document authoring now exposed
+
+`create_rich_document_and_deliver(rich_plan, filename)` is now a
+registered MCP tool that compiles a P3.38 multi-section plan (headings,
+tables, equations, images, page setup), executes the existing P3.21
+native composer, validates the generated HWPX, commits the owned
+revision and returns the existing P3.33 `resource_link` attachment.
+It does **not** claim a native PDF, and it does not touch the removed
+`C:\\p424-validation` folder. A synthetic mock-composer integration
+test covers server tool registration and delivery handoff; actual
+multi-section rendering on Windows still requires separate evidence.

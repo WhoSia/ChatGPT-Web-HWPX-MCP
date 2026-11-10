@@ -255,7 +255,7 @@ def build_report_plan(
             if not caption:
                 continue
             label = names[kind]
-            if not re.match(r"^(?:그림|표|식)\\s*\\d+[.．:\\s]", caption):
+            if not re.match(r"^(?:그림|표|식)\s*\d+[.．:\s]", caption):
                 block["caption"] = f"{label} {counters[kind]}. {caption}"
 
     # Existing P3.21 composer has a 240-block limit. Validate here too,
@@ -293,6 +293,7 @@ def register_report_preset_tools(core):
         subtitle: str = "", author: str = "",
         page_numbers: bool = True,
         table_of_contents: bool = False,
+        number_captions: bool = False,
     ) -> dict:
         """Preview the exact native report composition plan without writing a file."""
         core._caller_subject()

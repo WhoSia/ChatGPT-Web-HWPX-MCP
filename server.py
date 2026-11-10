@@ -435,6 +435,7 @@ def probe_capabilities() -> dict:
             "export_document",
             "delete_document",
             "create_and_deliver_document",
+            "create_rich_document_and_deliver",
             "read_document_structure",
             "find_document_text",
             "preview_template_fill",
@@ -445,6 +446,7 @@ def probe_capabilities() -> dict:
         ],
         "user_facing_workflows": [
             "create_and_deliver_document",
+            "create_rich_document_and_deliver",
             "read_document_structure",
             "find_document_text",
             "preview_template_fill",

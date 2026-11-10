@@ -73,13 +73,14 @@ class CompetitorPatternToolsTests(unittest.TestCase):
             self.mcp.tools["create_rich_document_and_deliver"],
         )
 
-    def test_eleven_working_tools_registered(self):
+    def test_twelve_working_tools_registered(self):
         self.assertEqual(set(self.mcp.tools), {
             "read_document_structure", "preview_template_fill",
             "fill_template_and_deliver", "find_document_text",
             "replace_text_and_deliver", "create_and_deliver_document",
             "create_rich_document_and_deliver",
             "list_document_tables", "edit_table_and_deliver",
+            "list_document_figures",
             "discover_hwpx_workflows", "create_from_markdown_and_deliver",
         })
 
@@ -243,6 +244,25 @@ class CompetitorPatternToolsTests(unittest.TestCase):
                 DOCUMENT_ID, "검색")
         self.assertEqual(result["total_matches"], 2)
         self.assertEqual(result["matches"][1]["container"], "tc")
+
+    def test_list_native_figures_returns_object_metadata_only(self):
+        example = {
+            "pictures": [{
+                "locator": "o_1", "paragraph_locator": "p_2",
+                "section_index": 0, "picture_index": 0,
+                "width": 5000, "height": 3000,
+                "placement": "inline", "binary_item_id_ref": "image1",
+            }],
+            "media_item_count": 1, "object_structure_sha256": "a" * 64,
+        }
+        with patch("hwpx_mcp.document.p29_objects.build_object_map",
+                   return_value=example):
+            result = self.mcp.tools["list_document_figures"](
+                DOCUMENT_ID)
+        self.assertEqual(result["figure_count"], 1)
+        self.assertEqual(result["figures"][0]["locator"], "o_1")
+        self.assertEqual(result["figures"][0]["placement"], "inline")
+        self.assertEqual(result["media_item_count"], 1)
 
     def test_list_tables_returns_cell_grid(self):
         fixture = {"tables": [

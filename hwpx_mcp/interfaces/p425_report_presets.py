@@ -143,4 +143,4 @@ def register_report_preset_tools(core):
         # Delegate to the registered P4.25 rich native authoring tool.
         # This callback is defined on the same MCP core by the previous
         # registration module. No new XML serializer is introduced.
-        return core.create_rich_document_and_deliver(plan, filename)
+        return core._p425_create_rich_document_and_deliver(plan, filename)

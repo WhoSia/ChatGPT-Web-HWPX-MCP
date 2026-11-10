@@ -66,11 +66,12 @@ class CompetitorPatternToolsTests(unittest.TestCase):
         )
         register_competitive_workflows(self.core)
 
-    def test_six_working_tools_registered(self):
+    def test_seven_working_tools_registered(self):
         self.assertEqual(set(self.mcp.tools), {
             "read_document_structure", "preview_template_fill",
             "fill_template_and_deliver", "find_document_text",
             "replace_text_and_deliver", "create_and_deliver_document",
+            "create_rich_document_and_deliver",
         })
 
     def test_create_and_deliver_one_call(self):
@@ -95,6 +96,49 @@ class CompetitorPatternToolsTests(unittest.TestCase):
         self.assertEqual(result.structuredContent["download_url"], exported["download_url"])
         self.assertEqual(calls[0]["request_id"], "test-replay-key")
         self.assertFalse(result.structuredContent["native_pdf_created"])
+
+    def test_rich_composer_commits_document_and_returns_resource_link(self):
+        self.core._new_document_id = lambda: DOCUMENT_ID
+        self.core.sanitize_filename = lambda filename: filename
+        self.core._paths = lambda document_id: (self._rich_output, self._rich_meta)
+        self.core._metadata = lambda document_id, **kwargs: {
+            "document_id": document_id, "owner_subject": OWNER,
+            "revision": 1, "expires_at_epoch": 1900000000,
+            "filename": kwargs["filename"],
+        }
+        writes = []
+        self.core._write_metadata = lambda doc, meta: writes.append((doc, meta)) or {"receipt_id": "rich"}
+        from pathlib import Path
+        import tempfile
+        with tempfile.TemporaryDirectory() as temp:
+            self._rich_output = Path(temp) / "new.hwpx"
+            self._rich_meta = Path(temp) / "new.json"
+            self.core.validate_hwpx_package = lambda path, **kwargs: {
+                "valid": True, "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+                "bytes": len(path.read_bytes()),
+            }
+            def compose(path, plan, **kwargs):
+                path.write_bytes(UPDATED)
+                return {"block_count": 2}
+            with patch("hwpx_mcp.orchestration.p338_rich_builder.compile_rich_document_plan",
+                       return_value={"plan": {"blocks": []}, "plan_sha256": "f" * 64,
+                                     "block_count": 2, "section_count": 1}), patch(
+                "hwpx_mcp.document.p321_document_composer.compose_document_plan",
+                side_effect=compose), patch(
+                "hwpx_mcp.delivery.p333_file_delivery.export_revision",
+                return_value={"filename": "report.hwpx", "download_url": "https://example.test/rich",
+                              "download_expires_at": "2026-11-10T23:59:00Z",
+                              "bytes": len(UPDATED), "mime_type": "application/hwp+zip",
+                              "sha256": hashlib.sha256(UPDATED).hexdigest(),
+                              "revision": 1, "delivery_status": "READY_FOR_DOWNLOAD"},
+            ):
+                result = self.mcp.tools["create_rich_document_and_deliver"](
+                    {"sections": [{"blocks": [{"type": "heading", "text": "연구"}]}]},
+                    "report.hwpx")
+            self.assertEqual(self._rich_output.read_bytes(), UPDATED)
+            self.assertEqual(len(writes), 1)
+            self.assertEqual(result.structuredContent["rich_block_count"], 2)
+            self.assertEqual(result.content[1].type, "resource_link")
 
     def test_create_and_deliver_rejects_empty_body(self):
         with self.assertRaisesRegex(ValueError, "DOCUMENT_TEXT_REQUIRED"):

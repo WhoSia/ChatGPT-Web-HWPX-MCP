@@ -103,3 +103,26 @@ It does **not** claim a native PDF, and it does not touch the removed
 `C:\\p424-validation` folder. A synthetic mock-composer integration
 test covers server tool registration and delivery handoff; actual
 multi-section rendering on Windows still requires separate evidence.
+
+## 2026-11-10 — Native HWPX tables moved into production-facing MCP surface
+
+Two further first-class tools now reuse the existing P2.7 table engine:
+
+- `list_document_tables(document_id, offset=0, limit=10)` extracts
+  table grids, cells including merged anchors, captions, dimensions and
+  precise table/cell locators from the authenticated retained HWPX bytes.
+- `edit_table_and_deliver(document_id, expected_revision, operations)`
+  applies existing native table-cell text edits, merge/split, shading,
+  borders and structural operations through `apply_table_edits_atomic`,
+  checks the requested revision, commits one P3.0 durable CAS revision
+  and emits a real MCP `resource_link` HWPX attachment. The operation
+  JSON is the existing P2.7 locator schema (table/cell locators obtained
+  by `list_document_tables`), not a separately invented API.
+
+This makes **nine** directly usable new P4.25 MCP tools in this cycle,
+all registered on server import (rather than being isolated internal
+research helpers). Synthetic contract tests also cover cell grid read
+and editing one durable revision. The genuine HWPX test with complex
+merged tables remains to be executed on controlled fixtures; the
+removed `C:\\p424-validation` and deleted survival-rate file will
+not be recreated or used.

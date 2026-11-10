@@ -434,6 +434,7 @@ def probe_capabilities() -> dict:
             "inspect_document",
             "export_document",
             "delete_document",
+            "discover_hwpx_workflows",
             "create_and_deliver_document",
             "create_rich_document_and_deliver",
             "list_document_tables",
@@ -447,6 +448,7 @@ def probe_capabilities() -> dict:
             "issue_p424_native_pdf_download",
         ],
         "user_facing_workflows": [
+            "discover_hwpx_workflows",
             "create_and_deliver_document",
             "create_rich_document_and_deliver",
             "list_document_tables",

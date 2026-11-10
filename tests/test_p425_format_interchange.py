@@ -179,7 +179,8 @@ class FormattingInterchangeTests(unittest.TestCase):
             "hwpx_mcp.document.p27_tables.build_table_map",
             return_value={"tables": []},
         ):
-            got = self.mcp.tools["export_document_markdown"](DOC, max_chars=14)
+            got = self.mcp.tools["export_document_markdown"](
+                DOC, max_chars=6, include_tables=False)
         self.assertTrue(got["truncated"])
         self.assertIn("\\# 본문", got["markdown"])
         self.assertEqual(got["representation"],

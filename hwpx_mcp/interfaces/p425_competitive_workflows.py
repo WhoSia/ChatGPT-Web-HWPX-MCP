@@ -571,6 +571,11 @@ def register_competitive_workflows(core):
         }
         return attachment
 
+    # Share the same rich-authoring closure with the preset frontend.
+    # FastMCP registers this as a tool but does not automatically attach
+    # the Python function as an attribute of its hosting server module.
+    core._p425_create_rich_document_and_deliver = create_rich_document_and_deliver
+
     @core.mcp.tool()
     def replace_text_and_deliver(
         document_id: str,

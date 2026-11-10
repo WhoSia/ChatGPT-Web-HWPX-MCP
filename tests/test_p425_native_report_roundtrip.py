@@ -14,6 +14,7 @@ from pathlib import Path
 from hwpx_mcp.document.p2_document import build_document_map
 from hwpx_mcp.document.p28_tables import build_table_map
 from hwpx_mcp.document.p210_equations import build_equation_map
+from hwpx_mcp.document.p320_annotation_apparatus import build_annotation_apparatus_map
 from hwpx_mcp.document.p29_objects import build_object_map
 from hwpx_mcp.document.p321_document_composer import compose_document_plan
 from hwpx_mcp.interfaces.p425_report_presets import build_report_plan
@@ -87,6 +88,25 @@ class NativeP425ReportRoundtripTests(unittest.TestCase):
                 next(i for i, x in enumerate(body) if "그래프 앞" in x),
                 next(i for i, x in enumerate(body) if "그래프 뒤" in x),
             )
+
+    def test_real_hwp_native_footnotes_survive_save_and_reload(self):
+        requested = build_report_plan(
+            title="합성 출처 기록", preset="science-report",
+            sections=[{"heading": "연구 배경", "content": [
+                {"type": "paragraph", "text": "선행연구를 살펴보았다.",
+                 "footnote": "합성 문헌 A: 실험 조건 기술"},
+                {"type": "paragraph", "text": "측정 조건도 기록하였다.",
+                 "footnote": "합성 문헌 B: 온도 및 기기 설정"},
+            ]}],
+        )
+        compiled = compile_rich_document_plan(requested)
+        self.assertEqual(len(compiled["plan"]["annotations"]), 2)
+        with tempfile.TemporaryDirectory(prefix="p425-native-notes-") as tmp:
+            out = Path(tmp) / "footnote.hwpx"
+            receipt = compose_document_plan(out, compiled["plan"])
+            self.assertTrue(receipt["atomic_commit"])
+            reloaded = build_annotation_apparatus_map(out)
+            self.assertEqual(reloaded["counts"]["footnotes"], 2)
 
     def test_native_table_of_contents_compiles_to_structured_publishing(self):
         plan = build_report_plan(

@@ -73,6 +73,24 @@ def build_report_plan(
                 raise ValueError("REPORT_PARAGRAPH_INVALID")
             if paragraph.strip():
                 blocks.append({"type": "paragraph", "text": paragraph})
+        equations = section.get("equations", [])
+        if not isinstance(equations, list) or len(equations) > 40:
+            raise ValueError("REPORT_EQUATIONS_INVALID")
+        for equation in equations:
+            if isinstance(equation, str):
+                latex, caption = equation, None
+            elif isinstance(equation, dict):
+                latex, caption = equation.get("latex"), equation.get("caption")
+            else:
+                raise ValueError("REPORT_EQUATION_INVALID")
+            if not isinstance(latex, str) or not latex.strip() or len(latex) > 4000:
+                raise ValueError("REPORT_EQUATION_LATEX_INVALID")
+            block = {"type": "equation", "latex": latex.strip()}
+            if caption is not None:
+                if not isinstance(caption, str) or len(caption) > 500:
+                    raise ValueError("REPORT_EQUATION_CAPTION_INVALID")
+                block["caption"] = caption
+            blocks.append(block)
         tables = section.get("tables", [])
         if not isinstance(tables, list) or len(tables) > 20:
             raise ValueError("REPORT_TABLES_INVALID")
@@ -134,7 +152,7 @@ def register_report_preset_tools(core):
         filename: str = "report.hwpx",
         page_numbers: bool = True,
     ):
-        """One-call report authoring with native headings, tables and styles."""
+        """One-call native report with headings, tables, equations and styles."""
         core._caller_subject()
         plan = build_report_plan(
             title=title, sections=sections, preset=preset,

@@ -82,7 +82,7 @@ def tables_to_markdown(table_map: dict) -> dict:
             if not (0 <= row < rows and 0 <= col < cols and
                     1 <= rs <= rows-row and 1 <= cs <= cols-col):
                 raise ValueError("TABLE_CELL_ANCHOR_INVALID")
-            text = str(cell.get("text") or "").replace("|", r"\\|")
+            text = str(cell.get("text") or "").replace("|", r"\|")
             text = " ".join(text.splitlines()).strip()
             grid[row][col] = text
             if rs > 1 or cs > 1:
@@ -229,14 +229,13 @@ def register_format_interchange_tools(core):
             expires_at_epoch=row["expires_at_epoch"],
         )
         exported = export_revision(core, document_id, link_ttl_seconds=900)
-        attachment = handoff(exported)
-        attachment.structuredContent = {
+        attachment = handoff({
             **exported, "ok": True,
             "formatting_changed": receipt["formatting_changed"],
             "text_changed": receipt["semantic_changed"],
             "operation_count": receipt["operation_count"],
             "formatting_sha256": receipt["after"]["formatting_sha256"],
-        }
+        })
         return attachment
 
     @core.mcp.tool()

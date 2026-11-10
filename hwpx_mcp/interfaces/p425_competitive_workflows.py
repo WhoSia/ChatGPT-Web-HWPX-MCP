@@ -49,24 +49,20 @@ def register_competitive_workflows(core):
             text=text, title=title, filename=filename,
             request_id=request_id,
         )
-        from hwpx_mcp.delivery.p333_file_delivery import export_revision
+        from hwpx_mcp.delivery.p333_file_delivery import export_revision, handoff
         delivered = export_revision(
             core, document_id=created["document_id"],
             link_ttl_seconds=900,
         )
-        return {
-            "ok": True,
-            "document_id": created["document_id"],
-            "revision": delivered["revision"],
-            "sha256": delivered["sha256"],
-            "filename": delivered["filename"],
-            "mime_type": delivered["mime_type"],
-            "download_url": delivered["download_url"],
-            "delivery_status": delivered["delivery_status"],
+        attachment = handoff(delivered)
+        attachment.structuredContent = {
+            **delivered,
+            "created": True,
             "idempotent_replay": created.get("idempotent_replay", False),
             "request_id": request_id or None,
             "native_pdf_created": False,
         }
+        return attachment
 
     @core.mcp.tool()
     def read_document_structure(
@@ -239,21 +235,20 @@ def register_competitive_workflows(core):
         core._load_metadata(document_id)
         from hwpx_mcp.delivery.p333_file_delivery import export_revision
         export = export_revision(core, document_id, link_ttl_seconds=900)
-        return {
+        from hwpx_mcp.delivery.p333_file_delivery import handoff
+        attachment = handoff(export)
+        attachment.structuredContent = {
+            **export,
             "ok": True, "document_id": document_id,
             "revision": expected_revision + 1,
-            "sha256": digest,
-            "bytes": len(changed),
+            "sha256": digest, "bytes": len(changed),
             "matches": receipt["matches"],
             "operation_count": receipt["operation_count"],
             "fill_receipt_sha256": receipt["fill_sha256"],
             "commit_receipt": commit,
-            "download_url": export["download_url"],
-            "filename": export["filename"],
-            "mime_type": export["mime_type"],
-            "delivery_status": export["delivery_status"],
             "source_template_mutated": False,
         }
+        return attachment
 
     @core.mcp.tool()
     def replace_text_and_deliver(

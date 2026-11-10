@@ -340,8 +340,13 @@ At GitHub HEAD `7d77b97dc4b36bd7fd55e734fffb64fcdc609ad1`,
 a real **49-test P4.25 CI run passed**, including two synthetic
 end-to-end tests that wrote actual native HWPX in temporary directories
 and reopened them to inspect table and equation objects and native
-TOC authoring. Additional workflow discovery/capability changes after
-that HEAD must be checked independently before claiming their CI pass.
+TOC authoring. The subsequent P4.25 workflow discovery/capability changes were
+then checked independently at GitHub commit
+`265f1b5dc3e78dc8081ff27c63743b728390b383`: the dedicated
+P4.25 Actions run `42789301612` completed **SUCCESS**, with
+`Ran 50 tests ... OK`. This includes the additional tool-discovery
+test as well as the native HWPX integration tests. Later
+documentation-only commits did not require a new execution.
 No deleted user HWPX or `C:\\p424-validation` path was used.
 
 P4.25 currently exposes **18** user-facing MCP tools (nine inherited,

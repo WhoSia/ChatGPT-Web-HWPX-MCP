@@ -58,6 +58,54 @@ def document_to_markdown(document: dict, *, include_table_cells: bool = True) ->
     }
 
 
+def tables_to_markdown(table_map: dict) -> dict:
+    """Render actual HWPX table anchors into conservative Markdown grids.
+
+    Markdown has no native cell spans: merged anchors are shown once and
+    spanned positions stay empty. The loss of span semantics is reported.
+    The caller appends these tables after body text; positional interleave
+    with paragraphs is not represented here.
+    """
+    chunks = []
+    span_warnings = []
+    for index, table in enumerate(table_map.get("tables", [])):
+        rows, cols = int(table["rows"]), int(table["cols"])
+        if not 1 <= rows <= 200 or not 1 <= cols <= 100:
+            raise ValueError("TABLE_DIMENSIONS_INVALID")
+        grid = [["" for _ in range(cols)] for _ in range(rows)]
+        for cell in table.get("cells", []):
+            row, col = int(cell["row"]), int(cell["col"])
+            rs, cs = int(cell.get("row_span", 1)), int(cell.get("col_span", 1))
+            if not (0 <= row < rows and 0 <= col < cols and
+                    1 <= rs <= rows-row and 1 <= cs <= cols-col):
+                raise ValueError("TABLE_CELL_ANCHOR_INVALID")
+            text = str(cell.get("text") or "").replace("|", r"\\|")
+            text = " ".join(text.splitlines()).strip()
+            grid[row][col] = text
+            if rs > 1 or cs > 1:
+                span_warnings.append({
+                    "table_index": index, "row": row, "col": col,
+                    "row_span": rs, "col_span": cs,
+                })
+        header = [f"열 {col + 1}" for col in range(cols)]
+        # Synthetic column names prevent falsely treating first data row
+        # as a header when the HWPX table has no header property.
+        lines = [
+            f"### 표 {index + 1}",
+            "",
+            "| " + " | ".join(header) + " |",
+            "| " + " | ".join(["---"] * cols) + " |",
+        ]
+        lines.extend("| " + " | ".join(row) + " |" for row in grid)
+        chunks.append("\n".join(lines))
+    return {
+        "markdown": "\n\n".join(chunks),
+        "table_count": len(chunks),
+        "merged_cell_warnings": span_warnings,
+        "table_position": "APPENDED_AFTER_PARAGRAPHS",
+    }
+
+
 def register_format_interchange_tools(core):
     def _owned(document_id: str):
         owner = core._caller_subject()
@@ -193,6 +241,7 @@ def register_format_interchange_tools(core):
         document_id: str,
         include_table_cells: bool = True,
         max_chars: int = 100000,
+        include_tables: bool = True,
     ) -> dict:
         """Extract semantic HWPX text as Markdown; no fake page layout."""
         if type(max_chars) is not int or not 1 <= max_chars <= 200000:
@@ -203,11 +252,22 @@ def register_format_interchange_tools(core):
             path = Path(tmp) / "document.hwpx"
             path.write_bytes(row["bytes"])
             document = build_document_map(path)
-        result = document_to_markdown(document, include_table_cells=include_table_cells)
+            table_data = None
+            if include_tables:
+                from hwpx_mcp.document.p27_tables import build_table_map
+                table_data = tables_to_markdown(build_table_map(path))
+        result = document_to_markdown(
+            document, include_table_cells=(include_table_cells and not include_tables)
+        )
         md = result.pop("markdown")
+        if table_data is not None and table_data["table_count"]:
+            md = (md + "\n\n" + table_data["markdown"]).strip()
         return {
             "ok": True, "document_id": document_id, "revision": row["revision"],
             **result, "markdown": md[:max_chars],
             "total_markdown_chars": len(md),
             "truncated": len(md) > max_chars,
+            "table_count": table_data["table_count"] if table_data else 0,
+            "merged_cell_warnings": table_data["merged_cell_warnings"] if table_data else [],
+            "table_position": table_data["table_position"] if table_data else "NOT_EXPORTED",
         }

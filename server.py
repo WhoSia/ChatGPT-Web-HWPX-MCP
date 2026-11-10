@@ -434,6 +434,7 @@ def probe_capabilities() -> dict:
             "inspect_document",
             "export_document",
             "delete_document",
+            "create_and_deliver_document",
             "read_document_structure",
             "find_document_text",
             "preview_template_fill",
@@ -443,6 +444,7 @@ def probe_capabilities() -> dict:
             "issue_p424_native_pdf_download",
         ],
         "user_facing_workflows": [
+            "create_and_deliver_document",
             "read_document_structure",
             "find_document_text",
             "preview_template_fill",

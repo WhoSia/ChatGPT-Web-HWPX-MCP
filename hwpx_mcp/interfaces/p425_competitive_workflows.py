@@ -65,6 +65,64 @@ def register_competitive_workflows(core):
         return attachment
 
     @core.mcp.tool()
+    def create_rich_document_and_deliver(
+        rich_plan: dict,
+        filename: str = "report.hwpx",
+    ):
+        """Author a real multi-section HWPX with headings/tables/equations.
+
+        Reuses the P3.38 rich-plan compiler and P3.21 native composer.
+        A new owned revision is committed and returned as an MCP attachment.
+        No Windows Hancom process, local validation folder or raw XML
+        authorship is required.
+        """
+        from hwpx_mcp.orchestration.p338_rich_builder import compile_rich_document_plan
+        from hwpx_mcp.document.p321_document_composer import compose_document_plan
+        from hwpx_mcp.delivery.p333_file_delivery import export_revision, handoff
+
+        owner = core._caller_subject()
+        compiled = compile_rich_document_plan(rich_plan)
+        with tempfile.TemporaryDirectory(prefix="p425-rich-") as tmp:
+            destination = Path(tmp) / "report.hwpx"
+            composition = compose_document_plan(
+                destination, compiled["plan"],
+                validator=lambda path: core.validate_hwpx_package(path, ingress=False),
+            )
+            data = destination.read_bytes()
+        document_id = core._new_document_id()
+        filename = core.sanitize_filename(filename)
+        hwpx_path, _metadata_path = core._paths(document_id)
+        hwpx_path.write_bytes(data)
+        try:
+            validated = core.validate_hwpx_package(hwpx_path, ingress=False)
+            if validated.get("valid") is not True:
+                raise ValueError("COMPOSED_HWPX_FAILED_VALIDATION")
+            metadata = core._metadata(
+                document_id, filename=filename, owner_subject=owner,
+                validation=validated, title=str(rich_plan.get("title") or ""),
+                source="p425-rich-composer",
+            )
+            committed = core._write_metadata(document_id, metadata)
+        except Exception:
+            # The canonical durable commit handles rollback/re-hydration.
+            # Before a first successful commit, prevent orphaned local bytes.
+            if core.DOCUMENT_STORE.load_current(document_id, allow_expired=True) is None:
+                hwpx_path.unlink(missing_ok=True)
+            raise
+        delivered = export_revision(core, document_id, link_ttl_seconds=900)
+        result = handoff(delivered)
+        result.structuredContent = {
+            **delivered, "ok": True, "created": True,
+            "rich_plan_sha256": compiled["plan_sha256"],
+            "rich_block_count": compiled["block_count"],
+            "rich_sections": compiled["section_count"],
+            "composer_receipt": composition,
+            "commit_receipt": committed,
+            "native_pdf_created": False,
+        }
+        return result
+
+    @core.mcp.tool()
     def read_document_structure(
         document_id: str,
         offset: int = 0,

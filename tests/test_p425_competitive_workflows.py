@@ -95,6 +95,16 @@ class CompetitorPatternToolsTests(unittest.TestCase):
         self.assertEqual(result["matching_workflows"][0]["tool"],
                          "create_rich_document_and_deliver")
 
+    def test_discovery_exposes_native_report_preview_without_mutation(self):
+        result = self.mcp.tools["discover_hwpx_workflows"](
+            "preview report", limit=5,
+        )
+        self.assertIn(
+            "preview_report_plan",
+            [entry["tool"] for entry in result["matching_workflows"]],
+        )
+        self.assertFalse(result["executes_mutations"])
+
     def test_discovery_invalid_limit_does_not_execute_any_edit(self):
         with self.assertRaisesRegex(ValueError, "LIMIT"):
             self.mcp.tools["discover_hwpx_workflows"]("table", limit=100)

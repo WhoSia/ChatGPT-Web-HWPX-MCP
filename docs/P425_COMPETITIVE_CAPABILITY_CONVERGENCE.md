@@ -92,3 +92,19 @@ source is incorporated later, preserve required copyright/license notices.
 
 This is a development program, not a production-ready release declaration.
 Keep P4.24's native PDF transport work as a separate technical lane.
+
+## First P4.25-native implementation — tool discovery gateway
+
+`discover_hwpx_workflows(task, limit=5)` is a newly registered MCP tool
+that recommends actual existing document operations using Korean/English
+keyword matching. It surfaces only tool names, purposes and required
+inputs; it does not silently modify or read private document content.
+It is a practical miniature implementation of the agent-facing discovery
+pattern found in peer MCP servers. Discovery itself is not evidence
+that a host successfully invoked a suggested tool.
+
+The branch inherits nine real document workflows from P4.24 development
+and adds discovery as the tenth first-class P4.25 MCP tool. Synthetic
+regression tests were added for Korean table-edit lookup, rich report
+lookup, and bounds. Run the tests against the current P4.25 branch;
+none of these new tests has been executed on the owner's WSL yet.

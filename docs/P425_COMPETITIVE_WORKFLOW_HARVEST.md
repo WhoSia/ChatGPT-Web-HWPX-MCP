@@ -39,22 +39,28 @@ NOTICE obligations and track the exact upstream commit.
 MCP tools registered on the real `server.py`, backed by owned immutable
 revision bytes (no raw file path parameters):
 
-1. `read_document_structure(document_id, offset, limit, include_text)`
+1. `create_and_deliver_document(text, title, filename, request_id)`
+   uses the existing generated HWPX and P3.33 attachment service in one
+   request. Returns an MCP ResourceLink as well as structured metadata,
+   rather than just a JSON URL. Repeating an identical request_id can
+   reuse an earlier creation.
+2. `read_document_structure(document_id, offset, limit, include_text)`
    returns ordered body/nested paragraphs with stable locators, section and
    container coordinates. Paragraph offsets are not native page numbers.
-2. `find_document_text(document_id, query, max_matches, case_sensitive)`
+3. `find_document_text(document_id, query, max_matches, case_sensitive)`
    returns body/table text matches, locators, bounded context.
-3. `preview_template_fill(document_id, values, require_each, require_unique)`
+4. `preview_template_fill(document_id, values, require_each, require_unique)`
    returns exact-match counts, current revision and plan hash, no mutation.
-4. `fill_template_and_deliver(document_id, values, expected_revision, ...)`
+5. `fill_template_and_deliver(document_id, values, expected_revision, ...)`
    reuses P3.37 ZIP/XML atomic inline edit and source validation, then
    commits a single new owner-scoped durable revision using optimistic
-   concurrency and returns the existing signed HWPX download link.
-5. `replace_text_and_deliver(document_id, replacements, expected_revision)`
+   concurrency and returns the existing P3.33 MCP ResourceLink attachment
+   plus structured metadata.
+6. `replace_text_and_deliver(document_id, replacements, expected_revision)`
    performs multiple literal replacements in the same durable commit
    through that same editor rather than reimplementing XML manipulation.
 
-All five are registered at server import. `probe_capabilities` now
+All six are registered at server import. `probe_capabilities` now
 advertises them. The new test module exercises the tool registration,
 preview without writes, CAS errors, owned-document boundary, output link,
 structured read and body/table search with synthetic byte fixtures.
@@ -74,3 +80,14 @@ engines over reimplementing ZIP/XML operations.
 
 User instruction: Do not recreate `C:\p424-validation` or the deleted
 survival-rate HWPX. There is no need for that local test to develop P4.25.
+
+## 2026-11-10 additional product integration
+
+The actual one-call `create_and_deliver_document` now returns a
+`CallToolResult` containing an MCP `resource_link`, human-readable
+attachment message and the structured delivery receipt. Template fill
+and batch replacement use this same attachment handoff, not a bare JSON
+URL. The private HWPX payload is still delivered through existing
+revision-scoped URL semantics; ChatGPT host attachment rendering still
+requires a live host test. Tests assert structured receipts and link
+handoff using fake P3.0 revision state and synthetic files.

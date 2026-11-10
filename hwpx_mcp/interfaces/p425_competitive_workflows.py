@@ -123,6 +123,91 @@ def register_competitive_workflows(core):
         return result
 
     @core.mcp.tool()
+    def list_document_tables(
+        document_id: str, offset: int = 0, limit: int = 10,
+    ) -> dict:
+        """Read real HWPX table grids, merged-cell anchors and cell text."""
+        if type(offset) is not int or offset < 0:
+            raise ValueError("OFFSET_INVALID")
+        if type(limit) is not int or not 1 <= limit <= 20:
+            raise ValueError("LIMIT_INVALID")
+        _metadata, row = _owned(document_id)
+        from hwpx_mcp.document.p27_tables import build_table_map
+        with tempfile.TemporaryDirectory(prefix="p425-tables-") as tmp:
+            path = Path(tmp) / "owned.hwpx"
+            path.write_bytes(row["bytes"])
+            mapped = build_table_map(path)
+        tables = mapped["tables"]
+        return {
+            "ok": True, "document_id": document_id,
+            "revision": row["revision"],
+            "table_count": len(tables),
+            "tables": [{
+                "locator": table["locator"],
+                "table_index": table["table_index"],
+                "rows": table["rows"], "cols": table["cols"],
+                "caption_text": table["caption_text"],
+                "cells": [{
+                    "locator": cell["locator"],
+                    "row": cell["row"], "col": cell["col"],
+                    "row_span": cell["row_span"], "col_span": cell["col_span"],
+                    "text": cell["text"],
+                } for cell in table["cells"]],
+            } for table in tables[offset:offset + limit]],
+            "next_offset": offset + limit if offset + limit < len(tables) else None,
+        }
+
+    @core.mcp.tool()
+    def edit_table_and_deliver(
+        document_id: str,
+        expected_revision: int,
+        operations: list[dict],
+    ):
+        """Change table cells, merged cells, rows and columns in one call.
+
+        Operations use the existing P2.7 table/cell locators returned by
+        list_document_tables. Applies the established atomic HWPX table
+        editor, commits one owned revision and returns an MCP ResourceLink.
+        """
+        _metadata, row = _owned(document_id)
+        if type(expected_revision) is not int or row["revision"] != expected_revision:
+            raise RuntimeError("REVISION_CONFLICT_REFRESH_AND_LIST_TABLES")
+        from hwpx_mcp.document.p27_tables import apply_table_edits_atomic
+        from hwpx_mcp.delivery.p333_file_delivery import export_revision, handoff
+        with tempfile.TemporaryDirectory(prefix="p425-edit-table-") as tmp:
+            path = Path(tmp) / "owned.hwpx"
+            path.write_bytes(row["bytes"])
+            receipt = apply_table_edits_atomic(
+                path, operations, expected_revision=expected_revision,
+                current_revision=expected_revision,
+                validator=lambda item: core.validate_hwpx_package(item, ingress=False),
+            )
+            modified = path.read_bytes()
+        digest = hashlib.sha256(modified).hexdigest()
+        metadata = dict(_metadata)
+        metadata["revision"] = expected_revision + 1
+        metadata["sha256"] = digest
+        metadata["bytes"] = len(modified)
+        metadata["last_table_operation_count"] = receipt["operation_count"]
+        commit = core.DOCUMENT_STORE.put_revision(
+            document_id=document_id, owner_subject=row["owner_subject"],
+            revision=expected_revision + 1, expected_revision=expected_revision,
+            data=modified, metadata=metadata,
+            expires_at_epoch=row["expires_at_epoch"],
+        )
+        core._load_metadata(document_id)
+        delivered = export_revision(core, document_id, link_ttl_seconds=900)
+        result = handoff(delivered)
+        result.structuredContent = {
+            **delivered, "ok": True,
+            "operation_count": receipt["operation_count"],
+            "table_structure_changed": receipt["table_structure_changed"],
+            "table_format_changed": receipt["table_format_changed"],
+            "commit_receipt": commit,
+        }
+        return result
+
+    @core.mcp.tool()
     def read_document_structure(
         document_id: str,
         offset: int = 0,

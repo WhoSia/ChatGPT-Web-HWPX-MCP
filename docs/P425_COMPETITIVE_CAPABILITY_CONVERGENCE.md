@@ -352,3 +352,84 @@ No deleted user HWPX or `C:\\p424-validation` path was used.
 P4.25 currently exposes **18** user-facing MCP tools (nine inherited,
 one discovery, four formatting and Markdown-read tools, one
 Markdown-to-native-HWPX author, and three report-preset tools).
+
+## 2026-11-10 — Native figures, source footnotes and caption numbering
+
+This cycle implemented native scientific-report media and source annotation
+rather than introducing an unrelated renderer or another security gate.
+
+- `create_report_from_sections_and_deliver` accepts `sections[].content`
+  `{"type":"figure","content_base64":"...","image_format":"png",
+  "width":4000,"height":3000,"caption":"측정 그래프"}` or a legacy
+  `sections[].figures` list. PNG/JPEG data, bounded byte size and
+  native dimensions are checked before delegating to the existing
+  P3.21 native HWPX picture composer. These are editable/movable native
+  picture objects rather than embedded screenshots of a whole page.
+  `figure`, `picture`, `image` resolve to the same P3.21 `picture`
+  block.
+- `list_document_figures(document_id, offset, limit)` now exposes
+  existing P2.9 picture locators, section/paragraph position, image
+  geometry, placement and media references for an owned revision,
+  without returning raw binary media. Real `server.py` MCP registration
+  and Korean/English `discover_hwpx_workflows` entries are updated.
+- Ordered paragraphs accept `footnote` text, e.g.
+  `{"type":"paragraph","text":"선행연구 결과","footnote":"출처 A"}`.
+  A unique paragraph block ID becomes a P3.20 `add_footnote`
+  native annotation with a `$block:` reference. No fake textual
+  superscripts are used.
+- `number_captions=true` in native report creation and preview
+  numbers figure, table and equation captions in block order,
+  independently per object kind. An existing explicit numbered caption
+  is left unchanged. The default is false, preserving user text.
+
+A complete ordered fragment:
+
+```json
+{
+  "title": "전기 회로 실험",
+  "preset": "science-report",
+  "number_captions": true,
+  "sections": [{
+    "heading": "측정 및 분석",
+    "content": [
+      {"type": "paragraph", "text": "장치를 관찰하였다.",
+       "footnote": "합성 실험 조건에 관한 설명"},
+      {"type": "figure", "image_format": "png",
+       "content_base64": "<base64 PNG bytes>",
+       "width": 4000, "height": 3000, "caption": "실험 배치"},
+      {"type": "equation", "latex": "V=IR", "caption": "옴의 법칙"},
+      {"type": "table", "cells": [["전압 (V)", "전류 (A)"], ["3.0", "0.15"]],
+       "caption": "측정값"}
+    ]
+  }]
+}
+```
+
+The image Base64 string above is an API placeholder, not valid image
+data. The API takes the actual encoded bytes, never a remote URL or
+a path from a deleted local file.
+
+### Evidence
+
+- The first figure CI attempt exposed a malformed base64 synthetic
+  fixture; it was corrected with a valid generated PNG.
+- Native HWPX creation/reopening with a real P3.21 picture, equation,
+  and table succeeded in dedicated P4.25 CI run `42790278322`
+  (**53 tests passed**).
+- A subsequent run `42790466731` completed successfully with
+  **54 tests**, including the new figure-listing MCP tool.
+- Native P3.20 footnote roundtrip was executed in CI run
+  `42790786595`: **57 tests passed**.
+- At tested commit `f459f4bb8b7e9ba1ee16676e7972172181b29b85`,
+  P4.25 GitHub Actions run `42791151300` completed **SUCCESS**,
+  with **59 tests, 0 errors/failures**, explicitly including real
+  native figure roundtrip, native footnote roundtrip, and caption
+  numbering tests.
+- This proves ZIP/XML-native authoring and reload correctness with
+  synthetic fixtures, **not Windows Hancom PDF layout parity** or a
+  verified ChatGPT host download.
+
+The development branch now has **19 first-class MCP user workflow
+tools** (18 previously counted plus `list_document_figures`). No
+main merge, public deployment, use of the removed local validation
+folder, or retrieval of the deleted private survival-rate document.

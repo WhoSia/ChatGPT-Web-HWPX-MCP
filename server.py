@@ -588,14 +588,32 @@ async def download_delivery(request):
 
 
 @mcp.tool()
+def list_p424_native_pdfs(
+    document_id: str, revision: int, limit: int = 20,
+) -> dict:
+    """List available native Hancom PDFs for an owned HWPX revision.
+
+    Returns PDF_NOT_GENERATED when no PDF has been received and stored.
+    Does not create PDFs or require a signed evidence ID from the user.
+    """
+    import sys
+    from hwpx_mcp.delivery.p424_pdf_http import list_authenticated_native_pdfs
+    return list_authenticated_native_pdfs(
+        sys.modules[__name__], document_id=document_id,
+        revision=revision, limit=limit,
+    )
+
+
+@mcp.tool()
 def issue_p424_native_pdf_download(
-    document_id: str, revision: int, evidence_id: str,
+    document_id: str, revision: int, evidence_id: str | None = None,
     link_ttl_seconds: int = 300,
 ) -> dict:
-    """Issue an OAuth-required PDF link only for a durably admitted native PDF.
+    """Issue an OAuth-required link for a stored native PDF.
 
-    Feature disabled by default. This cannot create or ingest a PDF, and a
-    browser must supply an OAuth Authorization header to redeem the link.
+    Evidence ID is optional: defaults to the latest stored PDF for this
+    exact owned revision. Returns P424_PDF_NOT_GENERATED if absent. This
+    does not render or ingest; HTTP redemption requires OAuth headers.
     """
     import sys
     from hwpx_mcp.delivery.p424_pdf_http import issue_authenticated_pdf_link

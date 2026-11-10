@@ -183,6 +183,33 @@ class ReportPresetTests(unittest.TestCase):
                     {"heading": "결과", "content": [{"type": "figure", **figure}]},
                 ])
 
+    def test_native_footnote_references_paragraph_block(self):
+        plan = build_report_plan(
+            title="탐구 보고서",
+            sections=[{"heading": "논의", "content": [
+                {"type": "paragraph", "text": "선행연구를 검토하였다.",
+                 "footnote": "문헌 출처 및 검토 조건"},
+                {"type": "equation", "latex": "V=IR"},
+                {"type": "paragraph", "text": "추가 해석이다.",
+                 "footnote": "실험 조건 보충 설명"},
+            ]}],
+        )
+        notes = plan["annotations"]
+        self.assertEqual(len(notes), 2)
+        self.assertEqual([note["op"] for note in notes], ["add_footnote"] * 2)
+        blocks = plan["sections"][0]["blocks"]
+        self.assertEqual(notes[0]["paragraph"], "$block:" + blocks[2]["id"])
+        self.assertEqual(notes[1]["paragraph"], "$block:" + blocks[4]["id"])
+        self.assertNotIn("footnote", blocks[2])
+
+    def test_rejects_footnote_on_unsupported_block(self):
+        with self.assertRaisesRegex(ValueError, "FOOTNOTE_REQUIRES_PARAGRAPH"):
+            build_report_plan(
+                title="보고서", sections=[{"heading": "논의", "content": [
+                    {"type": "equation", "latex": "V=IR", "footnote": "잘못된 부착"},
+                ]}],
+            )
+
     def test_unknown_preset_or_invalid_cells_never_calls_composer(self):
         for args in [
             {"preset": "nonexistent"},

@@ -73,6 +73,18 @@ def register_competitive_workflows(core):
             ("edit_table_and_deliver", "table edit merge cell row column",
              "Edit HWPX table cells/structure and return revised attachment.",
              "document_id, expected_revision, operations"),
+            ("inspect_document_formatting", "format style inspect font paragraph",
+             "Inspect native paragraph and run formatting before editing.",
+             "document_id; optional offset, limit, include_runs"),
+            ("preview_document_formatting", "preview format style font paragraph",
+             "Validate formatting changes without writing a new revision.",
+             "document_id, operations"),
+            ("format_document_and_deliver", "format edit font paragraph style",
+             "Change native font and paragraph styles and deliver an updated HWPX.",
+             "document_id, expected_revision, operations"),
+            ("export_document_markdown", "markdown export text read convert",
+             "Extract semantic HWPX text to Markdown, including nested paragraphs.",
+             "document_id; optional include_table_cells, max_chars"),
         ]
         tokens = {word.casefold() for word in task.split() if word.strip()}
         synonyms = {
@@ -81,6 +93,9 @@ def register_competitive_workflows(core):
             "수정": "edit", "작성": "create", "생성": "create",
             "템플릿": "template", "미리보기": "preview",
             "수식": "equations", "보고서": "report",
+            "글꼴": "font", "서식": "format", "스타일": "style",
+            "문단": "paragraph", "마크다운": "markdown",
+            "변환": "convert", "추출": "export",
         }
         tokens |= {synonyms[word] for word in tokens if word in synonyms}
         ranked = []

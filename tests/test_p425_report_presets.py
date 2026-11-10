@@ -64,6 +64,32 @@ class ReportPresetTests(unittest.TestCase):
         self.assertEqual(blocks[-1]["cells"][1], ["A", "0.31"])
         self.assertEqual(blocks[-1]["caption"], "측정치")
 
+    def test_science_equations_become_editable_native_equation_blocks(self):
+        result = self.mcp.tools["create_report_from_sections_and_deliver"](
+            title="회로 실험",
+            sections=[{
+                "heading": "이론 및 분석",
+                "equations": [
+                    {"latex": r"V=IR", "caption": "옴의 법칙"},
+                    r"P=VI",
+                ],
+            }],
+        )
+        self.assertTrue(result["native"])
+        blocks = self.calls[0][0]["sections"][0]["blocks"]
+        eq = [block for block in blocks if block["type"] == "equation"]
+        self.assertEqual([block["latex"] for block in eq], ["V=IR", "P=VI"])
+        self.assertEqual(eq[0]["caption"], "옴의 법칙")
+
+    def test_invalid_equation_blocks_never_reach_native_composer(self):
+        for equations in ([{"latex": ""}], [123], [{"latex": "x", "caption": 1}]):
+            with self.subTest(equations=equations), self.assertRaises(ValueError):
+                self.mcp.tools["create_report_from_sections_and_deliver"](
+                    title="보고서",
+                    sections=[{"heading": "수식", "equations": equations}],
+                )
+        self.assertEqual(self.calls, [])
+
     def test_unknown_preset_or_invalid_cells_never_calls_composer(self):
         for args in [
             {"preset": "nonexistent"},

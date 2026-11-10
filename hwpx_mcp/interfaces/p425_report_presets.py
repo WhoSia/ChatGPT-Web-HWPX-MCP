@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import base64
 import binascii
+import re
 from copy import deepcopy
 
 PRESETS = {
@@ -160,6 +161,7 @@ def build_report_plan(
     author: str = "",
     page_numbers: bool = True,
     table_of_contents: bool = False,
+    number_captions: bool = False,
 ) -> dict:
     if preset not in PRESETS:
         raise ValueError("UNKNOWN_REPORT_PRESET")
@@ -175,6 +177,8 @@ def build_report_plan(
         raise ValueError("REPORT_PAGE_NUMBER_SETTING_INVALID")
     if type(table_of_contents) is not bool:
         raise ValueError("REPORT_TOC_SETTING_INVALID")
+    if type(number_captions) is not bool:
+        raise ValueError("REPORT_CAPTION_NUMBERING_INVALID")
 
     notes: list[dict] = []
     blocks = [{"type": "title", "text": title.strip()}]
@@ -239,6 +243,21 @@ def build_report_plan(
             raise ValueError("REPORT_FIGURES_INVALID")
         blocks.extend(_as_native_figure(value) for value in figures)
 
+    if number_captions:
+        counters = {"picture": 0, "table": 0, "equation": 0}
+        names = {"picture": "그림", "table": "표", "equation": "식"}
+        for block in blocks:
+            kind = block["type"]
+            if kind not in counters:
+                continue
+            counters[kind] += 1
+            caption = block.get("caption")
+            if not caption:
+                continue
+            label = names[kind]
+            if not re.match(r"^(?:그림|표|식)\\s*\\d+[.．:\\s]", caption):
+                block["caption"] = f"{label} {counters[kind]}. {caption}"
+
     # Existing P3.21 composer has a 240-block limit. Validate here too,
     # before invoking native authoring or producing any bytes.
     if len(blocks) > 240:
@@ -282,6 +301,7 @@ def register_report_preset_tools(core):
             title=title, sections=sections, preset=preset,
             subtitle=subtitle, author=author, page_numbers=page_numbers,
             table_of_contents=table_of_contents,
+            number_captions=number_captions,
         )
         compiled = compile_rich_document_plan(requested)
         return {
@@ -294,6 +314,7 @@ def register_report_preset_tools(core):
             "plan_sha256": compiled["plan_sha256"],
             "table_of_contents_requested": table_of_contents,
             "page_numbers_requested": page_numbers,
+            "number_captions_requested": number_captions,
             "next_tool": "create_report_from_sections_and_deliver",
         }
 
@@ -305,6 +326,7 @@ def register_report_preset_tools(core):
         filename: str = "report.hwpx",
         page_numbers: bool = True,
         table_of_contents: bool = False,
+        number_captions: bool = False,
     ):
         """One-call native report with headings, tables, equations and styles."""
         core._caller_subject()
@@ -312,6 +334,7 @@ def register_report_preset_tools(core):
             title=title, sections=sections, preset=preset,
             subtitle=subtitle, author=author, page_numbers=page_numbers,
             table_of_contents=table_of_contents,
+            number_captions=number_captions,
         )
         # Delegate to the registered P4.25 rich native authoring tool.
         # This callback is defined on the same MCP core by the previous

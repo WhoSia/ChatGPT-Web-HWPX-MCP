@@ -104,6 +104,53 @@ def register_competitive_workflows(core):
         }
 
     @core.mcp.tool()
+    def find_document_text(
+        document_id: str, query: str,
+        max_matches: int = 50,
+        case_sensitive: bool = True,
+    ) -> dict:
+        """Search text across body and table-cell paragraphs in one call."""
+        if not isinstance(query, str) or not query or len(query) > 256:
+            raise ValueError("QUERY_MUST_BE_1_TO_256_CHARS")
+        if type(max_matches) is not int or not 1 <= max_matches <= 100:
+            raise ValueError("MATCH_LIMIT_INVALID")
+        _metadata, row = _owned(document_id)
+        from hwpx_mcp.document.p2_document import build_document_map
+        with tempfile.TemporaryDirectory(prefix="p425-search-") as tmp:
+            source = Path(tmp) / "owned.hwpx"
+            source.write_bytes(row["bytes"])
+            paragraphs = build_document_map(source)["paragraphs"]
+        matches = []
+        found = 0
+        target = query if case_sensitive else query.casefold()
+        for para in paragraphs:
+            raw_text = para["text"]
+            haystack = raw_text if case_sensitive else raw_text.casefold()
+            start = 0
+            while True:
+                at = haystack.find(target, start)
+                if at < 0:
+                    break
+                found += 1
+                if len(matches) < max_matches:
+                    matches.append({
+                        "locator": para["locator"],
+                        "section_index": para["section_index"],
+                        "paragraph_index": para["paragraph_index"],
+                        "container": para["container"],
+                        "offset": at,
+                        "context": raw_text[max(0, at - 60):at + len(query) + 60],
+                    })
+                start = at + len(target)
+        return {
+            "ok": True, "document_id": document_id,
+            "revision": row["revision"], "query": query,
+            "total_matches": found, "matches": matches,
+            "truncated": found > len(matches),
+            "includes_nested_paragraphs": True,
+        }
+
+    @core.mcp.tool()
     def fill_template_and_deliver(
         document_id: str,
         values: dict[str, str],
@@ -168,3 +215,22 @@ def register_competitive_workflows(core):
             "delivery_status": export["delivery_status"],
             "source_template_mutated": False,
         }
+
+    @core.mcp.tool()
+    def replace_text_and_deliver(
+        document_id: str,
+        replacements: dict[str, str],
+        expected_revision: int,
+        require_each: bool = True,
+    ) -> dict:
+        """Batch search/replace in HWPX, commit one revision and deliver.
+
+        Exact literal matching preserves the source inline run structure.
+        This is the same verified engine as template filling; placeholders
+        need not use any special braces.
+        """
+        return fill_template_and_deliver(
+            document_id=document_id, values=replacements,
+            expected_revision=expected_revision,
+            require_each=require_each, require_unique=False,
+        )

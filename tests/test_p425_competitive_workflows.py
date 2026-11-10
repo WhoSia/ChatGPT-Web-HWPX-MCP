@@ -119,9 +119,9 @@ class CompetitorPatternToolsTests(unittest.TestCase):
             result = self.mcp.tools["create_and_deliver_document"](
                 "새 한글 문서입니다.", title="제목",
                 filename="new.hwpx", request_id="test-replay-key")
-        self.assertEqual(result.structuredContent["download_url"], exported["download_url"])
+        self.assertEqual(result.structured_content["download_url"], exported["download_url"])
         self.assertEqual(calls[0]["request_id"], "test-replay-key")
-        self.assertFalse(result.structuredContent["native_pdf_created"])
+        self.assertFalse(result.structured_content["native_pdf_created"])
 
     def test_rich_composer_commits_document_and_returns_resource_link(self):
         self.core._new_document_id = lambda: DOCUMENT_ID
@@ -164,7 +164,7 @@ class CompetitorPatternToolsTests(unittest.TestCase):
                     "report.hwpx")
             self.assertEqual(self._rich_output.read_bytes(), UPDATED)
             self.assertEqual(len(writes), 1)
-            self.assertEqual(result.structuredContent["rich_block_count"], 2)
+            self.assertEqual(result.structured_content["rich_block_count"], 2)
             self.assertEqual(result.content[1].type, "resource_link")
 
     def test_create_and_deliver_rejects_empty_body(self):
@@ -196,11 +196,11 @@ class CompetitorPatternToolsTests(unittest.TestCase):
         ):
             result = self.mcp.tools["fill_template_and_deliver"](
                 DOCUMENT_ID, {"{{NAME}}": "홍길동"}, expected_revision=2)
-        self.assertTrue(result.structuredContent["ok"])
-        self.assertEqual(result.structuredContent["revision"], 3)
+        self.assertTrue(result.structured_content["ok"])
+        self.assertEqual(result.structured_content["revision"], 3)
         self.assertEqual(self.store.writes[0]["expected_revision"], 2)
         self.assertEqual(self.store.writes[0]["data"], UPDATED)
-        self.assertEqual(result.structuredContent["download_url"], "https://example.test/signed.hwpx")
+        self.assertEqual(result.structured_content["download_url"], "https://example.test/signed.hwpx")
 
     def test_batch_replace_reuses_template_edit_commit(self):
         def fake_fill(source, output, values, **kwargs):
@@ -218,8 +218,8 @@ class CompetitorPatternToolsTests(unittest.TestCase):
             result = self.mcp.tools["replace_text_and_deliver"](
                 DOCUMENT_ID, {"old": "new", "{{DATE}}": "2026-11-10"},
                 expected_revision=2)
-        self.assertEqual(result.structuredContent["revision"], 3)
-        self.assertEqual(result.structuredContent["operation_count"], 2)
+        self.assertEqual(result.structured_content["revision"], 3)
+        self.assertEqual(result.structured_content["operation_count"], 2)
 
     def test_find_text_in_body_and_table(self):
         sample = {"paragraphs": [
@@ -268,8 +268,8 @@ class CompetitorPatternToolsTests(unittest.TestCase):
                 DOCUMENT_ID, expected_revision=2,
                 operations=[{"op": "set_cell_text", "table": "t_1",
                              "cell": "c_1", "text": "결과"}])
-        self.assertEqual(result.structuredContent["revision"], 3)
-        self.assertEqual(result.structuredContent["operation_count"], 1)
+        self.assertEqual(result.structured_content["revision"], 3)
+        self.assertEqual(result.structured_content["operation_count"], 1)
         self.assertEqual(self.store.writes[0]["expected_revision"], 2)
         self.assertEqual(result.content[1].type, "resource_link")
 

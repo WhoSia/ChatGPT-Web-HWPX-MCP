@@ -438,6 +438,8 @@ def probe_capabilities() -> dict:
             "preview_document_formatting",
             "format_document_and_deliver",
             "export_document_markdown",
+            "list_report_presets",
+            "create_report_from_sections_and_deliver",
             "discover_hwpx_workflows",
             "create_and_deliver_document",
             "create_rich_document_and_deliver",
@@ -457,6 +459,8 @@ def probe_capabilities() -> dict:
             "preview_document_formatting",
             "format_document_and_deliver",
             "export_document_markdown",
+            "list_report_presets",
+            "create_report_from_sections_and_deliver",
             "discover_hwpx_workflows",
             "create_and_deliver_document",
             "create_rich_document_and_deliver",
@@ -858,6 +862,8 @@ from hwpx_mcp.interfaces.p425_competitive_workflows import register_competitive_
 register_competitive_workflows(_p425_sys.modules[__name__])
 from hwpx_mcp.interfaces.p425_format_interchange import register_format_interchange_tools
 register_format_interchange_tools(_p425_sys.modules[__name__])
+from hwpx_mcp.interfaces.p425_report_presets import register_report_preset_tools
+register_report_preset_tools(_p425_sys.modules[__name__])
 
 
 if __name__ == "__main__":

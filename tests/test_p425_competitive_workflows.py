@@ -66,14 +66,32 @@ class CompetitorPatternToolsTests(unittest.TestCase):
         )
         register_competitive_workflows(self.core)
 
-    def test_nine_working_tools_registered(self):
+    def test_ten_working_tools_registered(self):
         self.assertEqual(set(self.mcp.tools), {
             "read_document_structure", "preview_template_fill",
             "fill_template_and_deliver", "find_document_text",
             "replace_text_and_deliver", "create_and_deliver_document",
             "create_rich_document_and_deliver",
             "list_document_tables", "edit_table_and_deliver",
+            "discover_hwpx_workflows",
         })
+
+    def test_discovery_recommends_table_edit_in_korean(self):
+        result = self.mcp.tools["discover_hwpx_workflows"]("표 셀 수정", limit=3)
+        self.assertTrue(result["ok"])
+        self.assertIn("edit_table_and_deliver",
+                      [item["tool"] for item in result["matching_workflows"]])
+        self.assertFalse(result["executes_mutations"])
+
+    def test_discovery_recommends_one_call_report_authoring(self):
+        result = self.mcp.tools["discover_hwpx_workflows"]("rich report", limit=3)
+        self.assertEqual(result["matching_workflows"][0]["tool"],
+                         "create_rich_document_and_deliver")
+
+    def test_discovery_invalid_limit_does_not_execute_any_edit(self):
+        with self.assertRaisesRegex(ValueError, "LIMIT"):
+            self.mcp.tools["discover_hwpx_workflows"]("table", limit=100)
+        self.assertEqual(self.store.writes, [])
 
     def test_create_and_deliver_one_call(self):
         calls = []

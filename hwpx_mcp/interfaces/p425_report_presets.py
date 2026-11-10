@@ -31,6 +31,86 @@ PRESETS = {
 }
 
 
+def _as_native_table(table: dict) -> dict:
+    if not isinstance(table, dict):
+        raise ValueError("REPORT_TABLE_INVALID")
+    grid = table.get("cells")
+    if not isinstance(grid, list) or not grid or len(grid) > 200:
+        raise ValueError("REPORT_TABLE_CELLS_INVALID")
+    if not all(isinstance(row, list) for row in grid):
+        raise ValueError("REPORT_TABLE_ROW_INVALID")
+    width = len(grid[0])
+    if not 1 <= width <= 100 or any(len(row) != width for row in grid):
+        raise ValueError("REPORT_TABLE_WIDTH_INVALID")
+    if any(not isinstance(value, (str, int, float)) or isinstance(value, bool)
+           for row in grid for value in row):
+        raise ValueError("REPORT_TABLE_VALUE_INVALID")
+    block = {
+        "type": "table", "rows": len(grid), "cols": width,
+        "cells": [[str(value) for value in row] for row in grid],
+    }
+    caption = table.get("caption")
+    if caption is not None:
+        if not isinstance(caption, str) or len(caption) > 500:
+            raise ValueError("REPORT_CAPTION_INVALID")
+        block["caption"] = caption
+    if "first_row_header" in table:
+        if type(table["first_row_header"]) is not bool:
+            raise ValueError("REPORT_TABLE_HEADER_INVALID")
+        block["first_row_header"] = table["first_row_header"]
+    return block
+
+
+def _as_native_equation(equation: str | dict) -> dict:
+    if isinstance(equation, str):
+        latex, caption = equation, None
+    elif isinstance(equation, dict):
+        latex, caption = equation.get("latex"), equation.get("caption")
+    else:
+        raise ValueError("REPORT_EQUATION_INVALID")
+    if not isinstance(latex, str) or not latex.strip() or len(latex) > 4000:
+        raise ValueError("REPORT_EQUATION_LATEX_INVALID")
+    block = {"type": "equation", "latex": latex.strip()}
+    if caption is not None:
+        if not isinstance(caption, str) or len(caption) > 500:
+            raise ValueError("REPORT_EQUATION_CAPTION_INVALID")
+        block["caption"] = caption
+    return block
+
+
+def _as_ordered_block(item: dict) -> dict:
+    """Transform a small semantic report DSL into existing native block types."""
+    if not isinstance(item, dict):
+        raise ValueError("REPORT_CONTENT_BLOCK_INVALID")
+    kind = item.get("type")
+    if kind == "paragraph":
+        text = item.get("text")
+        if not isinstance(text, str) or not text.strip() or len(text) > 10000:
+            raise ValueError("REPORT_PARAGRAPH_INVALID")
+        return {"type": "paragraph", "text": text}
+    if kind == "heading":
+        text, level = item.get("text"), item.get("level", 2)
+        if not isinstance(text, str) or not text.strip() or len(text) > 200:
+            raise ValueError("REPORT_HEADING_INVALID")
+        if type(level) is not int or not 1 <= level <= 6:
+            raise ValueError("REPORT_HEADING_LEVEL_INVALID")
+        return {"type": "heading", "level": level, "text": text.strip()}
+    if kind == "list_item":
+        text, level, style = item.get("text"), item.get("level", 1), item.get("kind", "bullet")
+        if not isinstance(text, str) or not text.strip() or len(text) > 10000:
+            raise ValueError("REPORT_LIST_TEXT_INVALID")
+        if type(level) is not int or not 1 <= level <= 3 or style not in ("bullet", "number"):
+            raise ValueError("REPORT_LIST_FORMAT_INVALID")
+        return {"type": "list_item", "text": text, "level": level, "kind": style}
+    if kind == "equation":
+        return _as_native_equation(item)
+    if kind == "table":
+        return _as_native_table(item)
+    if kind == "page_break":
+        return {"type": "page_break"}
+    raise ValueError("REPORT_CONTENT_TYPE_UNSUPPORTED")
+
+
 def build_report_plan(
     *, title: str,
     sections: list[dict],
@@ -38,6 +118,7 @@ def build_report_plan(
     subtitle: str = "",
     author: str = "",
     page_numbers: bool = True,
+    table_of_contents: bool = False,
 ) -> dict:
     if preset not in PRESETS:
         raise ValueError("UNKNOWN_REPORT_PRESET")
@@ -51,6 +132,8 @@ def build_report_plan(
         raise ValueError("REPORT_AUTHOR_INVALID")
     if type(page_numbers) is not bool:
         raise ValueError("REPORT_PAGE_NUMBER_SETTING_INVALID")
+    if type(table_of_contents) is not bool:
+        raise ValueError("REPORT_TOC_SETTING_INVALID")
 
     blocks = [{"type": "title", "text": title.strip()}]
     if subtitle.strip():
@@ -65,6 +148,14 @@ def build_report_plan(
         if not isinstance(heading, str) or not heading.strip() or len(heading) > 200:
             raise ValueError("REPORT_HEADING_INVALID")
         blocks.append({"type": "heading", "level": 1, "text": heading.strip()})
+        if "content" in section:
+            if any(field in section for field in ("paragraphs", "equations", "tables")):
+                raise ValueError("REPORT_ORDERED_CONTENT_CONFLICT")
+            content = section["content"]
+            if not isinstance(content, list) or len(content) > 240:
+                raise ValueError("REPORT_CONTENT_INVALID")
+            blocks.extend(_as_ordered_block(item) for item in content)
+            continue
         paragraphs = section.get("paragraphs", [])
         if not isinstance(paragraphs, list) or len(paragraphs) > 100:
             raise ValueError("REPORT_PARAGRAPHS_INVALID")
@@ -76,48 +167,11 @@ def build_report_plan(
         equations = section.get("equations", [])
         if not isinstance(equations, list) or len(equations) > 40:
             raise ValueError("REPORT_EQUATIONS_INVALID")
-        for equation in equations:
-            if isinstance(equation, str):
-                latex, caption = equation, None
-            elif isinstance(equation, dict):
-                latex, caption = equation.get("latex"), equation.get("caption")
-            else:
-                raise ValueError("REPORT_EQUATION_INVALID")
-            if not isinstance(latex, str) or not latex.strip() or len(latex) > 4000:
-                raise ValueError("REPORT_EQUATION_LATEX_INVALID")
-            block = {"type": "equation", "latex": latex.strip()}
-            if caption is not None:
-                if not isinstance(caption, str) or len(caption) > 500:
-                    raise ValueError("REPORT_EQUATION_CAPTION_INVALID")
-                block["caption"] = caption
-            blocks.append(block)
+        blocks.extend(_as_native_equation(value) for value in equations)
         tables = section.get("tables", [])
         if not isinstance(tables, list) or len(tables) > 20:
             raise ValueError("REPORT_TABLES_INVALID")
-        for table in tables:
-            if not isinstance(table, dict):
-                raise ValueError("REPORT_TABLE_INVALID")
-            grid = table.get("cells")
-            if not isinstance(grid, list) or not grid or len(grid) > 200:
-                raise ValueError("REPORT_TABLE_CELLS_INVALID")
-            if not all(isinstance(row, list) for row in grid):
-                raise ValueError("REPORT_TABLE_ROW_INVALID")
-            width = len(grid[0])
-            if not 1 <= width <= 100 or any(len(row) != width for row in grid):
-                raise ValueError("REPORT_TABLE_WIDTH_INVALID")
-            if any(not isinstance(value, (str, int, float)) or isinstance(value, bool)
-                   for row in grid for value in row):
-                raise ValueError("REPORT_TABLE_VALUE_INVALID")
-            block = {
-                "type": "table", "rows": len(grid), "cols": width,
-                "cells": [[str(value) for value in row] for row in grid],
-            }
-            caption = table.get("caption")
-            if caption is not None:
-                if not isinstance(caption, str) or len(caption) > 500:
-                    raise ValueError("REPORT_CAPTION_INVALID")
-                block["caption"] = caption
-            blocks.append(block)
+        blocks.extend(_as_native_table(value) for value in tables)
 
     # Existing P3.21 composer has a 240-block limit. Validate here too,
     # before invoking native authoring or producing any bytes.
@@ -127,6 +181,8 @@ def build_report_plan(
         "preset": PRESETS[preset]["native_preset"],
         "document": {"title": title.strip()},
         "sections": [{"blocks": blocks, "page_numbers": page_numbers}],
+        **({"publishing": {"toc": {"at_index": 1, "title": "목차", "level": 3}}}
+           if table_of_contents else {}),
     }
 
 
@@ -151,12 +207,14 @@ def register_report_preset_tools(core):
         subtitle: str = "", author: str = "",
         filename: str = "report.hwpx",
         page_numbers: bool = True,
+        table_of_contents: bool = False,
     ):
         """One-call native report with headings, tables, equations and styles."""
         core._caller_subject()
         plan = build_report_plan(
             title=title, sections=sections, preset=preset,
             subtitle=subtitle, author=author, page_numbers=page_numbers,
+            table_of_contents=table_of_contents,
         )
         # Delegate to the registered P4.25 rich native authoring tool.
         # This callback is defined on the same MCP core by the previous

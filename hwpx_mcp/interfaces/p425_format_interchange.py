@@ -104,6 +104,41 @@ def register_format_interchange_tools(core):
         }
 
     @core.mcp.tool()
+    def preview_document_formatting(
+        document_id: str, operations: list[dict],
+    ) -> dict:
+        """Validate native font/paragraph operations without modifying HWPX.
+
+        The preview uses the exact same P2.2 operation normalizer as the
+        actual formatting engine, so invalid paragraph and run locators
+        are caught before the next mutation tool call.
+        """
+        if not isinstance(operations, list) or not 1 <= len(operations) <= 100:
+            raise ValueError("OPERATIONS_INVALID")
+        from hwpx_mcp.document.p22_formatting import (
+            build_formatting_map, _normalize_formatting_operations,
+        )
+        row = _owned(document_id)
+        with tempfile.TemporaryDirectory(prefix="p425-format-preview-") as tmp:
+            path = Path(tmp) / "document.hwpx"
+            path.write_bytes(row["bytes"])
+            current = build_formatting_map(path)
+            normalized = _normalize_formatting_operations(operations, current)
+        return {
+            "ok": True, "document_id": document_id,
+            "revision": row["revision"],
+            "formatting_sha256": current["formatting_sha256"],
+            "operation_count": len(normalized),
+            "targets": [
+                {"target": operation["target"], "op": operation["op"],
+                 "format": operation["format"]}
+                for operation in normalized
+            ],
+            "committed": False,
+            "next_tool": "format_document_and_deliver",
+        }
+
+    @core.mcp.tool()
     def format_document_and_deliver(
         document_id: str, expected_revision: int, operations: list[dict],
     ):

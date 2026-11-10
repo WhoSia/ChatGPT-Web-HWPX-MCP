@@ -184,6 +184,49 @@ class P424PdfStore:
                 "revision": document["revision"], "pdf_sha256": digest, "pdf_bytes": len(pdf_bytes),
                 "owner_scoped_delivery_performed": False}
 
+    def list_owned(
+        self, *, document_id: str, revision: int,
+        authenticated_owner: str, source_sha256: str,
+        limit: int = 20,
+    ) -> list[dict[str, Any]]:
+        """List metadata for PDFs matching an exact owned source revision.
+
+        No ciphertext or PDF bytes are loaded. Callers MUST first resolve
+        owner and revision from authenticated document custody. The
+        server-side identity and source digest are part of the query, not
+        user-provided filters alone.
+        """
+        if not authenticated_owner:
+            raise PermissionError("AUTHENTICATED_OWNER_REQUIRED")
+        if not isinstance(document_id, str) or not document_id.startswith("doc_"):
+            raise ValueError("DOCUMENT_ID_INVALID")
+        if type(revision) is not int or revision < 1:
+            raise ValueError("REVISION_INVALID")
+        if (not isinstance(source_sha256, str)
+            or len(source_sha256) != 64
+            or any(c not in "0123456789abcdef" for c in source_sha256)):
+            raise ValueError("SOURCE_SHA256_INVALID")
+        if type(limit) is not int or not 1 <= limit <= 50:
+            raise ValueError("LIMIT_INVALID")
+        with self._connect() as conn, conn.cursor() as cur:
+            cur.execute("""
+                SELECT evidence_id, pdf_sha256, pdf_bytes, created_at
+                FROM hwpx_p424_native_pdf
+                WHERE document_id=%s AND revision=%s AND owner_subject=%s
+                  AND source_sha256=%s
+                ORDER BY created_at DESC, evidence_id DESC
+                LIMIT %s
+            """, (document_id, revision, authenticated_owner,
+                  source_sha256, limit))
+            rows = cur.fetchall()
+        return [
+            {"evidence_id": str(row[0]).strip(),
+             "pdf_sha256": str(row[1]).strip(),
+             "pdf_bytes": row[2],
+             "created_at": row[3].isoformat() if hasattr(row[3], "isoformat") else str(row[3])}
+            for row in rows
+        ]
+
     def load_owned(
         self, *, evidence_id: str, authenticated_owner: str,
         document_store: Any,

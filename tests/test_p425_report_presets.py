@@ -211,7 +211,7 @@ class ReportPresetTests(unittest.TestCase):
             )
 
     def test_auto_numbering_follows_native_object_order(self):
-        png = base64.b64encode(b"\\x89PNG\\r\\n\\x1a\\n" + b"sample").decode("ascii")
+        png = base64.b64encode(b"\x89PNG\r\n\x1a\n" + b"sample").decode("ascii")
         plan = build_report_plan(
             title="캡션 보고서", number_captions=True,
             sections=[{"heading": "결과", "content": [

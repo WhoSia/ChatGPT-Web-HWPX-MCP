@@ -336,3 +336,31 @@ been executed here. Never describe them as PASS until the user's
 CLI logs establish actual counts, exact HEAD and cleanup. The
 production feature flag remains OFF, as do signed-agent transport
 and upload integration gates.
+
+## 2026-11-10 — MCP-native PDF discovery (without a manual evidence ID)
+
+The owner deleted `C:\\p424-validation` and explicitly ended its local
+batch/source-file validation lane. **Do not recreate that folder, download
+the deleted document, or rerun local Hancom batch tests on its behalf.**
+The earlier proven G1 remains a historical result.
+
+Product-facing enhancement: `P424PdfStore.list_owned` retrieves
+encrypted-PDF **metadata only** for an exact authenticated owner, document
+ID, retained revision and source SHA-256; it returns newest first. No
+ciphertext is loaded or decrypted just to show availability. New MCP
+`list_p424_native_pdfs(document_id, revision, limit=20)` reports
+`PDF_READY` or `PDF_NOT_GENERATED`, and
+`issue_p424_native_pdf_download(document_id, revision,
+evidence_id=None)` now selects the latest exact-revision PDF if an
+evidence ID is omitted. A caller can still request a particular
+evidence ID. No PDF is fabricated if one is missing.
+The HTTP redemption semantics remain unchanged: a copied link alone
+cannot attach OAuth Authorization headers, so the final ChatGPT-host
+attachment experience is still a separate integration gate. The
+production enable flag remains OFF.
+
+`tests/test_p424_pdf_discovery.py` covers owned metadata lookup,
+automatic latest selection, missing PDF, other-owner rejection and
+disabled feature. These are committed tests, not yet executed on
+the owner's WSL at the current HEAD. Existing real single-document
+G1 acceptance is not confused with the new product availability APIs.

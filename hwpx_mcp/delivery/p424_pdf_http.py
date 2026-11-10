@@ -51,8 +51,38 @@ def _store(core: Any):
     return _cached_store(database_url, core.STATE_SECRET)
 
 
+def list_authenticated_native_pdfs(core: Any, *,
+                                    document_id: str, revision: int,
+                                    limit: int = 20) -> dict:
+    """Discover retained PDFs without asking the user for a 64-digit ID.
+
+    No PDF is fabricated or scheduled if the revision lacks a native PDF.
+    """
+    if not enabled():
+        return {"ok": False, "code": "P424_NATIVE_PDF_DELIVERY_DISABLED"}
+    subject = core._caller_subject()
+    core._paths(document_id)
+    if type(revision) is not int or revision < 1:
+        raise ValueError("REVISION_INVALID")
+    document = core.DOCUMENT_STORE.load_revision(document_id, revision)
+    if document is None or document.get("owner_subject") != subject:
+        raise FileNotFoundError("PDF_SOURCE_REVISION_UNAVAILABLE")
+    pdfs = _store(core).list_owned(
+        document_id=document_id, revision=revision,
+        authenticated_owner=subject,
+        source_sha256=document["sha256"], limit=limit,
+    )
+    return {
+        "ok": True, "document_id": document_id, "revision": revision,
+        "status": "PDF_READY" if pdfs else "PDF_NOT_GENERATED",
+        "pdf_count": len(pdfs), "artifacts": pdfs,
+        "native_pdf_created_by_this_call": False,
+    }
+
+
 def issue_authenticated_pdf_link(core: Any, *,
-                                 document_id: str, revision: int, evidence_id: str,
+                                 document_id: str, revision: int,
+                                 evidence_id: str | None = None,
                                  link_ttl_seconds: int = 300) -> dict:
     """Invoke from an authenticated MCP tool, never a public anonymous route."""
     if not enabled():
@@ -60,6 +90,17 @@ def issue_authenticated_pdf_link(core: Any, *,
     subject = core._caller_subject()
     core._paths(document_id)  # existing opaque document ID validation
     pdf_store = _store(core)
+    if evidence_id is None:
+        discovery = list_authenticated_native_pdfs(
+            core, document_id=document_id, revision=revision, limit=1,
+        )
+        if not discovery["artifacts"]:
+            return {
+                "ok": False, "code": "P424_PDF_NOT_GENERATED",
+                "document_id": document_id, "revision": revision,
+                "native_pdf_created": False,
+            }
+        evidence_id = discovery["artifacts"][0]["evidence_id"]
     result = issue_pdf_delivery(
         pdf_store=pdf_store, document_store=core.DOCUMENT_STORE,
         authenticated_owner=subject, document_id=document_id,

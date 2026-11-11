@@ -292,3 +292,62 @@ acceptance are still unverified.
 The generated showcase intentionally uses only artificial V-I
 data and an original synthetic PNG chart; it is **not an empirical
 experiment** or a copy of the user's private experiment.
+
+## R10 — Renderer-derived native HWPX TOC cache repair, independently re-rendered (2026-11-11)
+
+The 28-row synthetic report was structurally valid and rendered in 5 pages
+without clipped table cells, yet its native TOC entry for **결론 및 한계**
+still cached page **1** even though the actual heading appeared on page **5**.
+
+**Actual implemented repair, not a guessed page number:**
+
+1. Generate the complete real `rhwp v0.8.7` SVG-page manifest.
+2. Parse SVG text positions to match the numbered heading text against
+   actual pages, explicitly rejecting missing/ambiguous observations.
+3. Use `hwpx_mcp/render/p426_toc_cache_refresh.py` to change **only**
+   cached page numbers in native HWPX TOC entries whose hyperlinks
+   target `HWPHYPERLINK_TARGET_OUTLINE`; preserve the original HWPX
+   bytes, ZIP members, XML namespaces, hyperlinks and other objects.
+4. Persist a new HWPX at
+   `P426_합성_전기회로_목차갱신.hwpx`; never silently mutate the
+   source. Save original/new SHA-256 and an exact change list.
+5. Independently render the **new** HWPX again with the same real
+   `rhwp` CLI and audit the refreshed SVG output. Require matching
+   heading pages, stable total page count and zero clipped table lines.
+
+This is **rendered-evidence-informed cached TOC updating**. It does
+not promise native HWP's internal pagination-field refresh semantics,
+nor does it imply visual equivalence between `rhwp` and Windows
+Hancom. The re-render audit is the acceptance authority here.
+
+**Measured results:** initial TOC pages
+`[1,1,1,1]` versus actual heading pages `[1,1,1,5]`.
+One cached entry changed. Refreshed TOC pages
+`[1,1,1,5]`, all four entries match actual SVG heading locations.
+The document remains **5 pages**, with **0 rhwp cell overflow lines**.
+Source SHA-256:
+`b348f634b40b8294ca740396d4f1373e0ad46e3765174a400a5f717b731ff63e`.
+Refreshed HWPX SHA-256:
+`79f093f8fef277c2855bf5af086e52a751e667e41e13c58f49e92938be16be06`.
+
+**Verified test execution:**
+
+- [Actual SVG render/re-render run #42949858056](https://github.com/WhoSia/ChatGPT-Web-HWPX-MCP/actions/runs/42949858056): **SUCCESS** and
+  `TOC visual pass: CONSISTENT_IN_THIS_RENDERER pages: 5`.
+- [Native P4.26 CI #42949858050](https://github.com/WhoSia/ChatGPT-Web-HWPX-MCP/actions/runs/42949858050): **SUCCESS**, 61 inherited P4.25 tests plus 68 P4.26 tests = **129 tests**.
+- Re-opened the actual uploaded artifact ZIP; manifest's before/after
+  heading-page comparisons have `mismatch_count` **1 → 0**, with
+  `unresolved_heading_count=0` both times.
+- Native package test ensures the refreshed package preserves all
+  archive members and alters only `Contents/section0.xml`.
+
+**Artifacts:** run #42949858056 retains the refreshed HWPX, 5 actual
+refreshed SVG/PNG pages, and JSON acceptance evidence in a GitHub
+Actions downloadable artifact. It is also available as a direct
+chat sandbox HWPX in the task conversation.
+
+**Known limitations:** current integration still uses the four explicitly
+declared headings of the synthetic demonstration for the external
+renderer audit; arbitrary user-document heading discovery is follow-up
+work. A native Windows Hancom repagination and a real ChatGPT MCP-host
+delivery test remain separate prerequisites for production sign-off.

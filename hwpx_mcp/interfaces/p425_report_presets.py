@@ -419,9 +419,9 @@ def build_report_plan(
             rendered_caption = str(equation.pop("caption"))
             # Keeping native+printed captions simultaneously can create
             # duplicates in Hancom, so only one representation is chosen.
-            equation_format = dict(equation.get("paragraph_format") or {})
-            equation_format["keep_with_next"] = True
-            equation["paragraph_format"] = equation_format
+            # The native HWPX equation anchor has no text run; P2.3
+            # paragraph formatting currently requires a text run.
+            # Keep the equation untouched and format the visible caption only.
             visible_blocks.append(equation)
             visible_blocks.append({
                 "type": "paragraph",

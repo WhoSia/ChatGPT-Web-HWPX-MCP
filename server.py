@@ -443,6 +443,7 @@ def probe_capabilities() -> dict:
             "create_report_from_sections_and_deliver",
             "get_document_render_options",
             "preview_document_svg_pages",
+            "inspect_document_references",
             "preview_native_equation_script",
             "inspect_document_equations",
             "discover_hwpx_workflows",
@@ -470,6 +471,7 @@ def probe_capabilities() -> dict:
             "create_report_from_sections_and_deliver",
             "get_document_render_options",
             "preview_document_svg_pages",
+            "inspect_document_references",
             "preview_native_equation_script",
             "inspect_document_equations",
             "discover_hwpx_workflows",
@@ -880,6 +882,8 @@ from hwpx_mcp.interfaces.p426_equation_experience import register_equation_exper
 register_equation_experience(_p425_sys.modules[__name__])
 from hwpx_mcp.interfaces.p426_visual_preview import register_visual_preview
 register_visual_preview(_p425_sys.modules[__name__])
+from hwpx_mcp.interfaces.p426_academic_references import register_academic_reference_tools
+register_academic_reference_tools(_p425_sys.modules[__name__])
 
 
 if __name__ == "__main__":

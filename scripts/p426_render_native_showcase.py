@@ -20,7 +20,7 @@ def create_svg_previews(
     if type(pages) is not int or not 1 <= pages <= 10:
         raise ValueError("RENDER_EXAMPLE_PAGE_COUNT_INVALID")
     source = Path(source)
-    output = Path(output)
+    output = Path(output).resolve()
     if not source.is_file():
         raise FileNotFoundError("SYNTHETIC_HWPX_NOT_FOUND")
     output.mkdir(parents=True, exist_ok=True)
@@ -42,10 +42,14 @@ def create_svg_previews(
                 pages = min(pages, first_page_total)
         if len(result["pages"]) != 1:
             raise AssertionError("RHWP_EXAMPLE_PAGE_RENDER_COUNT_MISMATCH")
+        page = dict(result["pages"][0])
+        # A downloadable artifact must not retain an unusable private
+        # GitHub Actions runner absolute filesystem path.
+        page["relative_svg_path"] = Path(page.pop("path")).relative_to(output).as_posix()
         observed.append({
             "requested_page_index": index,
             "renderer_reported_page_count": result["page_count"],
-            **result["pages"][0],
+            **page,
         })
         if type(first_page_total) is int and index + 1 >= first_page_total:
             break

@@ -76,6 +76,32 @@ class LosslessMergedTableEditingTests(unittest.TestCase):
         ), anchor_signature)
         self.assertTrue(after["tables"][0]["repeat_header"])
 
+    def test_switching_repeat_header_row_removes_stale_native_header_flags(self):
+        table = build_advanced_table_map(self.path)["tables"][0]
+        self.edit([{
+            "op": "set_repeat_header", "table": table["locator"],
+            "row": 0, "enabled": True,
+        }])
+        first = build_advanced_table_map(self.path)["tables"][0]
+        self.assertTrue(first["row_geometry"][0]["all_header"])
+
+        self.edit([{
+            "op": "set_repeat_header", "table": first["locator"],
+            "row": 1, "enabled": True,
+        }])
+        second = build_advanced_table_map(self.path)["tables"][0]
+        self.assertTrue(second["repeat_header"])
+        self.assertFalse(second["row_geometry"][0]["all_header"])
+        self.assertTrue(second["row_geometry"][1]["all_header"])
+
+        self.edit([{
+            "op": "set_repeat_header", "table": second["locator"],
+            "row": 1, "enabled": False,
+        }])
+        disabled = build_advanced_table_map(self.path)["tables"][0]
+        self.assertFalse(disabled["repeat_header"])
+        self.assertFalse(any(row["all_header"] for row in disabled["row_geometry"]))
+
     def test_covered_cell_is_not_mutable_by_a_fabricated_locator(self):
         before = self.path.read_bytes()
         tables = build_advanced_table_map(self.path)["tables"]

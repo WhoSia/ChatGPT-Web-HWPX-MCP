@@ -10,6 +10,7 @@ from typing import Callable
 from hwpx import HwpxDocument
 
 from hwpx_mcp.document.p27_tables import _resolve_table, _save_document
+from hwpx.tools.table_navigation import _collect_document_tables
 from hwpx_mcp.document.p28_tables import (
     apply_table_edits_atomic as apply_p28_table_edits_atomic,
     build_table_map as build_p28_table_map,
@@ -91,10 +92,15 @@ def build_advanced_table_map(path: Path) -> dict:
     base = build_p28_table_map(path)
     document = HwpxDocument.open(str(path))
     try:
-        refs = document.tables.all
+        # P2.7/P2.8 table maps include nested tables via document-order traversal.
+        # Using document.tables.all here could silently address a different table.
+        refs = _collect_document_tables(document)
+        if len(refs) != len(base["tables"]):
+            raise ValueError("ADVANCED_TABLE_TRAVERSAL_MISMATCH")
         by_index = {int(t["table_index"]): t for t in base["tables"]}
         layout_seed: list[dict] = []
-        for index, table in enumerate(refs):
+        for index, reference in enumerate(refs):
+            table = reference.table
             payload = by_index[index]
             attrs = dict(table.element.attrib)
             payload["repeat_header"] = attrs.get("repeatHeader") == "1"
@@ -184,7 +190,13 @@ def _direct_table_operation(candidate: Path, op: dict) -> dict:
     table_payload = _resolve_table(current, op.get("table"))
     document = HwpxDocument.open(str(candidate))
     try:
-        table = document.tables.all[int(table_payload["table_index"])]
+        # Use the same ordered traversal used to derive the caller's locator.
+        # Otherwise nested tables can shift indices and mutate the wrong one.
+        references = _collect_document_tables(document)
+        index = int(table_payload["table_index"])
+        if index >= len(references):
+            raise ValueError("ADVANCED_TABLE_TRAVERSAL_MISMATCH")
+        table = references[index].table
         name = str(op["op"])
 
         if name == "set_repeat_header":

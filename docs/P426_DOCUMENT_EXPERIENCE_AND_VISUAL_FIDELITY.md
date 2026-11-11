@@ -77,3 +77,57 @@ no upstream source code was imported. A competitor's claims of
 `C:\\p424-validation` directory or deleted survival-rate HWPX,
 production deployment without an explicit release decision, or
 inflating commit counts with cosmetic/no-op changes.
+
+## R4 — Portable equation spacing, figure fit, and actual file-delivery regression (2026-11-11)
+
+P4.26 adds a bounded, opt-in portable equation dialect, rather than
+pretending all LaTeX commands are supported by the installed HWPX
+EqEdit compiler. `hwpx_mcp/equations/p426_latex_compatibility.py`
+exports `normalize_equation_latex(latex, policy="strict"|"portable")`.
+Strict is the default and preserves the input exactly; portable only
+replaces known spacing control sequences (`\\,`, `\\;`, `\\:`,
+`\\!`, `\\quad`, `\\qquad`) with spaces. Structural LaTeX
+commands (fraction, root, integral, summation, matrix, etc.) are not
+modified by this adapter. It explicitly returns the removed macros,
+original/normalized digests and `visual_spacing_preserved` flag.
+
+Both `preview_native_equation_script(..., policy)` **and** actual
+ordered science-report equation blocks
+`{"type":"equation","latex":"...","policy":"portable"}`
+use this shared translator, so visual diagnostics and HWPX composition
+do not silently diverge. A real native HWPX equation roundtrip test
+covers an integral previously rejected due to `\\,`. Portable mode
+necessarily changes spacing, not mathematical structure, and must not
+be described as glyph/pixel-perfect preservation.
+
+P4.26 improves real one-call HWPX user experience: report creation
+now derives the default downloadable filename from the supplied report
+title, e.g. `전기 회로 특성 분석.hwpx`, rather than the generic
+`report.hwpx`, while explicit `filename` wins. Fixed native
+rich-document metadata to preserve the title from `rich_plan.document.title`
+instead of discarding it.
+
+For professional layout, `fit_figures_to_page=true` opt-in limits
+oversized picture widths to A4 text body width less a small inset,
+scaling native HWPUNIT width and height proportionally while leaving
+embedded PNG/JPEG bytes and captions untouched. No re-encoding,
+rasterization or cropping. It never resizes tables or equations
+implicitly. The default is false, preserving source layout.
+
+**File delivery testing:** The P3.33 end-to-end test imported the full
+OAuth server and required `P12_AUTH_DATABASE_URL`. A CI attempt
+therefore failed during import despite 60 passing P4.25 and 44
+passing P4.26 tests. P4.26 now has
+`tests/test_p426_delivery_roundtrip.py`: a real synthetic native
+HWPX built through P3.21 is handed off as an MCP
+`CallToolResult(ResourceLink)`, its actual signed revision URL is
+opened through the P3.33 Starlette HTTP handler, and the returned
+HWPX bytes, MIME, Unicode attachment filename and SHA-256 are
+compared. No fake application PostgreSQL or external OAuth server is
+required. It preserves `host_attachment_status=NOT_OBSERVED`:
+working HTTP is **not** proof of ChatGPT UI attachment presentation.
+
+This section represents implemented code and committed tests. Latest
+CI must be consulted independently before claiming a pass for
+post-creation commits. No deleted local validation directory, private
+source HWPX or fake PDF is used.

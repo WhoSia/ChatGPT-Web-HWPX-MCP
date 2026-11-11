@@ -208,8 +208,10 @@ def _direct_table_operation(candidate: Path, op: dict) -> dict:
                 if not position.is_anchor:
                     continue
                 row, _col = position.anchor
-                if int(row) == header_row:
-                    position.cell.element.set("header", "1" if enabled else "0")
+                # Repeat-header selection is exclusive: stale header flags
+                # on a previously designated row must not survive a move.
+                is_header = enabled and int(row) == header_row
+                position.cell.element.set("header", "1" if is_header else "0")
             table.mark_dirty()
 
         elif name == "set_row_properties":

@@ -217,6 +217,7 @@ def build_report_plan(
     fit_figures_to_page: bool = False,
     segment_long_tables: bool = False,
     table_segment_rows: int = 20,
+    caption_clearance_pt: float = 0.0,
 ) -> dict:
     if preset not in PRESETS:
         raise ValueError("UNKNOWN_REPORT_PRESET")
@@ -240,6 +241,8 @@ def build_report_plan(
         raise ValueError("REPORT_TABLE_SEGMENT_SETTING_INVALID")
     if type(table_segment_rows) is not int or not 5 <= table_segment_rows <= 60:
         raise ValueError("REPORT_TABLE_SEGMENT_ROWS_INVALID")
+    if type(caption_clearance_pt) not in (int, float) or not 0 <= caption_clearance_pt <= 36:
+        raise ValueError("REPORT_CAPTION_CLEARANCE_INVALID")
 
     notes: list[dict] = []
     crossrefs: list[dict] = []
@@ -367,6 +370,22 @@ def build_report_plan(
         for ref in crossrefs
     ]
 
+    # P4.26 actual SVG showed that a picture caption can be rendered
+    # dangerously close to the following body paragraph. The opt-in
+    # clearance applies to the next paragraph, never to the image binary.
+    if caption_clearance_pt:
+        for i in range(1, len(blocks)):
+            previous, current = blocks[i - 1], blocks[i]
+            if (previous.get("type") == "picture"
+                    and previous.get("caption")
+                    and current.get("type") == "paragraph"):
+                fmt = dict(current.get("paragraph_format") or {})
+                fmt["spacing_before_pt"] = max(
+                    float(fmt.get("spacing_before_pt", 0)),
+                    float(caption_clearance_pt),
+                )
+                current["paragraph_format"] = fmt
+
     if number_captions:
         counters = {"picture": 0, "table": 0, "equation": 0}
         names = {"picture": "그림", "table": "표", "equation": "식"}
@@ -437,6 +456,7 @@ def register_report_preset_tools(core):
         fit_figures_to_page: bool = False,
         segment_long_tables: bool = False,
         table_segment_rows: int = 20,
+        caption_clearance_pt: float = 0.0,
     ) -> dict:
         """Preview the exact native report composition plan without writing a file."""
         core._caller_subject()
@@ -450,6 +470,7 @@ def register_report_preset_tools(core):
             fit_figures_to_page=fit_figures_to_page,
             segment_long_tables=segment_long_tables,
             table_segment_rows=table_segment_rows,
+            caption_clearance_pt=caption_clearance_pt,
         )
         compiled = compile_rich_document_plan(requested)
         from hwpx_mcp.orchestration.p426_layout_preflight import assess_native_layout
@@ -482,6 +503,7 @@ def register_report_preset_tools(core):
         fit_figures_to_page: bool = False,
         segment_long_tables: bool = False,
         table_segment_rows: int = 20,
+        caption_clearance_pt: float = 0.0,
     ):
         """One-call native report with headings, tables, equations and styles."""
         core._caller_subject()
@@ -494,6 +516,7 @@ def register_report_preset_tools(core):
             fit_figures_to_page=fit_figures_to_page,
             segment_long_tables=segment_long_tables,
             table_segment_rows=table_segment_rows,
+            caption_clearance_pt=caption_clearance_pt,
         )
         if not filename:
             # Human-readable default without requiring a document ID.

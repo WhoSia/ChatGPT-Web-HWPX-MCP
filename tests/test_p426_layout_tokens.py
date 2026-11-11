@@ -37,6 +37,33 @@ class P426LayoutTokenTests(unittest.TestCase):
         self.assertEqual(first["geometry"]["content_width_mm"], 164)
         self.assertEqual(first["style_profile"]["roles"]["body"]["paragraph"]["line_spacing_percent"], 160)
 
+    def test_report_frontend_propagates_layout_tokens_to_rich_compiler(self):
+        from hwpx_mcp.interfaces.p425_report_presets import build_report_plan
+        plan = build_report_plan(
+            title="회로 분석", layout={"base": "science-lab",
+                                     "typography": {"body_line_percent": 160}},
+            sections=[{"heading": "이론", "content": [
+                {"type": "paragraph", "text": "정확한 조판 입력"},
+            ]}],
+        )
+        compiled = compile_rich_document_plan(plan)
+        self.assertEqual(
+            compiled["plan"]["style_profile"]["roles"]["body"]["paragraph"]["line_spacing_percent"],
+            160,
+        )
+        self.assertEqual(compiled["plan"]["style_profile"]["name"], "science-lab")
+
+    def test_preview_and_create_share_one_layout_profile(self):
+        from hwpx_mcp.interfaces.p425_report_presets import build_report_plan
+        params = dict(title="반복 가능한 결과",
+                      sections=[{"heading": "연구", "paragraphs": ["측정 과정"]}],
+                      layout="academic-journal")
+        p1 = compile_rich_document_plan(build_report_plan(**params))
+        p2 = compile_rich_document_plan(build_report_plan(**params))
+        self.assertEqual(p1["plan_sha256"], p2["plan_sha256"])
+        self.assertEqual(p1["plan"]["style_profile"],
+                         compile_layout_tokens("academic-journal")["style_profile"])
+
     def test_fail_unusable_page_geometry(self):
         with self.assertRaisesRegex(ValueError, "BODY_GEOMETRY"):
             normalize_layout_tokens({"page": {"margins_mm": [60, 60, 60, 60]}})

@@ -10,7 +10,9 @@ import argparse
 import json
 from pathlib import Path
 
-from hwpx_mcp.render.p426_toc_cache_refresh import refresh_native_toc_cache_from_svg
+from hwpx_mcp.render.p426_toc_cache_refresh import (
+    discover_native_toc_headings, refresh_native_toc_cache_from_svg,
+)
 from scripts.p426_visual_toc_audit import audit_toc_page_cache
 
 SHOWCASE_HEADINGS = (
@@ -50,7 +52,7 @@ def refresh_from_render(
     source: Path, render_root: Path, destination: Path,
     headings: list[str] | None = None,
 ) -> dict:
-    selected = list(SHOWCASE_HEADINGS) if headings is None else headings
+    selected = discover_native_toc_headings(source) if headings is None else headings
     pages = load_complete_svg_pages(render_root)
     before = audit_toc_page_cache(pages, selected)
     result = refresh_native_toc_cache_from_svg(source, destination, pages, selected)

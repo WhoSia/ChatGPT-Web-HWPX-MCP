@@ -218,6 +218,7 @@ def build_report_plan(
     segment_long_tables: bool = False,
     table_segment_rows: int = 20,
     caption_clearance_pt: float = 0.0,
+    equation_caption_mode: str = "native",
 ) -> dict:
     if preset not in PRESETS:
         raise ValueError("UNKNOWN_REPORT_PRESET")
@@ -243,6 +244,8 @@ def build_report_plan(
         raise ValueError("REPORT_TABLE_SEGMENT_ROWS_INVALID")
     if type(caption_clearance_pt) not in (int, float) or not 0 <= caption_clearance_pt <= 36:
         raise ValueError("REPORT_CAPTION_CLEARANCE_INVALID")
+    if equation_caption_mode not in ("native", "visible-paragraph"):
+        raise ValueError("REPORT_EQUATION_CAPTION_MODE_INVALID")
 
     notes: list[dict] = []
     crossrefs: list[dict] = []
@@ -406,6 +409,32 @@ def build_report_plan(
             if not re.match(r"^(?:그림|표|식)\s*\d+[.．:\s]", caption):
                 block["caption"] = f"{label} {counters[kind]}. {caption}"
 
+    if equation_caption_mode == "visible-paragraph":
+        visible_blocks = []
+        for block in blocks:
+            if block.get("type") != "equation" or not block.get("caption"):
+                visible_blocks.append(block)
+                continue
+            equation = dict(block)
+            rendered_caption = str(equation.pop("caption"))
+            # Keeping native+printed captions simultaneously can create
+            # duplicates in Hancom, so only one representation is chosen.
+            equation_format = dict(equation.get("paragraph_format") or {})
+            equation_format["keep_with_next"] = True
+            equation["paragraph_format"] = equation_format
+            visible_blocks.append(equation)
+            visible_blocks.append({
+                "type": "paragraph",
+                "text": rendered_caption,
+                "paragraph_format": {
+                    "spacing_before_pt": 4,
+                    "spacing_after_pt": 8,
+                    "keep_lines": True,
+                },
+                "_p426_caption_for": equation.get("id"),
+            })
+        blocks = visible_blocks
+
     # Existing P3.21 composer has a 240-block limit. Validate here too,
     # before invoking native authoring or producing any bytes.
     if len(blocks) > 240:
@@ -457,6 +486,7 @@ def register_report_preset_tools(core):
         segment_long_tables: bool = False,
         table_segment_rows: int = 20,
         caption_clearance_pt: float = 0.0,
+        equation_caption_mode: str = "native",
     ) -> dict:
         """Preview the exact native report composition plan without writing a file."""
         core._caller_subject()
@@ -471,6 +501,7 @@ def register_report_preset_tools(core):
             segment_long_tables=segment_long_tables,
             table_segment_rows=table_segment_rows,
             caption_clearance_pt=caption_clearance_pt,
+            equation_caption_mode=equation_caption_mode,
         )
         compiled = compile_rich_document_plan(requested)
         from hwpx_mcp.orchestration.p426_layout_preflight import assess_native_layout
@@ -504,6 +535,7 @@ def register_report_preset_tools(core):
         segment_long_tables: bool = False,
         table_segment_rows: int = 20,
         caption_clearance_pt: float = 0.0,
+        equation_caption_mode: str = "native",
     ):
         """One-call native report with headings, tables, equations and styles."""
         core._caller_subject()
@@ -517,6 +549,7 @@ def register_report_preset_tools(core):
             segment_long_tables=segment_long_tables,
             table_segment_rows=table_segment_rows,
             caption_clearance_pt=caption_clearance_pt,
+            equation_caption_mode=equation_caption_mode,
         )
         if not filename:
             # Human-readable default without requiring a document ID.

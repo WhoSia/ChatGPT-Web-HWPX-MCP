@@ -155,10 +155,28 @@ def build_advanced_table_map(path: Path) -> dict:
 
 
 def _validate_row(table_payload: dict, raw: object) -> int:
-    row = int(raw)
+    # Never interpret booleans or numeric-looking strings as row indices.
+    if type(raw) is not int:
+        raise ValueError("row must be an integer index")
+    row = raw
     if row < 0 or row >= int(table_payload["rows"]):
         raise ValueError("row is outside the table bounds")
     return row
+
+
+def _validate_table_property_types(name: str, op: dict) -> None:
+    """Fail closed before creating the atomic HWPX candidate."""
+    if name == "set_repeat_header":
+        if "enabled" in op and type(op["enabled"]) is not bool:
+            raise ValueError("repeat_header enabled must be a boolean")
+    elif name == "set_row_properties":
+        if "header" in op and type(op["header"]) is not bool:
+            raise ValueError("row header must be a boolean")
+        if "height" in op and (
+            type(op["height"]) is not int
+            or not 1 <= op["height"] <= 1_000_000
+        ):
+            raise ValueError("row height must be an integer in admitted bounds")
 
 
 def _direct_table_operation(candidate: Path, op: dict) -> dict:
@@ -170,7 +188,8 @@ def _direct_table_operation(candidate: Path, op: dict) -> dict:
         name = str(op["op"])
 
         if name == "set_repeat_header":
-            enabled = bool(op.get("enabled", True))
+            _validate_table_property_types(name, op)
+            enabled = op.get("enabled", True)
             header_row = _validate_row(table_payload, op.get("row", 0))
             table.element.set("repeatHeader", "1" if enabled else "0")
             for position in table.iter_grid():
@@ -185,16 +204,13 @@ def _direct_table_operation(candidate: Path, op: dict) -> dict:
             row = _validate_row(table_payload, op.get("row"))
             header = op.get("header")
             height = op.get("height")
-            if height is not None:
-                height = int(height)
-                if height <= 0 or height > 1_000_000:
-                    raise ValueError("row height is outside admitted bounds")
+            _validate_table_property_types(name, op)
             touched = 0
             for position in table.iter_grid():
                 if not position.is_anchor or int(position.anchor[0]) != row:
                     continue
                 if header is not None:
-                    position.cell.element.set("header", "1" if bool(header) else "0")
+                    position.cell.element.set("header", "1" if header else "0")
                 if height is not None:
                     position.cell.set_size(height=height)
                 touched += 1
@@ -285,6 +301,7 @@ def _normalize_operations(operations: list[dict], before: dict) -> list[dict]:
             table = _resolve_table(before, raw.get("table"))
             if name in {"set_repeat_header", "set_row_properties"}:
                 _validate_row(table, raw.get("row", 0))
+                _validate_table_property_types(name, raw)
             if name == "set_cell_vertical_alignment":
                 cell = raw.get("cell")
                 if not any(item["locator"] == cell for item in table["cells"]):

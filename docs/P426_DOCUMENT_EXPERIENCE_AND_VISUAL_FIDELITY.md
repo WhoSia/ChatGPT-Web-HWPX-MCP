@@ -521,3 +521,22 @@ Their public feature lists are useful backlog inputs, not head-to-head
 benchmark scores. Next independent acceptance targets are real-world edits
 of pre-existing layouts, renderer-specific legibility gates, and live
 ChatGPT-generated document delivery.
+
+
+## R14 — Input PNG integrity preflight (2026-11-11)
+
+Native science-report figure authoring previously checked only PNG/JPEG magic
+bytes, so broken PNG chunk CRCs, truncation and trailing content could be
+accepted as a document image payload. That is not an appropriate professional
+document creation boundary.
+
+The existing `_as_native_figure` path now checks PNG chunk framing,
+boundaries, CRC32, a single initial IHDR with nonzero dimensions, at least
+one IDAT, and a terminal empty IEND with no trailing bytes. JPEG now rejects
+an absent end-of-image marker, while full JPEG decoding is outside this
+small change. Input images are not re-encoded or modified.
+
+Regression: `tests/test_p426_figure_container_integrity.py` contains
+valid-byte preservation and four corrupted-container cases. This is an
+**input container-integrity check**, not a rendered-visual fidelity oracle.
+The complete latest CI and genuine Hancom acceptance remain separate gates.

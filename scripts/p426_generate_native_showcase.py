@@ -121,6 +121,7 @@ def create_showcase(output_dir: Path, *, table_segment_rows: int = 28) -> dict:
         page_numbers=True,
         number_captions=True,
         fit_figures_to_page=True,
+        caption_clearance_pt=14.0,
         segment_long_tables=True,
         table_segment_rows=table_segment_rows,
         sections=[
@@ -144,8 +145,7 @@ def create_showcase(output_dir: Path, *, table_segment_rows: int = 28) -> dict:
                  "content_base64": plot_b64,
                  "width": 85000, "height": 48000,
                  "caption": "전압과 전류의 합성 선형 관계"},
-                {"type": "paragraph", "text": "아래 표는 긴 표의 분할과 반복 머리글 기능 검증을 위해 80행으로 구성하였다.",
-                 "paragraph_format": {"spacing_before_pt": 14}},
+                {"type": "paragraph", "text": "아래 표는 긴 표의 분할과 반복 머리글 기능 검증을 위해 80행으로 구성하였다."},
                 {"type": "table", "cells": records, "first_row_header": True,
                  "caption": "전압과 전류의 합성 측정값",
                  "table_format": {"page_break": "CELL", "repeat_header": True,

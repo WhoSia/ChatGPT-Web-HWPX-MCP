@@ -574,3 +574,29 @@ IHDR/IDAT/IEND chunk CRCs.
 This distinction matters: legacy tests that accept intentionally malformed
 data do not establish a production-grade compatibility contract. A failing
 test can reveal an obsolete fixture rather than an incorrect validator.
+
+
+## R15 — Strict native-table edit semantics and preservation (2026-11-11)
+
+Existing P3.23 advanced table editing accepted loose Python truthiness for
+`set_repeat_header.enabled` and `set_row_properties.header`, so an agent
+sending the string `"false"` could silently **enable** a native table header.
+Likewise `int(...)` coercion admitted booleans/numeric-looking strings for
+native row indices and heights. This could create subtle unintended edits in
+an existing HWPX even when the request appeared successful.
+
+R15 adds strict, explicit type validation before creating a candidate
+document. Boolean flags must be real JSON booleans, and row indices/heights
+must be actual integer values with admitted bounds. Rejected edits leave the
+original HWPX bytes unchanged, checked by SHA-256. Valid `true` and `false`
+header transitions and valid row heights are reopened from native HWPX and
+inspected.
+
+Implementation: `hwpx_mcp/document/p323_advanced_tables.py`.
+Regression: `tests/test_p426_table_input_integrity.py`.
+
+This is a narrow but concrete competitive editing improvement, **not**
+an independently measured nested-table editing benchmark. It does not
+authorize merging into main or deploying P4.26. The tests and native
+rendering workflow are separate acceptance gates; only completed runs
+on the latest production-code commit establish green status.

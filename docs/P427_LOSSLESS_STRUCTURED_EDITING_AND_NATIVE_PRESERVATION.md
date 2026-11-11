@@ -6,6 +6,7 @@
 **Exact parent commit:** `c478bdf0c6a9832b4b21bc536900c094237a8040`
 **Base branch:** `development/p426-document-experience-visual-fidelity-20261111`
 **Development branch:** `development/p427-lossless-structured-editing-20261111`
+**Integration PR:** [#26](https://github.com/WhoSia/ChatGPT-Web-HWPX-MCP/pull/26) targets the retained P4.25 branch, **including** inherited P4.26 commits; the Git history remains based on the exact P4.26 verified SHA. P4.26 [PR #25](https://github.com/WhoSia/ChatGPT-Web-HWPX-MCP/pull/25) was closed without merge as superseded by the integrated successor.
 **Status:** Research and implementation active; not deployed, not merged.
 
 ## Intent and lineage
@@ -70,3 +71,35 @@ content and formatting unchanged.
 
 No code development claim is made for R2–R4 until corresponding artifacts and
 CI evidence exist.
+
+
+## R1 implementation and evolving acceptance evidence
+
+- Replaced P3.23's `document.tables.all` indexing with the same
+  `_collect_document_tables(document)` traversal used by the underlying
+  P2.7/P2.8 table map. This aligns table locators and mutation targets
+  when table nesting changes the traversal order; it does not yet establish
+  actual nested-in-cell end-to-end compatibility.
+- Added `tests/test_p427_merged_table_preservation.py`: generate a real
+  HWPX containing a merged anchor and an unrelated second table; change
+  a first-table header, reopen, compare merged spans/content and all
+  unrelated table-cell data/geometry/format flags; fail-closed test
+  fabricated cell identity and stale revisions with source bytes identical.
+- Found and repaired stale `hp:tc@header` flags when a repeat-header
+  designation moves from one row to another. The change now clears
+  non-designated row header flags and a new test verifies 0→1→disabled
+  transitions through saved-file reopening.
+- Added `.github/workflows/p427-ci.yml`, with exact-head source checks,
+  inherited P4.25/P4.26 test suites, P4.27 regression tests and synthetic
+  inherited report creation.
+- First successful new P4.27 workflow on commit `56656f86`,
+  [run #42974374273](https://github.com/WhoSia/ChatGPT-Web-HWPX-MCP/actions/runs/42974374273):
+  **61 inherited P4.25 + 98 P4.26 + 3 P4.27 = 162 passing tests**.
+  New header-switching test and corresponding code were added afterward
+  on `6a3a28f`; consult exact-head CI before claiming they passed.
+
+**Source-of-truth boundary:** The PR's integration target (P4.25)
+is different from its direct source ancestry (verified P4.26). This
+is intentional: the P4.26 PR is archived without merge; the successor
+carries both P4.26 and P4.27 implementation for a future controlled
+merge/release instead of silently dropping predecessor functionality.

@@ -198,6 +198,8 @@ def build_report_plan(
     number_captions: bool = False,
     layout: dict | str | None = None,
     fit_figures_to_page: bool = False,
+    segment_long_tables: bool = False,
+    table_segment_rows: int = 20,
 ) -> dict:
     if preset not in PRESETS:
         raise ValueError("UNKNOWN_REPORT_PRESET")
@@ -217,6 +219,10 @@ def build_report_plan(
         raise ValueError("REPORT_CAPTION_NUMBERING_INVALID")
     if type(fit_figures_to_page) is not bool:
         raise ValueError("REPORT_FIGURE_FIT_INVALID")
+    if type(segment_long_tables) is not bool:
+        raise ValueError("REPORT_TABLE_SEGMENT_SETTING_INVALID")
+    if type(table_segment_rows) is not int or not 5 <= table_segment_rows <= 60:
+        raise ValueError("REPORT_TABLE_SEGMENT_ROWS_INVALID")
 
     notes: list[dict] = []
     crossrefs: list[dict] = []
@@ -316,6 +322,19 @@ def build_report_plan(
             raise ValueError("REPORT_FIGURES_INVALID")
         blocks.extend(_as_native_figure(value) for value in figures)
 
+    if segment_long_tables:
+        from hwpx_mcp.orchestration.p426_table_pagination import segment_native_long_tables
+        segmented = segment_native_long_tables(
+            blocks, max_rows_per_segment=table_segment_rows,
+            page_break_before_each=True,
+        )
+        blocks = segmented["blocks"]
+        # Generated continuation IDs and explicit author IDs must never
+        # collide in the downstream native composer.
+        block_ids = [b["id"] for b in blocks if "id" in b]
+        if len(block_ids) != len(set(block_ids)):
+            raise ValueError("REPORT_BLOCK_ID_DUPLICATE")
+
     # P3.19 resolves $block: identities after paragraph materialization,
     # and inserts actual native page-reference fields before TOC generation.
     if crossrefs:
@@ -334,11 +353,16 @@ def build_report_plan(
     if number_captions:
         counters = {"picture": 0, "table": 0, "equation": 0}
         names = {"picture": "그림", "table": "표", "equation": "식"}
+        seen_logical_tables: set[str] = set()
         for block in blocks:
             kind = block["type"]
             if kind not in counters:
                 continue
-            counters[kind] += 1
+            logical = block.get("_p426_logical_table") if kind == "table" else None
+            if logical is None or logical not in seen_logical_tables:
+                counters[kind] += 1
+            if logical is not None:
+                seen_logical_tables.add(logical)
             caption = block.get("caption")
             if not caption:
                 continue
@@ -394,6 +418,8 @@ def register_report_preset_tools(core):
         number_captions: bool = False,
         layout: dict | str | None = None,
         fit_figures_to_page: bool = False,
+        segment_long_tables: bool = False,
+        table_segment_rows: int = 20,
     ) -> dict:
         """Preview the exact native report composition plan without writing a file."""
         core._caller_subject()
@@ -405,6 +431,8 @@ def register_report_preset_tools(core):
             number_captions=number_captions,
             layout=layout,
             fit_figures_to_page=fit_figures_to_page,
+            segment_long_tables=segment_long_tables,
+            table_segment_rows=table_segment_rows,
         )
         compiled = compile_rich_document_plan(requested)
         from hwpx_mcp.orchestration.p426_layout_preflight import assess_native_layout
@@ -435,6 +463,8 @@ def register_report_preset_tools(core):
         number_captions: bool = False,
         layout: dict | str | None = None,
         fit_figures_to_page: bool = False,
+        segment_long_tables: bool = False,
+        table_segment_rows: int = 20,
     ):
         """One-call native report with headings, tables, equations and styles."""
         core._caller_subject()
@@ -445,6 +475,8 @@ def register_report_preset_tools(core):
             number_captions=number_captions,
             layout=layout,
             fit_figures_to_page=fit_figures_to_page,
+            segment_long_tables=segment_long_tables,
+            table_segment_rows=table_segment_rows,
         )
         if not filename:
             # Human-readable default without requiring a document ID.

@@ -254,6 +254,7 @@ async def main() -> None:
                 "get_advanced_table_contract",
                 "get_advanced_tables",
                 "apply_advanced_table_edits",
+                "apply_preserved_table_edit",
                 "get_story_layer_contract",
                 "get_story_layer",
                 "apply_story_layer",

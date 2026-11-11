@@ -169,6 +169,7 @@ def build_report_plan(
     table_of_contents: bool = False,
     number_captions: bool = False,
     layout: dict | str | None = None,
+    fit_figures_to_page: bool = False,
 ) -> dict:
     if preset not in PRESETS:
         raise ValueError("UNKNOWN_REPORT_PRESET")
@@ -186,6 +187,8 @@ def build_report_plan(
         raise ValueError("REPORT_TOC_SETTING_INVALID")
     if type(number_captions) is not bool:
         raise ValueError("REPORT_CAPTION_NUMBERING_INVALID")
+    if type(fit_figures_to_page) is not bool:
+        raise ValueError("REPORT_FIGURE_FIT_INVALID")
 
     notes: list[dict] = []
     crossrefs: list[dict] = []
@@ -319,6 +322,10 @@ def build_report_plan(
     # before invoking native authoring or producing any bytes.
     if len(blocks) > 240:
         raise ValueError("REPORT_TOO_MANY_BLOCKS")
+    if fit_figures_to_page:
+        from hwpx_mcp.orchestration.p426_layout_preflight import fit_native_pictures_to_body
+        fitted = fit_native_pictures_to_body(blocks, layout or "science-lab")
+        blocks = fitted["blocks"]
     result = {
         "preset": PRESETS[preset]["native_preset"],
         "document": {"title": title.strip()},
@@ -358,6 +365,7 @@ def register_report_preset_tools(core):
         table_of_contents: bool = False,
         number_captions: bool = False,
         layout: dict | str | None = None,
+        fit_figures_to_page: bool = False,
     ) -> dict:
         """Preview the exact native report composition plan without writing a file."""
         core._caller_subject()
@@ -368,6 +376,7 @@ def register_report_preset_tools(core):
             table_of_contents=table_of_contents,
             number_captions=number_captions,
             layout=layout,
+            fit_figures_to_page=fit_figures_to_page,
         )
         compiled = compile_rich_document_plan(requested)
         from hwpx_mcp.orchestration.p426_layout_preflight import assess_native_layout
@@ -397,6 +406,7 @@ def register_report_preset_tools(core):
         table_of_contents: bool = False,
         number_captions: bool = False,
         layout: dict | str | None = None,
+        fit_figures_to_page: bool = False,
     ):
         """One-call native report with headings, tables, equations and styles."""
         core._caller_subject()
@@ -406,6 +416,7 @@ def register_report_preset_tools(core):
             table_of_contents=table_of_contents,
             number_captions=number_captions,
             layout=layout,
+            fit_figures_to_page=fit_figures_to_page,
         )
         if not filename:
             # Human-readable default without requiring a document ID.

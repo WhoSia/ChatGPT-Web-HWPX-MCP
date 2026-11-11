@@ -49,7 +49,7 @@ class NativeLongTableTests(unittest.TestCase):
             self.assertEqual(table["rows"], 80)
             self.assertEqual(table["page_break"], "CELL")
             self.assertTrue(table["repeat_header"])
-            self.assertTrue(table["row_properties"][0]["all_header"])
+            self.assertTrue(table["row_geometry"][0]["all_header"])
             self.assertEqual(len(table["cells"]), 80 * 3)
 
     def test_native_table_policy_precedence_is_explicit(self):

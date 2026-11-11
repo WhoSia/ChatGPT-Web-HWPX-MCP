@@ -9,6 +9,8 @@ import base64
 import binascii
 import math
 import re
+import struct
+import zlib
 from copy import deepcopy
 
 PRESETS = {
@@ -120,6 +122,57 @@ def _as_native_equation(equation: str | dict) -> dict:
     return block
 
 
+
+def _validate_png_container(raw: bytes) -> None:
+    """Validate PNG chunk boundaries and CRC without decoding pixel data.
+
+    This preflight is intentionally narrower than a rendering check: it
+    verifies a self-contained uncorrupted PNG envelope, not color management,
+    pixel validity, or final page placement.
+    """
+    if not raw.startswith(b"\\x89PNG\\r\\n\\x1a\\n"):
+        raise ValueError("REPORT_FIGURE_SIGNATURE_MISMATCH")
+    offset = 8
+    seen_ihdr = seen_idat = seen_iend = False
+    chunk_count = 0
+    while offset < len(raw):
+        if len(raw) - offset < 12:
+            raise ValueError("REPORT_FIGURE_PNG_TRUNCATED")
+        length = struct.unpack_from(">I", raw, offset)[0]
+        end = offset + 12 + length
+        if end > len(raw):
+            raise ValueError("REPORT_FIGURE_PNG_TRUNCATED")
+        tag = raw[offset + 4:offset + 8]
+        data = raw[offset + 8:offset + 8 + length]
+        stored_crc = struct.unpack_from(">I", raw, offset + 8 + length)[0]
+        if zlib.crc32(tag + data) & 0xFFFFFFFF != stored_crc:
+            raise ValueError("REPORT_FIGURE_PNG_CRC_INVALID")
+        chunk_count += 1
+        if chunk_count > 4096:
+            raise ValueError("REPORT_FIGURE_PNG_CHUNK_LIMIT")
+        if not seen_ihdr:
+            if tag != b"IHDR" or length != 13:
+                raise ValueError("REPORT_FIGURE_PNG_IHDR_INVALID")
+            width, height = struct.unpack_from(">II", data)
+            if width == 0 or height == 0:
+                raise ValueError("REPORT_FIGURE_PNG_DIMENSIONS_INVALID")
+            seen_ihdr = True
+        elif tag == b"IHDR":
+            raise ValueError("REPORT_FIGURE_PNG_IHDR_DUPLICATE")
+        if tag == b"IDAT":
+            if seen_iend:
+                raise ValueError("REPORT_FIGURE_PNG_ORDER_INVALID")
+            seen_idat = True
+        if tag == b"IEND":
+            if length or not seen_idat or end != len(raw):
+                raise ValueError("REPORT_FIGURE_PNG_IEND_INVALID")
+            seen_iend = True
+            break
+        offset = end
+    if not (seen_ihdr and seen_idat and seen_iend):
+        raise ValueError("REPORT_FIGURE_PNG_INCOMPLETE")
+
+
 def _as_native_figure(figure: dict) -> dict:
     """Validate an in-memory PNG/JPEG and reuse the P3.21 native picture object."""
     if not isinstance(figure, dict):
@@ -140,6 +193,10 @@ def _as_native_figure(figure: dict) -> dict:
     is_jpeg = raw.startswith(b"\xff\xd8\xff")
     if not (is_png if fmt.lower() == "png" else is_jpeg):
         raise ValueError("REPORT_FIGURE_SIGNATURE_MISMATCH")
+    if is_png:
+        _validate_png_container(raw)
+    elif not raw.endswith(b"\\xff\\xd9"):
+        raise ValueError("REPORT_FIGURE_JPEG_TRUNCATED")
     width, height = figure.get("width", 10000), figure.get("height", 8000)
     if (type(width) is not int or type(height) is not int
             or not 100 <= width <= 100000 or not 100 <= height <= 100000):

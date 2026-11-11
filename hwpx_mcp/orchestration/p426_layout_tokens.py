@@ -87,7 +87,7 @@ def normalize_layout_tokens(value: dict | str) -> dict:
         type(x) not in (int, float) or not 5 <= x <= 60 for x in margins
     ):
         raise ValueError("LAYOUT_MARGINS_INVALID")
-    if margins[0] + margins[1] >= 180 or margins[2] + margins[3] >= 257:
+    if 210 - margins[0] - margins[1] < 120 or 297 - margins[2] - margins[3] < 190:
         raise ValueError("LAYOUT_BODY_GEOMETRY_INVALID")
     for field in ("korean_font", "latin_font"):
         font = typography[field]

@@ -3,7 +3,7 @@ name: P4.27 Lossless Native Editing Acceptance
 on:
   pull_request:
     branches:
-      - development/p426-document-experience-visual-fidelity-20261111
+      - development/p425-competitive-capability-convergence-20261110
     paths:
       - "hwpx_mcp/document/p323_advanced_tables.py"
       - "hwpx_mcp/document/p27_tables.py"

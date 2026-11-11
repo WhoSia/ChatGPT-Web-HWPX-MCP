@@ -136,7 +136,8 @@ class ReportPresetTests(unittest.TestCase):
     def test_preview_uses_real_compile_contract_without_composing(self):
         fake = {"block_count": 5, "block_counts": {"title": 1, "heading": 2, "paragraph": 2},
                 "section_count": 1, "setup_operation_count": 1,
-                "plan_sha256": "f" * 64}
+                "plan_sha256": "f" * 64,
+                "plan": {"blocks": [{"type": "paragraph", "text": "실험 절차"}]}}
         with patch("hwpx_mcp.orchestration.p338_rich_builder.compile_rich_document_plan",
                    return_value=fake) as compiler:
             result = self.mcp.tools["preview_report_plan"](

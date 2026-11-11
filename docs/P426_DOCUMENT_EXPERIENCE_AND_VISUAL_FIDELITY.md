@@ -371,3 +371,58 @@ The resulting HWPX is still a new revision with all four cached page
 numbers matching actual SVG heading locations. This extends the code
 path beyond hardcoded demonstration headings while retaining the
 rhwp-versus-Windows Hancom fidelity distinction.
+
+## R11 — Actual figure-caption-to-body visual clearance (2026-11-11)
+
+The previously accepted synthetic report still had a visibly tight
+figure-caption and following-body spacing on page 2. Direct extraction
+from its actual `rhwp` SVG placed caption text at baseline
+`y=508.57` and the next paragraph at approximately `y=515.14`,
+a gap of **6.57 SVG coordinate units**. XML validity and table/TOC
+checks did not identify this typography problem.
+
+**Actual code improvements:**
+
+- `p425_report_presets._as_ordered_block` supports explicit,
+  bounded native `paragraph_format` for body paragraphs:
+  `spacing_before_pt`, `spacing_after_pt`, `keep_with_next`,
+  and `keep_lines`. Values are validated and handed through P3.38
+  into the pre-existing P3.21/P2.3 native formatting system.
+- A report-level, opt-in `caption_clearance_pt` argument (0–36pt,
+  default 0) applies a minimum native `spacing_before_pt` to a
+  body paragraph directly after a captioned figure. It never
+  modifies the image or overrides an explicitly larger user
+  spacing setting. Both report preview and actual report creation
+  receive the option; the synthetic science report chooses 14pt.
+- `scripts/p426_visual_spacing_audit.py` reads actual SVG text glyph
+  baseline coordinates and matches the full caption and next paragraph
+  text; ambiguous/missing text cannot yield a false success. A CI
+  visual acceptance step requires at least 16 SVG units between
+  the two baselines. It explicitly identifies the authority as
+  `ACTUAL_RHWP_SVG_BASELINES_NOT_NATIVE_HANCOM`.
+
+**Actual rendered results:** latest pinned `rhwp v0.8.7`
+renderer reports caption baseline **508.57**, body baseline
+**533.81**, gap **25.24** SVG coordinate units. It meets the
+16-unit threshold and improves the original measured ~6.57-unit gap.
+A real PNG page rendering independently shows visible text clearance
+and readable Hangul font fallback.
+
+**Executed CI evidence:**
+- [P4.26 real renderer #42960263196](https://github.com/WhoSia/ChatGPT-Web-HWPX-MCP/actions/runs/42960263196): **SUCCESS**, actual SVG
+  `P4.26 caption clearance measured: 25.24`, 5-page native
+  TOC re-rendering remains successful, zero clipped table lines.
+- [P4.26 native regression #42960263395](https://github.com/WhoSia/ChatGPT-Web-HWPX-MCP/actions/runs/42960263395):
+  **SUCCESS**, 61 inherited P4.25 tests plus 77 P4.26 tests =
+  **138/138 tests passing**.
+- [Artifact](https://github.com/WhoSia/ChatGPT-Web-HWPX-MCP/actions/runs/42960263196)
+  contains the actual updated native HWPX,
+  5-page SVG/PNG renderings, JSON TOC verification
+  and `p426_visual_spacing_acceptance.json`.
+  User-accessible direct HWPX and ZIP copies were materialized in
+  the chat container.
+
+**Scope:** SVG baseline gap is not a glyph-outline collision model or
+a Windows Hancom page metric. This was tested on the synthetic
+science report and is now available as a general, opt-in API argument.
+No production deployment or live P4.26 client attachment claim.

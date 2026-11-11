@@ -74,6 +74,18 @@ def assess_native_layout(plan: dict[str, Any], layout: str | dict = "science-lab
                     "message": "Native object width must be a positive integer.",
                 })
                 continue
+            # An explicit total width can still make a dense table unreadable.
+            # This is an average-width heuristic, not actual cell geometry:
+            # merged cells and per-column widths require renderer inspection.
+            if kind == "table" and block.get("cols", 0) >= 2:
+                average_mm = (width / HWP_UNITS_PER_MM) / block["cols"]
+                if average_mm < 12.0:
+                    issues.append({
+                        "block": label, "severity": "REVIEW",
+                        "code": "NARROW_AVERAGE_TABLE_COLUMN",
+                        "average_column_width_mm_approx": round(average_mm, 2),
+                        "message": "Average native column width is below 12 mm; inspect wrapping and legibility.",
+                    })
             if width > content_units:
                 issues.append({
                     "block": label, "severity": "REVIEW",

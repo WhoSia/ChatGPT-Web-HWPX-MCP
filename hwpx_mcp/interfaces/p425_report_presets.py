@@ -161,7 +161,24 @@ def _as_ordered_block(item: dict) -> dict:
         text = item.get("text")
         if not isinstance(text, str) or not text.strip() or len(text) > 10000:
             raise ValueError("REPORT_PARAGRAPH_INVALID")
-        return {"type": "paragraph", "text": text}
+        block = {"type": "paragraph", "text": text}
+        if "paragraph_format" in item:
+            requested = item["paragraph_format"]
+            if (not isinstance(requested, dict) or
+                    set(requested) - {"spacing_before_pt", "spacing_after_pt",
+                                      "keep_with_next", "keep_together"}):
+                raise ValueError("REPORT_PARAGRAPH_FORMAT_INVALID")
+            for key in ("spacing_before_pt", "spacing_after_pt"):
+                if key in requested and (
+                    type(requested[key]) not in (int, float)
+                    or not 0 <= requested[key] <= 72
+                ):
+                    raise ValueError("REPORT_PARAGRAPH_SPACING_INVALID")
+            for key in ("keep_with_next", "keep_together"):
+                if key in requested and type(requested[key]) is not bool:
+                    raise ValueError("REPORT_PARAGRAPH_KEEP_INVALID")
+            block["paragraph_format"] = dict(requested)
+        return block
     if kind == "heading":
         text, level = item.get("text"), item.get("level", 2)
         if not isinstance(text, str) or not text.strip() or len(text) > 200:

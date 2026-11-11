@@ -16,7 +16,7 @@ class NativeCaptionClearanceTests(unittest.TestCase):
             caption_clearance_pt=clearance,
             sections=[{"heading": "결과", "content": [
                 {"type": "figure", "image_format": "png",
-                 "content_base64": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScLttAAAAABJRU5ErkJggg==",
+                 "content_base64": "iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAFElEQVR4nGMUscn7z8DAwMDEAAUAGa4BwYhFMToAAAAASUVORK5CYII=",
                  "caption": "합성 그림", "width": 12000, "height": 6000},
                 paragraph,
             ]}],

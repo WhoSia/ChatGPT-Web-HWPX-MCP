@@ -27,6 +27,34 @@ class NativeLayoutPreflightTests(unittest.TestCase):
         self.assertEqual(result["status"], "REVIEW")
         self.assertEqual(result["issues"][0]["code"], "MANY_TABLE_COLUMNS")
 
+    def test_long_table_with_cell_split_and_header_has_no_policy_warnings(self):
+        result = assess_native_layout({"blocks": [{
+            "type": "table", "rows": 80, "cols": 3,
+            "first_row_header": True,
+            "table_format": {"page_break": "CELL", "repeat_header": True},
+        }]}, "science-lab")
+        self.assertEqual(result["status"], "NO_STATIC_WIDTH_FLAGS")
+        self.assertFalse(result["issues"])
+
+    def test_long_table_with_no_split_and_header_reports_two_specific_risks(self):
+        result = assess_native_layout({"blocks": [{
+            "type": "table", "rows": 80, "cols": 3,
+            "table_format": {"page_break": "TABLE", "repeat_header": False},
+        }]}, "science-lab")
+        codes = {issue["code"] for issue in result["issues"]}
+        self.assertEqual(codes, {
+            "LONG_TABLE_WITHOUT_CELL_SPLIT",
+            "LONG_TABLE_WITHOUT_REPEATED_HEADER",
+        })
+        self.assertEqual(result["authority"], "STATIC_PREVIEW_ONLY_NOT_HANCOM_RENDER")
+
+    def test_short_table_does_not_trigger_long_table_review(self):
+        result = assess_native_layout({"blocks": [{
+            "type": "table", "rows": 3, "cols": 2,
+            "table_format": {"page_break": "TABLE", "repeat_header": False},
+        }]})
+        self.assertEqual(result["issues"], [])
+
     def test_invalid_native_object_width(self):
         result = assess_native_layout({"blocks": [
             {"type": "equation", "width": -1},

@@ -285,7 +285,9 @@ def register_competitive_workflows(core):
                 raise ValueError("COMPOSED_HWPX_FAILED_VALIDATION")
             metadata = core._metadata(
                 document_id, filename=filename, owner_subject=owner,
-                validation=validated, title=str(rich_plan.get("title") or ""),
+                validation=validated,
+                title=str((rich_plan.get("document") or {}).get("title")
+                          or rich_plan.get("title") or ""),
                 source="p425-rich-composer",
             )
             committed = core._write_metadata(document_id, metadata)

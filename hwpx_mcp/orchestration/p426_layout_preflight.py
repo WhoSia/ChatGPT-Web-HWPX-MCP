@@ -32,6 +32,31 @@ def assess_native_layout(plan: dict[str, Any], layout: str | dict = "science-lab
             raise ValueError("LAYOUT_BLOCK_INVALID")
         kind = block.get("type")
         label = str(block.get("id", f"block-{index + 1}"))
+        if kind == "table":
+            policy = block.get("table_format") or {}
+            if not isinstance(policy, dict):
+                raise ValueError("LAYOUT_TABLE_FORMAT_INVALID")
+            mode = str(policy.get("page_break", design["tokens"]["table"]["page_break"])).upper()
+            rows = block.get("rows", 0)
+            cols = block.get("cols", 0)
+            if type(rows) is not int or type(cols) is not int or rows < 0 or cols < 0:
+                raise ValueError("LAYOUT_TABLE_DIMENSIONS_INVALID")
+            if rows >= 40 and mode in ("TABLE", "NONE"):
+                issues.append({
+                    "block": label, "severity": "REVIEW",
+                    "code": "LONG_TABLE_WITHOUT_CELL_SPLIT",
+                    "rows": rows, "page_break": mode,
+                    "message": "A long table uses a non-cell page break mode; verify its native pagination.",
+                })
+            repeat = policy.get("repeat_header", design["tokens"]["table"]["repeat_header"])
+            header = policy.get("first_row_header", block.get("first_row_header", False))
+            if rows >= 40 and not (repeat and header):
+                issues.append({
+                    "block": label, "severity": "REVIEW",
+                    "code": "LONG_TABLE_WITHOUT_REPEATED_HEADER",
+                    "rows": rows,
+                    "message": "Long native tables benefit from a marked, repeating first header row.",
+                })
         if kind in ("picture", "image", "table", "equation"):
             width = block.get("width")
             if width is None:

@@ -162,6 +162,7 @@ def build_report_plan(
     page_numbers: bool = True,
     table_of_contents: bool = False,
     number_captions: bool = False,
+    layout: dict | str | None = None,
 ) -> dict:
     if preset not in PRESETS:
         raise ValueError("UNKNOWN_REPORT_PRESET")
@@ -262,7 +263,7 @@ def build_report_plan(
     # before invoking native authoring or producing any bytes.
     if len(blocks) > 240:
         raise ValueError("REPORT_TOO_MANY_BLOCKS")
-    return {
+    result = {
         "preset": PRESETS[preset]["native_preset"],
         "document": {"title": title.strip()},
         "sections": [{"blocks": blocks, "page_numbers": page_numbers}],
@@ -270,6 +271,11 @@ def build_report_plan(
            if table_of_contents else {}),
         **({"annotations": notes} if notes else {}),
     }
+    if layout is not None:
+        from hwpx_mcp.orchestration.p426_layout_tokens import compile_layout_tokens
+        design = compile_layout_tokens(layout)
+        result["style_profile"] = design["style_profile"]
+    return result
 
 
 def register_report_preset_tools(core):
@@ -294,6 +300,7 @@ def register_report_preset_tools(core):
         page_numbers: bool = True,
         table_of_contents: bool = False,
         number_captions: bool = False,
+        layout: dict | str | None = None,
     ) -> dict:
         """Preview the exact native report composition plan without writing a file."""
         core._caller_subject()
@@ -303,6 +310,7 @@ def register_report_preset_tools(core):
             subtitle=subtitle, author=author, page_numbers=page_numbers,
             table_of_contents=table_of_contents,
             number_captions=number_captions,
+            layout=layout,
         )
         compiled = compile_rich_document_plan(requested)
         return {
@@ -328,6 +336,7 @@ def register_report_preset_tools(core):
         page_numbers: bool = True,
         table_of_contents: bool = False,
         number_captions: bool = False,
+        layout: dict | str | None = None,
     ):
         """One-call native report with headings, tables, equations and styles."""
         core._caller_subject()
@@ -336,6 +345,7 @@ def register_report_preset_tools(core):
             subtitle=subtitle, author=author, page_numbers=page_numbers,
             table_of_contents=table_of_contents,
             number_captions=number_captions,
+            layout=layout,
         )
         # Delegate to the registered P4.25 rich native authoring tool.
         # This callback is defined on the same MCP core by the previous

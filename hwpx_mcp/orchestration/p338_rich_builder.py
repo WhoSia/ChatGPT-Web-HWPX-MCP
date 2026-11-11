@@ -244,6 +244,10 @@ def compile_rich_document_plan(rich_plan: dict) -> dict:
         "setup": setup_ops,
         "blocks": flattened,
     }
+    # P4.26: rich requests must not silently drop existing P4.23
+    # per-plan native style profiles before reaching P3.21.
+    if rich_plan.get("style_profile") is not None:
+        plan["style_profile"] = rich_plan["style_profile"]
     if publishing:
         plan["publishing"] = publishing
     if rich_plan.get("annotations") is not None:

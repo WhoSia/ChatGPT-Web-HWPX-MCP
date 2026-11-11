@@ -103,3 +103,47 @@ is different from its direct source ancestry (verified P4.26). This
 is intentional: the P4.26 PR is archived without merge; the successor
 carries both P4.26 and P4.27 implementation for a future controlled
 merge/release instead of silently dropping predecessor functionality.
+
+
+## R2 — Genuine nested-table-in-cell editing acceptance (2026-11-11)
+
+Unlike the R1 fixture with two adjacent tables, R2 builds a **genuine native
+nested container**. It first generates an ordinary HWPX with two tables by
+`python-hwpx`, then moves the existing child `hp:tbl` element into an
+outer `hp:tc/hp:subList/hp:p/hp:run` inside the same section package,
+without synthesizing new binary resources. XML ancestry is inspected
+directly: exactly one `hp:tbl` must have an `hp:tc` ancestor.
+This structural assertion prevents a misleading pass on adjacent tables.
+
+New acceptance fixture: `tests/test_p427_nested_table_in_cell.py`.
+
+### Tested editing matrix
+
+| Edit | Expected admission | Postcondition |
+| --- | --- | --- |
+| Read outer and inner table locators | Admit | Two distinct table indices; exactly one nested child |
+| Change inner table page-break metadata | Admit | Child has new saved property; parent content and nesting preserved |
+| Edit a text cell inside the nested child | Admit | Target child value updated; all other child and parent values unchanged |
+| Edit a **non-host** peer cell in the parent | Admit | Peer value updated; all child cell values/geometry remain identical |
+| Replace whole parent **host cell** text | Refuse | `NESTED_TABLE_HOST_CELL_TEXT_EDIT_DEFERRED`; original HWPX SHA-256 unchanged |
+
+The guard is implemented in the established P2.7 native `set_cell_text`
+path rather than through a redundant XML writer. It specifically checks
+whether the target native cell contains a descendant `hp:tbl`. A host-cell
+replacement could destroy that child; until a lossless region-preserving
+algorithm is validated, it is *not* admitted. Normal neighboring cell edits
+remain available. No automatic flattening of nested structures is authorized.
+
+### Executed evidence
+
+- [R2 initial native CI #42975392819](https://github.com/WhoSia/ChatGPT-Web-HWPX-MCP/actions/runs/42975392819) **SUCCESS**, 61 inherited P4.25 + 98 P4.26 + 6 P4.27 = **165/165 tests** (genuine nested lookup and inner metadata edit).
+- [R2 updated native CI #42975783376](https://github.com/WhoSia/ChatGPT-Web-HWPX-MCP/actions/runs/42975783376) **SUCCESS**, 61 + 98 + 8 = **167/167 tests** (adds nested child text edit and host-cell fail-closed SHA-256 protection).
+- [R2 peer-cell native CI #42976028908](https://github.com/WhoSia/ChatGPT-Web-HWPX-MCP/actions/runs/42976028908) **SUCCESS**, 61 + 98 + 9 = **168/168 tests** (adds parent peer edit while preserving all child cell data/geometry). Tested code commit: `17b7a52e81b1ac10a56e380ee23929a4ed64d125`.
+- Existing independent real [rhwp render #42976028824](https://github.com/WhoSia/ChatGPT-Web-HWPX-MCP/actions/runs/42976028824) **SUCCESS** and [P4.26 native CI #42976028894](https://github.com/WhoSia/ChatGPT-Web-HWPX-MCP/actions/runs/42976028894) **SUCCESS** on this code commit.
+
+**Evidence boundary:** R2 verifies a synthetic HWPX package, native
+library reopening and semantic/geometry preservation for the specified
+edit scope. It does **not** prove arbitrary third-party nested-table import,
+all edit operations, strict unchanged ZIP bytes for successful edits,
+native Hancom pixel parity or production MCP deployment. The product/Docker
+pipeline is independently evaluated; see exact commit results before release.

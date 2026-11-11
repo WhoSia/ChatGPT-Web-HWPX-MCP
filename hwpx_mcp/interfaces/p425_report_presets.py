@@ -73,7 +73,13 @@ def _as_native_equation(equation: str | dict) -> dict:
         raise ValueError("REPORT_EQUATION_INVALID")
     if not isinstance(latex, str) or not latex.strip() or len(latex) > 4000:
         raise ValueError("REPORT_EQUATION_LATEX_INVALID")
-    block = {"type": "equation", "latex": latex.strip()}
+    from hwpx_mcp.equations.p426_latex_compatibility import normalize_equation_latex
+    policy = equation.get("policy", "strict") if isinstance(equation, dict) else "strict"
+    compatibility = normalize_equation_latex(latex, policy)
+    block = {"type": "equation", "latex": compatibility["normalized_latex"]}
+    if compatibility["spacing_adjusted"]:
+        block["source_latex_sha256"] = compatibility["original_sha256"]
+        block["spacing_normalization"] = compatibility["removed_spacing_commands"]
     if caption is not None:
         if not isinstance(caption, str) or len(caption) > 500:
             raise ValueError("REPORT_EQUATION_CAPTION_INVALID")

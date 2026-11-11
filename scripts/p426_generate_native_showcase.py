@@ -122,6 +122,7 @@ def create_showcase(output_dir: Path, *, table_segment_rows: int = 28) -> dict:
         number_captions=True,
         fit_figures_to_page=True,
         caption_clearance_pt=14.0,
+        equation_caption_mode="visible-paragraph",
         segment_long_tables=True,
         table_segment_rows=table_segment_rows,
         sections=[

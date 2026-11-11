@@ -11,13 +11,15 @@ from pathlib import Path
 
 from hwpx.equation import latex_to_eqedit
 from hwpx.equation.authoring import UnsupportedLatexError
+from hwpx_mcp.equations.p426_latex_compatibility import normalize_equation_latex
 
 
-def describe_equation(latex: str) -> dict:
+def describe_equation(latex: str, policy: str = "strict") -> dict:
     if not isinstance(latex, str) or not latex.strip() or len(latex) > 8192:
         raise ValueError("LATEX_EQUATION_INVALID")
+    compatibility = normalize_equation_latex(latex, policy=policy)
     try:
-        script = latex_to_eqedit(latex.strip())
+        script = latex_to_eqedit(compatibility["normalized_latex"])
     except UnsupportedLatexError as exc:
         # Preserve the exact incompatibility, instead of substituting
         # printable text or an image and claiming it is editable math.
@@ -26,6 +28,8 @@ def describe_equation(latex: str) -> dict:
         raise ValueError("EQEDIT_COMPILATION_EMPTY")
     return {
         "input_latex": latex.strip(),
+        "normalized_latex": compatibility["normalized_latex"],
+        "compatibility": compatibility,
         "latex_sha256": hashlib.sha256(latex.strip().encode("utf-8")).hexdigest(),
         "eqedit_script": script,
         "eqedit_script_sha256": hashlib.sha256(script.encode("utf-8")).hexdigest(),
@@ -38,10 +42,12 @@ def describe_equation(latex: str) -> dict:
 
 def register_equation_experience(core):
     @core.mcp.tool()
-    def preview_native_equation_script(latex: str) -> dict:
+    def preview_native_equation_script(
+        latex: str, policy: str = "strict",
+    ) -> dict:
         """Convert LaTeX into actual HWP EqEdit script without inserting it."""
         core._caller_subject()
-        return {"ok": True, **describe_equation(latex)}
+        return {"ok": True, **describe_equation(latex, policy=policy)}
 
     @core.mcp.tool()
     def inspect_document_equations(

@@ -130,7 +130,7 @@ def _validate_png_container(raw: bytes) -> None:
     verifies a self-contained uncorrupted PNG envelope, not color management,
     pixel validity, or final page placement.
     """
-    if not raw.startswith(b"\\x89PNG\\r\\n\\x1a\\n"):
+    if not raw.startswith(b"\x89PNG\r\n\x1a\n"):
         raise ValueError("REPORT_FIGURE_SIGNATURE_MISMATCH")
     offset = 8
     seen_ihdr = seen_idat = seen_iend = False

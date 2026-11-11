@@ -577,6 +577,12 @@ def _preset_format_operations(
     for block in blocks:
         target = bindings[block["id"]]["locator"]
         kind = block["type"]
+        # A captionless native equation is anchored to an empty paragraph
+        # with no text run. A body style profile is not a valid text-style
+        # operation for this anchor; the equation's own base_unit controls
+        # mathematical glyph size. Caption paragraphs are styled separately.
+        if kind == "equation" and not block.get("caption"):
+            continue
         run_format: dict = {}
         paragraph_format: dict = {}
 

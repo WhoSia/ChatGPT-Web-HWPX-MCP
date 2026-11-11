@@ -25,7 +25,7 @@ def _lines(svg: bytes) -> list[dict]:
             grouped.setdefault(round(y, 2), []).append((x, value))
     return [
         {"baseline_y": y, "text": re.sub(
-            r"\\s+", "", "".join(text for _, text in sorted(parts))
+            r"\s+", "", "".join(text for _, text in sorted(parts))
         )}
         for y, parts in sorted(grouped.items())
     ]
@@ -43,8 +43,8 @@ def audit_caption_to_body_gap(
         raise ValueError("CAPTION_AUDIT_BODY_INVALID")
     if type(minimum_baseline_gap) not in (int, float) or not 1 <= minimum_baseline_gap <= 100:
         raise ValueError("CAPTION_AUDIT_GAP_INVALID")
-    title_key = re.sub(r"\\s+", "", caption)
-    body_key = re.sub(r"\\s+", "", body_prefix)
+    title_key = re.sub(r"\s+", "", caption)
+    body_key = re.sub(r"\s+", "", body_prefix)
     title_positions = []
     body_positions = []
     for page_index, payload in enumerate(svg_pages):

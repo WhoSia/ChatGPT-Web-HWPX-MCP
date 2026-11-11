@@ -45,11 +45,40 @@ jobs:
           chmod +x "${bins[0]}"
           printf 'RHWP_PATH=%s\n' "${bins[0]}" >> "$GITHUB_ENV"
           "${bins[0]}" --version
+      - name: Install Korean glyph fallback and vector-to-PNG viewer
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends fonts-noto-cjk librsvg2-bin fontconfig
+          fc-cache -f
+          fc-match "Noto Serif CJK KR"
       - name: Render real SVG pages and record observed pagination
         shell: bash
         run: |
           set -euo pipefail
-          python -m scripts.p426_render_native_showcase             --source "p426-render-source/P426_합성_전기회로_실험보고서.hwpx"             --output-dir "p426-real-svg-pages"             --executable "$RHWP_PATH"             --pages 2
+          python -m scripts.p426_render_native_showcase             --source "p426-render-source/P426_합성_전기회로_실험보고서.hwpx"             --output-dir "p426-real-svg-pages"             --executable "$RHWP_PATH"             --pages 10
+      - name: Generate portable PNG previews with installed Korean fonts
+        shell: bash
+        run: |
+          set -euo pipefail
+          find p426-real-svg-pages -type f -name '*.svg' -print0 | while IFS= read -r -d '' svg; do
+            rsvg-convert "$svg" -o "${svg%.svg}.png"
+          done
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          root = Path("p426-real-svg-pages")
+          manifest = json.loads((root / "p426_rhwp_render_observation.json").read_text(encoding="utf-8"))
+          assert manifest["svg_pages"], "No rendered pages"
+          for page in manifest["svg_pages"]:
+              svg = root / page["relative_svg_path"]
+              png = svg.with_suffix(".png")
+              assert svg.is_file() and png.is_file(), (svg, png)
+              assert png.read_bytes().startswith(b"\x89PNG\r\n\x1a\n")
+          assert manifest["total_overflow_cell_lines"] == 0, "rhwp reported table-cell text clipping"
+          print("Real rhwp pages:", len(manifest["svg_pages"]))
+          PY
       - name: Upload actual rhwp SVG and observed render manifest
         if: success()
         uses: actions/upload-artifact@v4

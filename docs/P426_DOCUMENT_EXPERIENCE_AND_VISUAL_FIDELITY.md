@@ -426,3 +426,65 @@ and readable Hangul font fallback.
 a Windows Hancom page metric. This was tested on the synthetic
 science report and is now available as a general, opt-in API argument.
 No production deployment or live P4.26 client attachment claim.
+
+## R12 — Native editable equations with visibly rendered captions (2026-11-11)
+
+A direct inspection of the actual synthetic report's 5-page
+`rhwp` SVG/PNG showed that the *equation objects rendered* (e.g.
+`V=IR` and a fraction), but native equation-object captions
+`식 1. 옴의 법칙` and `식 2. 저항의 정의` did **not appear in
+the rendered page**. Previously, P3.21 attached these native captions
+via `equation.set_caption`; the saved HWPX package was structurally
+valid, but this renderer omitted them.
+
+**Implemented a controlled, opt-in fallback:** the report DSL now
+accepts `equation_caption_mode="native"|"visible-paragraph"`,
+with `native` retained as the backward-compatible default.
+Under `visible-paragraph`, caption numbering still occurs once
+per equation; the equation stays a real editable native HWPX math
+object, while its numbered caption is emitted as a separate ordinary
+native paragraph immediately after the equation. The equation's
+native caption field is removed *in this mode*, preventing duplicate
+caption rendering in native Hancom. Caption paragraphs receive
+bounded spacing and `keep_lines`.
+
+**A real integration failure was caught and repaired:** initially,
+styling a captionless native equation's empty anchor with regular
+paragraph/run formatting caused the P2.3 formatting engine to reject
+it (`Target paragraph has no text run to format`). P3.21's
+`_preset_format_operations` now skips text-run styling for native
+equation anchors without a caption; the equation's intrinsic script
+and base unit are preserved, while the visible caption paragraph
+is formatted separately. A synthetic real HWPX roundtrip confirms
+two editable equation objects and two visible caption paragraphs.
+
+**Visual acceptance:** `scripts/p426_visual_equation_caption_audit.py`
+inspects real SVG text lines; the CI requires the two numbered
+caption labels to be uniquely present in the rendered pages. The
+actual pinned `rhwp v0.8.7` renderer run
+[#42961200976](https://github.com/WhoSia/ChatGPT-Web-HWPX-MCP/actions/runs/42961200976)
+completed **SUCCESS**, reporting both `식 1. 옴의 법칙` and
+`식 2. 저항의 정의` exactly once on page 1. It also retains the
+existing five-page TOC cache refresh and caption-to-body clearance
+requirements.
+
+**Native regression:** run
+[#42961201010](https://github.com/WhoSia/ChatGPT-Web-HWPX-MCP/actions/runs/42961201010)
+completed **SUCCESS** with **61 inherited P4.25 + 84 P4.26 =
+145 passing tests**, zero errors/failures.
+
+**Actual generated artifacts:** download from the real renderer
+GitHub Actions run, including `P426_합성_전기회로_목차갱신.hwpx`,
+5 real SVG/PNG pages, `p426_equation_caption_visibility.json`,
+TOC and caption-spacing acceptance JSON. The refreshed HWPX was
+materialized in the conversation as
+`P426_수식캡션_목차_최신보고서.hwpx` (18,881 bytes;
+SHA-256 `3a69610c1db1b8269903bb5b2ce785e4e85d98047fa07af36d01a284960823d5`).
+A generated first-page PNG was visually inspected and confirmed to
+show readable Hangul equation captions beside the editable formulas.
+
+**Compatibility boundary:** this proves visual caption presence in
+the independent rhwp SVG renderer, not the native Windows Hancom
+placement or identical typography. The default native-caption mode
+is still available. A browser-hosted P4.26 MCP attachment download
+has not been verified against the currently deployed P4.18 service.

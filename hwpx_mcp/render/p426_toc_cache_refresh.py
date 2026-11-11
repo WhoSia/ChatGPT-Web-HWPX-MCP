@@ -66,7 +66,7 @@ def discover_native_toc_headings(source: Path) -> list[str]:
                 if entry is None:
                     continue
                 title, tab = entry
-                match = re.fullmatch(r"([1-9][0-9]*)\\.\\s*(.+)", title)
+                match = re.fullmatch(r"([1-9][0-9]*)\.\s*(.+)", title)
                 if match is None:
                     raise ValueError("TOC_HEADING_NUMBERING_UNSUPPORTED")
                 numbered.append((int(match.group(1)), match.group(2).strip()))

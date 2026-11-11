@@ -351,3 +351,23 @@ declared headings of the synthetic demonstration for the external
 renderer audit; arbitrary user-document heading discovery is follow-up
 work. A native Windows Hancom repagination and a real ChatGPT MCP-host
 delivery test remain separate prerequisites for production sign-off.
+
+### R10.1 — Native TOC heading auto-discovery
+
+The first TOC refresh pipeline required four explicitly supplied synthetic
+headings. This has now been generalized *conservatively*:
+`discover_native_toc_headings(source)` reads actual native TOC
+`HWPHYPERLINK_TARGET_OUTLINE` entries from the source HWPX, verifies
+sequential first-level numbering and unique titles, and obtains the
+headings without needing caller-written title lists.
+`scripts/p426_refresh_toc_from_render.py` defaults to that discovery.
+Complex hierarchical/unrecognized numbering is intentionally rejected
+instead of silently mapping to a guessed page.
+
+**Verified on the actual external renderer** at
+[run #42950411792](https://github.com/WhoSia/ChatGPT-Web-HWPX-MCP/actions/runs/42950411792):
+`TOC visual pass: CONSISTENT_IN_THIS_RENDERER pages: 5`.
+The resulting HWPX is still a new revision with all four cached page
+numbers matching actual SVG heading locations. This extends the code
+path beyond hardcoded demonstration headings while retaining the
+rhwp-versus-Windows Hancom fidelity distinction.

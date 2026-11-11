@@ -392,7 +392,7 @@ def register_report_preset_tools(core):
         title: str, sections: list[dict],
         preset: str = "science-report",
         subtitle: str = "", author: str = "",
-        filename: str = "report.hwpx",
+        filename: str = "",
         page_numbers: bool = True,
         table_of_contents: bool = False,
         number_captions: bool = False,
@@ -407,6 +407,11 @@ def register_report_preset_tools(core):
             number_captions=number_captions,
             layout=layout,
         )
+        if not filename:
+            # Human-readable default without requiring a document ID.
+            # The shared file-delivery layer performs final filename
+            # sanitization and owns download/attachment semantics.
+            filename = title.strip()[:80] + ".hwpx"
         # Delegate to the registered P4.25 rich native authoring tool.
         # This callback is defined on the same MCP core by the previous
         # registration module. No new XML serializer is introduced.

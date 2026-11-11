@@ -182,6 +182,8 @@ def build_report_plan(
         raise ValueError("REPORT_CAPTION_NUMBERING_INVALID")
 
     notes: list[dict] = []
+    crossrefs: list[dict] = []
+    explicit_ids: set[str] = set()
     blocks = [{"type": "title", "text": title.strip()}]
     if subtitle.strip():
         blocks.append({"type": "paragraph", "text": subtitle.strip()})
@@ -203,6 +205,36 @@ def build_report_plan(
                 raise ValueError("REPORT_CONTENT_INVALID")
             for item in content:
                 block = _as_ordered_block(item)
+                # Stable native paragraph identity is used by bookmarks,
+                # footnotes and page crossrefs in the P3.19/P3.20 engines.
+                requested_id = item.get("id")
+                if requested_id is not None:
+                    if (not isinstance(requested_id, str) or
+                            re.fullmatch(r"[A-Za-z][A-Za-z0-9_-]{0,63}", requested_id) is None):
+                        raise ValueError("REPORT_BLOCK_ID_INVALID")
+                    if requested_id in explicit_ids:
+                        raise ValueError("REPORT_BLOCK_ID_DUPLICATE")
+                    explicit_ids.add(requested_id)
+                    block["id"] = requested_id
+                if "bookmark" in item:
+                    bookmark = item["bookmark"]
+                    if (not isinstance(bookmark, str) or
+                            not 1 <= len(bookmark.strip()) <= 80):
+                        raise ValueError("REPORT_BOOKMARK_INVALID")
+                    block["bookmark"] = bookmark.strip()
+                if "page_ref_target" in item:
+                    if block["type"] != "paragraph":
+                        raise ValueError("REPORT_PAGE_REFERENCE_REQUIRES_PARAGRAPH")
+                    target = item["page_ref_target"]
+                    if not isinstance(target, str) or not target:
+                        raise ValueError("REPORT_PAGE_REFERENCE_TARGET_INVALID")
+                    if "id" not in block:
+                        ref_id = f"p426_ref_{len(crossrefs) + 1}"
+                        if ref_id in explicit_ids:
+                            raise ValueError("REPORT_BLOCK_ID_DUPLICATE")
+                        block["id"] = ref_id
+                        explicit_ids.add(ref_id)
+                    crossrefs.append({"paragraph": block["id"], "target": target})
                 # Keep the note attached to the native paragraph identity,
                 # not a printed superscript that loses HWPX semantics.
                 if isinstance(item, dict) and "footnote" in item:
@@ -214,8 +246,11 @@ def build_report_plan(
                         raise ValueError("REPORT_FOOTNOTE_TEXT_INVALID")
                     if len(notes) >= 100:
                         raise ValueError("REPORT_FOOTNOTE_LIMIT_EXCEEDED")
-                    block_id = f"p425_note_{len(notes) + 1}"
+                    block_id = block.get("id") or f"p425_note_{len(notes) + 1}"
+                    if block_id in explicit_ids and "id" not in block:
+                        raise ValueError("REPORT_BLOCK_ID_DUPLICATE")
                     block["id"] = block_id
+                    explicit_ids.add(block_id)
                     notes.append({
                         "op": "add_footnote",
                         "paragraph": "$block:" + block_id,
@@ -244,6 +279,21 @@ def build_report_plan(
             raise ValueError("REPORT_FIGURES_INVALID")
         blocks.extend(_as_native_figure(value) for value in figures)
 
+    # P3.19 resolves $block: identities after paragraph materialization,
+    # and inserts actual native page-reference fields before TOC generation.
+    if crossrefs:
+        available = {b.get("id") for b in blocks if b.get("id")}
+        for ref in crossrefs:
+            if ref["target"] not in available:
+                raise ValueError("REPORT_PAGE_REFERENCE_TARGET_MISSING")
+    post_operations = [
+        {"op": "add_page_crossref",
+         "paragraph": "$block:" + ref["paragraph"],
+         "target_paragraph": "$block:" + ref["target"],
+         "cached_page": 1}
+        for ref in crossrefs
+    ]
+
     if number_captions:
         counters = {"picture": 0, "table": 0, "equation": 0}
         names = {"picture": "그림", "table": "표", "equation": "식"}
@@ -270,6 +320,7 @@ def build_report_plan(
         **({"publishing": {"toc": {"at_index": 1, "title": "목차", "level": 3}}}
            if table_of_contents else {}),
         **({"annotations": notes} if notes else {}),
+        **({"post_operations": post_operations} if post_operations else {}),
     }
     if layout is not None:
         from hwpx_mcp.orchestration.p426_layout_tokens import compile_layout_tokens

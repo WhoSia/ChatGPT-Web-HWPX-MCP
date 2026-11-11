@@ -91,7 +91,7 @@ def make_synthetic_curve_png() -> bytes:
     )
 
 
-def create_showcase(output_dir: Path, *, table_segment_rows: int = 20) -> dict:
+def create_showcase(output_dir: Path, *, table_segment_rows: int = 28) -> dict:
     if type(table_segment_rows) is not int or not 5 <= table_segment_rows <= 60:
         raise ValueError("SHOWCASE_TABLE_SEGMENT_ROWS_INVALID")
     output_dir = Path(output_dir)
@@ -235,7 +235,7 @@ def create_showcase(output_dir: Path, *, table_segment_rows: int = 20) -> dict:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output-dir", type=Path, required=True)
-    parser.add_argument("--table-segment-rows", type=int, default=20)
+    parser.add_argument("--table-segment-rows", type=int, default=28)
     options = parser.parse_args()
     print(json.dumps(
         create_showcase(options.output_dir, table_segment_rows=options.table_segment_rows),

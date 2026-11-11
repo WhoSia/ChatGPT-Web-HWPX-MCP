@@ -313,8 +313,11 @@ def register_report_preset_tools(core):
             layout=layout,
         )
         compiled = compile_rich_document_plan(requested)
+        from hwpx_mcp.orchestration.p426_layout_preflight import assess_native_layout
+        fit = assess_native_layout(compiled["plan"], layout or "science-lab")
         return {
             "ok": True, "committed": False, "native_pdf_created": False,
+            "layout_preflight": fit,
             "preset": requested["preset"],
             "block_count": compiled["block_count"],
             "block_counts": compiled["block_counts"],

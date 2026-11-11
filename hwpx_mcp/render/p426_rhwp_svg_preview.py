@@ -37,6 +37,7 @@ def render_svg_manifest(
     timeout_seconds: int = 90,
     profile: str = "screen",
     max_pages: int = 20,
+    page_index: int | None = None,
 ) -> dict:
     if profile not in ("screen", "print", "high-quality", "fast-preview"):
         raise ValueError("RHWP_PROFILE_INVALID")
@@ -44,6 +45,8 @@ def render_svg_manifest(
         raise ValueError("RHWP_TIMEOUT_INVALID")
     if type(max_pages) is not int or not 1 <= max_pages <= 100:
         raise ValueError("RHWP_MAX_PAGES_INVALID")
+    if page_index is not None and (type(page_index) is not int or page_index < 0):
+        raise ValueError("RHWP_PAGE_INDEX_INVALID")
     source = Path(source).resolve(strict=True)
     output_dir = Path(output_dir).resolve(strict=True)
     if source.suffix.lower() != ".hwpx" or not source.is_file():
@@ -56,6 +59,8 @@ def render_svg_manifest(
     before = hashlib.sha256(source.read_bytes()).hexdigest()
     args = [executable_path, "export-svg", str(source), "-o",
             str(output_dir), "--json", "--profile", profile]
+    if page_index is not None:
+        args.extend(["-p", str(page_index)])
     try:
         proc = subprocess.run(
             args, capture_output=True, timeout=timeout_seconds,

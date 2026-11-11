@@ -30,12 +30,12 @@ class EquationCaptionExperienceTests(unittest.TestCase):
         equations = [b for b in blocks if b["type"] == "equation"]
         self.assertEqual([b.get("caption") for b in equations],
                          ["식 1. 옴의 법칙", "식 2. 저항의 정의"])
-        self.assertFalse(any(b.get("_p426_caption_for") for b in blocks))
+        self.assertFalse(any(b.get("_p426_visible_math_caption") for b in blocks))
 
     def test_explicit_fallback_uses_visible_paragraphs_no_duplicate_native_caption(self):
         blocks = report("visible-paragraph")["sections"][0]["blocks"]
         equations = [b for b in blocks if b["type"] == "equation"]
-        captions = [b for b in blocks if b.get("_p426_caption_for") is not None]
+        captions = [b for b in blocks if b.get("_p426_visible_math_caption") is True]
         self.assertEqual(len(equations), 2)
         self.assertEqual(len(captions), 2)
         self.assertTrue(all("caption" not in b for b in equations))

@@ -204,3 +204,75 @@ or rendered page pixel. Table-anchor paragraphs are excluded from
 the paragraph gate and remain partly protected by table semantics.
 Native Windows Hancom fidelity and live server deployment are separate
 release gates. Do not describe this as arbitrary-document losslessness.
+
+
+## R4 — Owner-gated MCP preservation transaction (2026-11-11)
+
+P4.27 R3 was a callable Python preservation transaction, not yet an MCP
+tool. R4 exposes **`apply_preserved_table_edit(document_id,
+expected_revision, operation, lease_token="")`** as a new MCP tool in
+`server_p2.py`; the existing `apply_advanced_table_edits` contract
+remains unchanged. This is a **bounded alternative**, not an unsafe
+global replacement or a production release.
+
+The tool's implementation reuses `_owned_document` and the existing
+OAuth principal/owner gate, revision readback and durable-store metadata
+commit path, as well as `core.validate_hwpx_package` on the staged file.
+R3 now retains the package validator's receipt, allowing the final MCP
+response to carry validation, package-part footprint, table/cell semantic
+preservation, unrelated-body-paragraph checks and the committed SHA-256.
+Only one `set_cell_text` or `set_table_page_break` is admitted. Lease
+tokens are handled through the existing revision store compatibility
+mechanism; this does **not** establish multi-client serializability
+independently of the durable revision/CAS store.
+
+### CI lessons and corrective actions
+
+1. First R4 test attempt [native CI #42993631155](https://github.com/WhoSia/ChatGPT-Web-HWPX-MCP/actions/runs/42993631155)
+   failed importing `server_p2` because ordinary native CI has no
+   `P12_AUTH_DATABASE_URL`. Do not interpret this as a successful server
+   acceptance or turn off authentication to avoid the failure.
+2. Splitting native and PostgreSQL tests exposed another authentic
+   dependency: the host imports P3.45's **compiled TypeScript runtime**,
+   which the Python-only runner had not built. The PostgreSQL R4 job
+   initially failed for this reason. This was resolved by running the
+   authenticated suite in the **exact production Docker image** with
+   compiled TS/Rust components and a CI-only PostgreSQL service, instead
+   of inventing a stub runtime.
+3. The owner test now exercises the existing `_require_owner` check
+   with a foreign caller identity, not just a mocked function exception.
+   Other tests cover successful owner-scoped edit + metadata revision
+   bump, stale revision, invalid operation, and package validation
+   failure with the original file unchanged.
+
+### Verified acceptance
+
+At code SHA `4491c8b2f1e64a88d101e5cdc5e3b1cb5d7e69ee`:
+
+- [P4.27 dual-mode acceptance #42994792940](https://github.com/WhoSia/ChatGPT-Web-HWPX-MCP/actions/runs/42994792940)
+  **SUCCESS**. Native: inherited P4.25 61 + P4.26 98 +
+  P4.27 21 discovered with **5 server-only skips** (16 executed
+  native P4.27 tests). Production-image authenticated job:
+  **5/5 real in-process server tests PASS**, with live PostgreSQL
+  dependency, the actual compiled product runtime and validated HWPX.
+  Explicitly do not count the native skips as passes.
+- [P4.26 native #42994793020](https://github.com/WhoSia/ChatGPT-Web-HWPX-MCP/actions/runs/42994793020)
+  **SUCCESS**.
+- [Real rhwp #42994792898](https://github.com/WhoSia/ChatGPT-Web-HWPX-MCP/actions/runs/42994792898)
+  **SUCCESS**.
+- [Product / Docker #42994792977](https://github.com/WhoSia/ChatGPT-Web-HWPX-MCP/actions/runs/42994792977)
+  **SUCCESS**.
+
+Test module: `tests/test_p427_server_preserved_edit.py`; exact
+production runtime check: `.github/workflows/p427-ci.yml`. The
+existing MCP client tool inventory in `tests/test_client.py` now
+requires `apply_preserved_table_edit` but an actual network OAuth
+client round trip has **not** been certified.
+
+**Release boundaries:** No merge to main or deployment of P4.27,
+and no claim of Windows Hancom-native visual fidelity. The exact
+preservation assertion covers declared table data, unrelated ordinary
+body paragraphs and package parts, **not** arbitrary hidden content,
+global semantic invariants or visual page equivalence. The new
+server entrypoint follows the existing durable commit design; full
+cross-resource crash atomicity is a separate failure-injection gate.

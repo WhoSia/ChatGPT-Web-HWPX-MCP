@@ -12,7 +12,7 @@ import os
 import tempfile
 import zipfile
 from pathlib import Path
-from xml.etree import ElementTree
+from lxml import etree
 
 from scripts.p426_visual_toc_audit import audit_toc_page_cache
 
@@ -23,7 +23,7 @@ def _sha(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
-def _native_toc_entry(paragraph: ElementTree.Element) -> tuple[str, ElementTree.Element] | None:
+def _native_toc_entry(paragraph: etree._Element) -> tuple[str, ElementTree.Element] | None:
     """Find only the TOC-generated HYPERLINK→OUTLINE, never arbitrary tabs."""
     fields = paragraph.findall(f".//{HP}fieldBegin")
     if not any(
@@ -79,7 +79,7 @@ def refresh_native_toc_cache_from_svg(
         for member in member_names:
             if not member.startswith("Contents/section") or not member.endswith(".xml"):
                 continue
-            root = ElementTree.fromstring(archive.read(member))
+            root = etree.fromstring(archive.read(member))
             touched = False
             for paragraph in root.iter(f"{HP}p"):
                 entry = _native_toc_entry(paragraph)
@@ -101,7 +101,7 @@ def refresh_native_toc_cache_from_svg(
                     })
                     touched = True
             if touched:
-                xml_updates[member] = ElementTree.tostring(
+                xml_updates[member] = etree.tostring(
                     root, encoding="utf-8", xml_declaration=True,
                 )
         if seen != set(expected):

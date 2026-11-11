@@ -139,7 +139,7 @@ def apply_bounded_table_edit_with_preservation_atomic(
     *,
     expected_revision: int,
     current_revision: int,
-    candidate_validator: Callable[[Path], None] | None = None,
+    candidate_validator: Callable[[Path], dict | None] | None = None,
 ) -> dict:
     """Edit a staged HWPX; commit only after package and cell-level gates pass.
 
@@ -176,8 +176,7 @@ def apply_bounded_table_edit_with_preservation_atomic(
             expected_revision=expected_revision,
             current_revision=current_revision,
         )
-        if candidate_validator is not None:
-            candidate_validator(candidate)
+        validation = candidate_validator(candidate) if candidate_validator is not None else None
         after = build_advanced_table_map(candidate)
         semantic = _verify_semantics(before, after, expected)
         if _unrelated_body_paragraphs(candidate) != untouched_body:
@@ -194,6 +193,7 @@ def apply_bounded_table_edit_with_preservation_atomic(
         "operation": operation["op"],
         "edit_receipt": edit_receipt,
         "semantic_preservation": semantic,
+        "package_validation": validation,
         "unrelated_body_paragraphs_verified": len(untouched_body),
         "mutation_footprint": certificate,
         "preservation_enforcement": enforcement,

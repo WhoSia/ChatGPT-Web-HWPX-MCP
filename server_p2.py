@@ -62,6 +62,9 @@ from hwpx_mcp.document.p323_advanced_tables import (
     build_advanced_table_map,
     apply_advanced_table_edits_atomic,
 )
+from hwpx_mcp.custody.p427_structured_edit_preservation import (
+    apply_bounded_table_edit_with_preservation_atomic,
+)
 from hwpx_mcp.document.p324_story_layer import (
     story_layer_contract,
     build_story_layer_map,
@@ -3451,6 +3454,74 @@ def apply_advanced_table_edits(
         "native_render_batch_status": "DEFERRED_BY_DESIGN",
         "collaboration": {
             "server_revision_history": True,
+            "cas_guarded": True,
+            "lease_compatible": True,
+        },
+    }
+
+
+@core.mcp.tool()
+def apply_preserved_table_edit(
+    document_id: str,
+    expected_revision: int,
+    operation: dict,
+    lease_token: str = "",
+) -> dict:
+    """Edit one native table field with package, semantic and body preservation evidence.
+
+    R4 intentionally admits only one set_cell_text or set_table_page_break
+    operation. Authorization and revision custody use the existing document
+    store. All changes are staged until the preservation gates pass.
+    """
+    metadata, path = _owned_document(document_id)
+    current_revision = int(metadata["revision"])
+    ingress = metadata.get("source") == "existing-ingress"
+    transaction = apply_bounded_table_edit_with_preservation_atomic(
+        path,
+        operation,
+        expected_revision=int(expected_revision),
+        current_revision=current_revision,
+        candidate_validator=lambda candidate: core.validate_hwpx_package(
+            candidate, ingress=ingress
+        ),
+    )
+    validation = transaction["package_validation"]
+    if not isinstance(validation, dict):
+        raise ValueError("R4_PACKAGE_VALIDATION_MISSING")
+    after_document = build_document_map(path)
+    after_formatting = build_formatting_map(path)
+    after_inline = build_inline_map(path)
+    after_tables = build_advanced_table_map(path)
+    after_objects = build_object_map(path)
+    after_equations = build_equation_map(path)
+    metadata["revision"] = current_revision + 1
+    metadata["last_edit_at"] = core._utc_iso()
+    if lease_token:
+        metadata["_commit_lease_token"] = lease_token
+    _refresh_metadata(
+        document_id,
+        metadata,
+        validation,
+        after_document,
+        after_formatting,
+        after_inline,
+        after_tables,
+        after_objects,
+        after_equations,
+    )
+    return {
+        "ok": True,
+        "document_id": document_id,
+        "revision_before": current_revision,
+        "revision_after": int(metadata["revision"]),
+        "sha256": validation["sha256"],
+        "preserved_edit": transaction,
+        "preservation_grade": transaction["preservation_enforcement"]["actual_grade"],
+        "validation": validation,
+        "transaction": "COMMITTED",
+        "authority": "R4_NATIVE_TABLE_AND_PACKAGE_SCOPE_ONLY_NOT_HANCOM_RENDER",
+        "collaboration": {
+            "owner_checked": True,
             "cas_guarded": True,
             "lease_compatible": True,
         },

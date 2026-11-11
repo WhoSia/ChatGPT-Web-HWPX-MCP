@@ -45,4 +45,5 @@ jobs:
         run: |
           python -m unittest discover -s tests -p 'test_p425_*.py' -v
           python -m unittest discover -s tests -p 'test_p426_*.py' -v
-          python -m unittest discover -s tests -p 'test_p333_file_delivery.py' -v
+          # P3.33's server-level test requires an external OAuth Postgres.
+          # Equivalent signed-link HTTP integration runs in P4.26 without DB.

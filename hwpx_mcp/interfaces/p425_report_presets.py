@@ -431,7 +431,7 @@ def build_report_plan(
                     "spacing_after_pt": 8,
                     "keep_lines": True,
                 },
-                "_p426_caption_for": equation.get("id"),
+                "_p426_visible_math_caption": True,
             })
         blocks = visible_blocks
 

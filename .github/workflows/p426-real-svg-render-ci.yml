@@ -106,6 +106,26 @@ jobs:
           assert result["status"] == "BASELINE_CLEARANCE_ACCEPTED", result
           print("P4.26 caption clearance measured:", result["baseline_gap"])
           PY
+      - name: Require actual visible math captions in real SVG pages
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          from scripts.p426_refresh_toc_from_render import load_complete_svg_pages
+          from scripts.p426_visual_equation_caption_audit import audit_visible_equation_captions
+          root=Path("p426-real-svg-pages")
+          pages=load_complete_svg_pages(root)
+          result=audit_visible_equation_captions(
+              pages, ["식 1. 옴의 법칙", "식 2. 저항의 정의"],
+          )
+          (root / "p426_equation_caption_visibility.json").write_text(
+              json.dumps(result, ensure_ascii=False, indent=2)+"\n", encoding="utf-8"
+          )
+          assert result["status"] == "ALL_VISIBLE", result
+          print("Equation captions visible in actual SVG:", result["captions"])
+          PY
       - name: Compare 20-row 28-row and 36-row budgets in actual renderer
         shell: bash
         run: |

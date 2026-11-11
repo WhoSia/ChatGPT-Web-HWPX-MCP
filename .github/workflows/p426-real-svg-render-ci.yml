@@ -57,7 +57,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python -m scripts.p426_render_native_showcase             --source "p426-render-source/P426_합성_전기회로_실험보고서.hwpx"             --output-dir "p426-real-svg-pages"             --executable "$RHWP_PATH"             --pages 10
+          python -m scripts.p426_render_native_showcase             --source "p426-render-source/P426_합성_전기회로_분할개선보고서.hwpx"             --output-dir "p426-real-svg-pages"             --executable "$RHWP_PATH"             --pages 10
       - name: Generate portable PNG previews with installed Korean fonts
         shell: bash
         run: |
@@ -76,8 +76,8 @@ jobs:
               png = svg.with_suffix(".png")
               assert svg.is_file() and png.is_file(), (svg, png)
               assert png.read_bytes().startswith(b"\x89PNG\r\n\x1a\n")
-          assert manifest["total_overflow_cell_lines"] == 0, "rhwp reported table-cell text clipping"
           print("Real rhwp pages:", len(manifest["svg_pages"]))
+          print("Observed rhwp table-cell text overflow lines:", manifest["total_overflow_cell_lines"])
           PY
       - name: Upload actual rhwp SVG and observed render manifest
         if: success()
@@ -89,3 +89,17 @@ jobs:
             p426-render-source/P426_생성검증_manifest.json
           if-no-files-found: error
           retention-days: 30
+      - name: Enforce no rhwp-rendered table text clipping
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          result = json.loads(Path("p426-real-svg-pages/p426_rhwp_render_observation.json").read_text(encoding="utf-8"))
+          assert result["svg_pages"], "No SVG pages"
+          assert result["total_overflow_cell_lines"] == 0, (
+              "Real renderer reported clipped table lines: "
+              + str(result["total_overflow_cell_lines"])
+          )
+          print("No clipped cell lines reported across all observed SVG pages")
+          PY

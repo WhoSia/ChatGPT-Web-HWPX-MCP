@@ -94,7 +94,7 @@ def make_synthetic_curve_png() -> bytes:
 def create_showcase(output_dir: Path) -> dict:
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
-    filename = "P426_합성_전기회로_실험보고서.hwpx"
+    filename = "P426_합성_전기회로_분할개선보고서.hwpx"
     destination = output_dir / filename
     if destination.exists():
         raise FileExistsError(f"Will not overwrite existing example: {destination}")
@@ -115,6 +115,8 @@ def create_showcase(output_dir: Path) -> dict:
         page_numbers=True,
         number_captions=True,
         fit_figures_to_page=True,
+        segment_long_tables=True,
+        table_segment_rows=20,
         sections=[
             {"heading": "연구 배경", "content": [
                 {"type": "paragraph", "id": "scope", "bookmark": "StudyScope",
@@ -167,9 +169,13 @@ def create_showcase(output_dir: Path) -> dict:
                 ElementTree.fromstring(archive.read(entry))
 
     assert receipt["atomic_commit"], "Native composition is not atomic"
-    assert len(tables) == 1 and tables[0]["rows"] == 80
-    assert len(tables[0]["cells"]) == 240
-    assert tables[0]["repeat_header"] and tables[0]["page_break"] == "CELL"
+    assert len(tables) == 5
+    assert [table["rows"] for table in tables] == [20, 20, 20, 20, 4]
+    assert sum(table["rows"] - 1 for table in tables) == 79
+    assert sum(len(table["cells"]) for table in tables) == 252
+    assert all(table["repeat_header"] and table["page_break"] == "CELL"
+               for table in tables)
+    assert all(table["row_geometry"][0]["all_header"] for table in tables)
     assert len(equations) == 2 and len(objects["pictures"]) == 1
     assert notes["counts"]["footnotes"] == 1
     assert any(item["name"] == "StudyScope" for item in publishing["bookmarks"])
@@ -184,10 +190,12 @@ def create_showcase(output_dir: Path) -> dict:
         "size_bytes": destination.stat().st_size,
         "compiled_plan_sha256": compiled["plan_sha256"],
         "native_tables": len(tables),
-        "table_rows": tables[0]["rows"],
-        "table_cells": len(tables[0]["cells"]),
-        "table_break_policy": tables[0]["page_break"],
-        "native_repeat_header": tables[0]["repeat_header"],
+        "table_rows": 80,
+        "native_segment_rows": [table["rows"] for table in tables],
+        "table_cells": sum(len(table["cells"]) for table in tables),
+        "table_break_policy": "CELL",
+        "native_repeat_header": all(table["repeat_header"] for table in tables),
+        "long_table_mode": "NATIVE_SEGMENTED_WITH_PAGE_BREAKS",
         "native_pictures": len(objects["pictures"]),
         "picture_geometry": [
             {"width": item["width"], "height": item["height"]}

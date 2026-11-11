@@ -166,7 +166,7 @@ def _as_ordered_block(item: dict) -> dict:
             requested = item["paragraph_format"]
             if (not isinstance(requested, dict) or
                     set(requested) - {"spacing_before_pt", "spacing_after_pt",
-                                      "keep_with_next", "keep_together"}):
+                                      "keep_with_next", "keep_lines"}):
                 raise ValueError("REPORT_PARAGRAPH_FORMAT_INVALID")
             for key in ("spacing_before_pt", "spacing_after_pt"):
                 if key in requested and (
@@ -174,7 +174,7 @@ def _as_ordered_block(item: dict) -> dict:
                     or not 0 <= requested[key] <= 72
                 ):
                     raise ValueError("REPORT_PARAGRAPH_SPACING_INVALID")
-            for key in ("keep_with_next", "keep_together"):
+            for key in ("keep_with_next", "keep_lines"):
                 if key in requested and type(requested[key]) is not bool:
                     raise ValueError("REPORT_PARAGRAPH_KEEP_INVALID")
             block["paragraph_format"] = dict(requested)

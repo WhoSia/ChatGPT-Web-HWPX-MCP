@@ -42,6 +42,14 @@ class ReportPresetTests(unittest.TestCase):
         self.assertEqual(result["next_tool"], "create_report_from_sections_and_deliver")
         self.assertIn("preview_report_plan", self.mcp.tools)
 
+    def test_default_download_filename_uses_readable_report_title(self):
+        result = self.mcp.tools["create_report_from_sections_and_deliver"](
+            title="전기 회로 특성 분석",
+            sections=[{"heading": "결과", "paragraphs": ["관찰 결과"]}],
+        )
+        self.assertTrue(result["native"])
+        self.assertEqual(result["filename"], "전기 회로 특성 분석.hwpx")
+
     def test_single_call_creates_science_report_with_real_table_blocks(self):
         result = self.mcp.tools["create_report_from_sections_and_deliver"](
             title="산화환원 실험",

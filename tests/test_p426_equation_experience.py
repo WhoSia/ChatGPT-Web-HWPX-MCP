@@ -34,7 +34,7 @@ class EquationExperienceTests(unittest.TestCase):
             r"\frac{a+b}{c}",
             r"\sqrt{x^2+y^2}",
             r"\sum_{i=1}^{n} i",
-            r"\int_0^1 x^2\,dx",
+            r"\int_0^1 x^2 dx",
             r"\begin{matrix}a&b\\c&d\end{matrix}",
         ]
         for latex in formulas:
@@ -44,6 +44,10 @@ class EquationExperienceTests(unittest.TestCase):
                 self.assertEqual(len(info["eqedit_script_sha256"]), 64)
                 self.assertTrue(info["editable_in_hancom"])
                 self.assertFalse(info["native_render_verified"])
+
+    def test_unsupported_spacing_macro_is_explicit_not_silently_removed(self):
+        with self.assertRaisesRegex(ValueError, "LATEX_TO_EQEDIT_UNSUPPORTED"):
+            describe_equation(r"\\int_0^1 x^2\\,dx")
 
     def test_empty_latex_refused(self):
         with self.assertRaisesRegex(ValueError, "LATEX_EQUATION_INVALID"):

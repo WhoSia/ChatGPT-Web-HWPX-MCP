@@ -3,6 +3,11 @@ from __future__ import annotations
 
 import base64
 import unittest
+import tempfile
+from pathlib import Path
+from hwpx_mcp.orchestration.p338_rich_builder import compile_rich_document_plan
+from hwpx_mcp.document.p321_document_composer import compose_document_plan
+from hwpx_mcp.document.p29_objects import build_object_map
 
 from hwpx_mcp.orchestration.p426_layout_preflight import fit_native_pictures_to_body
 from hwpx_mcp.interfaces.p425_report_presets import build_report_plan
@@ -44,6 +49,30 @@ class PictureFitTests(unittest.TestCase):
         self.assertEqual(orig_block["width"], 80000)
         self.assertLess(fit_block["width"], orig_block["width"])
         self.assertLess(fit_block["height"], orig_block["height"])
+
+    def test_real_native_hwpx_picture_has_fitted_saved_geometry(self):
+        payload = ("iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0k"
+                   "AAAAFElEQVR4nGMUscn7z8DAwMDEAAUAGa4BwYhFMToAAAAASUVORK5CYII=")
+        requested = build_report_plan(
+            title="너비 맞춤 검증", fit_figures_to_page=True,
+            layout="science-lab",
+            sections=[{"heading": "결과", "content": [{
+                "type": "figure", "image_format": "png",
+                "content_base64": payload, "width": 80000,
+                "height": 40000, "caption": "합성 그림",
+            }]}],
+        )
+        picture = requested["sections"][0]["blocks"][-1]
+        self.assertLess(picture["width"], 80000)
+        compiled = compile_rich_document_plan(requested)
+        with tempfile.TemporaryDirectory(prefix="p426-fit-real-") as tmp:
+            path = Path(tmp) / "figure.hwpx"
+            receipt = compose_document_plan(path, compiled["plan"])
+            self.assertTrue(receipt["atomic_commit"])
+            figures = build_object_map(path)["pictures"]
+            self.assertEqual(len(figures), 1)
+            self.assertEqual(figures[0]["width"], picture["width"])
+            self.assertEqual(figures[0]["height"], picture["height"])
 
     def test_wrong_fit_setting_and_dimensions_rejected(self):
         with self.assertRaisesRegex(ValueError, "FIT_INVALID"):

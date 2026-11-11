@@ -106,6 +106,20 @@ class CompetitorPatternToolsTests(unittest.TestCase):
         )
         self.assertFalse(result["executes_mutations"])
 
+    def test_p426_discovery_exposes_equation_and_render_workflows(self):
+        cases = {
+            "수식": "preview_native_equation_script",
+            "렌더링": "get_document_render_options",
+            "책갈피": "inspect_document_references",
+        }
+        for task, wanted in cases.items():
+            with self.subTest(task=task):
+                response = self.mcp.tools["discover_hwpx_workflows"](task, limit=10)
+                tools = [item["tool"] for item in response["matching_workflows"]]
+                self.assertIn(wanted, tools)
+                self.assertEqual(response["phase"], "P4.26")
+                self.assertFalse(response["executes_mutations"])
+
     def test_discovery_invalid_limit_does_not_execute_any_edit(self):
         with self.assertRaisesRegex(ValueError, "LIMIT"):
             self.mcp.tools["discover_hwpx_workflows"]("table", limit=100)

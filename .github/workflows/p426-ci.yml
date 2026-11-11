@@ -50,7 +50,7 @@ jobs:
           # Equivalent signed-link HTTP integration runs in P4.26 without DB.
       - name: Generate downloadable synthetic HWPX showcase
         run: |
-          python scripts/p426_generate_native_showcase.py --output-dir ./p426-showcase-output
+          python -m scripts.p426_generate_native_showcase --output-dir ./p426-showcase-output
           python - <<'PY'
           import hashlib, json
           from pathlib import Path

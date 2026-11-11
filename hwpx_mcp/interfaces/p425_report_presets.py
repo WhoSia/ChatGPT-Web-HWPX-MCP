@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import base64
 import binascii
+import math
 import re
 from copy import deepcopy
 
@@ -48,6 +49,10 @@ def _as_native_table(table: dict) -> dict:
     if any(not isinstance(value, (str, int, float)) or isinstance(value, bool)
            for row in grid for value in row):
         raise ValueError("REPORT_TABLE_VALUE_INVALID")
+    # Refuse NaN and infinities rather than writing misleading numerical cells.
+    if any(isinstance(value, float) and not math.isfinite(value)
+           for row in grid for value in row):
+        raise ValueError("REPORT_TABLE_NONFINITE_VALUE")
     block = {
         "type": "table", "rows": len(grid), "cols": width,
         "cells": [[str(value) for value in row] for row in grid],

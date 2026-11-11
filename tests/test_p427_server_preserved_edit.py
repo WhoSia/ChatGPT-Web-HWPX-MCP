@@ -7,6 +7,7 @@ transaction logic are genuinely exercised without a network or database.
 from __future__ import annotations
 
 import hashlib
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -14,10 +15,16 @@ from unittest.mock import Mock, patch
 
 from hwpx import HwpxDocument
 
-import server_p2 as api
+# The native-only acceptance runner has no OAuth/Postgres service; the
+# authenticated server test is executed independently in the Postgres job.
+if os.environ.get("P12_AUTH_DATABASE_URL") and os.environ.get("P12_STATE_SECRET"):
+    import server_p2 as api
+else:
+    api = None
 from hwpx_mcp.document.p323_advanced_tables import build_advanced_table_map
 
 
+@unittest.skipUnless(api is not None, "requires authenticated PostgreSQL server")
 class PreservedEditMcpAcceptanceTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory(prefix="p427-r4-mcp-")

@@ -540,3 +540,21 @@ Regression: `tests/test_p426_figure_container_integrity.py` contains
 valid-byte preservation and four corrupted-container cases. This is an
 **input container-integrity check**, not a rendered-visual fidelity oracle.
 The complete latest CI and genuine Hancom acceptance remain separate gates.
+
+
+### R14 CI failure and corrective action
+
+The initial R14 code commit `fdfbef6` and test commit `cb08a37`
+failed in **both** inherited P4.25 native-report regression and the
+authentic synthetic-showcase generation step. Logs showed a
+`REPORT_FIGURE_SIGNATURE_MISMATCH` for valid PNGs: the newly added
+PNG signature literal had accidentally been double-escaped in source,
+so it matched printable backslash characters instead of actual PNG
+header bytes. The regression was corrected in `d8dc00b` by using
+the exact native PNG signature literal. This is an example of a new
+validation gate breaking older working input; tests must include
+both normal images and deliberately corrupt containers.
+
+Do not treat the failed runs as passes. Latest full native and real
+rhwp checks must be read from their completed workflows for the
+corrected commit before promotion.

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import os
+import re
 import tempfile
 import zipfile
 from pathlib import Path
@@ -43,6 +44,38 @@ def _native_toc_entry(paragraph: etree._Element) -> tuple[str, ElementTree.Eleme
     if len(matches) != 1:
         raise ValueError("TOC_NATIVE_ENTRY_AMBIGUOUS")
     return matches[0]
+
+
+def discover_native_toc_headings(source: Path) -> list[str]:
+    """Find exact first-level numbered TOC headings from saved HWPX entries.
+
+    This intentionally rejects hierarchical/unrecognized TOC numbering
+    rather than inferring an unreliable title-to-page mapping.
+    """
+    source = Path(source)
+    if not source.is_file() or source.suffix.lower() != ".hwpx":
+        raise ValueError("TOC_DISCOVERY_SOURCE_INVALID")
+    numbered = []
+    with zipfile.ZipFile(source, "r") as archive:
+        for member in archive.namelist():
+            if not member.startswith("Contents/section") or not member.endswith(".xml"):
+                continue
+            root = etree.fromstring(archive.read(member))
+            for p in root.iter(f"{HP}p"):
+                entry = _native_toc_entry(p)
+                if entry is None:
+                    continue
+                title, tab = entry
+                match = re.fullmatch(r"([1-9][0-9]*)\\.\\s*(.+)", title)
+                if match is None:
+                    raise ValueError("TOC_HEADING_NUMBERING_UNSUPPORTED")
+                numbered.append((int(match.group(1)), match.group(2).strip()))
+    if not numbered or [index for index, _ in numbered] != list(range(1, len(numbered) + 1)):
+        raise ValueError("TOC_HEADING_SEQUENCE_INVALID")
+    titles = [title for _, title in numbered]
+    if len(set(titles)) != len(titles) or any(not title for title in titles):
+        raise ValueError("TOC_HEADING_DUPLICATE_OR_EMPTY")
+    return titles
 
 
 def refresh_native_toc_cache_from_svg(

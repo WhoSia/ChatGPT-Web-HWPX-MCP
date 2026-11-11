@@ -488,3 +488,36 @@ the independent rhwp SVG renderer, not the native Windows Hancom
 placement or identical typography. The default native-caption mode
 is still available. A browser-hosted P4.26 MCP attachment download
 has not been verified against the currently deployed P4.18 service.
+
+
+## R13 — Numeric integrity and column-legibility preflight (2026-11-11)
+
+This incremental change targets avoidable defects in *real input* before native
+composition, rather than counting tool registrations as user-visible progress.
+
+- The report table adapter now rejects IEEE-754 NaN and positive/negative
+  infinities using `math.isfinite`. Formerly these silently became literal
+  strings `nan`, `inf`, `-inf` in the native HWPX table. Finite measurements
+  and negative scientific notation retain their previous serialization.
+  Regression: `tests/test_p426_numeric_integrity.py`.
+- The existing P4.26 static layout preflight now warns when the average
+  width of an explicitly sized multi-column table is below **12 mm**
+  (`NARROW_AVERAGE_TABLE_COLUMN`), including an approximate mm value.
+  This catches a case in which the table's *total* width fits but individual
+  columns would likely be illegible. It is explicitly a conservative heuristic:
+  real column widths, merged cells, font metrics, and wrapping still require
+  renderer checks. Regression: `tests/test_p426_layout_preflight.py`.
+- No new MCP tool was added; existing authoring and preflight interfaces are
+  improved. This patch does not prove superiority over competitor MCPs,
+  native Hancom rendering, live deployment, or client-side attachment UX.
+- Do not report CI as passed until the exact latest commit's workflow completes.
+  Preserve the current P4.26 draft branch; do not merge or deploy as part of
+  this defect-repair slice.
+
+**Competitive context:** Dayoooun/hwpx-mcp publicly advertises atomic
+updates, nested table editing and broad HWPX tools; treesoop/hwp-mcp
+advertises WASM-powered HWP/HWPX reading, Markdown traversal and SVG rendering.
+Their public feature lists are useful backlog inputs, not head-to-head
+benchmark scores. Next independent acceptance targets are real-world edits
+of pre-existing layouts, renderer-specific legibility gates, and live
+ChatGPT-generated document delivery.

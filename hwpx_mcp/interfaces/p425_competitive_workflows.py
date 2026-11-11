@@ -149,6 +149,9 @@ def register_competitive_workflows(core):
             ("list_document_figures", "figure image graph chart list inspect",
              "Inspect native HWPX figure placement and object references.",
              "document_id; optional offset, limit"),
+            ("inspect_document_table_layout", "table pagination pagebreak header repeat layout long",
+             "Inspect saved native HWPX table page-break modes and repeated header rows.",
+             "document_id; optional offset, limit"),
             ("list_document_tables", "table list inspect cells",
              "Inspect grids, merged cells and captions.",
              "document_id; optional offset, limit"),
@@ -197,7 +200,8 @@ def register_competitive_workflows(core):
         ]
         tokens = {word.casefold() for word in task.split() if word.strip()}
         synonyms = {
-            "표": "table", "셀": "cell", "병합": "merge", "읽기": "read",
+            "표": "table", "셀": "cell", "병합": "merge",
+            "긴표": "table", "머리글": "header", "페이지나눔": "pagebreak", "읽기": "read",
             "검색": "search", "찾기": "find", "치환": "replace",
             "수정": "edit", "작성": "create", "생성": "create",
             "템플릿": "template",

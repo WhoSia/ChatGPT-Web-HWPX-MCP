@@ -6,6 +6,7 @@ subList paragraph without adding any new table or binary resource.
 """
 from __future__ import annotations
 
+import hashlib
 import tempfile
 import unittest
 import zipfile
@@ -161,6 +162,23 @@ class ActualNestedTableTests(unittest.TestCase):
         for c in after["tables"][1]["cells"]:
             if (c["row"], c["col"]) != (0, 0):
                 self.assertEqual(c["text"], unchanged_child_cells[(c["row"], c["col"])])
+
+
+    def test_rejects_replacing_nested_table_host_cell_without_data_loss(self):
+        before_bytes = self.path.read_bytes()
+        before_sha = hashlib.sha256(before_bytes).hexdigest()
+        parent = build_advanced_table_map(self.path)["tables"][0]
+        host_cell = next(c for c in parent["cells"]
+                         if (c["row"], c["col"]) == (0, 0))
+        with self.assertRaisesRegex(ValueError, "NESTED_TABLE_HOST_CELL_TEXT_EDIT_DEFERRED"):
+            apply_advanced_table_edits_atomic(
+                self.path,
+                [{"op": "set_cell_text", "table": parent["locator"],
+                  "cell": host_cell["locator"], "text": "would delete inner table"}],
+                expected_revision=1, current_revision=1,
+            )
+        self.assertEqual(hashlib.sha256(self.path.read_bytes()).hexdigest(), before_sha)
+        self.assertEqual(raw_nested_table_count(self.path), 1)
 
 
 if __name__ == "__main__":

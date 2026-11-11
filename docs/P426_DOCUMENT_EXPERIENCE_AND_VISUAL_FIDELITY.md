@@ -131,3 +131,34 @@ This section represents implemented code and committed tests. Latest
 CI must be consulted independently before claiming a pass for
 post-creation commits. No deleted local validation directory, private
 source HWPX or fake PDF is used.
+
+### Exact CI evidence for this product slice
+
+At code HEAD `0c2682325ee5d9c908a48cb5cd5dc010c99f0533`,
+[P4.26 Actions #42940964099](https://github.com/WhoSia/ChatGPT-Web-HWPX-MCP/actions/runs/42940964099)
+completed **SUCCESS**: **61 P4.25 regression tests + 49 P4.26
+tests = 110 passing tests**, zero failures/errors. Specific passed
+integration cases include:
+
+- The P3.21 native HWPX writer saves a picture after opt-in
+  `fit_figures_to_page` and P2.9 reads back exact fitted
+  width/height.
+- Actual HWPX bytes created by P3.21 pass through P3.33 MCP
+  `ResourceLink`, a genuine signed HTTP response handler, and
+  roundtrip byte-for-byte as a Unicode-named attachment.
+- Portable `\\,` spacing adaptation allows the installed native
+  EqEdit compiler to save an editable integral formula, while strict
+  mode explicitly rejects the unsupported input.
+- The Korean task-discovery gateway now advertises P4.26 equation,
+  renderer, and native reference tools.
+
+A previous CI run did fail when the legacy P3.33 server-level test
+imported PostgreSQL OAuth configuration and later because a new test
+used `ResourceLink.mimeType` rather than its Python property
+`mime_type`. Both were diagnosed via actual Actions logs and the
+integration suite was repaired; this pass is the corrected head.
+
+The GitHub workflow uses synthetic temporary HWPX files and does not
+perform an actual ChatGPT client-side attachment click, live `rhwp`
+process rendering, or Windows Hancom native PDF comparison. These
+remain separate release acceptance items.

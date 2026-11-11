@@ -124,5 +124,44 @@ class ActualNestedTableTests(unittest.TestCase):
         self.assertEqual(outer_after, outer_before)
 
 
+    def test_nested_child_cell_text_edit_preserves_parent_cell_values(self):
+        before = build_advanced_table_map(self.path)
+        parent, child = before["tables"]
+        parent_cells = [
+            (c["row"], c["col"], c["text"], c["row_span"], c["col_span"])
+            for c in parent["cells"]
+        ]
+        unchanged_child_cells = {
+            (c["row"], c["col"]): c["text"]
+            for c in child["cells"] if (c["row"], c["col"]) != (0, 0)
+        }
+        child_anchor = next(
+            c for c in child["cells"] if c["row"] == 0 and c["col"] == 0
+        )
+        self.assertEqual(child_anchor["text"], "Inner unique anchor")
+        self.assertEqual(raw_nested_table_count(self.path), 1)
+        apply_advanced_table_edits_atomic(
+            self.path,
+            [{"op": "set_cell_text", "table": child["locator"],
+              "cell": child_anchor["locator"],
+              "text": "Inner edited in nested cell"}],
+            expected_revision=1, current_revision=1,
+        )
+        after = build_advanced_table_map(self.path)
+        self.assertEqual(raw_nested_table_count(self.path), 1)
+        self.assertEqual(
+            [(c["row"], c["col"], c["text"], c["row_span"], c["col_span"])
+             for c in after["tables"][0]["cells"]],
+            parent_cells,
+        )
+        updated = next(
+            c for c in after["tables"][1]["cells"] if c["row"] == 0 and c["col"] == 0
+        )
+        self.assertEqual(updated["text"], "Inner edited in nested cell")
+        for c in after["tables"][1]["cells"]:
+            if (c["row"], c["col"]) != (0, 0):
+                self.assertEqual(c["text"], unchanged_child_cells[(c["row"], c["col"])])
+
+
 if __name__ == "__main__":
     unittest.main()

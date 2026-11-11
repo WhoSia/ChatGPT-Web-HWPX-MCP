@@ -8,6 +8,7 @@ import zipfile
 from pathlib import Path
 
 from hwpx_mcp.render.p426_toc_cache_refresh import (
+    discover_native_toc_headings,
     refresh_native_toc_cache_from_svg, _native_toc_entry, HP,
 )
 from scripts.p426_generate_native_showcase import create_showcase
@@ -62,6 +63,10 @@ class NativeTOCRefreshTests(unittest.TestCase):
         output = create_showcase(self.folder, table_segment_rows=28)
         self.source = self.folder / output["filename"]
         self.refreshed = self.folder / "refreshed.hwpx"
+
+    def test_discovers_actual_numbered_toc_titles_without_hardcoding(self):
+        observed = discover_native_toc_headings(self.source)
+        self.assertEqual(observed, HEADINGS)
 
     def test_real_hwpx_cached_pages_updated_from_visual_evidence_only(self):
         before = _toc_pages(self.source)

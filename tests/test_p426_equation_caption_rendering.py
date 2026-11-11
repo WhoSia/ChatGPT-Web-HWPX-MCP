@@ -41,7 +41,8 @@ class EquationCaptionExperienceTests(unittest.TestCase):
         self.assertTrue(all("caption" not in b for b in equations))
         self.assertEqual([b["text"] for b in captions],
                          ["식 1. 옴의 법칙", "식 2. 저항의 정의"])
-        self.assertTrue(all(b["paragraph_format"]["keep_with_next"] for b in equations))
+        self.assertTrue(all("paragraph_format" not in b for b in equations))
+        self.assertTrue(all(b["paragraph_format"]["keep_lines"] for b in captions))
 
     def test_native_hwpx_keeps_two_editable_equations_and_visible_caption_text(self):
         compiled = compile_rich_document_plan(report("visible-paragraph"))

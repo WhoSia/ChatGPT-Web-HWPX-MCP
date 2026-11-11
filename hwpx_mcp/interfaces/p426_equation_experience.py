@@ -10,12 +10,18 @@ import tempfile
 from pathlib import Path
 
 from hwpx.equation import latex_to_eqedit
+from hwpx.equation.authoring import UnsupportedLatexError
 
 
 def describe_equation(latex: str) -> dict:
     if not isinstance(latex, str) or not latex.strip() or len(latex) > 8192:
         raise ValueError("LATEX_EQUATION_INVALID")
-    script = latex_to_eqedit(latex.strip())
+    try:
+        script = latex_to_eqedit(latex.strip())
+    except UnsupportedLatexError as exc:
+        # Preserve the exact incompatibility, instead of substituting
+        # printable text or an image and claiming it is editable math.
+        raise ValueError(f"LATEX_TO_EQEDIT_UNSUPPORTED: {exc}") from exc
     if not isinstance(script, str) or not script.strip():
         raise ValueError("EQEDIT_COMPILATION_EMPTY")
     return {

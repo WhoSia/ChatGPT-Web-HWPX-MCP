@@ -32,7 +32,7 @@ class PictureFitTests(unittest.TestCase):
         self.assertFalse(result["pixel_data_resampled"])
 
     def test_opt_in_report_interface_changes_only_native_picture_geometry(self):
-        img = base64.b64encode(b"\x89PNG\r\n\x1a\n" + b"synthetic fixture").decode()
+        img = ("iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0k"\n               "AAAAFElEQVR4nGMUscn7z8DAwMDEAAUAGa4BwYhFMToAAAAASUVORK5CYII=")
         kwargs = dict(title="그림 폭 검증", layout="science-lab", sections=[{
             "heading": "결과", "content": [{
                 "type": "figure", "image_format": "png",

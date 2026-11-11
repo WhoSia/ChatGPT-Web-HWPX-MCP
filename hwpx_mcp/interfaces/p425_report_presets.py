@@ -61,6 +61,34 @@ def _as_native_table(table: dict) -> dict:
         if type(table["first_row_header"]) is not bool:
             raise ValueError("REPORT_TABLE_HEADER_INVALID")
         block["first_row_header"] = table["first_row_header"]
+    if "width" in table:
+        native_width = table["width"]
+        if type(native_width) is not int or not 100 <= native_width <= 200000:
+            raise ValueError("REPORT_TABLE_NATIVE_WIDTH_INVALID")
+        block["width"] = native_width
+    if "table_format" in table:
+        requested = table["table_format"]
+        if not isinstance(requested, dict) or set(requested) - {
+            "page_break", "repeat_header", "first_row_header", "border_color"
+        }:
+            raise ValueError("REPORT_TABLE_FORMAT_INVALID")
+        normalized = {}
+        if "page_break" in requested:
+            mode = requested["page_break"]
+            if not isinstance(mode, str) or mode.upper() not in {"CELL", "TABLE", "NONE"}:
+                raise ValueError("REPORT_TABLE_PAGE_BREAK_INVALID")
+            normalized["page_break"] = mode.upper()
+        for key in ("repeat_header", "first_row_header"):
+            if key in requested:
+                if type(requested[key]) is not bool:
+                    raise ValueError("REPORT_TABLE_HEADER_POLICY_INVALID")
+                normalized[key] = requested[key]
+        if "border_color" in requested:
+            color = requested["border_color"]
+            if not isinstance(color, str) or not re.fullmatch(r"#?[A-Fa-f0-9]{6}", color):
+                raise ValueError("REPORT_TABLE_BORDER_COLOR_INVALID")
+            normalized["border_color"] = "#" + color.lstrip("#").upper()
+        block["table_format"] = normalized
     return block
 
 

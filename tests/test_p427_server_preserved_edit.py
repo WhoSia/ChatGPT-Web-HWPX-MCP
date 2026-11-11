@@ -41,6 +41,7 @@ class PreservedEditMcpAcceptanceTests(unittest.TestCase):
         doc.close()
         self.metadata = {"revision": 4, "source": "native"}
         self.refresh = Mock()
+        self.real_owned_document = api._owned_document
         self.auth = patch.object(
             api, "_owned_document", return_value=(self.metadata, self.path),
         )
@@ -103,6 +104,25 @@ class PreservedEditMcpAcceptanceTests(unittest.TestCase):
             with self.assertRaisesRegex(PermissionError, "owner rejected"):
                 api.apply_preserved_table_edit("foreign-user-document", 4, self._operation())
         self.assertEqual(self.digest(), original)
+        self.refresh.assert_not_called()
+
+    def test_real_owner_identity_check_blocks_foreign_caller(self):
+        original = self.digest()
+        alien_owned_metadata = {
+            "revision": 4, "source": "native",
+            "owner_subject": "authorized-document-owner",
+        }
+        with (
+            patch.object(api, "_owned_document", side_effect=self.real_owned_document),
+            patch.object(api.core, "_load_metadata", return_value=alien_owned_metadata),
+            patch.object(api.core, "_caller_subject", return_value="foreign-subject"),
+        ):
+            with self.assertRaisesRegex(PermissionError, "not owned"):
+                api.apply_preserved_table_edit(
+                    "any-owned-document", 4, self._operation(),
+                )
+        self.assertEqual(self.digest(), original)
+        self.assertEqual(self.metadata["revision"], 4)
         self.refresh.assert_not_called()
 
     def test_package_validator_failure_refuses_commit_and_revision_bump(self):

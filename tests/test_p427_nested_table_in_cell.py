@@ -181,5 +181,34 @@ class ActualNestedTableTests(unittest.TestCase):
         self.assertEqual(raw_nested_table_count(self.path), 1)
 
 
+    def test_parent_peer_cell_edit_preserves_nested_child_table(self):
+        before = build_advanced_table_map(self.path)
+        outer, inner = before["tables"]
+        peer = next(c for c in outer["cells"] if (c["row"], c["col"]) == (0, 1))
+        self.assertEqual(peer["text"], "Outer peer")
+        child_signature = [
+            (c["row"], c["col"], c["text"], c["row_span"], c["col_span"],
+             c["border_fill_id_ref"], c["header"])
+            for c in inner["cells"]
+        ]
+        apply_advanced_table_edits_atomic(
+            self.path,
+            [{"op": "set_cell_text", "table": outer["locator"],
+              "cell": peer["locator"], "text": "Outer peer safely changed"}],
+            expected_revision=1, current_revision=1,
+        )
+        after = build_advanced_table_map(self.path)
+        self.assertEqual(raw_nested_table_count(self.path), 1)
+        edited_peer = next(c for c in after["tables"][0]["cells"]
+                           if (c["row"], c["col"]) == (0, 1))
+        self.assertEqual(edited_peer["text"], "Outer peer safely changed")
+        after_child = [
+            (c["row"], c["col"], c["text"], c["row_span"], c["col_span"],
+             c["border_fill_id_ref"], c["header"])
+            for c in after["tables"][1]["cells"]
+        ]
+        self.assertEqual(after_child, child_signature)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -21,7 +21,10 @@ class NativeShowcaseArtifactTests(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix="p426-showcase-accept-") as tmp:
             folder = Path(tmp)
             report = create_showcase(folder)
-            self.assertEqual(report["native_tables"], 1)
+            self.assertEqual(report["native_tables"], 5)
+            self.assertEqual(report["native_segment_rows"], [20, 20, 20, 20, 4])
+            self.assertEqual(report["table_cells"], 252)
+            self.assertEqual(report["long_table_mode"], "NATIVE_SEGMENTED_WITH_PAGE_BREAKS")
             self.assertEqual(report["table_rows"], 80)
             self.assertEqual(report["native_pictures"], 1)
             self.assertEqual(report["native_equations"], 2)

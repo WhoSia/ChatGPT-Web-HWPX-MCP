@@ -91,10 +91,16 @@ def make_synthetic_curve_png() -> bytes:
     )
 
 
-def create_showcase(output_dir: Path) -> dict:
+def create_showcase(output_dir: Path, *, table_segment_rows: int = 20) -> dict:
+    if type(table_segment_rows) is not int or not 5 <= table_segment_rows <= 60:
+        raise ValueError("SHOWCASE_TABLE_SEGMENT_ROWS_INVALID")
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
-    filename = "P426_합성_전기회로_분할개선보고서.hwpx"
+    filename = (
+        "P426_합성_전기회로_분할개선보고서.hwpx"
+        if table_segment_rows == 20
+        else f"P426_합성_전기회로_{table_segment_rows}행분할.hwpx"
+    )
     destination = output_dir / filename
     if destination.exists():
         raise FileExistsError(f"Will not overwrite existing example: {destination}")
@@ -116,7 +122,7 @@ def create_showcase(output_dir: Path) -> dict:
         number_captions=True,
         fit_figures_to_page=True,
         segment_long_tables=True,
-        table_segment_rows=20,
+        table_segment_rows=table_segment_rows,
         sections=[
             {"heading": "연구 배경", "content": [
                 {"type": "paragraph", "id": "scope", "bookmark": "StudyScope",
@@ -169,10 +175,16 @@ def create_showcase(output_dir: Path) -> dict:
                 ElementTree.fromstring(archive.read(entry))
 
     assert receipt["atomic_commit"], "Native composition is not atomic"
-    assert len(tables) == 5
-    assert [table["rows"] for table in tables] == [20, 20, 20, 20, 4]
+    expected_sizes = []
+    remaining_data = 79
+    while remaining_data:
+        consume = min(remaining_data, table_segment_rows - 1)
+        expected_sizes.append(consume + 1)
+        remaining_data -= consume
+    assert len(tables) == len(expected_sizes)
+    assert [table["rows"] for table in tables] == expected_sizes
     assert sum(table["rows"] - 1 for table in tables) == 79
-    assert sum(len(table["cells"]) for table in tables) == 252
+    assert sum(len(table["cells"]) for table in tables) == (80 + len(tables) - 1) * 3
     assert all(table["repeat_header"] and table["page_break"] == "CELL"
                for table in tables)
     assert all(table["row_geometry"][0]["all_header"] for table in tables)
@@ -192,6 +204,7 @@ def create_showcase(output_dir: Path) -> dict:
         "native_tables": len(tables),
         "table_rows": 80,
         "native_segment_rows": [table["rows"] for table in tables],
+        "target_max_rows_per_segment": table_segment_rows,
         "table_cells": sum(len(table["cells"]) for table in tables),
         "table_break_policy": "CELL",
         "native_repeat_header": all(table["repeat_header"] for table in tables),
@@ -222,8 +235,12 @@ def create_showcase(output_dir: Path) -> dict:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output-dir", type=Path, required=True)
+    parser.add_argument("--table-segment-rows", type=int, default=20)
     options = parser.parse_args()
-    print(json.dumps(create_showcase(options.output_dir), indent=2, ensure_ascii=False))
+    print(json.dumps(
+        create_showcase(options.output_dir, table_segment_rows=options.table_segment_rows),
+        indent=2, ensure_ascii=False,
+    ))
 
 
 if __name__ == "__main__":

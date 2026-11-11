@@ -83,7 +83,7 @@ class NativeDownloadRoundtripTests(unittest.TestCase):
         self.assertFalse(output.is_error)
         resource = [c for c in output.content if c.type == "resource_link"]
         self.assertEqual(len(resource), 1)
-        self.assertEqual(resource[0].mimeType, MIME)
+        self.assertEqual(resource[0].mime_type, MIME)
         self.assertEqual(resource[0].name, "전기회로 실험 결과.hwpx")
         self.assertEqual(resource[0].uri, receipt["download_url"])
         self.assertEqual(output.structured_content["host_attachment_status"], "NOT_OBSERVED")

@@ -162,3 +162,53 @@ The GitHub workflow uses synthetic temporary HWPX files and does not
 perform an actual ChatGPT client-side attachment click, live `rhwp`
 process rendering, or Windows Hancom native PDF comparison. These
 remain separate release acceptance items.
+
+## R7 — Long-table authoring, native pagination policy, and inspection (2026-11-11)
+
+A further P4.26 research unit addresses lengthy academic tables without
+introducing another HWPX XML writer. The report frontend
+`_as_native_table` now validates and forwards:
+
+- `width`: optional positive integer in native HWP units.
+- `first_row_header`: semantic header indicator.
+- `table_format.page_break`: `CELL`, `TABLE`, or `NONE`.
+- `table_format.repeat_header`: boolean; combined with a marked
+  first header row to set native `repeatHeader` and `hp:tc@header`.
+- `table_format.border_color`: `#RRGGBB` or `RRGGBB`.
+
+These fields are passed to the pre-existing P3.21 table finisher and
+P3.23 advanced table operations, not a simulated HTML table renderer.
+
+**Synthetic real-file test:** an 80-row × 3-column table is composed
+into a real native HWPX and reopened through
+`build_advanced_table_map`. The test checks 80 retained rows,
+240 cell payloads, `pageBreak=CELL`, `repeatHeader=true` and
+header flags on the first row.
+
+**New MCP tool:** `inspect_document_table_layout(document_id, offset,
+limit)` reads an authenticated retained revision and returns native
+HWPX table locators, row/column counts, per-row geometry, repeated-header
+flags and page-break policy. Added to real `server.py`
+registration, `probe_capabilities` and Korean workflow discovery.
+
+**Preflight warnings:** `assess_native_layout` now identifies
+`LONG_TABLE_WITHOUT_CELL_SPLIT` or
+`LONG_TABLE_WITHOUT_REPEATED_HEADER` for tables of at least 40 rows
+under potentially problematic policies. These are conservative
+**static review hints**: the tool cannot prove whether a specific row
+will cross a page boundary before a native renderer paginates it.
+
+Test modules: `tests/test_p426_long_table_layout.py`,
+`tests/test_p426_table_layout_inspection.py`, and extended
+`tests/test_p426_layout_preflight.py`.
+
+**Connected-deployment discovery:** calling the currently installed
+ChatGPT Web HWPX MCP's live `probe_capabilities` on 2026-11-11
+reported version **`0.43.0-p4.18`**, with only the seven old
+document tools in its capability list. That deployed service is **not**
+the P4.26 branch. Therefore a passing GitHub PR CI cannot be
+represented as a successful live P4.26 ChatGPT host acceptance test.
+A separate controlled deployment/update is required, followed by a
+fresh capability probe and real host-side file link observation.
+
+No prior deleted validation directory or private sample HWPX was used.

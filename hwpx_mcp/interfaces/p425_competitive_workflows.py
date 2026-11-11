@@ -196,7 +196,7 @@ def register_competitive_workflows(core):
              "title, sections; optional preset, subtitle, author, page_numbers, table_of_contents, number_captions"),
             ("create_report_from_sections_and_deliver", "report science school experiment tables figure image graph footnote caption equation create",
              "Create a native report interleaving text, editable formulas, tables, images, footnotes and numbered captions.",
-             "title, sections; optional preset, subtitle, author, filename, page_numbers, table_of_contents, number_captions"),
+             "title, sections; optional preset, layout, number_captions, caption_clearance_pt, equation_caption_mode=native|visible-paragraph, fit_figures_to_page, segment_long_tables"),
         ]
         tokens = {word.casefold() for word in task.split() if word.strip()}
         synonyms = {

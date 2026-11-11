@@ -147,3 +147,60 @@ edit scope. It does **not** prove arbitrary third-party nested-table import,
 all edit operations, strict unchanged ZIP bytes for successful edits,
 native Hancom pixel parity or production MCP deployment. The product/Docker
 pipeline is independently evaluated; see exact commit results before release.
+
+
+## R3 — Two-layer native edit preservation with unrelated paragraph guard (2026-11-11)
+
+P3.42 already exposes a bounded package-part mutation footprint certificate.
+P4.27 **reuses** it and adds a stricter *within-part* semantic comparison
+before the original HWPX can be replaced. A package-part certificate by itself
+cannot detect accidental edits to a neighboring table or paragraph in the
+same `Contents/section*.xml` file.
+
+The new `hwpx_mcp/custody/p427_structured_edit_preservation.py` implements
+`apply_bounded_table_edit_with_preservation_atomic`. It stages a temporary
+native HWPX, delegates to the existing P3.23 table editor, then:
+
+1. Computes the **intended** target table/cell delta before executing
+   the edit. R3 admits a single `set_cell_text` or `set_table_page_break`
+   operation only; edits with no observed effect are refused.
+2. Reopens the native document, compares the complete exposed table
+   maps for all tables, and rejects unapproved table and cell changes.
+3. Compares unrelated section-body paragraphs **not containing table
+   controls**, including their text, paragraph attributes and direct-run
+   styling identifiers. Table-host paragraphs are excluded because a
+   valid nested-cell edit can change their descendant text.
+4. Invokes P3.42's `build_mutation_footprint` using exact, independently
+   determined expected package parts (the source section and header) and
+   requires `TARGETED_PARTS_ONLY`.
+5. Atomically replaces the original only after all gates pass. Failure
+   leaves source bytes unchanged and deletes the candidate. A validator
+   hook permits controlled post-edit fault injection in tests.
+
+Regression: `tests/test_p427_structured_edit_preservation.py`.
+Injected failures include undeclared changes to another table, an extra
+ZIP member, unrelated body-paragraph corruption, no-op edits and rejected
+stale/unsupported operations. Positive cases edit a genuine nested child
+cell or its native `pageBreak` property.
+
+### Exact executed evidence
+
+On code SHA `a05589d5f52b75c8a9f7aa17344e1a9a6af55d93`:
+
+- [P4.27 native acceptance #42992174297](https://github.com/WhoSia/ChatGPT-Web-HWPX-MCP/actions/runs/42992174297):
+  **SUCCESS**, 61 inherited P4.25 + 98 P4.26 + 16 P4.27 = **175/175 tests**.
+- [P4.26 native regression #42992174256](https://github.com/WhoSia/ChatGPT-Web-HWPX-MCP/actions/runs/42992174256):
+  **SUCCESS**.
+- [Independent real rhwp renderer #42992174225](https://github.com/WhoSia/ChatGPT-Web-HWPX-MCP/actions/runs/42992174225):
+  **SUCCESS**.
+- [Product/Docker integration #42992174252](https://github.com/WhoSia/ChatGPT-Web-HWPX-MCP/actions/runs/42992174252):
+  **SUCCESS**.
+
+**Boundary:** This is a separate opt-in R3 preservation transaction, not
+yet the default exposed ChatGPT MCP tool path. It compares the native
+table API's exposed semantic properties and ordinary body paragraphs,
+not every possible internal OWPML attribute, hidden style reference,
+or rendered page pixel. Table-anchor paragraphs are excluded from
+the paragraph gate and remain partly protected by table semantics.
+Native Windows Hancom fidelity and live server deployment are separate
+release gates. Do not describe this as arbitrary-document losslessness.

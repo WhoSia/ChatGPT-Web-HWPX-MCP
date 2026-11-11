@@ -558,3 +558,19 @@ both normal images and deliberately corrupt containers.
 Do not treat the failed runs as passes. Latest full native and real
 rhwp checks must be read from their completed workflows for the
 corrected commit before promotion.
+
+
+### Inherited test-fixture reconciliation
+
+After repairing the PNG literal in `d8dc00b`, P4.25 inherited report
+tests still failed: two historical fixtures were only a PNG signature
+followed by fake strings (`fake-image`, `sample`), never valid images.
+The parser was correct to reject them. Commit `d4249e0` replaces
+those two stubs with a genuine small PNG fixture while retaining the
+unchanged caption/order assertions and preserving intentionally invalid
+image tests. The authentic native showcase PNG had already used proper
+IHDR/IDAT/IEND chunk CRCs.
+
+This distinction matters: legacy tests that accept intentionally malformed
+data do not establish a production-grade compatibility contract. A failing
+test can reveal an obsolete fixture rather than an incorrect validator.

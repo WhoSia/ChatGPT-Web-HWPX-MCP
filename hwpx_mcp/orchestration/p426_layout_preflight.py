@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from typing import Any
+from copy import deepcopy
 
 from hwpx_mcp.orchestration.p426_layout_tokens import compile_layout_tokens
 
@@ -65,4 +66,54 @@ def assess_native_layout(plan: dict[str, Any], layout: str | dict = "science-lab
         "native_units_per_mm_assumption": HWP_UNITS_PER_MM,
         "issues": issues,
         "authority": "STATIC_PREVIEW_ONLY_NOT_HANCOM_RENDER",
+    }
+
+def fit_native_pictures_to_body(
+    blocks: list[dict], layout: str | dict = "science-lab",
+    *, inset_mm: float = 2.0,
+) -> dict:
+    """Opt-in, aspect-preserving resize of pictures wider than A4 text area.
+
+    Native HWPUNIT dimensions are updated in the plan; image bytes are never
+    resized, re-encoded, cropped or deleted. Other block types stay unchanged.
+    """
+    if not isinstance(blocks, list):
+        raise ValueError("LAYOUT_PICTURE_BLOCKS_INVALID")
+    if type(inset_mm) not in (int, float) or not 0 <= inset_mm <= 20:
+        raise ValueError("LAYOUT_INSET_INVALID")
+    design = compile_layout_tokens(layout)
+    content_mm = design["geometry"]["content_width_mm"]
+    limit = int((content_mm - 2 * inset_mm) * HWP_UNITS_PER_MM)
+    if limit <= 0:
+        raise ValueError("LAYOUT_AVAILABLE_WIDTH_INVALID")
+    result = deepcopy(blocks)
+    adjustments = []
+    for index, block in enumerate(result):
+        if not isinstance(block, dict):
+            raise ValueError("LAYOUT_BLOCK_INVALID")
+        if block.get("type") not in ("picture", "image"):
+            continue
+        width, height = block.get("width", 10000), block.get("height", 8000)
+        if (type(width) is not int or type(height) is not int
+                or width <= 0 or height <= 0):
+            raise ValueError("LAYOUT_PICTURE_DIMENSIONS_INVALID")
+        if width <= limit:
+            continue
+        scale = limit / width
+        new_height = max(1, round(height * scale))
+        block["width"] = limit
+        block["height"] = new_height
+        adjustments.append({
+            "index": index, "block_id": block.get("id"),
+            "previous_width": width, "previous_height": height,
+            "new_width": limit, "new_height": new_height,
+            "scale": scale,
+        })
+    return {
+        "blocks": result, "adjustments": adjustments,
+        "adjusted_count": len(adjustments),
+        "content_width_mm": content_mm,
+        "inset_mm": inset_mm,
+        "pixel_data_resampled": False,
+        "authority": "NATIVE_PLAN_GEOMETRY_ONLY",
     }

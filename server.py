@@ -441,6 +441,8 @@ def probe_capabilities() -> dict:
             "list_report_presets",
             "preview_report_plan",
             "create_report_from_sections_and_deliver",
+            "get_document_render_options",
+            "preview_document_svg_pages",
             "preview_native_equation_script",
             "inspect_document_equations",
             "discover_hwpx_workflows",
@@ -466,6 +468,8 @@ def probe_capabilities() -> dict:
             "list_report_presets",
             "preview_report_plan",
             "create_report_from_sections_and_deliver",
+            "get_document_render_options",
+            "preview_document_svg_pages",
             "preview_native_equation_script",
             "inspect_document_equations",
             "discover_hwpx_workflows",
@@ -874,6 +878,8 @@ from hwpx_mcp.interfaces.p425_report_presets import register_report_preset_tools
 register_report_preset_tools(_p425_sys.modules[__name__])
 from hwpx_mcp.interfaces.p426_equation_experience import register_equation_experience
 register_equation_experience(_p425_sys.modules[__name__])
+from hwpx_mcp.interfaces.p426_visual_preview import register_visual_preview
+register_visual_preview(_p425_sys.modules[__name__])
 
 
 if __name__ == "__main__":

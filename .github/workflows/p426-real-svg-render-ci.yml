@@ -1,0 +1,62 @@
+name: P4.26 real external SVG renderer acceptance
+
+on:
+  pull_request:
+    branches: [development/p425-competitive-capability-convergence-20261110]
+    paths:
+      - "scripts/p426_generate_native_showcase.py"
+      - "scripts/p426_render_native_showcase.py"
+      - "hwpx_mcp/render/p426_rhwp_svg_preview.py"
+      - ".github/workflows/p426-real-svg-render-ci.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: p426-real-svg-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  actual-rhwp-render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install actual native HWPX authoring dependencies
+        run: python -m pip install --disable-pip-version-check -r requirements.txt
+      - name: Create authentic P4.26 synthetic HWPX from repository code
+        run: python -m scripts.p426_generate_native_showcase --output-dir p426-render-source
+      - name: Download and SHA-pin independent rhwp v0.8.7 Linux CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --show-error --silent             --retry 3 --connect-timeout 20 --max-time 180             "https://github.com/edwardkim/rhwp/releases/download/v0.8.7/rhwp-v0.8.7-linux-x86_64.tar.gz"             -o "$RUNNER_TEMP/rhwp-v0.8.7-linux-x86_64.tar.gz"
+          echo "f1e541a25cfe76b6bc1daf18bf9c1f9a5ac5e03e2c01b188daaf54107214f631  $RUNNER_TEMP/rhwp-v0.8.7-linux-x86_64.tar.gz" | sha256sum --check --status
+          mkdir -p "$RUNNER_TEMP/p426-rhwp"
+          tar -xzf "$RUNNER_TEMP/rhwp-v0.8.7-linux-x86_64.tar.gz" -C "$RUNNER_TEMP/p426-rhwp"
+          mapfile -t bins < <(find "$RUNNER_TEMP/p426-rhwp" -type f -name rhwp)
+          test "${#bins[@]}" -eq 1
+          chmod +x "${bins[0]}"
+          printf 'RHWP_PATH=%s\n' "${bins[0]}" >> "$GITHUB_ENV"
+          "${bins[0]}" --version
+      - name: Render real SVG pages and record observed pagination
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m scripts.p426_render_native_showcase             --source "p426-render-source/P426_합성_전기회로_실험보고서.hwpx"             --output-dir "p426-real-svg-pages"             --executable "$RHWP_PATH"             --pages 2
+      - name: Upload actual rhwp SVG and observed render manifest
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: p426-real-rhwp-svg-${{ github.run_number }}
+          path: |
+            p426-real-svg-pages/
+            p426-render-source/P426_생성검증_manifest.json
+          if-no-files-found: error
+          retention-days: 30

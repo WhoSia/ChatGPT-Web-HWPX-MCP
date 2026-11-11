@@ -79,6 +79,41 @@ jobs:
           print("Real rhwp pages:", len(manifest["svg_pages"]))
           print("Observed rhwp table-cell text overflow lines:", manifest["total_overflow_cell_lines"])
           PY
+      - name: Compare 20-row 28-row and 36-row budgets in actual renderer
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p p426-segmentation-benchmark
+          for budget in 28 36; do
+            mkdir -p "p426-segmentation-benchmark/$budget/source"
+            python -m scripts.p426_generate_native_showcase               --output-dir "p426-segmentation-benchmark/$budget/source"               --table-segment-rows "$budget"
+            python -m scripts.p426_render_native_showcase               --source "p426-segmentation-benchmark/$budget/source/P426_합성_전기회로_${budget}행분할.hwpx"               --output-dir "p426-segmentation-benchmark/$budget/svg"               --executable "$RHWP_PATH"               --pages 10
+          done
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          rows = []
+          root = Path("p426-segmentation-benchmark")
+          for budget in (20, 28, 36):
+              if budget == 20:
+                  path = Path("p426-real-svg-pages/p426_rhwp_render_observation.json")
+              else:
+                  path = root / str(budget) / "svg" / "p426_rhwp_render_observation.json"
+              m = json.loads(path.read_text(encoding="utf-8"))
+              rows.append({
+                  "max_rows_per_table": budget,
+                  "reported_page_count": m["page_count_reported"],
+                  "rendered_pages": len(m["svg_pages"]),
+                  "overflow_cell_lines": m["total_overflow_cell_lines"],
+                  "renderer": m["engine"],
+              })
+          (root / "page-budget-comparison.json").write_text(
+              json.dumps({"data": rows,
+                          "authority": "INDEPENDENT_RHWP_RENDERER_NOT_HANCOM"}, indent=2) + "\n",
+              encoding="utf-8",
+          )
+          print("P4.26 measured segmentation budgets:", json.dumps(rows))
+          PY
       - name: Upload actual rhwp SVG and observed render manifest
         if: success()
         uses: actions/upload-artifact@v4
@@ -86,6 +121,7 @@ jobs:
           name: p426-real-rhwp-svg-${{ github.run_number }}
           path: |
             p426-real-svg-pages/
+            p426-segmentation-benchmark/
             p426-render-source/P426_생성검증_manifest.json
           if-no-files-found: error
           retention-days: 30

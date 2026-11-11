@@ -57,7 +57,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python -m scripts.p426_render_native_showcase             --source "p426-render-source/P426_합성_전기회로_분할개선보고서.hwpx"             --output-dir "p426-real-svg-pages"             --executable "$RHWP_PATH"             --pages 10
+          python -m scripts.p426_render_native_showcase             --source "p426-render-source/P426_합성_전기회로_28행분할.hwpx"             --output-dir "p426-real-svg-pages"             --executable "$RHWP_PATH"             --pages 10
       - name: Generate portable PNG previews with installed Korean fonts
         shell: bash
         run: |
@@ -84,10 +84,15 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p p426-segmentation-benchmark
-          for budget in 28 36; do
+          for budget in 20 36; do
             mkdir -p "p426-segmentation-benchmark/$budget/source"
             python -m scripts.p426_generate_native_showcase               --output-dir "p426-segmentation-benchmark/$budget/source"               --table-segment-rows "$budget"
-            python -m scripts.p426_render_native_showcase               --source "p426-segmentation-benchmark/$budget/source/P426_합성_전기회로_${budget}행분할.hwpx"               --output-dir "p426-segmentation-benchmark/$budget/svg"               --executable "$RHWP_PATH"               --pages 10
+            if [ "$budget" = "20" ]; then
+              document_name="P426_합성_전기회로_분할개선보고서.hwpx"
+            else
+              document_name="P426_합성_전기회로_${budget}행분할.hwpx"
+            fi
+            python -m scripts.p426_render_native_showcase               --source "p426-segmentation-benchmark/$budget/source/$document_name"               --output-dir "p426-segmentation-benchmark/$budget/svg"               --executable "$RHWP_PATH"               --pages 10
           done
           python - <<'PY'
           import json
@@ -95,7 +100,7 @@ jobs:
           rows = []
           root = Path("p426-segmentation-benchmark")
           for budget in (20, 28, 36):
-              if budget == 20:
+              if budget == 28:
                   path = Path("p426-real-svg-pages/p426_rhwp_render_observation.json")
               else:
                   path = root / str(budget) / "svg" / "p426_rhwp_render_observation.json"

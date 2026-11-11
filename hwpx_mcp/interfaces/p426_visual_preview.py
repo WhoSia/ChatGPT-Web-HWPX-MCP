@@ -36,12 +36,15 @@ def register_visual_preview(core):
     @core.mcp.tool()
     def preview_document_svg_pages(
         document_id: str,
-        max_pages: int = 2,
+        max_pages: int = 1,
+        start_page: int = 0,
         profile: str = "screen",
     ) -> dict:
         """Render and return up to three SVG pages, only if rhwp is installed."""
         if type(max_pages) is not int or not 1 <= max_pages <= MAX_INLINE_SVG_PAGES:
             raise ValueError("PREVIEW_PAGE_LIMIT_INVALID")
+        if type(start_page) is not int or start_page < 0:
+            raise ValueError("PREVIEW_START_PAGE_INVALID")
         owner = core._caller_subject()
         core._paths(document_id)
         row = core.DOCUMENT_STORE.load_current(document_id)
@@ -57,20 +60,27 @@ def register_visual_preview(core):
             root = Path(tmp)
             source = root / "owned.hwpx"
             source.write_bytes(row["bytes"])
-            out = root / "svg-pages"
-            out.mkdir()
-            try:
-                render = render_svg_manifest(
-                    source, out, profile=profile, max_pages=max_pages,
-                )
-            except RhwpPreviewUnavailable as exc:
-                return {"ok": False, "status": str(exc), "native_pdf_created": False}
             pages = []
-            for item in render["pages"]:
+            incomplete_reason = None
+            for page_index in range(start_page, start_page + max_pages):
+                out = root / f"page-{page_index}"
+                out.mkdir()
+                try:
+                    render = render_svg_manifest(
+                        source, out, profile=profile,
+                        max_pages=1, page_index=page_index,
+                    )
+                except RhwpPreviewUnavailable as exc:
+                    incomplete_reason = str(exc)
+                    break
+                if len(render["pages"]) != 1:
+                    incomplete_reason = "RHWP_SINGLE_PAGE_MANIFEST_INVALID"
+                    break
+                item = render["pages"][0]
                 data = Path(item["path"]).read_bytes()
                 if len(data) > MAX_PAGE_SVG_BYTES:
-                    return {"ok": False, "status": "SVG_PAGE_TOO_LARGE",
-                            "native_pdf_created": False}
+                    incomplete_reason = "SVG_PAGE_TOO_LARGE"
+                    break
                 pages.append({
                     "page": item["page"],
                     "svg_base64": base64.b64encode(data).decode("ascii"),
@@ -78,9 +88,16 @@ def register_visual_preview(core):
                     "mime_type": "image/svg+xml",
                     "overflow_cell_lines": item["overflow_cell_lines"],
                 })
+            if not pages:
+                return {"ok": False,
+                        "status": incomplete_reason or "RHWP_NO_PAGES_RENDERED",
+                        "native_pdf_created": False}
         return {
             "ok": True, "document_id": document_id, "revision": row["revision"],
             "status": "SVG_PAGES_READY", "pages": pages,
+            "partial": incomplete_reason is not None,
+            "incomplete_reason": incomplete_reason,
+            "next_page": start_page + len(pages),
             "render_authority": "THIRD_PARTY_SVG_NOT_NATIVE_HANCOM",
             "native_pdf_created": False,
             "client_visual_display_verified": False,

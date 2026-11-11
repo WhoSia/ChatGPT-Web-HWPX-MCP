@@ -11,6 +11,10 @@ from hwpx_mcp.interfaces.p425_report_presets import (
 )
 
 
+# Genuine small PNG, not a magic-header-only stub.
+PNG_FIXTURE_BASE64 = "iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAFElEQVR4nGMUscn7z8DAwMDEAAUAGa4BwYhFMToAAAAASUVORK5CYII="
+
+
 class FakeMcp:
     def __init__(self):
         self.tools = {}
@@ -160,7 +164,7 @@ class ReportPresetTests(unittest.TestCase):
         self.assertEqual(self.calls, [])
 
     def test_embedded_picture_preserves_order_and_caption(self):
-        image = base64.b64encode(b"\x89PNG\r\n\x1a\n" + b"fake-image").decode("ascii")
+        image = PNG_FIXTURE_BASE64
         plan = build_report_plan(
             title="그림 보고서",
             sections=[{"heading": "결과", "content": [
@@ -220,7 +224,7 @@ class ReportPresetTests(unittest.TestCase):
             )
 
     def test_auto_numbering_follows_native_object_order(self):
-        png = base64.b64encode(b"\x89PNG\r\n\x1a\n" + b"sample").decode("ascii")
+        png = PNG_FIXTURE_BASE64
         plan = build_report_plan(
             title="캡션 보고서", number_captions=True,
             sections=[{"heading": "결과", "content": [

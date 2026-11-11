@@ -55,6 +55,26 @@ class NativeLayoutPreflightTests(unittest.TestCase):
         }]})
         self.assertEqual(result["issues"], [])
 
+    def test_explicit_table_width_warns_when_average_column_is_too_narrow(self):
+        result = assess_native_layout({"blocks": [{
+            "id": "dense-results", "type": "table",
+            "rows": 6, "cols": 8, "width": 16000,
+        }]}, "science-lab")
+        self.assertEqual(result["status"], "REVIEW")
+        narrow = [issue for issue in result["issues"]
+                  if issue["code"] == "NARROW_AVERAGE_TABLE_COLUMN"]
+        self.assertEqual(len(narrow), 1)
+        self.assertEqual(narrow[0]["block"], "dense-results")
+        self.assertLess(narrow[0]["average_column_width_mm_approx"], 12)
+        self.assertEqual(result["authority"], "STATIC_PREVIEW_ONLY_NOT_HANCOM_RENDER")
+
+    def test_adequate_explicit_table_column_width_is_not_flagged(self):
+        result = assess_native_layout({"blocks": [{
+            "type": "table", "rows": 4, "cols": 3, "width": 16000,
+        }]}, "science-lab")
+        self.assertNotIn("NARROW_AVERAGE_TABLE_COLUMN",
+                         [issue["code"] for issue in result["issues"]])
+
     def test_invalid_native_object_width(self):
         result = assess_native_layout({"blocks": [
             {"type": "equation", "width": -1},

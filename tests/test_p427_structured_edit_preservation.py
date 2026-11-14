@@ -95,6 +95,7 @@ class NestedStructuredPreservationTests(unittest.TestCase):
             "cell": child["cells"][0]["locator"], "text": "Nested edit",
         })
         self.assertEqual(receipt["table_anchor_paragraphs_verified"], 1)
+        self.assertEqual(receipt["nested_table_anchor_paragraphs_verified"], 1)
         self.assertEqual(raw_nested_table_count(self.path), 1)
         self.assertEqual(build_advanced_table_map(self.path)["tables"][1]["cells"][0]["text"],
                          "Nested edit")
@@ -123,6 +124,23 @@ class NestedStructuredPreservationTests(unittest.TestCase):
                     ))
                 self.assertEqual(self.path.read_bytes(), original)
                 self.assertEqual(list(self.path.parent.glob("*.p427-preserved-*.hwpx")), [])
+
+    def test_nested_table_host_run_format_is_preserved(self):
+        child = build_advanced_table_map(self.path)["tables"][1]
+        original = self.path.read_bytes()
+
+        def change_nested_run(outer_run):
+            nested_run = next(run for run in outer_run.iter(HP + "run")
+                              if run is not outer_run and run.find(HP + "tbl") is not None)
+            nested_run.set("charPrIDRef", "1" if nested_run.get("charPrIDRef") == "0" else "0")
+
+        with self.assertRaisesRegex(ValueError, "R3_UNDECLARED_NESTED_TABLE_ANCHOR_DRIFT"):
+            self.edit({
+                "op": "set_table_page_break", "table": child["locator"], "mode": "TABLE",
+            }, candidate_validator=lambda candidate: rewrite_table_anchor(
+                candidate, child["section_path"], change_nested_run,
+            ))
+        self.assertEqual(self.path.read_bytes(), original)
 
     def test_undisclosed_sibling_table_edit_rejects_and_preserves_original(self):
         before = self.digest()

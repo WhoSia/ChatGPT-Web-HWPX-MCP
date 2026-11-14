@@ -30,32 +30,37 @@ ADMITTED = ("set_cell_text", "set_table_page_break")
 HP = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
 
 
-def _body_paragraph_signatures(path: Path) -> tuple[list[tuple], list[tuple]]:
-    """Compare ordinary body paragraphs and the XML surrounding table controls."""
+def _paragraph_xml(paragraph: ET.Element) -> str:
+    # Retain each table's position and tail while leaving table contents
+    # to the native table comparison. Do not modify the source XML tree.
+    paragraph = copy.deepcopy(paragraph)
+    for table in paragraph.iter(HP + "tbl"):
+        tail = table.tail
+        table.clear()
+        table.tail = tail
+    return ET.canonicalize(ET.tostring(paragraph, encoding="unicode"))
+
+
+def _paragraph_signatures(path: Path) -> tuple[list[tuple], list[tuple], list[tuple]]:
+    """Capture body paragraphs and paragraphs containing nested table controls."""
     ordinary: list[tuple] = []
     anchors: list[tuple] = []
+    nested_anchors: list[tuple] = []
     with zipfile.ZipFile(path) as archive:
         for name in sorted(archive.namelist()):
             if not (name.startswith("Contents/section") and name.endswith(".xml")):
                 continue
             root = ET.fromstring(archive.read(name))
-            for index, paragraph in enumerate(list(root)):
+            for index, paragraph in enumerate(root):
                 if paragraph.tag != HP + "p":
                     continue
-                tables = paragraph.findall(".//" + HP + "tbl")
-                if tables:
-                    # Keep the table's position and tail. Its contents are checked
-                    # separately by the table map and can change during an edit.
-                    for table in tables:
-                        tail = table.tail
-                        table.clear()
-                        table.tail = tail
-                    signature = ET.canonicalize(ET.tostring(paragraph, encoding="unicode"))
-                    anchors.append((name, index, signature))
-                    continue
-                signature = ET.canonicalize(ET.tostring(paragraph, encoding="unicode"))
-                ordinary.append((name, index, signature))
-    return ordinary, anchors
+                signatures = anchors if paragraph.find(".//" + HP + "tbl") is not None else ordinary
+                signatures.append((name, index, _paragraph_xml(paragraph)))
+            for cell_index, cell in enumerate(root.iter(HP + "tc")):
+                for index, paragraph in enumerate(cell.findall(f"{HP}subList/{HP}p")):
+                    if paragraph.find(f"{HP}run/{HP}tbl") is not None:
+                        nested_anchors.append((name, cell_index, index, _paragraph_xml(paragraph)))
+    return ordinary, anchors, nested_anchors
 
 
 def _semantic_table(table: dict) -> dict:
@@ -146,7 +151,7 @@ def apply_bounded_table_edit_with_preservation_atomic(
     if not isinstance(operation, dict) or operation.get("op") not in ADMITTED:
         raise ValueError("R3_EDIT_OPERATION_NOT_ADMITTED")
     before = build_advanced_table_map(source)
-    untouched_body, untouched_anchors = _body_paragraph_signatures(source)
+    untouched_body, untouched_anchors, untouched_nested_anchors = _paragraph_signatures(source)
     expected = _expected_native_delta(before["tables"], operation)
     target = next(t for t in before["tables"] if t["locator"] == operation["table"])
     expected_scope = {
@@ -173,11 +178,13 @@ def apply_bounded_table_edit_with_preservation_atomic(
         validation = candidate_validator(candidate) if candidate_validator is not None else None
         after = build_advanced_table_map(candidate)
         semantic = _verify_semantics(before, after, expected)
-        body, anchors = _body_paragraph_signatures(candidate)
+        body, anchors, nested_anchors = _paragraph_signatures(candidate)
         if body != untouched_body:
             raise ValueError("R3_UNDECLARED_BODY_PARAGRAPH_DRIFT")
         if anchors != untouched_anchors:
             raise ValueError("R3_UNDECLARED_TABLE_ANCHOR_PARAGRAPH_DRIFT")
+        if nested_anchors != untouched_nested_anchors:
+            raise ValueError("R3_UNDECLARED_NESTED_TABLE_ANCHOR_DRIFT")
         certificate = build_mutation_footprint(source, candidate, expected_scope)
         enforcement = enforce_preservation_grade(certificate, "TARGETED_PARTS_ONLY")
         os.replace(candidate, source)
@@ -193,6 +200,7 @@ def apply_bounded_table_edit_with_preservation_atomic(
         "package_validation": validation,
         "unrelated_body_paragraphs_verified": len(untouched_body),
         "table_anchor_paragraphs_verified": len(untouched_anchors),
+        "nested_table_anchor_paragraphs_verified": len(untouched_nested_anchors),
         "mutation_footprint": certificate,
         "preservation_enforcement": enforcement,
         "committed_sha256": hashlib.sha256(source.read_bytes()).hexdigest(),

@@ -291,3 +291,16 @@ An unexpected anchor change raises `R3_UNDECLARED_TABLE_ANCHOR_PARAGRAPH_DRIFT`
 before the staged file replaces the original. The regression suite injects
 both text and run-style changes and checks the original bytes and temporary
 file cleanup.
+
+### Body controls, nested anchors and page-break scope
+
+- The transaction compares normalized XML for ordinary body paragraphs,
+  including inline controls such as line breaks. The nested anchor check also
+  compares the markup around tables hosted in cell paragraphs. A successful
+  receipt reports `nested_table_anchor_paragraphs_verified`.
+- A page-break edit permits a change to its target section only. The cell-text
+  operation retains its existing allowance for `Contents/header.xml`.
+- Saved-file regressions cover malformed operation names, unexpected line
+  breaks, nested anchor run style changes and shared header drift. A positive
+  test replaces Korean text in a merged cell and checks its geometry and the
+  adjacent table after reopening the file.

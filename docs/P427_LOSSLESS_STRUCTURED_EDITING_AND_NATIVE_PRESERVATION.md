@@ -1,0 +1,306 @@
+# P4.27 — Lossless Structured Editing & Native Preservation
+**Nested Tables, Merged-Cell Semantics, Formatting Stability & Transactional HWPX Editing**
+
+**Opened:** 2026-11-11
+**Parent:** P4.26 — Document Experience & Visual Fidelity: Professional Layout, Native Rendering and Seamless File Delivery
+**Exact parent commit:** `c478bdf0c6a9832b4b21bc536900c094237a8040`
+**Base branch:** `development/p426-document-experience-visual-fidelity-20261111`
+**Development branch:** `development/p427-lossless-structured-editing-20261111`
+**Integration PR:** [#26](https://github.com/WhoSia/ChatGPT-Web-HWPX-MCP/pull/26) targets the retained P4.25 branch, **including** inherited P4.26 commits; the Git history remains based on the exact P4.26 verified SHA. P4.26 [PR #25](https://github.com/WhoSia/ChatGPT-Web-HWPX-MCP/pull/25) was closed without merge as superseded by the integrated successor.
+**Status:** Research and implementation active; not deployed, not merged.
+
+## Intent and lineage
+
+P4.26 established a scientific-report authoring path: real native editable equations,
+tables and images, renderer-informed caption spacing and TOC refresh, portable equation
+diagnostics and a byte-exact signed ResourceLink delivery test. It also repaired
+data integrity and native table input typing. P4.26 ends as a *verified development
+research stage*, **not** as a production release or Windows Hancom parity
+certification. Its tested parent commit has 61 inherited P4.25 + 98 P4.26
+native regressions PASS, the pinned independent rhwp renderer PASS and
+product/Docker CI PASS.
+
+P4.27 directly inherits those bytes and gates. **No rewrite and no fake clean-room
+restart.** The next question is whether an AI agent can safely edit an already
+formatted HWPX, including merged cells and nested tables, while proving unrelated
+content and formatting unchanged.
+
+## R1 — Nested/merged editing acceptance contract
+
+- Use authentic self-contained synthetic HWPX documents; do not access the
+  owner's deleted validation directory or old private documents.
+- Preserve existing table/paragraph/equation/picture writer and reader engines.
+  Prefer a fail-closed contract around their native operations over a parallel
+  XML editor or an invented renderer.
+- Fixture variations: ordinary table; a merged anchor with covered grid slots;
+  an inner table embedded in a cell when the installed native library supports
+  one; adjacent unrelated table with distinctive formatting and paragraph text.
+- Initial admitted edits: update one **known anchor** cell text,
+  repeat-header/row metadata; preserve target merged geometry and
+  unrelated table formatting, text, captions and section layout.
+- Guard non-anchor covered coordinates, missing/ambiguous locators, stale
+  revisions, edit batches with conflicting target identities and changes outside
+  the declared edit footprint. Prefer explicit unsupported status for unsafe
+  nested-table actions rather than a false success.
+- After every edit reopen the generated native HWPX; compare pre/post
+  table structure, per-cell spans/formatting, paragraph text and artifact hash.
+  Invalid operations must not change the source file's SHA-256.
+- Independent SVG/Windows Hancom rendering are separate evidence classes;
+  no claim of pixel parity follows from OWPML reopening.
+
+## R1 acceptance gates
+
+1. P4.26 inherited 159 native tests still pass.
+2. New native saved-file merged/complex editing regression passes, including
+   exact unrelated-object invariants and failure injection.
+3. Actual rhwp synthetic render still succeeds; no duplicated caption or
+   clipped table text in the baseline showcase.
+4. Docker and product integration pass at the **exact latest code commit**.
+5. PR/Notion/GitHub records preserve the P4.26→P4.27 parent SHA and
+   clearly distinguish green code CI from live connected MCP (last probed P4.18).
+6. No automated bot commit authors or deployment/merge without release gate.
+
+## Future R2–R4 research backlog
+
+- R2: nested-table traversal and deeply scoped cell locator identity;
+  test whether the library can round-trip genuine nested containers.
+- R3: edited-object semantic delta with unaffected object proofs and stable
+  cross-reference/bookmark handling.
+- R4: realistic multi-page external-document benchmark: edit success,
+  preservation failures, visual drift and host-side downloadable artifact.
+
+No code development claim is made for R2–R4 until corresponding artifacts and
+CI evidence exist.
+
+
+## R1 implementation and evolving acceptance evidence
+
+- Replaced P3.23's `document.tables.all` indexing with the same
+  `_collect_document_tables(document)` traversal used by the underlying
+  P2.7/P2.8 table map. This aligns table locators and mutation targets
+  when table nesting changes the traversal order; it does not yet establish
+  actual nested-in-cell end-to-end compatibility.
+- Added `tests/test_p427_merged_table_preservation.py`: generate a real
+  HWPX containing a merged anchor and an unrelated second table; change
+  a first-table header, reopen, compare merged spans/content and all
+  unrelated table-cell data/geometry/format flags; fail-closed test
+  fabricated cell identity and stale revisions with source bytes identical.
+- Found and repaired stale `hp:tc@header` flags when a repeat-header
+  designation moves from one row to another. The change now clears
+  non-designated row header flags and a new test verifies 0→1→disabled
+  transitions through saved-file reopening.
+- Added `.github/workflows/p427-ci.yml`, with exact-head source checks,
+  inherited P4.25/P4.26 test suites, P4.27 regression tests and synthetic
+  inherited report creation.
+- First successful new P4.27 workflow on commit `56656f86`,
+  [run #42974374273](https://github.com/WhoSia/ChatGPT-Web-HWPX-MCP/actions/runs/42974374273):
+  **61 inherited P4.25 + 98 P4.26 + 3 P4.27 = 162 passing tests**.
+  New header-switching test and corresponding code were added afterward
+  on `6a3a28f`; consult exact-head CI before claiming they passed.
+
+**Source-of-truth boundary:** The PR's integration target (P4.25)
+is different from its direct source ancestry (verified P4.26). This
+is intentional: the P4.26 PR is archived without merge; the successor
+carries both P4.26 and P4.27 implementation for a future controlled
+merge/release instead of silently dropping predecessor functionality.
+
+
+## R2 — Genuine nested-table-in-cell editing acceptance (2026-11-11)
+
+Unlike the R1 fixture with two adjacent tables, R2 builds a **genuine native
+nested container**. It first generates an ordinary HWPX with two tables by
+`python-hwpx`, then moves the existing child `hp:tbl` element into an
+outer `hp:tc/hp:subList/hp:p/hp:run` inside the same section package,
+without synthesizing new binary resources. XML ancestry is inspected
+directly: exactly one `hp:tbl` must have an `hp:tc` ancestor.
+This structural assertion prevents a misleading pass on adjacent tables.
+
+New acceptance fixture: `tests/test_p427_nested_table_in_cell.py`.
+
+### Tested editing matrix
+
+| Edit | Expected admission | Postcondition |
+| --- | --- | --- |
+| Read outer and inner table locators | Admit | Two distinct table indices; exactly one nested child |
+| Change inner table page-break metadata | Admit | Child has new saved property; parent content and nesting preserved |
+| Edit a text cell inside the nested child | Admit | Target child value updated; all other child and parent values unchanged |
+| Edit a **non-host** peer cell in the parent | Admit | Peer value updated; all child cell values/geometry remain identical |
+| Replace whole parent **host cell** text | Refuse | `NESTED_TABLE_HOST_CELL_TEXT_EDIT_DEFERRED`; original HWPX SHA-256 unchanged |
+
+The guard is implemented in the established P2.7 native `set_cell_text`
+path rather than through a redundant XML writer. It specifically checks
+whether the target native cell contains a descendant `hp:tbl`. A host-cell
+replacement could destroy that child; until a lossless region-preserving
+algorithm is validated, it is *not* admitted. Normal neighboring cell edits
+remain available. No automatic flattening of nested structures is authorized.
+
+### Executed evidence
+
+- [R2 initial native CI #42975392819](https://github.com/WhoSia/ChatGPT-Web-HWPX-MCP/actions/runs/42975392819) **SUCCESS**, 61 inherited P4.25 + 98 P4.26 + 6 P4.27 = **165/165 tests** (genuine nested lookup and inner metadata edit).
+- [R2 updated native CI #42975783376](https://github.com/WhoSia/ChatGPT-Web-HWPX-MCP/actions/runs/42975783376) **SUCCESS**, 61 + 98 + 8 = **167/167 tests** (adds nested child text edit and host-cell fail-closed SHA-256 protection).
+- [R2 peer-cell native CI #42976028908](https://github.com/WhoSia/ChatGPT-Web-HWPX-MCP/actions/runs/42976028908) **SUCCESS**, 61 + 98 + 9 = **168/168 tests** (adds parent peer edit while preserving all child cell data/geometry). Tested code commit: `17b7a52e81b1ac10a56e380ee23929a4ed64d125`.
+- Existing independent real [rhwp render #42976028824](https://github.com/WhoSia/ChatGPT-Web-HWPX-MCP/actions/runs/42976028824) **SUCCESS** and [P4.26 native CI #42976028894](https://github.com/WhoSia/ChatGPT-Web-HWPX-MCP/actions/runs/42976028894) **SUCCESS** on this code commit.
+
+**Evidence boundary:** R2 verifies a synthetic HWPX package, native
+library reopening and semantic/geometry preservation for the specified
+edit scope. It does **not** prove arbitrary third-party nested-table import,
+all edit operations, strict unchanged ZIP bytes for successful edits,
+native Hancom pixel parity or production MCP deployment. The product/Docker
+pipeline is independently evaluated; see exact commit results before release.
+
+
+## R3 — Two-layer native edit preservation with unrelated paragraph guard (2026-11-11)
+
+P3.42 already exposes a bounded package-part mutation footprint certificate.
+P4.27 **reuses** it and adds a stricter *within-part* semantic comparison
+before the original HWPX can be replaced. A package-part certificate by itself
+cannot detect accidental edits to a neighboring table or paragraph in the
+same `Contents/section*.xml` file.
+
+The new `hwpx_mcp/custody/p427_structured_edit_preservation.py` implements
+`apply_bounded_table_edit_with_preservation_atomic`. It stages a temporary
+native HWPX, delegates to the existing P3.23 table editor, then:
+
+1. Computes the **intended** target table/cell delta before executing
+   the edit. R3 admits a single `set_cell_text` or `set_table_page_break`
+   operation only; edits with no observed effect are refused.
+2. Reopens the native document, compares the complete exposed table
+   maps for all tables, and rejects unapproved table and cell changes.
+3. Compares unrelated section-body paragraphs **not containing table
+   controls**, including their text, paragraph attributes and direct-run
+   styling identifiers. Table-host paragraphs are excluded because a
+   valid nested-cell edit can change their descendant text.
+4. Invokes P3.42's `build_mutation_footprint` using exact, independently
+   determined expected package parts (the source section and header) and
+   requires `TARGETED_PARTS_ONLY`.
+5. Atomically replaces the original only after all gates pass. Failure
+   leaves source bytes unchanged and deletes the candidate. A validator
+   hook permits controlled post-edit fault injection in tests.
+
+Regression: `tests/test_p427_structured_edit_preservation.py`.
+Injected failures include undeclared changes to another table, an extra
+ZIP member, unrelated body-paragraph corruption, no-op edits and rejected
+stale/unsupported operations. Positive cases edit a genuine nested child
+cell or its native `pageBreak` property.
+
+### Exact executed evidence
+
+On code SHA `a05589d5f52b75c8a9f7aa17344e1a9a6af55d93`:
+
+- [P4.27 native acceptance #42992174297](https://github.com/WhoSia/ChatGPT-Web-HWPX-MCP/actions/runs/42992174297):
+  **SUCCESS**, 61 inherited P4.25 + 98 P4.26 + 16 P4.27 = **175/175 tests**.
+- [P4.26 native regression #42992174256](https://github.com/WhoSia/ChatGPT-Web-HWPX-MCP/actions/runs/42992174256):
+  **SUCCESS**.
+- [Independent real rhwp renderer #42992174225](https://github.com/WhoSia/ChatGPT-Web-HWPX-MCP/actions/runs/42992174225):
+  **SUCCESS**.
+- [Product/Docker integration #42992174252](https://github.com/WhoSia/ChatGPT-Web-HWPX-MCP/actions/runs/42992174252):
+  **SUCCESS**.
+
+**Boundary:** This is a separate opt-in R3 preservation transaction, not
+yet the default exposed ChatGPT MCP tool path. It compares the native
+table API's exposed semantic properties and ordinary body paragraphs,
+not every possible internal OWPML attribute, hidden style reference,
+or rendered page pixel. Table-anchor paragraphs are excluded from
+the paragraph gate and remain partly protected by table semantics.
+Native Windows Hancom fidelity and live server deployment are separate
+release gates. Do not describe this as arbitrary-document losslessness.
+
+
+## R4 — Owner-gated MCP preservation transaction (2026-11-11)
+
+P4.27 R3 was a callable Python preservation transaction, not yet an MCP
+tool. R4 exposes **`apply_preserved_table_edit(document_id,
+expected_revision, operation, lease_token="")`** as a new MCP tool in
+`server_p2.py`; the existing `apply_advanced_table_edits` contract
+remains unchanged. This is a **bounded alternative**, not an unsafe
+global replacement or a production release.
+
+The tool's implementation reuses `_owned_document` and the existing
+OAuth principal/owner gate, revision readback and durable-store metadata
+commit path, as well as `core.validate_hwpx_package` on the staged file.
+R3 now retains the package validator's receipt, allowing the final MCP
+response to carry validation, package-part footprint, table/cell semantic
+preservation, unrelated-body-paragraph checks and the committed SHA-256.
+Only one `set_cell_text` or `set_table_page_break` is admitted. Lease
+tokens are handled through the existing revision store compatibility
+mechanism; this does **not** establish multi-client serializability
+independently of the durable revision/CAS store.
+
+### CI lessons and corrective actions
+
+1. First R4 test attempt [native CI #42993631155](https://github.com/WhoSia/ChatGPT-Web-HWPX-MCP/actions/runs/42993631155)
+   failed importing `server_p2` because ordinary native CI has no
+   `P12_AUTH_DATABASE_URL`. Do not interpret this as a successful server
+   acceptance or turn off authentication to avoid the failure.
+2. Splitting native and PostgreSQL tests exposed another authentic
+   dependency: the host imports P3.45's **compiled TypeScript runtime**,
+   which the Python-only runner had not built. The PostgreSQL R4 job
+   initially failed for this reason. This was resolved by running the
+   authenticated suite in the **exact production Docker image** with
+   compiled TS/Rust components and a CI-only PostgreSQL service, instead
+   of inventing a stub runtime.
+3. The owner test now exercises the existing `_require_owner` check
+   with a foreign caller identity, not just a mocked function exception.
+   Other tests cover successful owner-scoped edit + metadata revision
+   bump, stale revision, invalid operation, and package validation
+   failure with the original file unchanged.
+
+### Verified acceptance
+
+At code SHA `4491c8b2f1e64a88d101e5cdc5e3b1cb5d7e69ee`:
+
+- [P4.27 dual-mode acceptance #42994792940](https://github.com/WhoSia/ChatGPT-Web-HWPX-MCP/actions/runs/42994792940)
+  **SUCCESS**. Native: inherited P4.25 61 + P4.26 98 +
+  P4.27 21 discovered with **5 server-only skips** (16 executed
+  native P4.27 tests). Production-image authenticated job:
+  **5/5 real in-process server tests PASS**, with live PostgreSQL
+  dependency, the actual compiled product runtime and validated HWPX.
+  Explicitly do not count the native skips as passes.
+- [P4.26 native #42994793020](https://github.com/WhoSia/ChatGPT-Web-HWPX-MCP/actions/runs/42994793020)
+  **SUCCESS**.
+- [Real rhwp #42994792898](https://github.com/WhoSia/ChatGPT-Web-HWPX-MCP/actions/runs/42994792898)
+  **SUCCESS**.
+- [Product / Docker #42994792977](https://github.com/WhoSia/ChatGPT-Web-HWPX-MCP/actions/runs/42994792977)
+  **SUCCESS**.
+
+Test module: `tests/test_p427_server_preserved_edit.py`; exact
+production runtime check: `.github/workflows/p427-ci.yml`. The
+existing MCP client tool inventory in `tests/test_client.py` now
+requires `apply_preserved_table_edit` but an actual network OAuth
+client round trip has **not** been certified.
+
+**Release boundaries:** No merge to main or deployment of P4.27,
+and no claim of Windows Hancom-native visual fidelity. The exact
+preservation assertion covers declared table data, unrelated ordinary
+body paragraphs and package parts, **not** arbitrary hidden content,
+global semantic invariants or visual page equivalence. The new
+server entrypoint follows the existing durable commit design; full
+cross-resource crash atomicity is a separate failure-injection gate.
+
+## Table-anchor paragraph preservation
+
+The preservation transaction now compares top-level section paragraphs that
+contain a table control as well. The comparison retains surrounding text, run
+and paragraph attributes, other inline markup, and each table's position in
+the paragraph. The native table map still checks the table contents. This
+allows a nested-cell edit inside a mixed-content paragraph while rejecting
+changes to text or run formatting beside its containing table.
+
+The MCP preservation receipt includes `table_anchor_paragraphs_verified`.
+An unexpected anchor change raises `R3_UNDECLARED_TABLE_ANCHOR_PARAGRAPH_DRIFT`
+before the staged file replaces the original. The regression suite injects
+both text and run-style changes and checks the original bytes and temporary
+file cleanup.
+
+### Body controls, nested anchors and page-break scope
+
+- The transaction compares normalized XML for ordinary body paragraphs,
+  including inline controls such as line breaks. The nested anchor check also
+  compares the markup around tables hosted in cell paragraphs. A successful
+  receipt reports `nested_table_anchor_paragraphs_verified`.
+- A page-break edit permits a change to its target section only. The cell-text
+  operation retains its existing allowance for `Contents/header.xml`.
+- Saved-file regressions cover malformed operation names, unexpected line
+  breaks, nested anchor run style changes and shared header drift. A positive
+  test replaces Korean text in a merged cell and checks its geometry and the
+  adjacent table after reopening the file.

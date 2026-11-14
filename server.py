@@ -441,6 +441,12 @@ def probe_capabilities() -> dict:
             "list_report_presets",
             "preview_report_plan",
             "create_report_from_sections_and_deliver",
+            "get_document_render_options",
+            "preview_document_svg_pages",
+            "inspect_document_references",
+            "inspect_document_table_layout",
+            "preview_native_equation_script",
+            "inspect_document_equations",
             "discover_hwpx_workflows",
             "create_and_deliver_document",
             "create_rich_document_and_deliver",
@@ -464,6 +470,12 @@ def probe_capabilities() -> dict:
             "list_report_presets",
             "preview_report_plan",
             "create_report_from_sections_and_deliver",
+            "get_document_render_options",
+            "preview_document_svg_pages",
+            "inspect_document_references",
+            "inspect_document_table_layout",
+            "preview_native_equation_script",
+            "inspect_document_equations",
             "discover_hwpx_workflows",
             "create_and_deliver_document",
             "create_rich_document_and_deliver",
@@ -868,6 +880,14 @@ from hwpx_mcp.interfaces.p425_format_interchange import register_format_intercha
 register_format_interchange_tools(_p425_sys.modules[__name__])
 from hwpx_mcp.interfaces.p425_report_presets import register_report_preset_tools
 register_report_preset_tools(_p425_sys.modules[__name__])
+from hwpx_mcp.interfaces.p426_equation_experience import register_equation_experience
+register_equation_experience(_p425_sys.modules[__name__])
+from hwpx_mcp.interfaces.p426_visual_preview import register_visual_preview
+register_visual_preview(_p425_sys.modules[__name__])
+from hwpx_mcp.interfaces.p426_academic_references import register_academic_reference_tools
+register_academic_reference_tools(_p425_sys.modules[__name__])
+from hwpx_mcp.interfaces.p426_table_layout import register_table_layout_tools
+register_table_layout_tools(_p425_sys.modules[__name__])
 
 
 if __name__ == "__main__":

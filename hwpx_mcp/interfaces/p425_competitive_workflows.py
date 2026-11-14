@@ -149,6 +149,9 @@ def register_competitive_workflows(core):
             ("list_document_figures", "figure image graph chart list inspect",
              "Inspect native HWPX figure placement and object references.",
              "document_id; optional offset, limit"),
+            ("inspect_document_table_layout", "table pagination pagebreak header repeat layout long",
+             "Inspect saved native HWPX table page-break modes and repeated header rows.",
+             "document_id; optional offset, limit"),
             ("list_document_tables", "table list inspect cells",
              "Inspect grids, merged cells and captions.",
              "document_id; optional offset, limit"),
@@ -170,6 +173,21 @@ def register_competitive_workflows(core):
             ("create_from_markdown_and_deliver", "markdown import create convert",
              "Compile Markdown headings, lists and simple tables into native HWPX.",
              "markdown; optional filename"),
+            ("preview_native_equation_script", "equation eqedit latex compatibility portable math",
+             "Preview editable native HWP EqEdit scripts and explicit LaTeX compatibility.",
+             "latex; optional policy strict|portable"),
+            ("inspect_document_equations", "equation math script inspect document",
+             "Read real saved HWPX equation scripts, identity and geometry.",
+             "document_id; optional offset, limit, include_script"),
+            ("get_document_render_options", "render pdf svg preview capabilities",
+             "Explain available native Hancom and optional SVG renderers.",
+             "no required inputs"),
+            ("preview_document_svg_pages", "preview svg page render diagram",
+             "Render page images only when an external rhwp renderer is installed.",
+             "document_id; optional start_page, max_pages, profile"),
+            ("inspect_document_references", "reference bookmark crossref bibliography caption",
+             "Inspect native saved bookmarks, page cross-reference fields and captions.",
+             "document_id; optional limit"),
             ("list_report_presets", "report preset style science school institution",
              "List available report presets and example section layouts.",
              "no required inputs"),
@@ -178,15 +196,16 @@ def register_competitive_workflows(core):
              "title, sections; optional preset, subtitle, author, page_numbers, table_of_contents, number_captions"),
             ("create_report_from_sections_and_deliver", "report science school experiment tables figure image graph footnote caption equation create",
              "Create a native report interleaving text, editable formulas, tables, images, footnotes and numbered captions.",
-             "title, sections; optional preset, subtitle, author, filename, page_numbers, table_of_contents, number_captions"),
+             "title, sections; optional preset, layout, number_captions, caption_clearance_pt, equation_caption_mode=native|visible-paragraph, fit_figures_to_page, segment_long_tables"),
         ]
         tokens = {word.casefold() for word in task.split() if word.strip()}
         synonyms = {
-            "표": "table", "셀": "cell", "병합": "merge", "읽기": "read",
+            "표": "table", "셀": "cell", "병합": "merge",
+            "긴표": "table", "머리글": "header", "페이지나눔": "pagebreak", "읽기": "read",
             "검색": "search", "찾기": "find", "치환": "replace",
             "수정": "edit", "작성": "create", "생성": "create",
-            "템플릿": "template", "미리보기": "preview",
-            "수식": "equations", "보고서": "report",
+            "템플릿": "template",
+            "수식": "equation", "보고서": "report",
             "글꼴": "font", "서식": "format", "스타일": "style",
             "문단": "paragraph", "마크다운": "markdown",
             "변환": "convert", "추출": "export",
@@ -194,6 +213,8 @@ def register_competitive_workflows(core):
             "그림": "figure", "그래프": "graph", "사진": "image",
             "각주": "footnote", "출처": "footnote", "캡션": "caption", "프리셋": "preset",
             "양식": "preset", "학교": "school",
+            "참조": "reference", "책갈피": "bookmark", "페이지": "page",
+            "미리보기": "preview", "렌더링": "render", "다운로드": "deliver",
         }
         tokens |= {synonyms[word] for word in tokens if word in synonyms}
         ranked = []
@@ -208,7 +229,7 @@ def register_competitive_workflows(core):
         ranked.sort(key=lambda row: (-row[0], row[1]))
         selected = [row[2] for row in ranked[:limit]]
         return {
-            "ok": True, "phase": "P4.25",
+            "ok": True, "phase": "P4.26",
             "matching_workflows": selected,
             "matching_count": len(ranked),
             "no_matches": not bool(selected),
@@ -285,7 +306,9 @@ def register_competitive_workflows(core):
                 raise ValueError("COMPOSED_HWPX_FAILED_VALIDATION")
             metadata = core._metadata(
                 document_id, filename=filename, owner_subject=owner,
-                validation=validated, title=str(rich_plan.get("title") or ""),
+                validation=validated,
+                title=str((rich_plan.get("document") or {}).get("title")
+                          or rich_plan.get("title") or ""),
                 source="p425-rich-composer",
             )
             committed = core._write_metadata(document_id, metadata)

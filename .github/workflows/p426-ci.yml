@@ -1,0 +1,71 @@
+name: P4.26 native layout and equation experience
+
+on:
+  pull_request:
+    branches: [development/p425-competitive-capability-convergence-20261110]
+    paths:
+      - "hwpx_mcp/orchestration/p426_*.py"
+      - "hwpx_mcp/interfaces/p426_*.py"
+      - "hwpx_mcp/interfaces/p425_report_presets.py"
+      - "hwpx_mcp/orchestration/p338_rich_builder.py"
+      - "server.py"
+      - "scripts/p426_generate_native_showcase.py"
+      - "tests/test_p426_*.py"
+      - "tests/test_p425_*.py"
+      - ".github/workflows/p426-ci.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: p426-workflows-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  native-layout-equations:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Check exact HEAD
+        env:
+          EXPECTED: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install project runtime dependencies
+        run: python -m pip install --disable-pip-version-check -r requirements.txt
+      - name: Compile P4.25/P4.26 source and test modules
+        run: |
+          python -m compileall -q hwpx_mcp/orchestration/p426_layout_tokens.py hwpx_mcp/orchestration/p426_layout_preflight.py hwpx_mcp/interfaces/p426_equation_experience.py hwpx_mcp/interfaces/p425_report_presets.py hwpx_mcp/orchestration/p338_rich_builder.py tests/test_p426_layout_tokens.py tests/test_p426_layout_preflight.py tests/test_p426_equation_experience.py
+      - name: Run native authoring and equation regression suite
+        run: |
+          python -m unittest discover -s tests -p 'test_p425_*.py' -v
+          python -m unittest discover -s tests -p 'test_p426_*.py' -v
+          # P3.33's server-level test requires an external OAuth Postgres.
+          # Equivalent signed-link HTTP integration runs in P4.26 without DB.
+      - name: Generate downloadable synthetic HWPX showcase
+        run: |
+          python -m scripts.p426_generate_native_showcase --output-dir ./p426-showcase-output
+          python - <<'PY'
+          import hashlib, json
+          from pathlib import Path
+          root = Path("p426-showcase-output")
+          receipt = json.loads((root / "P426_생성검증_manifest.json").read_text(encoding="utf-8"))
+          data = (root / receipt["filename"]).read_bytes()
+          assert hashlib.sha256(data).hexdigest() == receipt["native_hwpx_sha256"]
+          assert receipt["native_equations"] >= 2 and receipt["table_rows"] == 80
+          assert not receipt["windows_hancom_render_verified"]
+          print("Synthetic P4.26 example is ready for external manual review:", receipt["filename"])
+          PY
+      - name: Publish real HWPX and verification manifest
+        uses: actions/upload-artifact@v4
+        with:
+          name: p426-synthetic-science-report-${{ github.run_number }}
+          path: p426-showcase-output/
+          if-no-files-found: error
+          retention-days: 30

@@ -200,6 +200,12 @@ def _direct_table_operation(candidate: Path, table_locator: str, op: dict) -> No
             table.split_merged_cell(int(cell["row"]), int(cell["col"]))
         elif name == "set_cell_text":
             cell = _resolve_cell(target, op.get("cell"))
+            native_cell = table.cell(int(cell["row"]), int(cell["col"]))
+            # Replacing the text of a host cell is not equivalent to editing
+            # its child table; preserve nested native structure fail-closed.
+            if any(element.tag == "{http://www.hancom.co.kr/hwpml/2011/paragraph}tbl"
+                   for element in native_cell.element.iter()):
+                raise ValueError("NESTED_TABLE_HOST_CELL_TEXT_EDIT_DEFERRED")
             table.set_cell_text(
                 int(cell["row"]), int(cell["col"]), str(op.get("text", "")),
                 logical=True, preserve_format=True,

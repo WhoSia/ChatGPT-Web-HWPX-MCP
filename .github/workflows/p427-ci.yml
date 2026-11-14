@@ -1,0 +1,113 @@
+name: P4.27 Lossless Native Editing Acceptance
+
+on:
+  pull_request:
+    branches:
+      - development/p425-competitive-capability-convergence-20261110
+    paths:
+      - "hwpx_mcp/document/p323_advanced_tables.py"
+      - "hwpx_mcp/document/p27_tables.py"
+      - "hwpx_mcp/document/p28_tables.py"
+      - "tests/test_p427_*.py"
+      - "tests/test_p426_*.py"
+      - ".github/workflows/p427-ci.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: p427-native-edit-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  native-lossless-editing:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Verify exact tested source commit
+        env:
+          EXPECTED: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install native document and MCP dependencies
+        run: python -m pip install --disable-pip-version-check -r requirements.txt
+      - name: Compile native editing module and regression files
+        run: |
+          python -m compileall -q hwpx_mcp/document/p323_advanced_tables.py tests/test_p427_merged_table_preservation.py
+      - name: Verify inherited P4.25 and P4.26 acceptance
+        run: |
+          python -m unittest discover -s tests -p 'test_p425_*.py' -v
+          python -m unittest discover -s tests -p 'test_p426_*.py' -v
+      - name: Verify P4.27 actual saved-file edit preservation
+        run: python -m unittest discover -s tests -p 'test_p427_*.py' -v
+      - name: Generate and reopen inherited synthetic report
+        run: |
+          python -m scripts.p426_generate_native_showcase --output-dir p427-parent-showcase
+          python - <<'PY'
+          import hashlib, json
+          from pathlib import Path
+          path = Path("p427-parent-showcase")
+          receipt = json.loads((path / "P426_생성검증_manifest.json").read_text(encoding="utf-8"))
+          data = (path / receipt["filename"]).read_bytes()
+          assert hashlib.sha256(data).hexdigest() == receipt["native_hwpx_sha256"]
+          assert receipt["native_equations"] >= 2
+          assert receipt["table_rows"] == 80
+          print("INHERITED_NATIVE_AUTHORING_OK", receipt["filename"])
+          PY
+      - name: Retain synthetic HWPX for independent inspection
+        uses: actions/upload-artifact@v4
+        with:
+          name: p427-inherited-native-report-${{ github.run_number }}
+          path: p427-parent-showcase/
+          if-no-files-found: error
+          retention-days: 30
+
+  authenticated-preserved-mcp:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: hwpx_test
+          POSTGRES_PASSWORD: hwpx_test_password
+          POSTGRES_DB: hwpx_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U hwpx_test -d hwpx_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      P12_AUTH_DATABASE_URL: postgresql://hwpx_test:hwpx_test_password@127.0.0.1:5432/hwpx_test
+      P30_DOCUMENT_DATABASE_URL: postgresql://hwpx_test:hwpx_test_password@127.0.0.1:5432/hwpx_test
+      P12_STATE_SECRET: p427-r4-ci-only-state-secret-at-least-32-characters
+      P11_OAUTH_PASSPHRASE: p427-r4-ci-only-passphrase
+      P1_DOWNLOAD_SECRET: p427-r4-ci-only-download-key
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Confirm exact authenticated test HEAD
+        env:
+          EXPECTED: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED"
+      - name: Build exact production-runtime image (TS and Rust included)
+        run: docker build --progress=plain -t p427-r4-auth:ci .
+      - name: Run authenticated R4 MCP acceptance inside production runtime
+        run: |
+          docker run --rm --network host \
+            -v "$PWD/tests:/app/tests:ro" \
+            -e P12_AUTH_DATABASE_URL \
+            -e P30_DOCUMENT_DATABASE_URL \
+            -e P12_STATE_SECRET \
+            -e P11_OAUTH_PASSPHRASE \
+            -e P1_DOWNLOAD_SECRET \
+            p427-r4-auth:ci \
+            python -m unittest discover -s /app/tests -p 'test_p427_server_preserved_edit.py' -v

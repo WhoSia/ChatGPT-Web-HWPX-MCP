@@ -1,0 +1,245 @@
+name: P4.26 real external SVG renderer acceptance
+
+on:
+  pull_request:
+    branches: [development/p425-competitive-capability-convergence-20261110]
+    paths:
+      - "scripts/p426_generate_native_showcase.py"
+      - "scripts/p426_render_native_showcase.py"
+      - "scripts/p426_refresh_toc_from_render.py"
+      - "scripts/p426_visual_toc_audit.py"
+      - "hwpx_mcp/render/p426_toc_cache_refresh.py"
+      - "hwpx_mcp/render/p426_rhwp_svg_preview.py"
+      - ".github/workflows/p426-real-svg-render-ci.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: p426-real-svg-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  actual-rhwp-render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install actual native HWPX authoring dependencies
+        run: python -m pip install --disable-pip-version-check -r requirements.txt
+      - name: Create authentic P4.26 synthetic HWPX from repository code
+        run: python -m scripts.p426_generate_native_showcase --output-dir p426-render-source
+      - name: Download and SHA-pin independent rhwp v0.8.7 Linux CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --show-error --silent             --retry 3 --connect-timeout 20 --max-time 180             "https://github.com/edwardkim/rhwp/releases/download/v0.8.7/rhwp-v0.8.7-linux-x86_64.tar.gz"             -o "$RUNNER_TEMP/rhwp-v0.8.7-linux-x86_64.tar.gz"
+          echo "f1e541a25cfe76b6bc1daf18bf9c1f9a5ac5e03e2c01b188daaf54107214f631  $RUNNER_TEMP/rhwp-v0.8.7-linux-x86_64.tar.gz" | sha256sum --check --status
+          mkdir -p "$RUNNER_TEMP/p426-rhwp"
+          tar -xzf "$RUNNER_TEMP/rhwp-v0.8.7-linux-x86_64.tar.gz" -C "$RUNNER_TEMP/p426-rhwp"
+          mapfile -t bins < <(find "$RUNNER_TEMP/p426-rhwp" -type f -name rhwp)
+          test "${#bins[@]}" -eq 1
+          chmod +x "${bins[0]}"
+          printf 'RHWP_PATH=%s\n' "${bins[0]}" >> "$GITHUB_ENV"
+          "${bins[0]}" --version
+      - name: Install Korean glyph fallback and vector-to-PNG viewer
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends fonts-noto-cjk librsvg2-bin fontconfig
+          fc-cache -f
+          fc-match "Noto Serif CJK KR"
+      - name: Render real SVG pages and record observed pagination
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m scripts.p426_render_native_showcase             --source "p426-render-source/P426_합성_전기회로_28행분할.hwpx"             --output-dir "p426-real-svg-pages"             --executable "$RHWP_PATH"             --pages 10
+      - name: Generate portable PNG previews with installed Korean fonts
+        shell: bash
+        run: |
+          set -euo pipefail
+          find p426-real-svg-pages -type f -name '*.svg' -print0 | while IFS= read -r -d '' svg; do
+            rsvg-convert "$svg" -o "${svg%.svg}.png"
+          done
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          root = Path("p426-real-svg-pages")
+          manifest = json.loads((root / "p426_rhwp_render_observation.json").read_text(encoding="utf-8"))
+          assert manifest["svg_pages"], "No rendered pages"
+          for page in manifest["svg_pages"]:
+              svg = root / page["relative_svg_path"]
+              png = svg.with_suffix(".png")
+              assert svg.is_file() and png.is_file(), (svg, png)
+              assert png.read_bytes().startswith(b"\x89PNG\r\n\x1a\n")
+          print("Real rhwp pages:", len(manifest["svg_pages"]))
+          print("Observed rhwp table-cell text overflow lines:", manifest["total_overflow_cell_lines"])
+          PY
+      - name: Audit figure caption clearance using actual SVG glyph positions
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          from scripts.p426_refresh_toc_from_render import load_complete_svg_pages
+          from scripts.p426_visual_spacing_audit import audit_caption_to_body_gap
+          root = Path("p426-real-svg-pages")
+          pages = load_complete_svg_pages(root)
+          result = audit_caption_to_body_gap(
+              pages,
+              "그림 1. 전압과 전류의 합성 선형 관계",
+              "아래 표는 긴 표의 분할과 반복 머리글 기능",
+              minimum_baseline_gap=16.0,
+          )
+          (root / "p426_visual_spacing_acceptance.json").write_text(
+              json.dumps(result, ensure_ascii=False, indent=2) + "\n",
+              encoding="utf-8"
+          )
+          assert result["status"] == "BASELINE_CLEARANCE_ACCEPTED", result
+          print("P4.26 caption clearance measured:", result["baseline_gap"])
+          PY
+      - name: Require actual visible math captions in real SVG pages
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          from scripts.p426_refresh_toc_from_render import load_complete_svg_pages
+          from scripts.p426_visual_equation_caption_audit import audit_visible_equation_captions
+          root=Path("p426-real-svg-pages")
+          pages=load_complete_svg_pages(root)
+          result=audit_visible_equation_captions(
+              pages, ["식 1. 옴의 법칙", "식 2. 저항의 정의"],
+          )
+          (root / "p426_equation_caption_visibility.json").write_text(
+              json.dumps(result, ensure_ascii=False, indent=2)+"\n", encoding="utf-8"
+          )
+          assert result["status"] == "ALL_VISIBLE", result
+          print("Equation captions visible in actual SVG:", result["captions"])
+          PY
+      - name: Compare 20-row 28-row and 36-row budgets in actual renderer
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p p426-segmentation-benchmark
+          for budget in 20 36; do
+            mkdir -p "p426-segmentation-benchmark/$budget/source"
+            python -m scripts.p426_generate_native_showcase               --output-dir "p426-segmentation-benchmark/$budget/source"               --table-segment-rows "$budget"
+            if [ "$budget" = "20" ]; then
+              document_name="P426_합성_전기회로_분할개선보고서.hwpx"
+            else
+              document_name="P426_합성_전기회로_${budget}행분할.hwpx"
+            fi
+            python -m scripts.p426_render_native_showcase               --source "p426-segmentation-benchmark/$budget/source/$document_name"               --output-dir "p426-segmentation-benchmark/$budget/svg"               --executable "$RHWP_PATH"               --pages 10
+          done
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          rows = []
+          root = Path("p426-segmentation-benchmark")
+          for budget in (20, 28, 36):
+              if budget == 28:
+                  path = Path("p426-real-svg-pages/p426_rhwp_render_observation.json")
+              else:
+                  path = root / str(budget) / "svg" / "p426_rhwp_render_observation.json"
+              m = json.loads(path.read_text(encoding="utf-8"))
+              rows.append({
+                  "max_rows_per_table": budget,
+                  "reported_page_count": m["page_count_reported"],
+                  "rendered_pages": len(m["svg_pages"]),
+                  "overflow_cell_lines": m["total_overflow_cell_lines"],
+                  "renderer": m["engine"],
+              })
+          (root / "page-budget-comparison.json").write_text(
+              json.dumps({"data": rows,
+                          "authority": "INDEPENDENT_RHWP_RENDERER_NOT_HANCOM"}, indent=2) + "\n",
+              encoding="utf-8",
+          )
+          print("P4.26 measured segmentation budgets:", json.dumps(rows))
+          PY
+      - name: Refresh cached HWPX TOC numbers using actual five-page SVG evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m scripts.p426_refresh_toc_from_render \
+            --source "p426-render-source/P426_합성_전기회로_28행분할.hwpx" \
+            --render-root "p426-real-svg-pages" \
+            --output "p426-render-source/P426_합성_전기회로_목차갱신.hwpx" \
+            --audit-output "p426-render-source/p426_toc_refresh_receipt.json"
+          python -m scripts.p426_render_native_showcase \
+            --source "p426-render-source/P426_합성_전기회로_목차갱신.hwpx" \
+            --output-dir "p426-refreshed-toc-svg" \
+            --executable "$RHWP_PATH" \
+            --pages 10
+          find p426-refreshed-toc-svg -type f -name '*.svg' -print0 | while IFS= read -r -d '' svg; do
+            rsvg-convert "$svg" -o "${svg%.svg}.png"
+          done
+      - name: Verify updated native TOC against independent re-render
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          from scripts.p426_refresh_toc_from_render import load_complete_svg_pages, SHOWCASE_HEADINGS
+          from scripts.p426_visual_toc_audit import audit_toc_page_cache
+          old = Path("p426-real-svg-pages")
+          new = Path("p426-refreshed-toc-svg")
+          old_pages = load_complete_svg_pages(old)
+          new_pages = load_complete_svg_pages(new)
+          before = audit_toc_page_cache(old_pages, list(SHOWCASE_HEADINGS))
+          after = audit_toc_page_cache(new_pages, list(SHOWCASE_HEADINGS))
+          receipt = json.loads(Path("p426-render-source/p426_toc_refresh_receipt.json").read_text(encoding="utf-8"))
+          assert before["mismatch_count"] == 1, before
+          assert receipt["changed_entry_count"] == 1, receipt
+          assert after["status"] == "CONSISTENT_IN_THIS_RENDERER", after
+          assert after["mismatch_count"] == 0, after
+          assert len(new_pages) == len(old_pages), "TOC refresh unexpectedly changed page count"
+          result = json.loads((new / "p426_rhwp_render_observation.json").read_text(encoding="utf-8"))
+          assert result["total_overflow_cell_lines"] == 0, result
+          (new / "p426_toc_visual_acceptance.json").write_text(
+              json.dumps({"before":before,"after":after,
+                          "source_sha256":receipt["source_sha256"],
+                          "refreshed_sha256":receipt["refreshed_sha256"],
+                          "renderer":"rhwp v0.8.7; not Windows Hancom"},
+                         indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+          )
+          print("TOC visual pass:", after["status"], "pages:", len(new_pages))
+          PY
+      - name: Upload actual rhwp SVG and observed render manifest
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: p426-real-rhwp-svg-${{ github.run_number }}
+          path: |
+            p426-real-svg-pages/
+            p426-refreshed-toc-svg/
+            p426-render-source/P426_합성_전기회로_목차갱신.hwpx
+            p426-render-source/p426_toc_refresh_receipt.json
+            p426-segmentation-benchmark/
+            p426-render-source/P426_생성검증_manifest.json
+          if-no-files-found: error
+          retention-days: 30
+      - name: Enforce no rhwp-rendered table text clipping
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          result = json.loads(Path("p426-real-svg-pages/p426_rhwp_render_observation.json").read_text(encoding="utf-8"))
+          assert result["svg_pages"], "No SVG pages"
+          assert result["total_overflow_cell_lines"] == 0, (
+              "Real renderer reported clipped table lines: "
+              + str(result["total_overflow_cell_lines"])
+          )
+          print("No clipped cell lines reported across all observed SVG pages")
+          PY

@@ -11,6 +11,10 @@ from hwpx_mcp.interfaces.p425_report_presets import (
 )
 
 
+# Genuine small PNG, not a magic-header-only stub.
+PNG_FIXTURE_BASE64 = "iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAFElEQVR4nGMUscn7z8DAwMDEAAUAGa4BwYhFMToAAAAASUVORK5CYII="
+
+
 class FakeMcp:
     def __init__(self):
         self.tools = {}
@@ -41,6 +45,14 @@ class ReportPresetTests(unittest.TestCase):
         self.assertEqual({x["id"] for x in result["presets"]}, set(PRESETS))
         self.assertEqual(result["next_tool"], "create_report_from_sections_and_deliver")
         self.assertIn("preview_report_plan", self.mcp.tools)
+
+    def test_default_download_filename_uses_readable_report_title(self):
+        result = self.mcp.tools["create_report_from_sections_and_deliver"](
+            title="전기 회로 특성 분석",
+            sections=[{"heading": "결과", "paragraphs": ["관찰 결과"]}],
+        )
+        self.assertTrue(result["native"])
+        self.assertEqual(result["filename"], "전기 회로 특성 분석.hwpx")
 
     def test_single_call_creates_science_report_with_real_table_blocks(self):
         result = self.mcp.tools["create_report_from_sections_and_deliver"](
@@ -136,7 +148,8 @@ class ReportPresetTests(unittest.TestCase):
     def test_preview_uses_real_compile_contract_without_composing(self):
         fake = {"block_count": 5, "block_counts": {"title": 1, "heading": 2, "paragraph": 2},
                 "section_count": 1, "setup_operation_count": 1,
-                "plan_sha256": "f" * 64}
+                "plan_sha256": "f" * 64,
+                "plan": {"blocks": [{"type": "paragraph", "text": "실험 절차"}]}}
         with patch("hwpx_mcp.orchestration.p338_rich_builder.compile_rich_document_plan",
                    return_value=fake) as compiler:
             result = self.mcp.tools["preview_report_plan"](
@@ -151,7 +164,7 @@ class ReportPresetTests(unittest.TestCase):
         self.assertEqual(self.calls, [])
 
     def test_embedded_picture_preserves_order_and_caption(self):
-        image = base64.b64encode(b"\x89PNG\r\n\x1a\n" + b"fake-image").decode("ascii")
+        image = PNG_FIXTURE_BASE64
         plan = build_report_plan(
             title="그림 보고서",
             sections=[{"heading": "결과", "content": [
@@ -211,7 +224,7 @@ class ReportPresetTests(unittest.TestCase):
             )
 
     def test_auto_numbering_follows_native_object_order(self):
-        png = base64.b64encode(b"\x89PNG\r\n\x1a\n" + b"sample").decode("ascii")
+        png = PNG_FIXTURE_BASE64
         plan = build_report_plan(
             title="캡션 보고서", number_captions=True,
             sections=[{"heading": "결과", "content": [

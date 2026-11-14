@@ -148,11 +148,11 @@ class NestedStructuredPreservationTests(unittest.TestCase):
         self.assertEqual(self.digest(), before)
         self.assertEqual(raw_nested_table_count(self.path), 1)
 
-    def test_unrelated_body_paragraph_corruption_is_detected_atomically(self):
+    def test_unrelated_body_text_and_inline_markup_are_preserved_atomically(self):
         source_digest = self.digest()
         child = build_advanced_table_map(self.path)["tables"][1]
 
-        def corrupt_intro(candidate):
+        def corrupt_intro(candidate, change):
             staged = candidate.with_suffix(".rewritten.hwpx")
             with zipfile.ZipFile(candidate) as original, zipfile.ZipFile(staged, "w") as result:
                 for info in original.infolist():
@@ -166,7 +166,7 @@ class NestedStructuredPreservationTests(unittest.TestCase):
                             if paragraph.tag == hp + "p" and paragraph.find(".//" + hp + "tbl") is None:
                                 first_text = paragraph.find(".//" + hp + "t")
                                 if first_text is not None and first_text.text:
-                                    first_text.text = "UNDECLARED BODY CHANGE"
+                                    change(first_text)
                                     changed = True
                                     break
                         if changed:
@@ -174,12 +174,20 @@ class NestedStructuredPreservationTests(unittest.TestCase):
                     result.writestr(info, data)
             staged.replace(candidate)
 
-        with self.assertRaisesRegex(ValueError, "R3_UNDECLARED_BODY_PARAGRAPH_DRIFT"):
-            self.edit({
-                "op": "set_table_page_break",
-                "table": child["locator"], "mode": "TABLE",
-            }, candidate_validator=corrupt_intro)
-        self.assertEqual(self.digest(), source_digest)
+        def change_text(text):
+            text.text = "UNDECLARED BODY CHANGE"
+
+        def insert_line_break(text):
+            ET.SubElement(text, HP + "lineBreak")
+
+        for change in (change_text, insert_line_break):
+            with self.subTest(change=change.__name__):
+                with self.assertRaisesRegex(ValueError, "R3_UNDECLARED_BODY_PARAGRAPH_DRIFT"):
+                    self.edit({
+                        "op": "set_table_page_break",
+                        "table": child["locator"], "mode": "TABLE",
+                    }, candidate_validator=lambda candidate: corrupt_intro(candidate, change))
+                self.assertEqual(self.digest(), source_digest)
 
     def test_extra_zip_part_drift_rejected_without_committing(self):
         original = self.digest()

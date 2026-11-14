@@ -53,17 +53,8 @@ def _body_paragraph_signatures(path: Path) -> tuple[list[tuple], list[tuple]]:
                     signature = ET.canonicalize(ET.tostring(paragraph, encoding="unicode"))
                     anchors.append((name, index, signature))
                     continue
-                text = "".join(
-                    item.text or "" for item in paragraph.iter(HP + "t")
-                )
-                styles = tuple(
-                    tuple(sorted(run.attrib.items()))
-                    for run in paragraph.findall(HP + "run")
-                )
-                ordinary.append((
-                    name, index, tuple(sorted(paragraph.attrib.items())),
-                    styles, text,
-                ))
+                signature = ET.canonicalize(ET.tostring(paragraph, encoding="unicode"))
+                ordinary.append((name, index, signature))
     return ordinary, anchors
 
 

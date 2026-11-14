@@ -222,6 +222,26 @@ class NestedStructuredPreservationTests(unittest.TestCase):
             }, candidate_validator=add_unrelated_part)
         self.assertEqual(self.digest(), original)
 
+    def test_page_break_edit_rejects_shared_header_drift(self):
+        original = self.path.read_bytes()
+        child = build_advanced_table_map(self.path)["tables"][1]
+
+        def rewrite_header(candidate):
+            staged = candidate.with_suffix(".rewritten.hwpx")
+            with zipfile.ZipFile(candidate) as source, zipfile.ZipFile(staged, "w") as result:
+                for info in source.infolist():
+                    data = source.read(info)
+                    if info.filename == "Contents/header.xml":
+                        data += b"\n<!-- unexpected header rewrite -->"
+                    result.writestr(info, data)
+            staged.replace(candidate)
+
+        with self.assertRaisesRegex(ValueError, "PRESERVATION_GRADE_NOT_MET"):
+            self.edit({
+                "op": "set_table_page_break", "table": child["locator"], "mode": "TABLE",
+            }, candidate_validator=rewrite_header)
+        self.assertEqual(self.path.read_bytes(), original)
+
     def test_noop_refused_without_committing(self):
         original = self.digest()
         child = build_advanced_table_map(self.path)["tables"][1]

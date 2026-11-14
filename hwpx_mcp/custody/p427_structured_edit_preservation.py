@@ -26,7 +26,7 @@ from hwpx_mcp.document.p323_advanced_tables import (
 )
 
 SCHEMA = "chatgpt-web-hwpx-mcp/p4.27/structured-edit-preservation/v1"
-ADMITTED = {"set_cell_text", "set_table_page_break"}
+ADMITTED = ("set_cell_text", "set_table_page_break")
 HP = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
 
 

@@ -221,6 +221,15 @@ class NestedStructuredPreservationTests(unittest.TestCase):
             )
         self.assertEqual(self.digest(), original)
 
+    def test_malformed_operation_names_are_rejected_before_staging(self):
+        original = self.path.read_bytes()
+        for name in (None, 7, [], {}):
+            with self.subTest(name=name):
+                with self.assertRaisesRegex(ValueError, "R3_EDIT_OPERATION_NOT_ADMITTED"):
+                    self.edit({"op": name})
+        self.assertEqual(self.path.read_bytes(), original)
+        self.assertEqual(list(self.path.parent.glob("*.p427-preserved-*.hwpx")), [])
+
 
 if __name__ == "__main__":
     unittest.main()

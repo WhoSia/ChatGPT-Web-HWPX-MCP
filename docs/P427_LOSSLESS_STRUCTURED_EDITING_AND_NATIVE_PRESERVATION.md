@@ -276,3 +276,18 @@ body paragraphs and package parts, **not** arbitrary hidden content,
 global semantic invariants or visual page equivalence. The new
 server entrypoint follows the existing durable commit design; full
 cross-resource crash atomicity is a separate failure-injection gate.
+
+## Table-anchor paragraph preservation
+
+The preservation transaction now compares top-level section paragraphs that
+contain a table control as well. The comparison retains surrounding text, run
+and paragraph attributes, other inline markup, and each table's position in
+the paragraph. The native table map still checks the table contents. This
+allows a nested-cell edit inside a mixed-content paragraph while rejecting
+changes to text or run formatting beside its containing table.
+
+The MCP preservation receipt includes `table_anchor_paragraphs_verified`.
+An unexpected anchor change raises `R3_UNDECLARED_TABLE_ANCHOR_PARAGRAPH_DRIFT`
+before the staged file replaces the original. The regression suite injects
+both text and run-style changes and checks the original bytes and temporary
+file cleanup.

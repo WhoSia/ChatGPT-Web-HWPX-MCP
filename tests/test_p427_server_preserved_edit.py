@@ -77,6 +77,7 @@ class PreservedEditMcpAcceptanceTests(unittest.TestCase):
         self.assertEqual(response["sha256"], self.digest())
         self.assertNotEqual(before, self.digest())
         self.assertEqual(response["preserved_edit"]["semantic_preservation"]["unapproved_table_changes"], 0)
+        self.assertEqual(response["preserved_edit"]["table_anchor_paragraphs_verified"], 1)
         self.assertTrue(response["validation"]["valid"])
         self.refresh.assert_called_once()
         self.assertEqual(

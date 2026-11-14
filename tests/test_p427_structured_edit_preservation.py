@@ -15,7 +15,24 @@ from hwpx_mcp.document.p323_advanced_tables import (
     apply_advanced_table_edits_atomic,
     build_advanced_table_map,
 )
-from test_p427_nested_table_in_cell import make_nested_fixture, raw_nested_table_count
+from test_p427_nested_table_in_cell import HP, make_nested_fixture, raw_nested_table_count
+
+
+def rewrite_table_anchor(path, section_path, change):
+    staged = path.with_suffix(".rewritten.hwpx")
+    with zipfile.ZipFile(path) as original, zipfile.ZipFile(staged, "w") as result:
+        for info in original.infolist():
+            data = original.read(info)
+            if info.filename == section_path:
+                root = ET.fromstring(data)
+                paragraph = next(p for p in root.findall(HP + "p")
+                                 if p.find(".//" + HP + "tbl") is not None)
+                run = next(r for r in paragraph.findall(HP + "run")
+                           if r.find(".//" + HP + "tbl") is not None)
+                change(run)
+                data = ET.tostring(root, encoding="utf-8", xml_declaration=True)
+            result.writestr(info, data)
+    staged.replace(path)
 
 
 class NestedStructuredPreservationTests(unittest.TestCase):
@@ -62,6 +79,50 @@ class NestedStructuredPreservationTests(unittest.TestCase):
                          "TARGETED_PARTS_ONLY")
         self.assertEqual(build_advanced_table_map(self.path)["tables"][1]["page_break"],
                          "TABLE")
+
+    def test_mixed_content_table_anchor_survives_nested_cell_edit(self):
+        child = build_advanced_table_map(self.path)["tables"][1]
+
+        def add_anchor_text(run):
+            text = ET.Element(HP + "t")
+            text.text = "Text before the table"
+            run.insert(0, text)
+            ET.SubElement(run, HP + "t").text = "Text after the table"
+
+        rewrite_table_anchor(self.path, child["section_path"], add_anchor_text)
+        receipt = self.edit({
+            "op": "set_cell_text", "table": child["locator"],
+            "cell": child["cells"][0]["locator"], "text": "Nested edit",
+        })
+        self.assertEqual(receipt["table_anchor_paragraphs_verified"], 1)
+        self.assertEqual(raw_nested_table_count(self.path), 1)
+        self.assertEqual(build_advanced_table_map(self.path)["tables"][1]["cells"][0]["text"],
+                         "Nested edit")
+
+    def test_table_anchor_text_or_run_style_drift_rejects_without_committing(self):
+        def add_anchor_text(run):
+            ET.SubElement(run, HP + "t").text = "Keep this text"
+
+        def change_text(run):
+            run.findall(HP + "t")[-1].text = "Undeclared text change"
+
+        def change_style(run):
+            run.set("charPrIDRef", "1" if run.get("charPrIDRef") == "0" else "0")
+
+        for change in (change_text, change_style):
+            with self.subTest(change=change.__name__):
+                make_nested_fixture(self.path)
+                child = build_advanced_table_map(self.path)["tables"][1]
+                rewrite_table_anchor(self.path, child["section_path"], add_anchor_text)
+                original = self.path.read_bytes()
+                with self.assertRaisesRegex(ValueError, "R3_UNDECLARED_TABLE_ANCHOR_PARAGRAPH_DRIFT"):
+                    self.edit({
+                        "op": "set_table_page_break", "table": child["locator"], "mode": "TABLE",
+                    }, candidate_validator=lambda candidate: rewrite_table_anchor(
+                        candidate, child["section_path"], change,
+                    ))
+                self.assertEqual(self.path.read_bytes(), original)
+                self.assertEqual(list(self.path.parent.glob("*.p427-preserved-*.hwpx")), [])
 
     def test_undisclosed_sibling_table_edit_rejects_and_preserves_original(self):
         before = self.digest()

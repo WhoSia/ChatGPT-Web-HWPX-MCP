@@ -27,19 +27,13 @@ from hwpx_mcp.document.p323_advanced_tables import (
 
 SCHEMA = "chatgpt-web-hwpx-mcp/p4.27/structured-edit-preservation/v1"
 ADMITTED = {"set_cell_text", "set_table_page_break"}
-
-
-
 HP = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
 
 
-def _unrelated_body_paragraphs(path: Path) -> list[tuple]:
-    """Stable text and formatting identity of body paragraphs outside tables.
-
-    Excludes paragraph anchors that themselves contain a table subtree:
-    those can legitimately change when an inner cell is edited.
-    """
-    observed: list[tuple] = []
+def _body_paragraph_signatures(path: Path) -> tuple[list[tuple], list[tuple]]:
+    """Compare ordinary body paragraphs and the XML surrounding table controls."""
+    ordinary: list[tuple] = []
+    anchors: list[tuple] = []
     with zipfile.ZipFile(path) as archive:
         for name in sorted(archive.namelist()):
             if not (name.startswith("Contents/section") and name.endswith(".xml")):
@@ -48,7 +42,16 @@ def _unrelated_body_paragraphs(path: Path) -> list[tuple]:
             for index, paragraph in enumerate(list(root)):
                 if paragraph.tag != HP + "p":
                     continue
-                if paragraph.find(".//" + HP + "tbl") is not None:
+                tables = paragraph.findall(".//" + HP + "tbl")
+                if tables:
+                    # Keep the table's position and tail. Its contents are checked
+                    # separately by the table map and can change during an edit.
+                    for table in tables:
+                        tail = table.tail
+                        table.clear()
+                        table.tail = tail
+                    signature = ET.canonicalize(ET.tostring(paragraph, encoding="unicode"))
+                    anchors.append((name, index, signature))
                     continue
                 text = "".join(
                     item.text or "" for item in paragraph.iter(HP + "t")
@@ -57,11 +60,11 @@ def _unrelated_body_paragraphs(path: Path) -> list[tuple]:
                     tuple(sorted(run.attrib.items()))
                     for run in paragraph.findall(HP + "run")
                 )
-                observed.append((
+                ordinary.append((
                     name, index, tuple(sorted(paragraph.attrib.items())),
                     styles, text,
                 ))
-    return observed
+    return ordinary, anchors
 
 
 def _semantic_table(table: dict) -> dict:
@@ -152,7 +155,7 @@ def apply_bounded_table_edit_with_preservation_atomic(
     if not isinstance(operation, dict) or operation.get("op") not in ADMITTED:
         raise ValueError("R3_EDIT_OPERATION_NOT_ADMITTED")
     before = build_advanced_table_map(source)
-    untouched_body = _unrelated_body_paragraphs(source)
+    untouched_body, untouched_anchors = _body_paragraph_signatures(source)
     expected = _expected_native_delta(before["tables"], operation)
     target = next(t for t in before["tables"] if t["locator"] == operation["table"])
     expected_scope = {
@@ -179,8 +182,11 @@ def apply_bounded_table_edit_with_preservation_atomic(
         validation = candidate_validator(candidate) if candidate_validator is not None else None
         after = build_advanced_table_map(candidate)
         semantic = _verify_semantics(before, after, expected)
-        if _unrelated_body_paragraphs(candidate) != untouched_body:
+        body, anchors = _body_paragraph_signatures(candidate)
+        if body != untouched_body:
             raise ValueError("R3_UNDECLARED_BODY_PARAGRAPH_DRIFT")
+        if anchors != untouched_anchors:
+            raise ValueError("R3_UNDECLARED_TABLE_ANCHOR_PARAGRAPH_DRIFT")
         certificate = build_mutation_footprint(source, candidate, expected_scope)
         enforcement = enforce_preservation_grade(certificate, "TARGETED_PARTS_ONLY")
         os.replace(candidate, source)
@@ -195,6 +201,7 @@ def apply_bounded_table_edit_with_preservation_atomic(
         "semantic_preservation": semantic,
         "package_validation": validation,
         "unrelated_body_paragraphs_verified": len(untouched_body),
+        "table_anchor_paragraphs_verified": len(untouched_anchors),
         "mutation_footprint": certificate,
         "preservation_enforcement": enforcement,
         "committed_sha256": hashlib.sha256(source.read_bytes()).hexdigest(),

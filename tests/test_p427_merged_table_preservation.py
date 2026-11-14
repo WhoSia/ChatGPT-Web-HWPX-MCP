@@ -7,6 +7,9 @@ import unittest
 from pathlib import Path
 
 from hwpx import HwpxDocument
+from hwpx_mcp.custody.p427_structured_edit_preservation import (
+    apply_bounded_table_edit_with_preservation_atomic,
+)
 from hwpx_mcp.document.p323_advanced_tables import (
     apply_advanced_table_edits_atomic,
     build_advanced_table_map,
@@ -101,6 +104,24 @@ class LosslessMergedTableEditingTests(unittest.TestCase):
         disabled = build_advanced_table_map(self.path)["tables"][0]
         self.assertFalse(disabled["repeat_header"])
         self.assertFalse(any(row["all_header"] for row in disabled["row_geometry"]))
+
+    def test_preserved_text_edit_keeps_merged_anchor_geometry_and_neighbor_table(self):
+        first, second = build_advanced_table_map(self.path)["tables"]
+        anchor = next(cell for cell in first["cells"] if cell["col_span"] > 1)
+        new_text = "교정한 병합 셀"
+        result = apply_bounded_table_edit_with_preservation_atomic(
+            self.path,
+            {"op": "set_cell_text", "table": first["locator"],
+             "cell": anchor["locator"], "text": new_text},
+            expected_revision=2, current_revision=2,
+        )
+        edited, untouched = build_advanced_table_map(self.path)["tables"]
+        self.assertEqual(edited["cells"], [
+            {**cell, "text": new_text} if cell == anchor else cell
+            for cell in first["cells"]
+        ])
+        self.assertEqual(table_signature(untouched), table_signature(second))
+        self.assertEqual(result["table_anchor_paragraphs_verified"], 2)
 
     def test_covered_cell_is_not_mutable_by_a_fabricated_locator(self):
         before = self.path.read_bytes()

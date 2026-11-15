@@ -79,6 +79,10 @@ class PreservedEditMcpAcceptanceTests(unittest.TestCase):
         self.assertEqual(response["preserved_edit"]["semantic_preservation"]["unapproved_table_changes"], 0)
         self.assertEqual(response["preserved_edit"]["table_anchor_paragraphs_verified"], 1)
         self.assertTrue(response["validation"]["valid"])
+        self.assertEqual(response["preserved_edit"]["unrelated_cells_verified"], 3)
+        self.assertEqual(response["preserved_edit"]["committed_sha256"], response["sha256"])
+        self.assertEqual(response["preserved_edit"]["mutation_footprint"]["observed"]["changed_parts"],
+                         [self.table["section_path"]])
         self.refresh.assert_called_once()
         self.assertEqual(
             next(c for c in build_advanced_table_map(self.path)["tables"][0]["cells"]

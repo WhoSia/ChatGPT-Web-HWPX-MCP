@@ -154,11 +154,8 @@ def apply_bounded_table_edit_with_preservation_atomic(
     untouched_body, untouched_anchors, untouched_nested_anchors = _paragraph_signatures(source)
     expected = _expected_native_delta(before["tables"], operation)
     target = next(t for t in before["tables"] if t["locator"] == operation["table"])
-    changed_parts = [target["section_path"]]
-    if operation["op"] == "set_cell_text":
-        changed_parts.append("Contents/header.xml")
     expected_scope = {
-        "changed_parts": changed_parts,
+        "changed_parts": [target["section_path"]],
         "added_parts": [],
         "removed_parts": [],
         "required_changed_parts": [target["section_path"]],

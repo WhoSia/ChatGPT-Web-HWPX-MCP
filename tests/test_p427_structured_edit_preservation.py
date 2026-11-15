@@ -268,6 +268,22 @@ class NestedStructuredPreservationTests(unittest.TestCase):
                     self.edit(operation, candidate_validator=rewrite_header)
                 self.assertEqual(self.path.read_bytes(), original)
 
+    def test_validation_receipt_must_identify_the_candidate_bytes(self):
+        original = self.path.read_bytes()
+        child = build_advanced_table_map(self.path)["tables"][1]
+        operation = {"op": "set_table_page_break", "table": child["locator"], "mode": "TABLE"}
+
+        with self.assertRaisesRegex(ValueError, "R3_PACKAGE_VALIDATION_SHA256_MISMATCH"):
+            self.edit(operation, candidate_validator=lambda _: {"sha256": self.digest()})
+        self.assertEqual(self.path.read_bytes(), original)
+
+        result = self.edit(operation, candidate_validator=lambda candidate: {
+            "sha256": hashlib.sha256(candidate.read_bytes()).hexdigest(),
+        })
+        self.assertEqual(result["committed_sha256"], self.digest())
+        self.assertEqual(result["package_validation"]["sha256"], self.digest())
+        self.assertEqual(result["mutation_footprint"]["after"]["package_sha256"], self.digest())
+
     def test_noop_refused_without_committing(self):
         original = self.digest()
         child = build_advanced_table_map(self.path)["tables"][1]

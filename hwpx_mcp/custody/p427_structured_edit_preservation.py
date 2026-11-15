@@ -7,7 +7,6 @@ Only one explicit cell-text or page-break mutation is admitted initially.
 from __future__ import annotations
 
 import copy
-import hashlib
 import os
 import shutil
 import tempfile
@@ -216,6 +215,10 @@ def apply_bounded_table_edit_with_preservation_atomic(
             raise ValueError("R3_UNDECLARED_CELL_XML_DRIFT")
         certificate = build_mutation_footprint(source, candidate, expected_scope)
         enforcement = enforce_preservation_grade(certificate, "TARGETED_PARTS_ONLY")
+        candidate_sha256 = certificate["after"]["package_sha256"]
+        if isinstance(validation, dict) and "sha256" in validation:
+            if validation["sha256"] != candidate_sha256:
+                raise ValueError("R3_PACKAGE_VALIDATION_SHA256_MISMATCH")
         os.replace(candidate, source)
     except Exception:
         candidate.unlink(missing_ok=True)
@@ -233,6 +236,6 @@ def apply_bounded_table_edit_with_preservation_atomic(
         "unrelated_cells_verified": len(untouched_cells),
         "mutation_footprint": certificate,
         "preservation_enforcement": enforcement,
-        "committed_sha256": hashlib.sha256(source.read_bytes()).hexdigest(),
+        "committed_sha256": candidate_sha256,
         "authority": "NATIVE_STRUCTURAL_AND_PACKAGE_PART_GATES_NOT_VISUAL",
     }

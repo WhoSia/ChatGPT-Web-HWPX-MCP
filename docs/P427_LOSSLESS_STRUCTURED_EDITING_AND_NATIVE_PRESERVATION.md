@@ -298,9 +298,28 @@ file cleanup.
   including inline controls such as line breaks. The nested anchor check also
   compares the markup around tables hosted in cell paragraphs. A successful
   receipt reports `nested_table_anchor_paragraphs_verified`.
-- A page-break edit permits a change to its target section only. The cell-text
-  operation retains its existing allowance for `Contents/header.xml`.
+- The earlier page-break scope admitted only its target section. At that stage
+  the cell-text operation still allowed changes to `Contents/header.xml`.
 - Saved-file regressions cover malformed operation names, unexpected line
   breaks, nested anchor run style changes and shared header drift. A positive
   test replaces Korean text in a merged cell and checks its geometry and the
   adjacent table after reopening the file.
+
+
+### Target section, unedited cells, and receipt binding
+
+Both admitted operations now limit package payload changes to the target
+section. The native text writer updates the target cell and marks its section
+dirty. The regressions exercise Korean input and reject a shared-header rewrite
+for either operation.
+
+The transaction compares normalized XML for unedited native grid anchors,
+including character style references and inline controls omitted by the table
+map. Each containing cell retains the position of any nested table control.
+Inner cells are checked independently through the native table traversal.
+The receipt reports the count in `unrelated_cells_verified`.
+
+When package validation supplies a SHA-256, it must match the staged bytes
+identified by the footprint before replacement. The receipt uses that same
+digest for `committed_sha256`. An injected mismatch leaves the source intact.
+The edited cell still uses the native text writer's formatting behavior.

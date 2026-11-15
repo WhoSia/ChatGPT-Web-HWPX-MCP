@@ -64,6 +64,7 @@ class NestedStructuredPreservationTests(unittest.TestCase):
         self.assertGreaterEqual(receipt["unrelated_body_paragraphs_verified"], 2)
         self.assertEqual(receipt["semantic_preservation"]["unapproved_table_changes"], 0)
         self.assertEqual(raw_nested_table_count(self.path), 1)
+        self.assertEqual(receipt["unrelated_cells_verified"], 7)
         after = build_advanced_table_map(self.path)
         updated = next(c for c in after["tables"][1]["cells"]
                        if (c["row"], c["col"]) == (0, 0))
@@ -139,6 +140,26 @@ class NestedStructuredPreservationTests(unittest.TestCase):
                 "op": "set_table_page_break", "table": child["locator"], "mode": "TABLE",
             }, candidate_validator=lambda candidate: rewrite_table_anchor(
                 candidate, child["section_path"], change_nested_run,
+            ))
+        self.assertEqual(self.path.read_bytes(), original)
+
+    def test_unrelated_cell_run_style_change_preserves_original(self):
+        child = build_advanced_table_map(self.path)["tables"][1]
+        original = self.path.read_bytes()
+
+        def change_peer_style(outer_run):
+            peer_text = next(text for text in outer_run.iter(HP + "t")
+                             if text.text == "Inner peer")
+            peer_run = next(run for run in outer_run.iter(HP + "run")
+                            if peer_text in list(run))
+            peer_run.set("charPrIDRef", "1" if peer_run.get("charPrIDRef") == "0" else "0")
+
+        with self.assertRaisesRegex(ValueError, "R3_UNDECLARED_CELL_XML_DRIFT"):
+            self.edit({
+                "op": "set_cell_text", "table": child["locator"],
+                "cell": child["cells"][0]["locator"], "text": "Declared edit",
+            }, candidate_validator=lambda candidate: rewrite_table_anchor(
+                candidate, child["section_path"], change_peer_style,
             ))
         self.assertEqual(self.path.read_bytes(), original)
 

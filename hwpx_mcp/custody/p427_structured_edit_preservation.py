@@ -16,6 +16,10 @@ from xml.etree import ElementTree as ET
 from pathlib import Path
 from typing import Callable
 
+from hwpx import HwpxDocument
+from hwpx.tools.table_navigation import _collect_document_tables
+from lxml import etree
+
 from hwpx_mcp.custody.p342_mutation_footprint import (
     build_mutation_footprint,
     enforce_preservation_grade,
@@ -30,15 +34,15 @@ ADMITTED = ("set_cell_text", "set_table_page_break")
 HP = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
 
 
-def _paragraph_xml(paragraph: ET.Element) -> str:
+def _xml_outside_tables(element: ET.Element) -> str:
     # Retain each table's position and tail while leaving table contents
     # to the native table comparison. Do not modify the source XML tree.
-    paragraph = copy.deepcopy(paragraph)
-    for table in paragraph.iter(HP + "tbl"):
+    element = copy.deepcopy(element)
+    for table in element.iter(HP + "tbl"):
         tail = table.tail
         table.clear()
         table.tail = tail
-    return ET.canonicalize(ET.tostring(paragraph, encoding="unicode"))
+    return ET.canonicalize(ET.tostring(element, encoding="unicode"))
 
 
 def _paragraph_signatures(path: Path) -> tuple[list[tuple], list[tuple], list[tuple]]:
@@ -55,12 +59,30 @@ def _paragraph_signatures(path: Path) -> tuple[list[tuple], list[tuple], list[tu
                 if paragraph.tag != HP + "p":
                     continue
                 signatures = anchors if paragraph.find(".//" + HP + "tbl") is not None else ordinary
-                signatures.append((name, index, _paragraph_xml(paragraph)))
+                signatures.append((name, index, _xml_outside_tables(paragraph)))
             for cell_index, cell in enumerate(root.iter(HP + "tc")):
                 for index, paragraph in enumerate(cell.findall(f"{HP}subList/{HP}p")):
                     if paragraph.find(f"{HP}run/{HP}tbl") is not None:
-                        nested_anchors.append((name, cell_index, index, _paragraph_xml(paragraph)))
+                        nested_anchors.append((name, cell_index, index, _xml_outside_tables(paragraph)))
     return ordinary, anchors, nested_anchors
+
+
+def _untouched_cell_signatures(path: Path, edited_cell: tuple[int, int, int] | None) -> dict:
+    """Check each native cell outside the text edit, including its inline markup."""
+    document = HwpxDocument.open(str(path))
+    try:
+        signatures = {}
+        for table_index, reference in enumerate(_collect_document_tables(document)):
+            for position in reference.table.iter_grid():
+                if not position.is_anchor:
+                    continue
+                identity = (table_index, *position.anchor)
+                if identity != edited_cell:
+                    element = ET.fromstring(etree.tostring(position.cell.element, with_tail=False))
+                    signatures[identity] = _xml_outside_tables(element)
+        return signatures
+    finally:
+        document.close()
 
 
 def _semantic_table(table: dict) -> dict:
@@ -154,6 +176,11 @@ def apply_bounded_table_edit_with_preservation_atomic(
     untouched_body, untouched_anchors, untouched_nested_anchors = _paragraph_signatures(source)
     expected = _expected_native_delta(before["tables"], operation)
     target = next(t for t in before["tables"] if t["locator"] == operation["table"])
+    edited_cell = None
+    if operation["op"] == "set_cell_text":
+        cell = next(c for c in target["cells"] if c["locator"] == operation["cell"])
+        edited_cell = (target["table_index"], cell["row"], cell["col"])
+    untouched_cells = _untouched_cell_signatures(source, edited_cell)
     expected_scope = {
         "changed_parts": [target["section_path"]],
         "added_parts": [],
@@ -185,6 +212,8 @@ def apply_bounded_table_edit_with_preservation_atomic(
             raise ValueError("R3_UNDECLARED_TABLE_ANCHOR_PARAGRAPH_DRIFT")
         if nested_anchors != untouched_nested_anchors:
             raise ValueError("R3_UNDECLARED_NESTED_TABLE_ANCHOR_DRIFT")
+        if _untouched_cell_signatures(candidate, edited_cell) != untouched_cells:
+            raise ValueError("R3_UNDECLARED_CELL_XML_DRIFT")
         certificate = build_mutation_footprint(source, candidate, expected_scope)
         enforcement = enforce_preservation_grade(certificate, "TARGETED_PARTS_ONLY")
         os.replace(candidate, source)
@@ -201,6 +230,7 @@ def apply_bounded_table_edit_with_preservation_atomic(
         "unrelated_body_paragraphs_verified": len(untouched_body),
         "table_anchor_paragraphs_verified": len(untouched_anchors),
         "nested_table_anchor_paragraphs_verified": len(untouched_nested_anchors),
+        "unrelated_cells_verified": len(untouched_cells),
         "mutation_footprint": certificate,
         "preservation_enforcement": enforcement,
         "committed_sha256": hashlib.sha256(source.read_bytes()).hexdigest(),

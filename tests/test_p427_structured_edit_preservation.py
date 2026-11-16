@@ -8,6 +8,9 @@ import zipfile
 from xml.etree import ElementTree as ET
 from pathlib import Path
 
+from hwpx import HwpxDocument
+from hwpx.tools.table_navigation import _collect_document_tables
+
 from hwpx_mcp.custody.p427_structured_edit_preservation import (
     apply_bounded_table_edit_with_preservation_atomic,
 )
@@ -142,6 +145,39 @@ class NestedStructuredPreservationTests(unittest.TestCase):
                 candidate, child["section_path"], change_nested_run,
             ))
         self.assertEqual(self.path.read_bytes(), original)
+
+    def test_target_cell_edit_preserves_native_equation_and_rejects_script_drift(self):
+        document = HwpxDocument.open(str(self.path))
+        try:
+            table = _collect_document_tables(document)[1].table
+            table.cell(0, 0).paragraphs[0].add_equation("x + y")
+            document.save_to_path(str(self.path))
+        finally:
+            document.close()
+
+        child = build_advanced_table_map(self.path)["tables"][1]
+        operation = {
+            "op": "set_cell_text", "table": child["locator"],
+            "cell": child["cells"][0]["locator"], "text": "교정한 설명",
+        }
+        original = self.path.read_bytes()
+
+        def change_script(outer_run):
+            outer_run.find(".//" + HP + "script").text = "x - y"
+
+        with self.assertRaisesRegex(ValueError, "R3_UNDECLARED_TARGET_CELL_OBJECT_DRIFT"):
+            self.edit(operation, candidate_validator=lambda candidate: rewrite_table_anchor(
+                candidate, child["section_path"], change_script,
+            ))
+        self.assertEqual(self.path.read_bytes(), original)
+
+        result = self.edit(operation)
+        self.assertEqual(result["target_cell_inline_objects_verified"], 1)
+        with zipfile.ZipFile(self.path) as archive:
+            root = ET.fromstring(archive.read(child["section_path"]))
+        self.assertEqual(root.findtext(".//" + HP + "script"), "x + y")
+        self.assertEqual(build_advanced_table_map(self.path)["tables"][1]["cells"][0]["text"],
+                         operation["text"])
 
     def test_unrelated_cell_run_style_change_preserves_original(self):
         child = build_advanced_table_map(self.path)["tables"][1]

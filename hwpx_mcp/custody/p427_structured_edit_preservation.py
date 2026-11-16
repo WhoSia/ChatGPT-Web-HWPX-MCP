@@ -66,20 +66,44 @@ def _paragraph_signatures(path: Path) -> tuple[list[tuple], list[tuple], list[tu
     return ordinary, anchors, nested_anchors
 
 
-def _untouched_cell_signatures(path: Path, edited_cell: tuple[int, int, int] | None) -> dict:
-    """Check each native cell outside the text edit, including its inline markup."""
+_REPLACEABLE_TEXT_CONTROLS = {HP + name for name in (
+    "tab", "lineBreak", "nbSpace", "fwSpace", "hyphen",
+)}
+
+
+def _cell_inline_objects(cell: ET.Element) -> tuple:
+    """Keep non-text content in document order, including text in embedded objects."""
+    objects = []
+    for paragraph in cell.findall(f"{HP}subList/{HP}p"):
+        for run in paragraph.findall(HP + "run"):
+            for child in run:
+                if child.tag == HP + "t":
+                    objects.extend(
+                        _xml_outside_tables(control)
+                        for control in child if control.tag not in _REPLACEABLE_TEXT_CONTROLS
+                    )
+                else:
+                    objects.append(_xml_outside_tables(child))
+    return tuple(objects)
+
+
+def _cell_signatures(path: Path, edited_cell: tuple[int, int, int] | None) -> tuple[dict, tuple | None]:
+    """Capture native grid anchors and the target cell's non-text content."""
     document = HwpxDocument.open(str(path))
     try:
-        signatures = {}
+        untouched = {}
+        target_objects = None
         for table_index, reference in enumerate(_collect_document_tables(document)):
             for position in reference.table.iter_grid():
                 if not position.is_anchor:
                     continue
                 identity = (table_index, *position.anchor)
-                if identity != edited_cell:
-                    element = ET.fromstring(etree.tostring(position.cell.element, with_tail=False))
-                    signatures[identity] = _xml_outside_tables(element)
-        return signatures
+                element = ET.fromstring(etree.tostring(position.cell.element, with_tail=False))
+                if identity == edited_cell:
+                    target_objects = _cell_inline_objects(element)
+                else:
+                    untouched[identity] = _xml_outside_tables(element)
+        return untouched, target_objects
     finally:
         document.close()
 
@@ -179,7 +203,7 @@ def apply_bounded_table_edit_with_preservation_atomic(
     if operation["op"] == "set_cell_text":
         cell = next(c for c in target["cells"] if c["locator"] == operation["cell"])
         edited_cell = (target["table_index"], cell["row"], cell["col"])
-    untouched_cells = _untouched_cell_signatures(source, edited_cell)
+    untouched_cells, target_objects = _cell_signatures(source, edited_cell)
     expected_scope = {
         "changed_parts": [target["section_path"]],
         "added_parts": [],
@@ -211,7 +235,10 @@ def apply_bounded_table_edit_with_preservation_atomic(
             raise ValueError("R3_UNDECLARED_TABLE_ANCHOR_PARAGRAPH_DRIFT")
         if nested_anchors != untouched_nested_anchors:
             raise ValueError("R3_UNDECLARED_NESTED_TABLE_ANCHOR_DRIFT")
-        if _untouched_cell_signatures(candidate, edited_cell) != untouched_cells:
+        cells, edited_objects = _cell_signatures(candidate, edited_cell)
+        if edited_cell is not None and (target_objects is None or edited_objects != target_objects):
+            raise ValueError("R3_UNDECLARED_TARGET_CELL_OBJECT_DRIFT")
+        if cells != untouched_cells:
             raise ValueError("R3_UNDECLARED_CELL_XML_DRIFT")
         certificate = build_mutation_footprint(source, candidate, expected_scope)
         enforcement = enforce_preservation_grade(certificate, "TARGETED_PARTS_ONLY")
@@ -234,6 +261,7 @@ def apply_bounded_table_edit_with_preservation_atomic(
         "table_anchor_paragraphs_verified": len(untouched_anchors),
         "nested_table_anchor_paragraphs_verified": len(untouched_nested_anchors),
         "unrelated_cells_verified": len(untouched_cells),
+        "target_cell_inline_objects_verified": len(target_objects or ()),
         "mutation_footprint": certificate,
         "preservation_enforcement": enforcement,
         "committed_sha256": candidate_sha256,

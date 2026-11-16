@@ -323,3 +323,18 @@ When package validation supplies a SHA-256, it must match the staged bytes
 identified by the footprint before replacement. The receipt uses that same
 digest for `committed_sha256`. An injected mismatch leaves the source intact.
 The edited cell still uses the native text writer's formatting behavior.
+
+### Formatting and inline objects in the edited cell
+
+A preserved cell-text edit compares the ordered native inline objects in the
+target cell, including their run attributes. The native equation regression
+replaces Korean explanatory text next to an equation and reads the original
+EqEdit script back from the saved HWPX. Changes to the script or its run style
+cause rollback. The MCP receipt reports `target_cell_inline_objects_verified`.
+
+The original cell geometry, sublist attributes, first paragraph attributes,
+and first run attributes are checked. The writer can invalidate layout caches
+and set the dirty flag. Nonempty text in a squeezed cell may trigger the
+native transition from SQUEEZE to BREAK. Text spacing controls such as tabs
+remain part of the replacement text. When replacing the entire cell value,
+formatting in discarded text-only runs is outside this comparison.

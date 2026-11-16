@@ -179,6 +179,39 @@ class NestedStructuredPreservationTests(unittest.TestCase):
         self.assertEqual(build_advanced_table_map(self.path)["tables"][1]["cells"][0]["text"],
                          operation["text"])
 
+    def test_target_cell_edit_preserves_run_style_and_allows_native_reflow(self):
+        child = build_advanced_table_map(self.path)["tables"][1]
+
+        def target_sublist(outer_run):
+            table = outer_run.findall(".//" + HP + "tbl")[-1]
+            return table.find(f"{HP}tr/{HP}tc/{HP}subList")
+
+        def squeeze(outer_run):
+            target_sublist(outer_run).set("lineWrap", "SQUEEZE")
+
+        rewrite_table_anchor(self.path, child["section_path"], squeeze)
+        original = self.path.read_bytes()
+        operation = {
+            "op": "set_cell_text", "table": child["locator"],
+            "cell": child["cells"][0]["locator"], "text": "새 글",
+        }
+
+        def change_style(outer_run):
+            target_sublist(outer_run).find(f"{HP}p/{HP}run").set("charPrIDRef", "1")
+
+        with self.assertRaisesRegex(ValueError, "R3_UNDECLARED_TARGET_CELL_FORMAT_DRIFT:first_run"):
+            self.edit(operation, candidate_validator=lambda candidate: rewrite_table_anchor(
+                candidate, child["section_path"], change_style,
+            ))
+        self.assertEqual(self.path.read_bytes(), original)
+
+        self.edit(operation)
+        with zipfile.ZipFile(self.path) as archive:
+            root = ET.fromstring(archive.read(child["section_path"]))
+        outer_run = next(run for run in root.iter(HP + "run") if run.find(HP + "tbl") is not None)
+        self.assertEqual(target_sublist(outer_run).get("lineWrap"), "BREAK")
+        self.assertEqual(target_sublist(outer_run).find(f"{HP}p/{HP}run").get("charPrIDRef"), "0")
+
     def test_unrelated_cell_run_style_change_preserves_original(self):
         child = build_advanced_table_map(self.path)["tables"][1]
         original = self.path.read_bytes()

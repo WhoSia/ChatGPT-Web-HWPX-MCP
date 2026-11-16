@@ -87,12 +87,48 @@ def _cell_inline_objects(cell: ET.Element) -> tuple:
     return tuple(objects)
 
 
-def _cell_signatures(path: Path, edited_cell: tuple[int, int, int] | None) -> tuple[dict, tuple | None]:
+def _target_cell_format(cell: ET.Element) -> dict:
+    """Preserve existing cell geometry and the style inherited by replacement text."""
+    cell_attributes = dict(cell.attrib)
+    cell_attributes.pop("dirty", None)
+    formatting = {
+        "cell": cell_attributes,
+        "geometry": tuple(
+            _xml_outside_tables(child) for child in cell if child.tag != HP + "subList"
+        ),
+    }
+    sublist = cell.find(HP + "subList")
+    if sublist is not None:
+        sublist_attributes = dict(sublist.attrib)
+        # The native writer reflows a nonempty replacement in a squeezed cell.
+        sublist_attributes.pop("lineWrap", None)
+        formatting["sublist"] = sublist_attributes
+        formatting["line_wrap"] = sublist.get("lineWrap")
+        paragraph = sublist.find(HP + "p")
+        if paragraph is not None:
+            formatting["paragraph"] = dict(paragraph.attrib)
+            run = paragraph.find(HP + "run")
+            if run is not None:
+                formatting["first_run"] = dict(run.attrib)
+    return formatting
+
+
+def _verify_target_cell_format(before: dict, after: dict, replacement: str) -> None:
+    for field, value in before.items():
+        if field == "line_wrap" and (value or "").upper() == "SQUEEZE" and replacement:
+            if after.get(field) in (value, "BREAK"):
+                continue
+        if field not in after or after[field] != value:
+            raise ValueError(f"R3_UNDECLARED_TARGET_CELL_FORMAT_DRIFT:{field}")
+
+
+def _cell_signatures(path: Path, edited_cell: tuple[int, int, int] | None) -> tuple[dict, tuple | None, dict | None]:
     """Capture native grid anchors and the target cell's non-text content."""
     document = HwpxDocument.open(str(path))
     try:
         untouched = {}
         target_objects = None
+        target_format = None
         for table_index, reference in enumerate(_collect_document_tables(document)):
             for position in reference.table.iter_grid():
                 if not position.is_anchor:
@@ -101,9 +137,10 @@ def _cell_signatures(path: Path, edited_cell: tuple[int, int, int] | None) -> tu
                 element = ET.fromstring(etree.tostring(position.cell.element, with_tail=False))
                 if identity == edited_cell:
                     target_objects = _cell_inline_objects(element)
+                    target_format = _target_cell_format(element)
                 else:
                     untouched[identity] = _xml_outside_tables(element)
-        return untouched, target_objects
+        return untouched, target_objects, target_format
     finally:
         document.close()
 
@@ -203,7 +240,7 @@ def apply_bounded_table_edit_with_preservation_atomic(
     if operation["op"] == "set_cell_text":
         cell = next(c for c in target["cells"] if c["locator"] == operation["cell"])
         edited_cell = (target["table_index"], cell["row"], cell["col"])
-    untouched_cells, target_objects = _cell_signatures(source, edited_cell)
+    untouched_cells, target_objects, target_format = _cell_signatures(source, edited_cell)
     expected_scope = {
         "changed_parts": [target["section_path"]],
         "added_parts": [],
@@ -235,9 +272,11 @@ def apply_bounded_table_edit_with_preservation_atomic(
             raise ValueError("R3_UNDECLARED_TABLE_ANCHOR_PARAGRAPH_DRIFT")
         if nested_anchors != untouched_nested_anchors:
             raise ValueError("R3_UNDECLARED_NESTED_TABLE_ANCHOR_DRIFT")
-        cells, edited_objects = _cell_signatures(candidate, edited_cell)
+        cells, edited_objects, edited_format = _cell_signatures(candidate, edited_cell)
         if edited_cell is not None and (target_objects is None or edited_objects != target_objects):
             raise ValueError("R3_UNDECLARED_TARGET_CELL_OBJECT_DRIFT")
+        if target_format is not None and edited_format is not None:
+            _verify_target_cell_format(target_format, edited_format, operation["text"])
         if cells != untouched_cells:
             raise ValueError("R3_UNDECLARED_CELL_XML_DRIFT")
         certificate = build_mutation_footprint(source, candidate, expected_scope)

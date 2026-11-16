@@ -23,6 +23,7 @@ from hwpx_mcp.custody.p342_mutation_footprint import (
     build_mutation_footprint,
     enforce_preservation_grade,
 )
+from hwpx_mcp.document.p25_controls import TEXT_NESTED_SPECIALS
 from hwpx_mcp.document.p323_advanced_tables import (
     apply_advanced_table_edits_atomic,
     build_advanced_table_map,
@@ -66,9 +67,7 @@ def _paragraph_signatures(path: Path) -> tuple[list[tuple], list[tuple], list[tu
     return ordinary, anchors, nested_anchors
 
 
-_REPLACEABLE_TEXT_CONTROLS = {HP + name for name in (
-    "tab", "lineBreak", "nbSpace", "fwSpace", "hyphen",
-)}
+_REPLACEABLE_TEXT_CONTROLS = {HP + name for name in TEXT_NESTED_SPECIALS | {"tab"}}
 
 
 def _cell_inline_objects(cell: ET.Element) -> tuple:

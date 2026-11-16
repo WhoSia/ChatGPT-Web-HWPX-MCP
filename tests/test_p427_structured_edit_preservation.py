@@ -212,6 +212,24 @@ class NestedStructuredPreservationTests(unittest.TestCase):
         self.assertEqual(target_sublist(outer_run).get("lineWrap"), "BREAK")
         self.assertEqual(target_sublist(outer_run).find(f"{HP}p/{HP}run").get("charPrIDRef"), "0")
 
+    def test_target_cell_replacement_can_change_text_spacing_controls(self):
+        child = build_advanced_table_map(self.path)["tables"][1]
+
+        def add_line_break(outer_run):
+            table = outer_run.findall(".//" + HP + "tbl")[-1]
+            text = table.find(f"{HP}tr/{HP}tc/{HP}subList/{HP}p/{HP}run/{HP}t")
+            ET.SubElement(text, HP + "lineBreak").tail = "다음 줄"
+
+        rewrite_table_anchor(self.path, child["section_path"], add_line_break)
+        replacement = "항목\t한글 값"
+        result = self.edit({
+            "op": "set_cell_text", "table": child["locator"],
+            "cell": child["cells"][0]["locator"], "text": replacement,
+        })
+        self.assertEqual(result["target_cell_inline_objects_verified"], 0)
+        self.assertEqual(build_advanced_table_map(self.path)["tables"][1]["cells"][0]["text"],
+                         replacement)
+
     def test_unrelated_cell_run_style_change_preserves_original(self):
         child = build_advanced_table_map(self.path)["tables"][1]
         original = self.path.read_bytes()

@@ -76,13 +76,14 @@ def _cell_inline_objects(cell: ET.Element) -> tuple:
     for paragraph in cell.findall(f"{HP}subList/{HP}p"):
         for run in paragraph.findall(HP + "run"):
             for child in run:
+                run_format = tuple(sorted(run.attrib.items()))
                 if child.tag == HP + "t":
                     objects.extend(
-                        _xml_outside_tables(control)
+                        (run_format, _xml_outside_tables(control))
                         for control in child if control.tag not in _REPLACEABLE_TEXT_CONTROLS
                     )
                 else:
-                    objects.append(_xml_outside_tables(child))
+                    objects.append((run_format, _xml_outside_tables(child)))
     return tuple(objects)
 
 

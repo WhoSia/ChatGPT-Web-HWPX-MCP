@@ -165,11 +165,18 @@ class NestedStructuredPreservationTests(unittest.TestCase):
         def change_script(outer_run):
             outer_run.find(".//" + HP + "script").text = "x - y"
 
-        with self.assertRaisesRegex(ValueError, "R3_UNDECLARED_TARGET_CELL_OBJECT_DRIFT"):
-            self.edit(operation, candidate_validator=lambda candidate: rewrite_table_anchor(
-                candidate, child["section_path"], change_script,
-            ))
-        self.assertEqual(self.path.read_bytes(), original)
+        def change_equation_run_style(outer_run):
+            run = next(item for item in outer_run.iter(HP + "run")
+                       if item.find(HP + "equation") is not None)
+            run.set("charPrIDRef", "1" if run.get("charPrIDRef") == "0" else "0")
+
+        for change in (change_script, change_equation_run_style):
+            with self.subTest(change=change.__name__):
+                with self.assertRaisesRegex(ValueError, "R3_UNDECLARED_TARGET_CELL_OBJECT_DRIFT"):
+                    self.edit(operation, candidate_validator=lambda candidate: rewrite_table_anchor(
+                        candidate, child["section_path"], change,
+                    ))
+                self.assertEqual(self.path.read_bytes(), original)
 
         result = self.edit(operation)
         self.assertEqual(result["target_cell_inline_objects_verified"], 1)

@@ -21,6 +21,7 @@ if os.environ.get("P12_AUTH_DATABASE_URL") and os.environ.get("P12_STATE_SECRET"
     import server_p2 as api
 else:
     api = None
+from hwpx_mcp.document.p210_equations import build_equation_map
 from hwpx_mcp.document.p323_advanced_tables import build_advanced_table_map
 
 
@@ -35,6 +36,7 @@ class PreservedEditMcpAcceptanceTests(unittest.TestCase):
         table = doc.add_table(rows=2, cols=2)
         table.set_cell_text(0, 0, "Read-only neighbor")
         table.set_cell_text(0, 1, "Editable target")
+        table.cell(0, 1).paragraphs[0].add_equation("a + b")
         table.set_cell_text(1, 0, "Other cell")
         table.set_cell_text(1, 1, "Final cell")
         doc.save_to_path(str(self.path))
@@ -80,6 +82,9 @@ class PreservedEditMcpAcceptanceTests(unittest.TestCase):
         self.assertEqual(response["preserved_edit"]["table_anchor_paragraphs_verified"], 1)
         self.assertTrue(response["validation"]["valid"])
         self.assertEqual(response["preserved_edit"]["unrelated_cells_verified"], 3)
+        self.assertEqual(response["preserved_edit"]["target_cell_inline_objects_verified"], 1)
+        self.assertEqual([item["script"] for item in build_equation_map(self.path)["equations"]],
+                         ["a + b"])
         self.assertEqual(response["preserved_edit"]["committed_sha256"], response["sha256"])
         self.assertEqual(response["preserved_edit"]["mutation_footprint"]["observed"]["changed_parts"],
                          [self.table["section_path"]])

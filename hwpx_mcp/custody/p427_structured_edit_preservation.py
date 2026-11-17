@@ -7,6 +7,8 @@ Each admitted operation is verified against the preceding native state.
 from __future__ import annotations
 
 import copy
+import hashlib
+import json
 import os
 import shutil
 import tempfile
@@ -431,6 +433,23 @@ def apply_bounded_table_edits_with_preservation_atomic(
         "committed_sha256": digest,
         "authority": "NATIVE_STRUCTURAL_AND_PACKAGE_PART_GATES_NOT_VISUAL",
     }
+
+
+def preserved_table_batch_plan_sha256(
+    document_id: str, revision: int, source_sha256: str, operations: list[dict],
+) -> str:
+    """Bind the proposed ordered operations to the exact starting revision."""
+    _validate_batch_targets(operations)
+    material = {
+        "schema": "chatgpt-web-hwpx-mcp/p4.27/preserved-table-batch-plan/v1",
+        "document_id": document_id,
+        "revision": revision,
+        "source_sha256": source_sha256,
+        "operations": operations,
+    }
+    raw = json.dumps(material, sort_keys=True, separators=(",", ":"),
+                     ensure_ascii=True, allow_nan=False).encode("ascii")
+    return hashlib.sha256(raw).hexdigest()
 
 
 def preview_preserved_table_batch(

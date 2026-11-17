@@ -11,6 +11,7 @@ from hwpx_mcp.custody.p427_structured_edit_preservation import (
     MAX_PRESERVED_TABLE_BATCH,
     apply_bounded_table_edits_with_preservation_atomic,
     preview_preserved_table_batch,
+    preserved_table_batch_plan_sha256,
 )
 from hwpx_mcp.document.p323_advanced_tables import (
     apply_advanced_table_edits_atomic, build_advanced_table_map,
@@ -117,6 +118,21 @@ class PreservedTableBatchTests(unittest.TestCase):
                 self.path, [self.peer, {**self.phrase, "old_text": "absent"}], revision=2,
             )
         self.assert_unchanged()
+
+    def test_plan_fingerprint_binds_order_document_revision_and_source(self):
+        operations = [self.peer, self.phrase]
+        args = ("doc_a", 2, "a" * 64, operations)
+        fingerprint = preserved_table_batch_plan_sha256(*args)
+        reordered_keys = [dict(reversed(list(op.items()))) for op in operations]
+        self.assertEqual(fingerprint, preserved_table_batch_plan_sha256(*args[:3], reordered_keys))
+        for changed in (
+            ("doc_b", *args[1:]),
+            (args[0], 3, *args[2:]),
+            (*args[:2], "b" * 64, operations),
+            (*args[:3], list(reversed(operations))),
+            (*args[:3], [{**self.peer, "text": "다른 값"}, self.phrase]),
+        ):
+            self.assertNotEqual(fingerprint, preserved_table_batch_plan_sha256(*changed))
 
     def test_aggregates_footprint_for_two_sections(self):
         with HwpxDocument.new() as document:

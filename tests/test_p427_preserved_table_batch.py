@@ -11,7 +11,9 @@ from hwpx_mcp.custody.p427_structured_edit_preservation import (
     MAX_PRESERVED_TABLE_BATCH,
     apply_bounded_table_edits_with_preservation_atomic,
 )
-from hwpx_mcp.document.p323_advanced_tables import build_advanced_table_map
+from hwpx_mcp.document.p323_advanced_tables import (
+    apply_advanced_table_edits_atomic, build_advanced_table_map,
+)
 
 from test_p427_nested_table_in_cell import make_nested_fixture, raw_nested_table_count
 
@@ -68,6 +70,17 @@ class PreservedTableBatchTests(unittest.TestCase):
         invalid = {**self.phrase, "old_text": "absent"}
         with self.assertRaisesRegex(ValueError, "P427_BATCH_OPERATION_FAILED:1"):
             self.batch([self.peer, invalid])
+        self.assert_unchanged()
+
+    def test_final_validation_cannot_rewrite_an_earlier_edited_cell(self):
+        def rewrite_prior_edit(candidate):
+            apply_advanced_table_edits_atomic(
+                candidate, [{**self.peer, "text": "Undeclared change"}],
+                expected_revision=2, current_revision=2,
+            )
+
+        with self.assertRaisesRegex(ValueError, "P427_BATCH_OPERATION_FAILED:1.*SEMANTIC_DRIFT"):
+            self.batch([self.peer, self.phrase], rewrite_prior_edit)
         self.assert_unchanged()
 
     def test_rejects_oversized_empty_and_repeated_targets(self):

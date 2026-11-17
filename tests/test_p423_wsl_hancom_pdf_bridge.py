@@ -22,7 +22,7 @@ class P423WslHancomBridgeTests(unittest.TestCase):
 
     def test_local_linux_temp_dir_cannot_be_passed_to_windows_hangul(self):
         with tempfile.TemporaryDirectory() as folder:
-            with self.assertRaisesRegex(ValueError, "Windows-mounted"):
+            with self.assertRaisesRegex(ValueError, r"/mnt/<windows-drive>/"):
                 _approved_windows_mount(Path(folder) / "untrusted.hwpx")
 
     def test_invalid_timeout_is_rejected_before_file_mutation(self):
@@ -42,8 +42,10 @@ class P423WslHancomBridgeTests(unittest.TestCase):
                 receipt = destination.with_suffix(".pdf.receipt.json")
                 receipt.write_text(json.dumps({
                     "status": "PDF_CREATED_UNREVIEWED",
+                    "engine": "HANCOM_HWP_EXE_COM",
                     "input_sha256": hashlib.sha256(source.read_bytes()).hexdigest(),
                     "output_sha256": hashlib.sha256(payload).hexdigest(),
+                    "output_bytes": len(payload),
                     "hancom_page_count": 4,
                 }), encoding="utf-8")
                 return subprocess.CompletedProcess(argv, 0, "", "")

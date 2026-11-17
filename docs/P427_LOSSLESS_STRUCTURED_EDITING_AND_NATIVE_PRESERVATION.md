@@ -472,3 +472,15 @@ The Korean cases test verifies quoted EqEdit text. The WSL bridge test
 verifies the engine and length fields in the mock receipt. These checks cover
 script representation and receipt handling. Hancom glyph shaping and page
 rendering require a fresh Windows capture.
+
+The LaTeX conversion path also rejects consecutive duplicate postfix scripts
+on the same base. `x^2^3` and `x_1^2_3` are errors. A subscript plus a
+superscript (`x_i^2`), the nested `x^{2^3}`, and the new base in `{x^2}^3`
+keep their native output. The check uses brace boundaries and quoted literals
+in the compiler output. It applies to newly converted LaTeX and does not
+reinterpret an existing stored EqEdit script.
+
+The generation regression verifies that a bad equation in an equation block,
+an inline equation line or a piecewise condition leaves no output file. The
+authenticated edit regression checks PostgreSQL and hydrated HWPX bytes after
+a rejected batch, then retries from the original revision with valid input.

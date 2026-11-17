@@ -10,6 +10,7 @@ from hwpx import HwpxDocument
 from hwpx_mcp.custody.p427_structured_edit_preservation import (
     MAX_PRESERVED_TABLE_BATCH,
     apply_bounded_table_edits_with_preservation_atomic,
+    preview_preserved_table_batch,
 )
 from hwpx_mcp.document.p323_advanced_tables import (
     apply_advanced_table_edits_atomic, build_advanced_table_map,
@@ -93,6 +94,29 @@ class PreservedTableBatchTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, error):
                     self.batch(operations)
                 self.assert_unchanged()
+
+    def test_preview_reports_actual_checked_changes_without_replacing_source(self):
+        mode = {"op": "set_table_page_break", "table": self.child["locator"], "mode": "TABLE"}
+        result = preview_preserved_table_batch(self.path, [self.phrase, mode], revision=2)
+        first, second = result["changes"]
+        self.assertIn("Inner", first["before"])
+        self.assertIn("Reviewed", first["after"])
+        self.assertEqual(first["paragraph_index"], 0)
+        self.assertEqual(second["after"], "TABLE")
+        self.assertEqual(result["changed_sections"], [self.child["section_path"]])
+        self.assertEqual(result["preservation_grade"], "TARGETED_PARTS_ONLY")
+        self.assert_unchanged()
+
+    def test_preview_bounds_cell_text_and_refuses_failed_operations(self):
+        large = {**self.peer, "text": "값" * 500}
+        change = preview_preserved_table_batch(self.path, [large], revision=2)["changes"][0]
+        self.assertEqual(change["after"], "값" * 240)
+        self.assertTrue(change["text_truncated"])
+        with self.assertRaisesRegex(ValueError, "P427_BATCH_OPERATION_FAILED:1"):
+            preview_preserved_table_batch(
+                self.path, [self.peer, {**self.phrase, "old_text": "absent"}], revision=2,
+            )
+        self.assert_unchanged()
 
     def test_aggregates_footprint_for_two_sections(self):
         with HwpxDocument.new() as document:

@@ -431,3 +431,54 @@ def apply_bounded_table_edits_with_preservation_atomic(
         "committed_sha256": digest,
         "authority": "NATIVE_STRUCTURAL_AND_PACKAGE_PART_GATES_NOT_VISUAL",
     }
+
+
+def preview_preserved_table_batch(
+    path: Path,
+    operations: list[dict],
+    *,
+    revision: int,
+    candidate_validator: Callable[[Path], dict | None] | None = None,
+) -> dict:
+    """Measure changes using the actual checked editor on a disposable copy."""
+    source = Path(path)
+    _validate_batch_targets(operations)
+    before = {table["locator"]: table for table in build_advanced_table_map(source)["tables"]}
+    with tempfile.TemporaryDirectory(prefix="p427-table-preview-") as tmp:
+        candidate = Path(tmp) / source.name
+        shutil.copy2(source, candidate)
+        receipt = apply_bounded_table_edits_with_preservation_atomic(
+            candidate, operations, expected_revision=revision, current_revision=revision,
+            candidate_validator=candidate_validator,
+        )
+        after = {table["locator"]: table for table in build_advanced_table_map(candidate)["tables"]}
+
+    changes = []
+    for operation in operations:
+        locator = operation["table"]
+        original = before[locator]
+        edited = after[locator]
+        change = {"op": operation["op"], "table": locator, "section": edited["section_path"]}
+        if operation["op"] == "set_table_page_break":
+            change.update(before=original["page_break"], after=edited["page_break"])
+        else:
+            cell_locator = operation["cell"]
+            old_cell = next(cell for cell in original["cells"] if cell["locator"] == cell_locator)
+            new_cell = next(cell for cell in edited["cells"] if cell["locator"] == cell_locator)
+            old_text, new_text = old_cell["text"], new_cell["text"]
+            change.update(
+                cell=cell_locator, row=new_cell["row"], col=new_cell["col"],
+                before=old_text[:240], after=new_text[:240],
+                text_truncated=max(len(old_text), len(new_text)) > 240,
+            )
+            if operation["op"] == "replace_cell_phrase":
+                change["paragraph_index"] = operation["paragraph_index"]
+        changes.append(change)
+
+    return {
+        "changes": changes,
+        "operation_count": receipt["operation_count"],
+        "changed_sections": receipt["mutation_footprint"]["observed"]["changed_parts"],
+        "preservation_grade": receipt["preservation_enforcement"]["actual_grade"],
+        "authority": receipt["authority"],
+    }

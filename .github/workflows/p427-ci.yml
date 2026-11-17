@@ -15,6 +15,15 @@ on:
       - "hwpx_mcp/document/p323_advanced_tables.py"
       - "hwpx_mcp/document/p27_tables.py"
       - "hwpx_mcp/document/p28_tables.py"
+      - "hwpx_mcp/document/p210_equations.py"
+      - "hwpx_mcp/document/p321_document_composer.py"
+      - "hwpx_mcp/document/p423_piecewise_authoring.py"
+      - "hwpx_mcp/equations/latex_to_eqedit.py"
+      - "hwpx_mcp/interfaces/p426_equation_experience.py"
+      - "hwpx_mcp/rendering/p46_native_authoring.py"
+      - "scripts/p423_wsl_hancom_pdf_bridge.py"
+      - "tests/test_p423_piecewise_authoring.py"
+      - "tests/test_p423_wsl_hancom_pdf_bridge.py"
       - "tests/test_p427_*.py"
       - "tests/test_p426_*.py"
       - ".github/workflows/p427-ci.yml"
@@ -53,6 +62,10 @@ jobs:
           python -m unittest discover -s tests -p 'test_p426_*.py' -v
       - name: Verify P4.27 actual saved-file edit preservation
         run: python -m unittest discover -s tests -p 'test_p427_*.py' -v
+      - name: Verify inherited piecewise and WSL bridge contracts
+        run: |
+          python -m unittest discover -s tests -p 'test_p423_piecewise_authoring.py' -v
+          python -m unittest discover -s tests -p 'test_p423_wsl_hancom_pdf_bridge.py' -v
       - name: Generate and reopen inherited synthetic report
         run: |
           python -m scripts.p426_generate_native_showcase --output-dir p427-parent-showcase

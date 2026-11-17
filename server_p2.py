@@ -243,8 +243,7 @@ register_p423_style_tools(
 register_p423_native_pdf_tools(core, owned_document=_owned_document)
 
 
-def _refresh_metadata(
-    document_id: str,
+def _update_metadata_digests(
     metadata: dict,
     validation: dict,
     document_map: dict,
@@ -276,6 +275,11 @@ def _refresh_metadata(
         metadata["equation_structure_sha256"] = equation_map["equation_structure_sha256"]
         metadata["equation_geometry_sha256"] = equation_map["equation_geometry_sha256"]
         metadata["equation_script_custody_sha256"] = equation_map["equation_script_custody_sha256"]
+    return metadata
+
+
+def _refresh_metadata(document_id: str, metadata: dict, *maps, **named_maps) -> dict:
+    _update_metadata_digests(metadata, *maps, **named_maps)
     core._write_metadata(document_id, metadata)
     return metadata
 

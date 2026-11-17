@@ -119,6 +119,30 @@ class PreservedTableBatchTests(unittest.TestCase):
             )
         self.assert_unchanged()
 
+    def test_host_and_child_phrases_preview_and_commit_in_one_batch(self):
+        outer, inner = build_advanced_table_map(self.path)["tables"]
+        host = {
+            "op": "replace_cell_phrase", "table": outer["locator"],
+            "cell": outer["cells"][0]["locator"], "paragraph_index": 0,
+            "old_text": "Outer host", "new_text": "수정한 바깥 설명",
+        }
+        for operations in ([host, self.phrase], [self.phrase, host]):
+            with self.subTest(order=[op["table"] for op in operations]):
+                self.path.write_bytes(self.original)
+                preview = preview_preserved_table_batch(self.path, operations, revision=2)
+                self.assert_unchanged()
+                self.assertEqual(preview["operation_count"], 2)
+                proposed = {change["table"]: change["after"] for change in preview["changes"]}
+                self.assertEqual(proposed[outer["locator"]], host["new_text"])
+                self.assertTrue(proposed[inner["locator"]].startswith("Reviewed"))
+                result = self.batch(operations)
+                self.assertEqual(result["operation_count"], 2)
+                edited_outer, edited_inner = build_advanced_table_map(self.path)["tables"]
+                self.assertEqual(edited_outer["cells"][0]["text"], proposed[outer["locator"]])
+                self.assertEqual(edited_inner["cells"][0]["text"], proposed[inner["locator"]])
+                self.assertEqual(edited_inner["cells"][1:], inner["cells"][1:])
+                self.assertEqual(raw_nested_table_count(self.path), 1)
+
     def test_plan_fingerprint_binds_order_document_revision_and_source(self):
         operations = [self.peer, self.phrase]
         args = ("doc_a", 2, "a" * 64, operations)

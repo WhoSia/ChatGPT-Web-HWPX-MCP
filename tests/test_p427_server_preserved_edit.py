@@ -140,6 +140,26 @@ class PreservedEditMcpAcceptanceTests(unittest.TestCase):
             self.assertEqual(self.digest(), stored["sha256"])
             self.assertEqual(build_equation_map(self.path)["equations"][0]["script"], "x ^{2 ^{3}}")
 
+    def test_incomplete_command_preserves_revision_and_shorthand_fraction_commits(self):
+        before = self.store.load_current(self.document_id)
+        locator = build_equation_map(self.path)["equations"][0]["locator"]
+        valid = {"op": "replace_equation", "equation": locator, "latex": r"\frac12"}
+        self.addCleanup(api.core._delete_document_files, self.document_id)
+
+        with patch.object(api.core, "_load_metadata", self.load_metadata):
+            for latex in (r"\frac{x}", r"\sqrt[2]"):
+                with self.subTest(latex=latex):
+                    with self.assertRaisesRegex(UnsupportedLatexError, "missing LaTeX argument"):
+                        api.apply_equation_edits(self.document_id, 1, [valid, dict(valid, latex=latex)])
+                    unchanged = self.store.load_current(self.document_id)
+                    self.assertEqual(unchanged["revision"], 1)
+                    self.assertEqual(unchanged["bytes"], before["bytes"])
+
+            result = api.apply_equation_edits(self.document_id, 1, [valid])
+            self.assertEqual(result["revision_after"], 2)
+            self.assertEqual(result["sha256"], self.digest())
+            self.assertEqual(build_equation_map(self.path)["equations"][0]["script"], "{1} over {2}")
+
     def test_phrase_edit_through_mcp_keeps_existing_equation(self):
         operation = self._operation()
         del operation["text"]

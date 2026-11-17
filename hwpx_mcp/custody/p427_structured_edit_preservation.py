@@ -280,7 +280,7 @@ def apply_bounded_table_edit_with_preservation_atomic(
     if not isinstance(operation, dict) or operation.get("op") not in ADMITTED:
         raise ValueError("R3_EDIT_OPERATION_NOT_ADMITTED")
     before = build_advanced_table_map(source)
-    untouched_body, untouched_anchors, untouched_nested_anchors = _paragraph_signatures(source)
+    untouched_body, untouched_anchors, expected_nested_anchors = _paragraph_signatures(source)
     expected = _expected_native_delta(before["tables"], operation)
     target = next(t for t in before["tables"] if t["locator"] == operation["table"])
     edited_cell = None
@@ -308,9 +308,10 @@ def apply_bounded_table_edit_with_preservation_atomic(
         if operation["op"] == "replace_cell_phrase":
             text, phrase_signature, edited_anchor = _cell_phrase(candidate, edited_cell, operation)
             if edited_anchor is not None:
-                untouched_nested_anchors = [
+                # Replace only the planned paragraph signature at the original cell position.
+                expected_nested_anchors = [
                     edited_anchor if anchor[:3] == edited_anchor[:3] else anchor
-                    for anchor in untouched_nested_anchors
+                    for anchor in expected_nested_anchors
                 ]
             expected_cell = next(c for c in expected[target["table_index"]]["cells"]
                                  if c["locator"] == operation["cell"])
@@ -330,7 +331,7 @@ def apply_bounded_table_edit_with_preservation_atomic(
             raise ValueError("R3_UNDECLARED_BODY_PARAGRAPH_DRIFT")
         if anchors != untouched_anchors:
             raise ValueError("R3_UNDECLARED_TABLE_ANCHOR_PARAGRAPH_DRIFT")
-        if nested_anchors != untouched_nested_anchors:
+        if nested_anchors != expected_nested_anchors:
             raise ValueError("R3_UNDECLARED_NESTED_TABLE_ANCHOR_DRIFT")
         cells, edited_objects, edited_format = _cell_signatures(candidate, edited_cell)
         if edited_cell is not None and (target_objects is None or edited_objects != target_objects):
@@ -361,7 +362,7 @@ def apply_bounded_table_edit_with_preservation_atomic(
         "package_validation": validation,
         "unrelated_body_paragraphs_verified": len(untouched_body),
         "table_anchor_paragraphs_verified": len(untouched_anchors),
-        "nested_table_anchor_paragraphs_verified": len(untouched_nested_anchors),
+        "nested_table_anchor_paragraphs_verified": len(expected_nested_anchors),
         "unrelated_cells_verified": len(untouched_cells),
         "target_cell_inline_objects_verified": len(target_objects or ()),
         "mutation_footprint": certificate,

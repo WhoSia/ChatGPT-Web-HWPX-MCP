@@ -360,8 +360,13 @@ node. An empty replacement deletes that phrase. The edit keeps each run and
 inline object and invalidates only the selected paragraph's layout cache.
 The transaction compares the full expected target cell XML with the reopened
 candidate before replacing the source. Multiple matches, phrases spanning
-nodes, mixed text controls in the selected paragraph, and cells that directly
-host a child table are refused. Cells within a nested table are supported.
+nodes and mixed text controls in the selected paragraph are refused.
+Cells within a nested table and cells that host a child table support scoped
+phrase correction. For a host cell, phrase matching looks only at the
+selected paragraph's own plain text nodes. The transaction compares the
+whole candidate cell, including all embedded table XML, against the planned
+signature. The enclosing paragraph position is checked as well. Whole-cell
+replacement via `set_cell_text` remains blocked on host cells.
 
 ### Durable preserved edit and exact revision delivery
 
@@ -436,7 +441,7 @@ independent SVG renderer, and signed HWPX delivery. P4.27 builds on those paths.
 | Area | Addition on the P4.27 branch |
 | --- | --- |
 | Native table corrections | Match table locators to nested table traversal, clear stale repeat-header flags when moving the header row, and reject whole-cell replacement on a host cell containing a nested table. |
-| Targeted edit | Edit a cell, change table page-break mode, or replace a unique phrase within one plain text node while retaining the rest of the cell markup. |
+| Targeted edit | Edit a cell, change table page-break mode, or replace a unique phrase within one plain text node, including in a cell hosting a nested table. |
 | Preservation | Validate body paragraphs, table anchors, neighboring cells, target geometry, inline objects and run styles as applicable. Limit changed package bytes to addressed sections and keep shared header definitions intact. |
 | Durable edit | Commit the exact validated private candidate using owner and revision checks, with the existing lease support. |
 | Batch and delivery | Validate one to eight operations as one revision and return its signed ResourceLink. Recover a failed download by reissuing the link for the committed revision. |

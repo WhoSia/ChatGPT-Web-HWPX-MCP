@@ -362,3 +362,23 @@ The transaction compares the full expected target cell XML with the reopened
 candidate before replacing the source. Multiple matches, phrases spanning
 nodes, mixed text controls in the selected paragraph, and cells that directly
 host a child table are refused. Cells within a nested table are supported.
+
+### Durable preserved edit and exact revision delivery
+
+`apply_preserved_table_edit` reads the owner-checked active revision from
+PostgreSQL, runs the preservation checks on a private candidate, and builds
+metadata from that candidate. It commits the same bytes through the existing
+revision CAS and lease checks. The candidate SHA-256 must match both the
+package validation and preservation receipts before the commit.
+
+`edit_preserved_table_and_deliver` accepts the same single operation and
+returns the MCP ResourceLink for the revision it just committed, even if a
+newer revision has already become current. If link preparation fails after
+commit, the response contains the committed revision and
+`RETRY_DELIVERY_ONLY`. Use `deliver_document(document_id, revision)` to renew
+the download without applying the change again.
+
+The Docker/PostgreSQL test exercises the MCP registration and invocation,
+candidate conflicts at the same revision, lease checks, and the signed HTTP
+download handler. Browser attachment display and Hancom open/resave are
+separate acceptance checks.

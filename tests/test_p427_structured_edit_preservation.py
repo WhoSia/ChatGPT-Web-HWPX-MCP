@@ -275,6 +275,23 @@ class NestedStructuredPreservationTests(unittest.TestCase):
         self.assertEqual(runs[" / 교정 완료"], "1")
         self.assertEqual(root.findtext(".//" + HP + "script"), "a + b")
 
+    def test_phrase_index_selects_second_paragraph_with_the_same_words(self):
+        document = HwpxDocument.open(str(self.path))
+        try:
+            cell = _collect_document_tables(document)[1].table.cell(0, 0)
+            cell.add_paragraph("Inner unique anchor")
+            document.save_to_path(str(self.path))
+        finally:
+            document.close()
+        child = build_advanced_table_map(self.path)["tables"][1]
+        self.edit({
+            "op": "replace_cell_phrase", "table": child["locator"],
+            "cell": child["cells"][0]["locator"], "paragraph_index": 1,
+            "old_text": "Inner", "new_text": "Updated",
+        })
+        edited = build_advanced_table_map(self.path)["tables"][1]["cells"][0]
+        self.assertEqual(edited["text"], "Inner unique anchor\nUpdated unique anchor")
+
     def test_phrase_edit_rejects_out_of_range_paragraph_without_committing(self):
         child = build_advanced_table_map(self.path)["tables"][1]
         original = self.path.read_bytes()

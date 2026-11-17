@@ -1,7 +1,11 @@
 """Single-node phrase corrections in a native HWPX table cell."""
 from __future__ import annotations
 
-from hwpx.oxml._document_primitives import _clear_paragraph_layout_cache, _sanitize_text
+from hwpx.oxml._document_primitives import (
+    _clear_paragraph_layout_cache,
+    _is_tab_control_element,
+    _sanitize_text,
+)
 
 HP = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
 
@@ -21,7 +25,10 @@ def validate_phrase_operation(operation: dict) -> None:
 def replace_phrase_in_plain_node(paragraph, old: str, new: str) -> None:
     """Modify one plain text node while retaining its native run and siblings."""
     nodes = paragraph.findall(f"{HP}run/{HP}t")
-    if any(len(node) for node in nodes) or paragraph.find(f"{HP}run/{HP}tab") is not None:
+    if any(len(node) for node in nodes) or any(
+        child.tag == HP + "tab" or _is_tab_control_element(child)
+        for child in paragraph.findall(f"{HP}run/*")
+    ):
         raise ValueError("P427_CELL_MIXED_TEXT_UNSUPPORTED")
     text = "".join(node.text or "" for node in nodes)
     start = text.find(old)

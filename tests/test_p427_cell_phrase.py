@@ -41,6 +41,16 @@ class CellPhraseTests(unittest.TestCase):
                     replace_phrase_in_plain_node(paragraph, old, "수정")
                 self.assertEqual(ET.tostring(paragraph), original)
 
+    def test_rejects_both_native_tab_forms_without_mutation(self):
+        for tag, attributes in (("tab", {}), ("ctrl", {"id": "tab"})):
+            with self.subTest(tag=tag):
+                paragraph = self.paragraph()
+                paragraph[1].insert(0, ET.Element(HP + tag, attributes))
+                original = ET.tostring(paragraph)
+                with self.assertRaisesRegex(ValueError, "P427_CELL_MIXED_TEXT_UNSUPPORTED"):
+                    replace_phrase_in_plain_node(paragraph, "교정", "비교")
+                self.assertEqual(ET.tostring(paragraph), original)
+
     def test_rejects_invalid_indices_and_replacements(self):
         for args in ({"paragraph_index": True}, {"old_text": ""},
                      {"new_text": "\t"}, {"new_text": "기존"}):

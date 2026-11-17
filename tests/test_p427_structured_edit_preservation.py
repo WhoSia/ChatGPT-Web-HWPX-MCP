@@ -237,6 +237,55 @@ class NestedStructuredPreservationTests(unittest.TestCase):
         self.assertEqual(build_advanced_table_map(self.path)["tables"][1]["cells"][0]["text"],
                          replacement)
 
+    def test_phrase_edit_preserves_both_styled_runs_and_rejects_late_drift(self):
+        document = HwpxDocument.open(str(self.path))
+        try:
+            paragraph = _collect_document_tables(document)[1].table.cell(0, 0).paragraphs[0]
+            paragraph.add_run(" / 교정 전", char_pr_id_ref="1")
+            paragraph.add_equation("a + b")
+            document.save_to_path(str(self.path))
+        finally:
+            document.close()
+
+        child = build_advanced_table_map(self.path)["tables"][1]
+        operation = {
+            "op": "replace_cell_phrase", "table": child["locator"],
+            "cell": child["cells"][0]["locator"], "paragraph_index": 0,
+            "old_text": "교정 전", "new_text": "교정 완료",
+        }
+        original = self.path.read_bytes()
+
+        def change_style(outer_run):
+            run = next(run for run in outer_run.iter(HP + "run")
+                       if run.findtext(HP + "t") == " / 교정 완료")
+            run.set("charPrIDRef", "0")
+
+        with self.assertRaisesRegex(ValueError, "P427_UNDECLARED_PHRASE_CELL_DRIFT"):
+            self.edit(operation, candidate_validator=lambda candidate: rewrite_table_anchor(
+                candidate, child["section_path"], change_style,
+            ))
+        self.assertEqual(self.path.read_bytes(), original)
+
+        receipt = self.edit(operation)
+        self.assertEqual(receipt["target_cell_inline_objects_verified"], 1)
+        with zipfile.ZipFile(self.path) as archive:
+            root = ET.fromstring(archive.read(child["section_path"]))
+        runs = {run.findtext(HP + "t"): run.get("charPrIDRef") for run in root.iter(HP + "run")}
+        self.assertEqual(runs["Inner unique anchor"], "0")
+        self.assertEqual(runs[" / 교정 완료"], "1")
+        self.assertEqual(root.findtext(".//" + HP + "script"), "a + b")
+
+    def test_phrase_edit_rejects_out_of_range_paragraph_without_committing(self):
+        child = build_advanced_table_map(self.path)["tables"][1]
+        original = self.path.read_bytes()
+        with self.assertRaisesRegex(ValueError, "P427_CELL_PARAGRAPH_INDEX_INVALID"):
+            self.edit({
+                "op": "replace_cell_phrase", "table": child["locator"],
+                "cell": child["cells"][0]["locator"], "paragraph_index": 1,
+                "old_text": "Inner", "new_text": "Updated",
+            })
+        self.assertEqual(self.path.read_bytes(), original)
+
     def test_unrelated_cell_run_style_change_preserves_original(self):
         child = build_advanced_table_map(self.path)["tables"][1]
         original = self.path.read_bytes()

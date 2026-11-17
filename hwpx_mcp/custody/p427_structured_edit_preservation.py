@@ -24,13 +24,18 @@ from hwpx_mcp.custody.p342_mutation_footprint import (
     enforce_preservation_grade,
 )
 from hwpx_mcp.document.p25_controls import TEXT_NESTED_SPECIALS
+from hwpx_mcp.document.p27_tables import _cell_text, _save_document
+from hwpx_mcp.document.p427_cell_phrase import (
+    replace_phrase_in_plain_node,
+    validate_phrase_operation,
+)
 from hwpx_mcp.document.p323_advanced_tables import (
     apply_advanced_table_edits_atomic,
     build_advanced_table_map,
 )
 
 SCHEMA = "chatgpt-web-hwpx-mcp/p4.27/structured-edit-preservation/v1"
-ADMITTED = ("set_cell_text", "set_table_page_break")
+ADMITTED = ("set_cell_text", "set_table_page_break", "replace_cell_phrase")
 HP = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
 
 
@@ -145,6 +150,35 @@ def _cell_signatures(path: Path, edited_cell: tuple[int, int, int] | None) -> tu
         document.close()
 
 
+def _cell_phrase(path: Path, identity: tuple[int, int, int], operation: dict | None = None):
+    """Read or update one cell through the same native traversal as its locator."""
+    table_index, row, col = identity
+    document = HwpxDocument.open(str(path))
+    try:
+        table = _collect_document_tables(document)[table_index].table
+        cell = table.cell(row, col)
+        if operation is not None:
+            if next(cell.element.iter(HP + "tbl"), None) is not None:
+                raise ValueError("NESTED_TABLE_HOST_CELL_TEXT_EDIT_DEFERRED")
+            paragraphs = cell.paragraphs
+            index = operation["paragraph_index"]
+            if index >= len(paragraphs):
+                raise ValueError("P427_CELL_PARAGRAPH_INDEX_INVALID")
+            paragraph = paragraphs[index]
+            replace_phrase_in_plain_node(
+                paragraph.element, operation["old_text"], operation["new_text"],
+            )
+            table.mark_dirty()
+        element = ET.fromstring(etree.tostring(cell.element, with_tail=False))
+        signature = _xml_outside_tables(element)
+        text = _cell_text(cell)
+        if operation is not None:
+            _save_document(document, path, path)
+        return text, signature
+    finally:
+        document.close()
+
+
 def _semantic_table(table: dict) -> dict:
     # Exclude volatile human descriptions (such as preceding paragraph text)
     # and revision-bound locator hashes. Preserve all actual table-cell fields.
@@ -168,13 +202,16 @@ def _expected_native_delta(before: list[dict], op: dict) -> list[dict]:
         raise ValueError("R3_TARGET_TABLE_AMBIGUOUS_OR_MISSING")
     target = expected[target_indices[0]]
     name = op["op"]
-    if name == "set_cell_text":
-        if type(op.get("text")) is not str:
+    if name in {"set_cell_text", "replace_cell_phrase"}:
+        if name == "replace_cell_phrase":
+            validate_phrase_operation(op)
+        elif type(op.get("text")) is not str:
             raise ValueError("R3_CELL_TEXT_MUST_BE_STRING")
         cells = [cell for cell in target["cells"] if cell["locator"] == op.get("cell")]
         if len(cells) != 1:
             raise ValueError("R3_TARGET_CELL_AMBIGUOUS_OR_MISSING")
-        cells[0]["text"] = op["text"]
+        if name == "set_cell_text":
+            cells[0]["text"] = op["text"]
     elif name == "set_table_page_break":
         mode = str(op.get("mode", "")).upper()
         if mode not in {"CELL", "TABLE", "NONE"}:
@@ -237,7 +274,7 @@ def apply_bounded_table_edit_with_preservation_atomic(
     expected = _expected_native_delta(before["tables"], operation)
     target = next(t for t in before["tables"] if t["locator"] == operation["table"])
     edited_cell = None
-    if operation["op"] == "set_cell_text":
+    if operation["op"] in {"set_cell_text", "replace_cell_phrase"}:
         cell = next(c for c in target["cells"] if c["locator"] == operation["cell"])
         edited_cell = (target["table_index"], cell["row"], cell["col"])
     untouched_cells, target_objects, target_format = _cell_signatures(source, edited_cell)
@@ -257,11 +294,19 @@ def apply_bounded_table_edit_with_preservation_atomic(
     candidate = Path(name)
     try:
         shutil.copy2(source, candidate)
-        edit_receipt = apply_advanced_table_edits_atomic(
-            candidate, [operation],
-            expected_revision=expected_revision,
-            current_revision=current_revision,
-        )
+        phrase_signature = None
+        if operation["op"] == "replace_cell_phrase":
+            text, phrase_signature = _cell_phrase(candidate, edited_cell, operation)
+            expected_cell = next(c for c in expected[target["table_index"]]["cells"]
+                                 if c["locator"] == operation["cell"])
+            expected_cell["text"] = text
+            edit_receipt = {"operation_count": 1, "paragraph_index": operation["paragraph_index"]}
+        else:
+            edit_receipt = apply_advanced_table_edits_atomic(
+                candidate, [operation],
+                expected_revision=expected_revision,
+                current_revision=current_revision,
+            )
         validation = candidate_validator(candidate) if candidate_validator is not None else None
         after = build_advanced_table_map(candidate)
         semantic = _verify_semantics(before, after, expected)
@@ -275,7 +320,10 @@ def apply_bounded_table_edit_with_preservation_atomic(
         cells, edited_objects, edited_format = _cell_signatures(candidate, edited_cell)
         if edited_cell is not None and (target_objects is None or edited_objects != target_objects):
             raise ValueError("R3_UNDECLARED_TARGET_CELL_OBJECT_DRIFT")
-        if target_format is not None and edited_format is not None:
+        if phrase_signature is not None:
+            if _cell_phrase(candidate, edited_cell)[1] != phrase_signature:
+                raise ValueError("P427_UNDECLARED_PHRASE_CELL_DRIFT")
+        elif target_format is not None and edited_format is not None:
             _verify_target_cell_format(target_format, edited_format, operation["text"])
         if cells != untouched_cells:
             raise ValueError("R3_UNDECLARED_CELL_XML_DRIFT")

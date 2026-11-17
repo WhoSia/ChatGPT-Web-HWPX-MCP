@@ -2,7 +2,7 @@
 
 P3.42 already certifies package-part mutation. R3 additionally checks
 within-section table semantics before committing an existing HWPX.
-Only one explicit cell-text or page-break mutation is admitted initially.
+Each admitted operation is verified against the preceding native state.
 """
 from __future__ import annotations
 
@@ -352,5 +352,82 @@ def apply_bounded_table_edit_with_preservation_atomic(
         "mutation_footprint": certificate,
         "preservation_enforcement": enforcement,
         "committed_sha256": candidate_sha256,
+        "authority": "NATIVE_STRUCTURAL_AND_PACKAGE_PART_GATES_NOT_VISUAL",
+    }
+
+
+MAX_PRESERVED_TABLE_BATCH = 8
+
+
+def _validate_batch_targets(operations: list[dict]) -> None:
+    if not isinstance(operations, list) or not 1 <= len(operations) <= MAX_PRESERVED_TABLE_BATCH:
+        raise ValueError(f"P427_BATCH_SIZE_INVALID: expected 1 to {MAX_PRESERVED_TABLE_BATCH}")
+    targets = set()
+    for index, operation in enumerate(operations):
+        if not isinstance(operation, dict) or operation.get("op") not in ADMITTED:
+            raise ValueError(f"P427_BATCH_OPERATION_INVALID:{index}")
+        table = operation.get("table")
+        is_page_break = operation["op"] == "set_table_page_break"
+        cell = None if is_page_break else operation.get("cell")
+        if not isinstance(table, str) or not table or (
+            not is_page_break and (not isinstance(cell, str) or not cell)
+        ):
+            raise ValueError(f"P427_BATCH_TARGET_INVALID:{index}")
+        target = (table, cell)
+        if target in targets:
+            raise ValueError(f"P427_BATCH_TARGET_REPEATED:{index}")
+        targets.add(target)
+
+
+def apply_bounded_table_edits_with_preservation_atomic(
+    path: Path,
+    operations: list[dict],
+    *,
+    expected_revision: int,
+    current_revision: int,
+    candidate_validator: Callable[[Path], dict | None] | None = None,
+) -> dict:
+    """Apply checked operations to a private copy and replace the source once."""
+    if expected_revision != current_revision:
+        raise ValueError("Stale revision")
+    _validate_batch_targets(operations)
+    source = Path(path)
+    receipts = []
+    touched_sections = set()
+    with tempfile.TemporaryDirectory(prefix=".p427-batch-", dir=source.parent) as tmp:
+        candidate = Path(tmp) / source.name
+        shutil.copy2(source, candidate)
+        for index, operation in enumerate(operations):
+            try:
+                receipt = apply_bounded_table_edit_with_preservation_atomic(
+                    candidate,
+                    operation,
+                    expected_revision=expected_revision,
+                    current_revision=current_revision,
+                    candidate_validator=candidate_validator if index == len(operations) - 1 else None,
+                )
+            except ValueError as exc:
+                raise ValueError(f"P427_BATCH_OPERATION_FAILED:{index}: {exc}") from exc
+            receipts.append(receipt)
+            touched_sections.update(receipt["mutation_footprint"]["expected_scope"]["changed_parts"])
+
+        certificate = build_mutation_footprint(source, candidate, {
+            "changed_parts": sorted(touched_sections),
+            "required_changed_parts": sorted(touched_sections),
+            "label": "P4.27_NATIVE_TABLE_EDIT_BATCH",
+        })
+        enforcement = enforce_preservation_grade(certificate, "TARGETED_PARTS_ONLY")
+        digest = certificate["after"]["package_sha256"]
+        if digest != receipts[-1]["committed_sha256"]:
+            raise ValueError("P427_BATCH_CANDIDATE_HASH_MISMATCH")
+        os.replace(candidate, source)
+    return {
+        "schema": "chatgpt-web-hwpx-mcp/p4.27/preserved-table-batch/v1",
+        "operation_count": len(receipts),
+        "operation_receipts": receipts,
+        "package_validation": receipts[-1]["package_validation"],
+        "mutation_footprint": certificate,
+        "preservation_enforcement": enforcement,
+        "committed_sha256": digest,
         "authority": "NATIVE_STRUCTURAL_AND_PACKAGE_PART_GATES_NOT_VISUAL",
     }

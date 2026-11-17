@@ -95,6 +95,25 @@ class PreservedEditMcpAcceptanceTests(unittest.TestCase):
             "New verified value",
         )
 
+    def test_phrase_edit_through_mcp_keeps_existing_equation(self):
+        operation = self._operation()
+        del operation["text"]
+        operation.update(
+            op="replace_cell_phrase", paragraph_index=0,
+            old_text="Editable", new_text="Reviewed",
+        )
+        response = api.apply_preserved_table_edit("owned-user-document", 4, operation)
+        self.assertEqual(response["revision_after"], 5)
+        self.assertEqual(response["preserved_edit"]["operation"], "replace_cell_phrase")
+        self.assertEqual(response["preserved_edit"]["target_cell_inline_objects_verified"], 1)
+        self.assertEqual(response["sha256"], self.digest())
+        cells = build_advanced_table_map(self.path)["tables"][0]["cells"]
+        self.assertEqual(next(cell["text"] for cell in cells
+                              if cell["locator"] == operation["cell"]), "Reviewed target")
+        self.assertEqual([item["script"] for item in build_equation_map(self.path)["equations"]],
+                         ["a + b"])
+        self.refresh.assert_called_once()
+
     def test_stale_revision_and_invalid_operation_dont_write_or_refresh(self):
         original = self.digest()
         with self.assertRaisesRegex(ValueError, "Stale revision"):

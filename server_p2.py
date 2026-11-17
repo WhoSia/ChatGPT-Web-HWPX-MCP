@@ -3469,9 +3469,11 @@ def apply_preserved_table_edit(
 ) -> dict:
     """Edit one native table field with package, semantic and body preservation evidence.
 
-    R4 intentionally admits only one set_cell_text or set_table_page_break
-    operation. Authorization and revision custody use the existing document
-    store. All changes are staged until the preservation gates pass.
+    Submit one set_cell_text, set_table_page_break, or replace_cell_phrase
+    operation. For replace_cell_phrase, include table and cell locators,
+    a zero-based paragraph_index within the cell, old_text, and new_text.
+    The old phrase must occur once in the paragraph and fit in one plain
+    text node. All edits are staged and checked before replacing the file.
     """
     metadata, path = _owned_document(document_id)
     current_revision = int(metadata["revision"])

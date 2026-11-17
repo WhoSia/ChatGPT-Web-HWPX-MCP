@@ -406,3 +406,42 @@ preservation receipt under `preserved_edit`. If link preparation fails,
 request a new link for the committed revision via `deliver_document`.
 Search `discover_hwpx_workflows` for “표 셀 여러 일괄 보존 다운로드” to
 find the batch endpoint.
+
+### Read-only preview and optional plan check
+
+1. Call `preview_preserved_table_batch(document_id, expected_revision,
+   operations)`. It executes the checked editor on temporary bytes and
+   returns each target's before/after value, affected sections, the
+   preservation grade, and a `plan_sha256`. Cell values in this result
+   are capped at 240 characters and marked when truncated.
+2. To apply the same plan, pass that digest as `expected_plan_sha256` to
+   `edit_preserved_table_batch_and_deliver` with the same document,
+   revision, and ordered operations. Changed input is rejected before editing.
+   A new revision makes the preview stale. Existing callers may omit the
+   digest and submit an edit directly.
+3. The preview digest identifies the inputs, including the source HWPX digest,
+   and is separate from the SHA-256 of the downloaded output. The apply call
+   reruns validation and commits using the existing database CAS.
+
+The preview is a structural before/after inspection. It creates no
+document revision or download link. Page rendering is a separate workflow.
+
+## Functional comparison against the last P4.26 commit
+
+The baseline is [P4.26 R15, c478bdf](https://github.com/WhoSia/ChatGPT-Web-HWPX-MCP/commit/c478bdf0c6a9832b4b21bc536900c094237a8040).
+P4.26 already verified strict table input types, native report composition
+and editable equations, table pagination, figure and caption layout, an
+independent SVG renderer, and signed HWPX delivery. P4.27 builds on those paths.
+
+| Area | Addition on the P4.27 branch |
+| --- | --- |
+| Native table corrections | Match table locators to nested table traversal, clear stale repeat-header flags when moving the header row, and reject whole-cell replacement on a host cell containing a nested table. |
+| Targeted edit | Edit a cell, change table page-break mode, or replace a unique phrase within one plain text node while retaining the rest of the cell markup. |
+| Preservation | Validate body paragraphs, table anchors, neighboring cells, target geometry, inline objects and run styles as applicable. Limit changed package bytes to addressed sections and keep shared header definitions intact. |
+| Durable edit | Commit the exact validated private candidate using owner and revision checks, with the existing lease support. |
+| Batch and delivery | Validate one to eight operations as one revision and return its signed ResourceLink. Recover a failed download by reissuing the link for the committed revision. |
+| Preview | Compute before/after changes on a temporary copy and optionally bind apply to the ordered previewed plan. |
+
+P4.27 CI exercises reproducible native HWPX edits, retained PostgreSQL
+revisions and MCP tool invocation. Browser attachment behavior, deployed
+staging service, and Windows Hancom opening and resave have their own checks.

@@ -317,6 +317,38 @@ class NestedStructuredPreservationTests(unittest.TestCase):
             ))
         self.assertEqual(self.path.read_bytes(), original)
 
+    def test_phrase_edit_on_middle_table_preserves_both_other_levels(self):
+        with HwpxDocument.new() as doc:
+            outer = doc.add_table(1, 1)
+            outer.set_cell_text(0, 0, "바깥")
+            middle = outer.cell(0, 0).paragraphs[0].add_table(1, 1)
+            middle.set_cell_text(0, 0, "가운데 설명")
+            inner = middle.cell(0, 0).paragraphs[0].add_table(1, 1)
+            inner.set_cell_text(0, 0, "안쪽")
+            doc.save_to_path(str(self.path))
+        before = build_advanced_table_map(self.path)["tables"]
+        middle = before[1]
+        self.edit({
+            "op": "replace_cell_phrase", "table": middle["locator"],
+            "cell": middle["cells"][0]["locator"], "paragraph_index": 0,
+            "old_text": "설명", "new_text": "주석",
+        })
+        after = build_advanced_table_map(self.path)["tables"]
+        self.assertEqual([table["cells"][0]["text"] for table in after], ["바깥", "가운데 주석", "안쪽"])
+        self.assertEqual(after[0]["cells"], before[0]["cells"])
+        self.assertEqual(after[2]["cells"], before[2]["cells"])
+        self.assertEqual(raw_nested_table_count(self.path), 2)
+
+    def test_whole_cell_replacement_remains_blocked_for_a_host_cell(self):
+        outer = build_advanced_table_map(self.path)["tables"][0]
+        original = self.path.read_bytes()
+        with self.assertRaisesRegex(ValueError, "NESTED_TABLE_HOST_CELL_TEXT_EDIT_DEFERRED"):
+            self.edit({
+                "op": "set_cell_text", "table": outer["locator"],
+                "cell": outer["cells"][0]["locator"], "text": "새 셀 내용",
+            })
+        self.assertEqual(self.path.read_bytes(), original)
+
     def test_phrase_index_selects_second_paragraph_with_the_same_words(self):
         document = HwpxDocument.open(str(self.path))
         try:

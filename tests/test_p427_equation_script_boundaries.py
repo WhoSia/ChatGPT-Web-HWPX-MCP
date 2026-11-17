@@ -78,6 +78,26 @@ class P427EquationScriptBoundaryTests(unittest.TestCase):
             with self.subTest(source=source):
                 self.assertEqual(latex_to_eqedit(source), native_latex_to_eqedit(source))
 
+    def test_duplicate_scripts_do_not_generate_a_document(self):
+        invalid = r"x^2^3"
+        audit = audit_equation_latex(invalid)
+        self.assertFalse(audit["supported"])
+        self.assertIn("duplicate LaTeX superscript", audit["unsupported"]["detail"])
+        with self.assertRaisesRegex(ValueError, "LATEX_TO_EQEDIT_UNSUPPORTED.*duplicate"):
+            describe_equation(invalid)
+
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "new.hwpx"
+            for block in (
+                {"type": "equation", "latex": invalid},
+                {"type": "equation_line", "parts": [{"latex": "x_i"}, {"latex": invalid}]},
+                {"type": "piecewise", "rows": [{"expression": "1", "condition": invalid}]},
+            ):
+                with self.subTest(block=block):
+                    with self.assertRaisesRegex(UnsupportedLatexError, "duplicate LaTeX superscript"):
+                        compose_document_plan(path, {"blocks": [{"type": "paragraph", "text": "Text"}, block]})
+                    self.assertEqual(list(Path(folder).iterdir()), [])
+
     def test_inspection_creation_and_replacement_agree_on_saved_script(self):
         implicit, explicit = SCRIPT_PAIRS[0]
         expected = native_latex_to_eqedit(explicit)
@@ -103,10 +123,11 @@ class P427EquationScriptBoundaryTests(unittest.TestCase):
             self.assertEqual(saved[-1]["locator"], locator)
 
             before = file.read_bytes()
-            bad_operation = dict(operation, latex="x^")
-            with self.assertRaises(UnsupportedLatexError):
-                apply_equation_edits_atomic(
-                    file, [dict(operation, latex="y"), bad_operation],
-                    expected_revision=2, current_revision=2,
-                )
-            self.assertEqual(file.read_bytes(), before)
+            for invalid in ("x^", "x^2^3"):
+                with self.subTest(latex=invalid):
+                    with self.assertRaises(UnsupportedLatexError):
+                        apply_equation_edits_atomic(
+                            file, [dict(operation, latex="y"), dict(operation, latex=invalid)],
+                            expected_revision=2, current_revision=2,
+                        )
+                    self.assertEqual(file.read_bytes(), before)

@@ -54,6 +54,37 @@ class P427EquationScriptBoundaryTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "LATEX_TO_EQEDIT_UNSUPPORTED"):
             describe_equation("x^")
 
+    def test_one_token_command_arguments_match_explicit_groups(self):
+        for shorthand, grouped in (
+            (r"\frac12", r"\frac{1}{2}"),
+            (r"\dfrac12x", r"\dfrac{1}{2}x"),
+            (r"\tfrac ab", r"\tfrac{a}{b}"),
+            (r"\frac{a}23", r"\frac{a}{2}3"),
+            (r"\sqrt x y + \sqrt[3]ab", r"\sqrt{x}y + \sqrt[3]{a}b"),
+            (r"\frac\sqrt12", r"\frac{\sqrt{1}}{2}"),
+            (r"x^\frac12y", r"x^{\frac{1}{2}}y"),
+            (r"\hat xy", r"\hat{x}y"),
+            (r"\begin{matrix}\frac12 & \sqrt ab\end{matrix}",
+             r"\begin{matrix}\frac{1}{2} & \sqrt{a}b\end{matrix}"),
+        ):
+            with self.subTest(source=shorthand):
+                self.assertEqual(latex_to_eqedit(shorthand), native_latex_to_eqedit(grouped))
+
+    def test_missing_required_command_arguments_are_rejected(self):
+        for source in (
+            r"\frac", r"\frac{x}", r"\frac x^2", r"\sqrt", r"\sqrt[2]",
+            r"\hat", r"\frac{x\sqrt}{y}", r"\left(\frac{x}\right)",
+            r"\begin{matrix}\frac{x}&y\end{matrix}",
+        ):
+            with self.subTest(source=source):
+                with self.assertRaisesRegex(UnsupportedLatexError, "missing LaTeX argument"):
+                    latex_to_eqedit(source)
+
+    def test_explicit_empty_groups_and_multitoken_groups_keep_their_output(self):
+        for source in (r"\frac{12}{34}", r"\frac{}{x}", r"\sqrt[2]{}", r"x_{}^2"):
+            with self.subTest(source=source):
+                self.assertEqual(latex_to_eqedit(source), native_latex_to_eqedit(source))
+
     def test_duplicate_script_on_same_base_is_rejected(self):
         for source, kind in (
             (r"x^2^3", "superscript"),

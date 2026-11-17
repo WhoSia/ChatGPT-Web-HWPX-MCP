@@ -1,17 +1,44 @@
-"""Preserve single-token LaTeX scripts before native EqEdit conversion."""
+"""Convert LaTeX with strict argument boundaries and the native EqEdit grammar."""
 from __future__ import annotations
 
 import re
 
-from hwpx.equation import latex_to_eqedit as _native_latex_to_eqedit
-from hwpx.equation.authoring import UnsupportedLatexError
+from hwpx.equation.authoring import (
+    MAX_GROUP_DEPTH,
+    MAX_SOURCE_LENGTH,
+    EquationConversionError,
+    UnsupportedLatexError,
+    _LatexLexer,
+    _LatexParser,
+    _strip_math_delimiters,
+)
 
 
-_CONTROL_OR_SCRIPT = re.compile(r"\\([^\W\d_]+|.)|[_^]", re.DOTALL)
-_LITERAL_COMMANDS = frozenset({"text", "mathrm", "textrm", "mbox"})
-_LITERAL_ARGUMENT = re.compile(r"\s*\{(?:\\.|[^{}\\])*\}", re.DOTALL)
-_NEXT_ATOM = re.compile(r"\s*(\S)")
+_ARGUMENT_BOUNDARIES = frozenset({"}", "^", "_", "&", r"\\", r"\right", r"\end"})
 _EQEDIT_PART = re.compile(r'"[^"]*"|[_^]\{|[{}]|[^\s"{}^_]+|[_^]')
+
+
+class _ArgumentBoundedParser(_LatexParser):
+    """Use python-hwpx's EqEdit emission and intercept required math arguments."""
+
+    def _group_or_atom(self, depth: int) -> str:
+        token = self._peek()
+        if token is None or token in _ARGUMENT_BOUNDARIES:
+            raise UnsupportedLatexError("missing LaTeX argument")
+        if depth >= MAX_GROUP_DEPTH:
+            raise EquationConversionError("equation nesting depth exceeded")
+        if token == "{":
+            return super()._group_or_atom(depth)
+
+        # The lexer coalesces letter and number runs for EqEdit text. A bare
+        # required argument consumes one source character of those runs.
+        head = token[0]
+        if len(token) > 1 and (head.isalpha() or head.isdigit() or head == "."):
+            self._tokens[self._pos] = token[1:]
+            return self._plain_token(head)
+
+        # Consecutive unbraced commands may recurse without opening a brace.
+        return super()._group_or_atom(depth + 1)
 
 
 def _reject_duplicate_scripts(script: str) -> None:
@@ -36,38 +63,14 @@ def _reject_duplicate_scripts(script: str) -> None:
 
 
 def latex_to_eqedit(latex: str) -> str:
-    """Use the native converter with TeX's unbraced script boundaries.
-
-    The native lexer reads adjacent letters or digits as one token. After
-    an unbraced script marker TeX consumes one token, so ``p_iS_i`` needs
-    a boundary after ``i`` before the native lexer reads it.
-    """
-    pieces = []
-    emitted_until = 0
-    literal_end = 0
-    for match in _CONTROL_OR_SCRIPT.finditer(latex):
-        if match.start() < literal_end:
-            continue
-        command = match[1]
-        if command is not None:
-            if command in _LITERAL_COMMANDS:
-                literal = _LITERAL_ARGUMENT.match(latex, match.end())
-                if literal:
-                    literal_end = literal.end()
-            continue
-        argument = _NEXT_ATOM.match(latex, match.end())
-        if argument is None or argument[1] in "_^}&$":
-            raise UnsupportedLatexError(f"missing LaTeX argument after {match[0]}")
-        if argument.end() == len(latex):
-            continue
-        atom = argument[1]
-        following = latex[argument.end()]
-        joins_word = atom.isalpha() and following.isalpha()
-        joins_number = (atom.isdigit() or atom == ".") and (following.isdigit() or following == ".")
-        if joins_word or joins_number:
-            pieces.extend((latex[emitted_until:argument.start(1)], "{", atom, "}"))
-            emitted_until = argument.end()
-    pieces.append(latex[emitted_until:])
-    script = _native_latex_to_eqedit("".join(pieces))
+    """Preserve required groups and consume one character from bare runs."""
+    if len(latex) > MAX_SOURCE_LENGTH:
+        raise EquationConversionError("LaTeX input exceeds size limit")
+    source = _strip_math_delimiters(latex)
+    if "$" in source:
+        raise UnsupportedLatexError("interior $ math delimiters are not supported")
+    if not source:
+        raise UnsupportedLatexError("empty LaTeX input")
+    script = _ArgumentBoundedParser(_LatexLexer(source).tokens).parse()
     _reject_duplicate_scripts(script)
     return script

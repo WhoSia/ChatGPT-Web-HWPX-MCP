@@ -96,6 +96,13 @@ class CompetitorPatternToolsTests(unittest.TestCase):
         self.assertEqual(result["matching_workflows"][0]["tool"],
                          "edit_preserved_table_and_deliver")
 
+    def test_discovery_recommends_batch_for_multiple_preserved_table_edits(self):
+        discover = self.mcp.tools["discover_hwpx_workflows"]
+        result = discover("표 셀 여러 일괄 보존 다운로드", limit=1)
+        self.assertEqual(result["matching_workflows"][0]["tool"],
+                         "edit_preserved_table_batch_and_deliver")
+        self.assertFalse(result["executes_mutations"])
+
     def test_discovery_recommends_one_call_report_authoring(self):
         result = self.mcp.tools["discover_hwpx_workflows"]("rich report", limit=3)
         self.assertEqual(result["matching_workflows"][0]["tool"],

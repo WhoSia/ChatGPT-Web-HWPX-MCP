@@ -6,7 +6,9 @@ import os
 import tempfile
 import time
 import unittest
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from threading import Barrier
 from unittest.mock import patch
 
 from hwpx import HwpxDocument
@@ -142,6 +144,51 @@ class PreservedEditMcpAcceptanceTests(unittest.TestCase):
             with self.assertRaisesRegex(PermissionError, "not owned"):
                 api.apply_preserved_table_edit(self.document_id, 1, self._operation())
         self.assert_original_revision()
+
+    def test_concurrent_edit_candidates_commit_only_the_winning_validated_bytes(self):
+        rendezvous = Barrier(2)
+        put_revision = self.store.put_revision
+
+        def commit_together(**candidate):
+            rendezvous.wait(timeout=20)
+            return put_revision(**candidate)
+
+        def attempt(text):
+            operation = {**self._operation(), "text": text}
+            try:
+                return text, api.apply_preserved_table_edit(self.document_id, 1, operation)
+            except RuntimeError as exc:
+                return text, exc
+
+        with patch.object(self.store, "put_revision", side_effect=commit_together):
+            with ThreadPoolExecutor(max_workers=2) as executor:
+                results = list(executor.map(attempt, ["Concurrent A", "Concurrent B"]))
+
+        winners = [(text, result) for text, result in results if isinstance(result, dict)]
+        failures = [result for _, result in results if isinstance(result, RuntimeError)]
+        self.assertEqual(len(winners), 1)
+        self.assertEqual(len(failures), 1)
+        self.assertRegex(str(failures[0]), "CAS conflict")
+        text, receipt = winners[0]
+        self.assertEqual(receipt["sha256"], self.digest())
+        self.assertEqual(self.store.load_revision(self.document_id, 1)["bytes"], self.initial_bytes)
+        self.assertIsNone(self.store.load_revision(self.document_id, 3))
+        cells = build_advanced_table_map(self.path)["tables"][0]["cells"]
+        self.assertEqual(next(c["text"] for c in cells if c["locator"] == self._operation()["cell"]),
+                         text)
+
+    def test_active_lease_is_required_and_can_authorize_the_commit(self):
+        token = "p427-acceptance-lease-token"
+        self.store.acquire_lease(
+            self.document_id, holder_id=self.owner, expected_revision=1,
+            lease_token=token, ttl_seconds=60,
+        )
+        with self.assertRaisesRegex(RuntimeError, "lease required"):
+            api.apply_preserved_table_edit(self.document_id, 1, self._operation())
+        self.assert_original_revision()
+        result = api.apply_preserved_table_edit(self.document_id, 1, self._operation(), token)
+        self.assertEqual(result["revision_after"], 2)
+        self.assertEqual(result["sha256"], self.digest())
 
     def test_package_validator_failure_refuses_durable_commit(self):
         with patch.object(api.core, "validate_hwpx_package",

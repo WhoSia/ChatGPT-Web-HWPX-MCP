@@ -450,3 +450,25 @@ independent SVG renderer, and signed HWPX delivery. P4.27 builds on those paths.
 P4.27 CI exercises reproducible native HWPX edits, retained PostgreSQL
 revisions and MCP tool invocation. Browser attachment behavior, deployed
 staging service, and Windows Hancom opening and resave have their own checks.
+
+## Preserve unbraced LaTeX script arguments
+
+`python-hwpx` 6.6 groups adjacent letters and numerals as lexer tokens.
+For LaTeX `p_iS_i(t)` that consumed `iS` as the first subscript and saved the
+wrong equation. The shared converter makes the single-token argument explicit
+before calling the native compiler. `p_iS_i(t)` and `p_{i}S_{i}(t)` now produce
+the same EqEdit script. Explicit groups such as `x_{ij}`, named commands,
+and quoted text retain their boundaries. A missing script argument is rejected.
+
+Capability inspection, script preview, document composition, inline equation
+lines, piecewise conditions and revision-bound equation edits use this path.
+The regression reopens saved HWPX bytes after composition and replacement.
+It also verifies byte-exact rollback when a later operation has a missing
+script argument. Existing document bytes are changed only through requested
+edits. The compiler still applies its supported-command and size limits to
+the normalized source.
+
+The Korean cases test verifies quoted EqEdit text. The WSL bridge test
+verifies the engine and length fields in the mock receipt. These checks cover
+script representation and receipt handling. Hancom glyph shaping and page
+rendering require a fresh Windows capture.

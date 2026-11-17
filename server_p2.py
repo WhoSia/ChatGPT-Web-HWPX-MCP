@@ -6190,7 +6190,7 @@ def edit_preserved_table_and_deliver(
 @core.mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, openWorldHint=False))
 def preview_preserved_table_batch(
     document_id: str, expected_revision: int, operations: list[dict],
-) -> dict:
+) -> CallToolResult:
     """Check a batch on a temporary HWPX and report the actual before/after changes."""
     row = _load_preserved_table_revision(document_id, expected_revision)
     revision = row["revision"]
@@ -6204,10 +6204,14 @@ def preview_preserved_table_batch(
                 candidate, ingress=row["metadata"].get("source") == "existing-ingress",
             ),
         )
-    return {
+    result = {
         "ok": True, "document_id": document_id, "revision": revision,
         "plan_sha256": plan_sha256, "transaction": "PREVIEW_ONLY", **preview,
     }
+    return CallToolResult(
+        content=[TextContent(type="text", text=json.dumps(result, ensure_ascii=False))],
+        structuredContent=result,
+    )
 
 
 @core.mcp.tool()

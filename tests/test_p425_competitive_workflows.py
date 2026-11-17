@@ -103,6 +103,11 @@ class CompetitorPatternToolsTests(unittest.TestCase):
                          "edit_preserved_table_batch_and_deliver")
         self.assertFalse(result["executes_mutations"])
 
+    def test_discovery_recommends_read_only_batch_preview(self):
+        result = self.mcp.tools["discover_hwpx_workflows"]("표 셀 일괄 미리보기", limit=1)
+        self.assertEqual(result["matching_workflows"][0]["tool"], "preview_preserved_table_batch")
+        self.assertFalse(result["executes_mutations"])
+
     def test_discovery_recommends_one_call_report_authoring(self):
         result = self.mcp.tools["discover_hwpx_workflows"]("rich report", limit=3)
         self.assertEqual(result["matching_workflows"][0]["tool"],

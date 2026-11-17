@@ -133,6 +133,52 @@ class PreservedEditMcpAcceptanceTests(unittest.TestCase):
         schema = tools["edit_preserved_table_and_deliver"].input_schema
         self.assertEqual(set(schema["required"]), {"document_id", "expected_revision", "operation"})
 
+    def download(self, result):
+        link = next(item for item in result.content if item.type == "resource_link")
+        url = urlsplit(str(link.uri))
+        request = Request({
+            "type": "http", "method": "GET", "path": url.path,
+            "query_string": url.query.encode(), "headers": [],
+            "path_params": {"document_id": self.document_id},
+        })
+        return asyncio.run(api.core.download_delivery(request))
+
+    def test_batch_mcp_delivers_one_revision_with_two_checked_cell_changes(self):
+        second = {**self._operation(), "cell": self.table["cells"][0]["locator"],
+                  "text": "두 번째 수정"}
+        result = asyncio.run(api.core.mcp.call_tool("edit_preserved_table_batch_and_deliver", {
+            "document_id": self.document_id, "expected_revision": 1,
+            "operations": [self._operation(), second],
+        }))
+        self.assertFalse(result.is_error)
+        receipt = result.structured_content
+        self.assertEqual(receipt["revision"], 2)
+        self.assertEqual(receipt["preserved_edit"]["operation_count"], 2)
+        self.assertEqual(self.store.load_revision(self.document_id, 1)["bytes"], self.initial_bytes)
+        self.assertEqual(self.store.load_current(self.document_id)["revision"], 2)
+        self.assertIsNone(self.store.load_revision(self.document_id, 3))
+        downloaded = self.download(result)
+        self.assertEqual(downloaded.status_code, 200)
+        self.assertEqual(downloaded.body, self.store.load_revision(self.document_id, 2)["bytes"])
+        self.assertEqual(hashlib.sha256(downloaded.body).hexdigest(), receipt["sha256"])
+        self.path.write_bytes(downloaded.body)
+        cells = build_advanced_table_map(self.path)["tables"][0]["cells"]
+        self.assertEqual([c["text"] for c in cells[:2]], ["두 번째 수정", "New verified value"])
+        self.assertEqual([row["script"] for row in build_equation_map(self.path)["equations"]],
+                         ["a + b"])
+
+    def test_late_batch_failure_creates_no_durable_revision(self):
+        invalid_second = {
+            "op": "replace_cell_phrase", "table": self.table["locator"],
+            "cell": self.table["cells"][0]["locator"], "paragraph_index": 0,
+            "old_text": "absent phrase", "new_text": "replacement",
+        }
+        with self.assertRaisesRegex(ValueError, "P427_BATCH_OPERATION_FAILED:1"):
+            api.edit_preserved_table_batch_and_deliver(
+                self.document_id, 1, [self._operation(), invalid_second],
+            )
+        self.assert_original_revision()
+
     def test_delivery_downloads_committed_revision_even_after_next_edit(self):
         export_revision = api.export_revision
 
@@ -153,14 +199,7 @@ class PreservedEditMcpAcceptanceTests(unittest.TestCase):
         receipt = result.structured_content
         self.assertEqual(receipt["revision"], 2)
         self.assertEqual(self.store.load_current(self.document_id)["revision"], 3)
-        link = next(item for item in result.content if item.type == "resource_link")
-        url = urlsplit(str(link.uri))
-        request = Request({
-            "type": "http", "method": "GET", "path": url.path,
-            "query_string": url.query.encode(), "headers": [],
-            "path_params": {"document_id": self.document_id},
-        })
-        downloaded = asyncio.run(api.core.download_delivery(request))
+        downloaded = self.download(result)
         self.assertEqual(downloaded.status_code, 200)
         self.assertEqual(downloaded.body, self.store.load_revision(self.document_id, 2)["bytes"])
         self.assertEqual(hashlib.sha256(downloaded.body).hexdigest(), receipt["sha256"])

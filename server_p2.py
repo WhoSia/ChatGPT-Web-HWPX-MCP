@@ -11,6 +11,7 @@ import secrets
 import tempfile
 import time
 import unicodedata
+from functools import partial
 from pathlib import Path
 
 import server as core
@@ -64,6 +65,7 @@ from hwpx_mcp.document.p323_advanced_tables import (
 )
 from hwpx_mcp.custody.p427_structured_edit_preservation import (
     apply_bounded_table_edit_with_preservation_atomic,
+    apply_bounded_table_edits_with_preservation_atomic,
 )
 from hwpx_mcp.document.p324_story_layer import (
     story_layer_contract,
@@ -3479,6 +3481,13 @@ def apply_preserved_table_edit(
     The old phrase must occur once in the paragraph and fit in one plain
     text node. All edits are staged and checked before replacing the file.
     """
+    return _commit_preserved_table_edits(
+        document_id, expected_revision, lease_token,
+        partial(apply_bounded_table_edit_with_preservation_atomic, operation=operation),
+    )
+
+
+def _commit_preserved_table_edits(document_id, expected_revision, lease_token, edit_candidate):
     core._paths(document_id)  # Validate document identity without opening the cache.
     store = core.DOCUMENT_STORE
     row = store.load_current(document_id)
@@ -3494,9 +3503,8 @@ def apply_preserved_table_edit(
     with tempfile.TemporaryDirectory(prefix="p427-preserved-edit-") as tmp:
         path = Path(tmp) / "candidate.hwpx"
         path.write_bytes(row["bytes"])
-        transaction = apply_bounded_table_edit_with_preservation_atomic(
+        transaction = edit_candidate(
             path,
-            operation,
             expected_revision=current_revision,
             current_revision=current_revision,
             candidate_validator=lambda candidate: core.validate_hwpx_package(
@@ -6169,6 +6177,33 @@ def edit_preserved_table_and_deliver(
     return _delivery_after_commit(
         document_id, result["revision_after"], link_ttl_seconds,
         "edit_preserved_table_and_deliver",
+        extra={field: result[field] for field in
+               ("sha256", "preserved_edit", "preservation_grade", "commit_receipt")},
+    )
+
+
+@core.mcp.tool()
+def edit_preserved_table_batch_and_deliver(
+    document_id: str,
+    expected_revision: int,
+    operations: list[dict],
+    lease_token: str = "",
+    link_ttl_seconds: int = 900,
+) -> CallToolResult:
+    """Commit one to eight preserved table edits together and return their HWPX.
+
+    Use the same operation objects as apply_preserved_table_edit. Each cell
+    and each table's page-break setting may appear once in the batch. Any
+    failed operation aborts the entire batch. Renew an expired or failed
+    download with deliver_document for the returned revision.
+    """
+    result = _commit_preserved_table_edits(
+        document_id, expected_revision, lease_token,
+        partial(apply_bounded_table_edits_with_preservation_atomic, operations=operations),
+    )
+    return _delivery_after_commit(
+        document_id, result["revision_after"], link_ttl_seconds,
+        "edit_preserved_table_batch_and_deliver",
         extra={field: result[field] for field in
                ("sha256", "preserved_edit", "preservation_grade", "commit_receipt")},
     )

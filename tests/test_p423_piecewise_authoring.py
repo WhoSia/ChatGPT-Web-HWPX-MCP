@@ -47,13 +47,13 @@ class P423PiecewiseAuthoringTests(unittest.TestCase):
         self.assertFalse(result.has_conditions)
         self.assertTrue(result.script.startswith("cases {matrix {"))
 
-    def test_plain_korean_conditions_compile_to_upright_text(self):
+    def test_plain_korean_conditions_compile_to_quoted_literals(self):
         result = build_piecewise_script([
             {"expression": "1", "condition_text": "양수"},
             {"expression": "0", "condition_text": "그 외"},
         ])
         self.assertTrue(result.has_conditions)
-        self.assertIn('rm "양수" it', result.script)
+        self.assertEqual(result.script, 'cases {1 & "양수" # 0 & "그 외"}')
 
     def test_plain_text_cannot_inject_eqedit_grid(self):
         with self.assertRaisesRegex(ValueError, "control characters"):

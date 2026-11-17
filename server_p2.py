@@ -6152,6 +6152,28 @@ def _delivery_after_commit(document_id: str, revision: int, link_ttl_seconds: in
     return handoff(receipt)
 
 
+@core.mcp.tool()
+def edit_preserved_table_and_deliver(
+    document_id: str,
+    expected_revision: int,
+    operation: dict,
+    lease_token: str = "",
+    link_ttl_seconds: int = 900,
+) -> CallToolResult:
+    """Apply one preserved table edit and download the exact committed revision.
+
+    Uses the same operations as apply_preserved_table_edit. If download
+    preparation fails after commit, renew delivery for the returned revision.
+    """
+    result = apply_preserved_table_edit(document_id, expected_revision, operation, lease_token)
+    return _delivery_after_commit(
+        document_id, result["revision_after"], link_ttl_seconds,
+        "edit_preserved_table_and_deliver",
+        extra={field: result[field] for field in
+               ("sha256", "preserved_edit", "preservation_grade", "commit_receipt")},
+    )
+
+
 @core.mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, openWorldHint=False))
 def get_product_authoring_contract() -> dict:
     """Return the narrow P3.37 request→native-file product surface and frozen upstream harvest receipt."""

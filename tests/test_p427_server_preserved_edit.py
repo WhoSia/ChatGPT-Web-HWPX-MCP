@@ -1,6 +1,7 @@
 """P4.27 MCP tool acceptance with native files and a real PostgreSQL store."""
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import os
 import tempfile
@@ -10,6 +11,9 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from threading import Barrier
 from unittest.mock import patch
+from urllib.parse import urlsplit
+
+from starlette.requests import Request
 
 from hwpx import HwpxDocument
 
@@ -122,6 +126,53 @@ class PreservedEditMcpAcceptanceTests(unittest.TestCase):
                               if cell["locator"] == operation["cell"]), "Reviewed target")
         self.assertEqual([item["script"] for item in build_equation_map(self.path)["equations"]],
                          ["a + b"])
+
+    def test_delivery_downloads_committed_revision_even_after_next_edit(self):
+        export_revision = api.export_revision
+
+        def advance_before_export(core, document_id, ttl, revision):
+            self.assertEqual(revision, 2)
+            api.apply_preserved_table_edit(document_id, 2, {
+                **self._operation(), "text": "A newer revision",
+            })
+            return export_revision(core, document_id, ttl, revision)
+
+        with patch.object(api, "export_revision", side_effect=advance_before_export):
+            result = api.edit_preserved_table_and_deliver(self.document_id, 1, self._operation())
+
+        self.assertFalse(result.is_error)
+        receipt = result.structured_content
+        self.assertEqual(receipt["revision"], 2)
+        self.assertEqual(self.store.load_current(self.document_id)["revision"], 3)
+        link = next(item for item in result.content if item.type == "resource_link")
+        url = urlsplit(str(link.uri))
+        request = Request({
+            "type": "http", "method": "GET", "path": url.path,
+            "query_string": url.query.encode(), "headers": [],
+            "path_params": {"document_id": self.document_id},
+        })
+        downloaded = asyncio.run(api.core.download_delivery(request))
+        self.assertEqual(downloaded.status_code, 200)
+        self.assertEqual(downloaded.body, self.store.load_revision(self.document_id, 2)["bytes"])
+        self.assertEqual(hashlib.sha256(downloaded.body).hexdigest(), receipt["sha256"])
+        self.assertNotEqual(downloaded.body, self.store.load_current(self.document_id)["bytes"])
+        self.path.write_bytes(downloaded.body)
+        self.assertEqual([item["script"] for item in build_equation_map(self.path)["equations"]],
+                         ["a + b"])
+
+    def test_delivery_failure_renews_only_the_link_for_committed_revision(self):
+        with patch.object(api, "export_revision", side_effect=RuntimeError("TEST_DELIVERY_UNAVAILABLE")):
+            result = api.edit_preserved_table_and_deliver(self.document_id, 1, self._operation())
+
+        self.assertTrue(result.is_error)
+        receipt = result.structured_content
+        self.assertEqual(receipt["delivery_status"], "RETRY_DELIVERY_ONLY")
+        self.assertEqual(receipt["transaction"], "COMMITTED")
+        self.assertEqual(receipt["revision"], 2)
+        retry = api.deliver_document(self.document_id, revision=2)
+        self.assertFalse(retry.is_error)
+        self.assertEqual(retry.structured_content["sha256"], receipt["sha256"])
+        self.assertIsNone(self.store.load_revision(self.document_id, 3))
 
     def assert_original_revision(self):
         row = self.store.load_current(self.document_id)

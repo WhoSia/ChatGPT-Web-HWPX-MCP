@@ -2,9 +2,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from hwpx.equation import latex_to_eqedit as native_latex_to_eqedit
+from hwpx.equation import EquationConversionError, latex_to_eqedit as native_latex_to_eqedit
 from hwpx.equation.authoring import UnsupportedLatexError
-from hwpx.equation import EquationConversionError
 
 from hwpx_mcp.document.p210_equations import apply_equation_edits_atomic, build_equation_map
 from hwpx_mcp.document.p321_document_composer import compose_document_plan
@@ -141,6 +140,28 @@ class P427EquationScriptBoundaryTests(unittest.TestCase):
                     with self.assertRaisesRegex(UnsupportedLatexError, "duplicate LaTeX superscript"):
                         compose_document_plan(path, {"blocks": [{"type": "paragraph", "text": "Text"}, block]})
                     self.assertEqual(list(Path(folder).iterdir()), [])
+
+    def test_compose_and_inspect_saved_fraction_and_root_operands(self):
+        cases = ((r"\frac12", "{1} over {2}"), (r"\sqrt[2]x", "root {2} of {x}"))
+        for latex, script in cases:
+            with self.subTest(latex=latex):
+                self.assertEqual(describe_equation(latex)["eqedit_script"], script)
+                self.assertEqual(audit_equation_latex(latex)["eqedit_script"], script)
+
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "new.hwpx"
+            for invalid in (r"\frac{x}", r"\sqrt[2]"):
+                with self.subTest(latex=invalid):
+                    self.assertFalse(audit_equation_latex(invalid)["supported"])
+                    with self.assertRaisesRegex(ValueError, "LATEX_TO_EQEDIT_UNSUPPORTED.*missing"):
+                        describe_equation(invalid)
+                    with self.assertRaisesRegex(UnsupportedLatexError, "missing LaTeX argument"):
+                        compose_document_plan(path, {"blocks": [{"type": "equation", "latex": invalid}]})
+                    self.assertEqual(list(Path(folder).iterdir()), [])
+
+            compose_document_plan(path, {"blocks": [{"type": "equation", "latex": latex} for latex, _ in cases]})
+            self.assertEqual([entry["script"] for entry in build_equation_map(path)["equations"]],
+                             [script for _, script in cases])
 
     def test_inspection_creation_and_replacement_agree_on_saved_script(self):
         implicit, explicit = SCRIPT_PAIRS[0]

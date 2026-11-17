@@ -5,6 +5,13 @@ on:
     branches:
       - development/p425-competitive-capability-convergence-20261110
     paths:
+      - "server.py"
+      - "server_p2.py"
+      - "hwpx_mcp/custody/p427_structured_edit_preservation.py"
+      - "hwpx_mcp/delivery/p333_file_delivery.py"
+      - "hwpx_mcp/document/p427_cell_phrase.py"
+      - "hwpx_mcp/interfaces/p425_competitive_workflows.py"
+      - "hwpx_mcp/storage/document_store.py"
       - "hwpx_mcp/document/p323_advanced_tables.py"
       - "hwpx_mcp/document/p27_tables.py"
       - "hwpx_mcp/document/p28_tables.py"
@@ -100,7 +107,7 @@ jobs:
         run: test "$(git rev-parse HEAD)" = "$EXPECTED"
       - name: Build exact production-runtime image (TS and Rust included)
         run: docker build --progress=plain -t p427-r4-auth:ci .
-      - name: Run authenticated R4 MCP acceptance inside production runtime
+      - name: Run preserved edit and delivery acceptance against PostgreSQL
         run: |
           docker run --rm --network host \
             -v "$PWD/tests:/app/tests:ro" \

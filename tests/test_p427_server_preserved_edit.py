@@ -127,6 +127,12 @@ class PreservedEditMcpAcceptanceTests(unittest.TestCase):
         self.assertEqual([item["script"] for item in build_equation_map(self.path)["equations"]],
                          ["a + b"])
 
+    def test_preserved_edit_and_delivery_are_registered_mcp_tools(self):
+        tools = {tool.name: tool for tool in asyncio.run(api.core.mcp.list_tools())}
+        self.assertIn("apply_preserved_table_edit", tools)
+        schema = tools["edit_preserved_table_and_deliver"].input_schema
+        self.assertEqual(set(schema["required"]), {"document_id", "expected_revision", "operation"})
+
     def test_delivery_downloads_committed_revision_even_after_next_edit(self):
         export_revision = api.export_revision
 
@@ -138,7 +144,10 @@ class PreservedEditMcpAcceptanceTests(unittest.TestCase):
             return export_revision(core, document_id, ttl, revision)
 
         with patch.object(api, "export_revision", side_effect=advance_before_export):
-            result = api.edit_preserved_table_and_deliver(self.document_id, 1, self._operation())
+            result = asyncio.run(api.core.mcp.call_tool("edit_preserved_table_and_deliver", {
+                "document_id": self.document_id, "expected_revision": 1,
+                "operation": self._operation(),
+            }))
 
         self.assertFalse(result.is_error)
         receipt = result.structured_content

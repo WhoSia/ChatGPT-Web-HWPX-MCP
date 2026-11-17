@@ -16,6 +16,7 @@ from urllib.parse import urlsplit
 from starlette.requests import Request
 
 from hwpx import HwpxDocument
+from hwpx.equation.authoring import UnsupportedLatexError
 
 # The native-only acceptance runner has no OAuth/Postgres service; the
 # authenticated server test is executed independently in the Postgres job.
@@ -49,6 +50,7 @@ class PreservedEditMcpAcceptanceTests(unittest.TestCase):
         caller = patch.object(api.core, "_caller_subject", return_value=self.owner)
         caller.start()
         self.addCleanup(caller.stop)
+        self.load_metadata = api.core._load_metadata
         cache = patch.object(api.core, "_load_metadata",
                              side_effect=AssertionError("preserved edit touched the shared cache"))
         cache.start()
@@ -111,6 +113,32 @@ class PreservedEditMcpAcceptanceTests(unittest.TestCase):
                  if (c["row"], c["col"]) == (0, 1))["text"],
             "New verified value",
         )
+
+    def test_duplicate_equation_rejects_a_batch_without_a_new_durable_revision(self):
+        before = self.store.load_current(self.document_id)
+        locator = build_equation_map(self.path)["equations"][0]["locator"]
+        valid = {"op": "replace_equation", "equation": locator, "latex": "x^{2^3}"}
+        invalid = dict(valid, latex="x^2^3")
+        self.addCleanup(api.core._delete_document_files, self.document_id)
+
+        # Equation editing uses the existing authenticated hydration path.
+        with patch.object(api.core, "_load_metadata", self.load_metadata):
+            with self.assertRaisesRegex(UnsupportedLatexError, "duplicate LaTeX superscript"):
+                api.apply_equation_edits(self.document_id, 1, [valid, invalid])
+
+            unchanged = self.store.load_current(self.document_id)
+            self.assertEqual(unchanged["revision"], 1)
+            self.assertEqual(unchanged["bytes"], before["bytes"])
+            local_path, _ = api.core._paths(self.document_id)
+            self.assertEqual(local_path.read_bytes(), before["bytes"])
+
+            result = api.apply_equation_edits(self.document_id, 1, [valid])
+            stored = self.store.load_current(self.document_id)
+            self.assertEqual(result["revision_after"], 2)
+            self.assertEqual(stored["revision"], 2)
+            self.assertEqual(stored["sha256"], result["sha256"])
+            self.assertEqual(self.digest(), stored["sha256"])
+            self.assertEqual(build_equation_map(self.path)["equations"][0]["script"], "x ^{2 ^{3}}")
 
     def test_phrase_edit_through_mcp_keeps_existing_equation(self):
         operation = self._operation()

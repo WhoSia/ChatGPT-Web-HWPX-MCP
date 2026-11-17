@@ -11,6 +11,28 @@ _CONTROL_OR_SCRIPT = re.compile(r"\\([^\W\d_]+|.)|[_^]", re.DOTALL)
 _LITERAL_COMMANDS = frozenset({"text", "mathrm", "textrm", "mbox"})
 _LITERAL_ARGUMENT = re.compile(r"\s*\{(?:\\.|[^{}\\])*\}", re.DOTALL)
 _NEXT_ATOM = re.compile(r"\s*(\S)")
+_EQEDIT_PART = re.compile(r'"[^"]*"|[_^]\{|[{}]|[^\s"{}^_]+|[_^]')
+
+
+def _reject_duplicate_scripts(script: str) -> None:
+    """Check consecutive postfix scripts in the native compiler's output."""
+    scripts_by_group: list[set[str]] = [set()]
+    for match in _EQEDIT_PART.finditer(script):
+        part = match[0]
+        if part in ("^{", "_{"):
+            attached = scripts_by_group[-1]
+            if part in attached:
+                kind = "superscript" if part == "^{" else "subscript"
+                raise UnsupportedLatexError(f"duplicate LaTeX {kind} on the same base")
+            attached.add(part)
+            scripts_by_group.append(set())
+        elif part == "}":
+            scripts_by_group.pop()
+        else:
+            # A normal atom, a grid separator or an explicit group ends the chain.
+            scripts_by_group[-1].clear()
+            if part == "{":
+                scripts_by_group.append(set())
 
 
 def latex_to_eqedit(latex: str) -> str:
@@ -46,4 +68,6 @@ def latex_to_eqedit(latex: str) -> str:
             pieces.extend((latex[emitted_until:argument.start(1)], "{", atom, "}"))
             emitted_until = argument.end()
     pieces.append(latex[emitted_until:])
-    return _native_latex_to_eqedit("".join(pieces))
+    script = _native_latex_to_eqedit("".join(pieces))
+    _reject_duplicate_scripts(script)
+    return script

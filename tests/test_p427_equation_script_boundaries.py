@@ -54,6 +54,30 @@ class P427EquationScriptBoundaryTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "LATEX_TO_EQEDIT_UNSUPPORTED"):
             describe_equation("x^")
 
+    def test_duplicate_script_on_same_base_is_rejected(self):
+        for source, kind in (
+            (r"x^2^3", "superscript"),
+            (r"x^\alpha^\beta", "superscript"),
+            (r"x_1^2_3", "subscript"),
+            (r"x^{a_j_k}", "subscript"),
+            (r"\begin{cases}x_i^2^3 & x>0\end{cases}", "superscript"),
+        ):
+            with self.subTest(source=source):
+                with self.assertRaisesRegex(UnsupportedLatexError, f"duplicate LaTeX {kind}"):
+                    latex_to_eqedit(source)
+
+    def test_distinct_bases_and_nested_scripts_keep_their_native_output(self):
+        for source in (
+            r"x_i^2+x^2_i",
+            r"x^{2^3}+x_{i_j}",
+            r"{x^2}^3+x^2{}^3",
+            r"\left(x^2\right)^3",
+            r"\begin{matrix}x^2&{}^3\\x_i&{}_{j}\end{matrix}",
+            r"\text{x^2^3 and p_i_j}",
+        ):
+            with self.subTest(source=source):
+                self.assertEqual(latex_to_eqedit(source), native_latex_to_eqedit(source))
+
     def test_inspection_creation_and_replacement_agree_on_saved_script(self):
         implicit, explicit = SCRIPT_PAIRS[0]
         expected = native_latex_to_eqedit(explicit)

@@ -382,3 +382,27 @@ The Docker/PostgreSQL test exercises the MCP registration and invocation,
 candidate conflicts at the same revision, lease checks, and the signed HTTP
 download handler. Browser attachment display and Hancom open/resave are
 separate acceptance checks.
+
+### Preserved table batch delivery
+
+`edit_preserved_table_batch_and_deliver(document_id, expected_revision,
+operations, lease_token="", link_ttl_seconds=900)` accepts one to eight of
+the existing `set_cell_text`, `replace_cell_phrase`, and `set_table_page_break`
+operations. Supply the same table and cell locators as for a single edit.
+Each cell and each table's page-break field can be a target once. This makes
+the intent unambiguous if different operation types address the same cell.
+
+Operations run in order on one private working copy. Each operation passes
+the existing cell and section preservation checks against the preceding
+private state. The final package validator sees the complete batch. The
+aggregate footprint compares that candidate to the original revision and
+restricts changed contents to the union of addressed sections. An operation
+failure reports its zero-based index in `P427_BATCH_OPERATION_FAILED`;
+the source stays intact and PostgreSQL receives no new revision.
+
+A successful batch creates one revision and one revision-bound ResourceLink.
+The response includes the aggregate footprint and each operation's
+preservation receipt under `preserved_edit`. If link preparation fails,
+request a new link for the committed revision via `deliver_document`.
+Search `discover_hwpx_workflows` for “표 셀 여러 일괄 보존 다운로드” to
+find the batch endpoint.

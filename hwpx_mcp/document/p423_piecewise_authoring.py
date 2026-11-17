@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from hwpx.equation import latex_to_eqedit
+from hwpx_mcp.equations.latex_to_eqedit import latex_to_eqedit
 
 MAX_ROWS = 24
 MAX_LATEX_CHARS = 4096

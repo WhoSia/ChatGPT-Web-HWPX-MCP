@@ -8,11 +8,12 @@ from pathlib import Path
 from typing import Callable
 
 from hwpx import HwpxDocument
-from hwpx.equation import estimate_equation_size, latex_to_eqedit
+from hwpx.equation import estimate_equation_size
 from hwpx.oxml.paragraph import HwpxOxmlParagraph
 
 from hwpx_mcp.document.p2_document import build_document_map
 from hwpx_mcp.document.p28_tables import _save_document
+from hwpx_mcp.equations.latex_to_eqedit import latex_to_eqedit
 
 HP = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
 MAX_LATEX_CHARS = 8192

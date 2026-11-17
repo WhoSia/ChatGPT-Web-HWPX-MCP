@@ -5667,7 +5667,7 @@ def p2_capabilities() -> dict:
         },
         "equation_editing": {
             "introspection": "EqEdit script + owning paragraph + intrinsic object identity + geometry",
-            "authoring_input": "verified LaTeX token set only; converted by hwpx.equation.latex_to_eqedit",
+            "authoring_input": "verified LaTeX tokens; shared converter preserves unbraced script boundaries",
             "raw_eqedit_authoring": "evidence gate closed",
             "lifecycle": "insert + verified-script replacement + removal",
             "geometry": "explicit hp:sz resize; replacement re-estimates size unless preserve_size=true",

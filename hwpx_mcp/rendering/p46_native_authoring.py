@@ -5,7 +5,9 @@ import json
 import re
 from typing import Any
 
-from hwpx.equation import EquationConversionError, estimate_equation_size, latex_to_eqedit
+from hwpx.equation import EquationConversionError, estimate_equation_size
+
+from hwpx_mcp.equations.latex_to_eqedit import latex_to_eqedit
 
 PHASE = "P4.6"
 PRODUCT = "0.32.0-p4.6"

@@ -1,30 +1,78 @@
-import pytest
+import tempfile
+import unittest
+from pathlib import Path
+
 from hwpx.equation import latex_to_eqedit as native_latex_to_eqedit
+from hwpx.equation.authoring import UnsupportedLatexError
 
+from hwpx_mcp.document.p210_equations import apply_equation_edits_atomic, build_equation_map
+from hwpx_mcp.document.p321_document_composer import compose_document_plan
 from hwpx_mcp.equations.latex_to_eqedit import latex_to_eqedit
+from hwpx_mcp.interfaces.p426_equation_experience import describe_equation
+from hwpx_mcp.rendering.p46_native_authoring import audit_equation_latex
 
 
-@pytest.mark.parametrize(("implicit", "explicit"), [
+SCRIPT_PAIRS = (
     (r"S(t)=\sum_{i=1}^{n}p_iS_i(t)", r"S(t)=\sum_{i=1}^{n}p_{i}S_{i}(t)"),
     (r"x_12+y^23", r"x_{1}2+y^{2}3"),
     (r"x^ .2", r"x^{.}2"),
     (r"x_가나", r"x_{가}나"),
     (r"$x_{p_iS}+z^ab$", r"$x_{p_{i}S}+z^{a}b$"),
     (r"\begin{matrix}p_iS & x_12\end{matrix}", r"\begin{matrix}p_{i}S & x_{1}2\end{matrix}"),
-])
-def test_implicit_script_matches_explicit_single_token_group(implicit, explicit):
-    assert latex_to_eqedit(implicit) == native_latex_to_eqedit(explicit)
+)
 
 
-@pytest.mark.parametrize("source", [
-    r"x_{ij}^2+e^{-2x}",
-    r"x_\alpha+\vec{x}",
-    r"\text{p_iS} + \mathrm{x_12} + \mbox{z^ab} + \textrm{a_iZ}",
-])
-def test_literal_text_and_existing_groups_keep_their_boundaries(source):
-    assert latex_to_eqedit(source) == native_latex_to_eqedit(source)
+class P427EquationScriptBoundaryTests(unittest.TestCase):
+    def test_implicit_script_matches_explicit_single_token_group(self):
+        for implicit, explicit in SCRIPT_PAIRS:
+            with self.subTest(source=implicit):
+                self.assertEqual(latex_to_eqedit(implicit), native_latex_to_eqedit(explicit))
 
+    def test_literal_text_and_existing_groups_keep_their_boundaries(self):
+        for source in (
+            r"x_{ij}^2+e^{-2x}",
+            r"x_\alpha+\vec{x}",
+            r"\text{p_iS} + \mathrm{x_12} + \mbox{z^ab} + \textrm{a_iZ}",
+        ):
+            with self.subTest(source=source):
+                self.assertEqual(latex_to_eqedit(source), native_latex_to_eqedit(source))
 
-def test_normalization_resumes_after_literal_with_escaped_brace():
-    literal = r"\text{escaped \} p_iS}"
-    assert latex_to_eqedit(literal + " + p_iS") == native_latex_to_eqedit(literal + " + p_{i}S")
+    def test_normalization_resumes_after_literal_with_escaped_brace(self):
+        literal = r"\text{escaped \} p_iS}"
+        self.assertEqual(
+            latex_to_eqedit(literal + " + p_iS"),
+            native_latex_to_eqedit(literal + " + p_{i}S"),
+        )
+
+    def test_inspection_creation_and_replacement_agree_on_saved_script(self):
+        implicit, explicit = SCRIPT_PAIRS[0]
+        expected = native_latex_to_eqedit(explicit)
+        self.assertEqual(describe_equation(implicit)["eqedit_script"], expected)
+        self.assertEqual(audit_equation_latex(implicit)["eqedit_script"], expected)
+
+        with tempfile.TemporaryDirectory() as folder:
+            file = Path(folder) / "equations.hwpx"
+            compose_document_plan(file, {"blocks": [
+                {"type": "equation", "latex": implicit},
+                {"type": "equation_line", "parts": [{"latex": implicit}, {"text": ", "}]},
+                {"type": "piecewise", "rows": [{"expression": implicit, "condition": "t>0"}]},
+                {"type": "equation", "latex": "x"},
+            ]})
+            saved = build_equation_map(file)["equations"]
+            locator = saved[-1]["locator"]
+            operation = {"op": "replace_equation", "equation": locator, "latex": implicit}
+            apply_equation_edits_atomic(file, [operation], expected_revision=1, current_revision=1)
+            saved = build_equation_map(file)["equations"]
+            self.assertEqual([item["script"] for item in saved], [
+                expected, expected, f"cases {{{expected} & t > 0}}", expected,
+            ])
+            self.assertEqual(saved[-1]["locator"], locator)
+
+            before = file.read_bytes()
+            bad_operation = dict(operation, latex=r"\frac{x}{y")
+            with self.assertRaises(UnsupportedLatexError):
+                apply_equation_edits_atomic(
+                    file, [dict(operation, latex="y"), bad_operation],
+                    expected_revision=2, current_revision=2,
+                )
+            self.assertEqual(file.read_bytes(), before)

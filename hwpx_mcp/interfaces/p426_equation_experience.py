@@ -9,8 +9,9 @@ import hashlib
 import tempfile
 from pathlib import Path
 
-from hwpx.equation import latex_to_eqedit
 from hwpx.equation.authoring import UnsupportedLatexError
+
+from hwpx_mcp.equations.latex_to_eqedit import latex_to_eqedit
 from hwpx_mcp.equations.p426_latex_compatibility import normalize_equation_latex
 
 

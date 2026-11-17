@@ -1,8 +1,8 @@
 """P4.26 small, explicit LaTeX spacing dialect adapter.
 
 Only spacing control sequences are normalized, never math structural macros.
-The "portable" policy is opt-in; upstream latex_to_eqedit remains the
-single authoritative native script compiler. No claim of pixel fidelity.
+The "portable" policy is opt-in. The shared EqEdit conversion path handles
+unbraced script boundaries separately. No claim of pixel fidelity.
 """
 from __future__ import annotations
 

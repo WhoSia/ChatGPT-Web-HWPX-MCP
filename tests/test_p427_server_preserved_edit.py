@@ -44,8 +44,19 @@ class PreservedEditMcpAcceptanceTests(unittest.TestCase):
         doc.save_to_path(str(self.path))
         doc.close()
         self.owner = "p427-acceptance-owner"
-        self.document_id = api.core._new_document_id()
         self.store = api.core.DOCUMENT_STORE
+        self.seed_saved_document()
+        caller = patch.object(api.core, "_caller_subject", return_value=self.owner)
+        caller.start()
+        self.addCleanup(caller.stop)
+        cache = patch.object(api.core, "_load_metadata",
+                             side_effect=AssertionError("preserved edit touched the shared cache"))
+        cache.start()
+        self.addCleanup(cache.stop)
+        self.table = build_advanced_table_map(self.path)["tables"][0]
+
+    def seed_saved_document(self):
+        self.document_id = api.core._new_document_id()
         self.addCleanup(self.store.delete_document, self.document_id)
         self.initial_bytes = self.path.read_bytes()
         validation = api.core.validate_hwpx_package(self.path)
@@ -58,14 +69,6 @@ class PreservedEditMcpAcceptanceTests(unittest.TestCase):
             revision=1, expected_revision=0, data=self.initial_bytes,
             metadata=metadata, expires_at_epoch=time.time() + 300,
         )
-        caller = patch.object(api.core, "_caller_subject", return_value=self.owner)
-        caller.start()
-        self.addCleanup(caller.stop)
-        cache = patch.object(api.core, "_load_metadata",
-                             side_effect=AssertionError("preserved edit touched the shared cache"))
-        cache.start()
-        self.addCleanup(cache.stop)
-        self.table = build_advanced_table_map(self.path)["tables"][0]
 
     def _operation(self):
         cell = next(
@@ -203,6 +206,46 @@ class PreservedEditMcpAcceptanceTests(unittest.TestCase):
             with self.assertRaisesRegex(PermissionError, "not owned"):
                 api.preview_preserved_table_batch(self.document_id, 1, [self._operation()])
         self.assert_original_revision()
+
+    def test_host_phrase_preview_and_download_preserve_same_phrase_inside_child(self):
+        with HwpxDocument.new() as doc:
+            host = doc.add_table(1, 1)
+            host.set_cell_text(0, 0, "동일한 설명")
+            child = host.cell(0, 0).paragraphs[0].add_table(1, 1)
+            child.set_cell_text(0, 0, "동일한 설명")
+            child.cell(0, 0).paragraphs[0].add_equation("x + y")
+            doc.save_to_path(str(self.path))
+        self.seed_saved_document()
+        host = build_advanced_table_map(self.path)["tables"][0]
+        operation = {
+            "op": "replace_cell_phrase", "table": host["locator"],
+            "cell": host["cells"][0]["locator"], "paragraph_index": 0,
+            "old_text": "동일한 설명", "new_text": "바깥 셀만 교정",
+        }
+        arguments = {
+            "document_id": self.document_id, "expected_revision": 1,
+            "operations": [operation],
+        }
+        preview = asyncio.run(api.core.mcp.call_tool("preview_preserved_table_batch", arguments))
+        self.assertFalse(preview.is_error)
+        planned = preview.structured_content
+        self.assertEqual(planned["changes"][0]["after"], "바깥 셀만 교정")
+        self.assert_original_revision()
+
+        result = asyncio.run(api.core.mcp.call_tool(
+            "edit_preserved_table_batch_and_deliver",
+            {**arguments, "expected_plan_sha256": planned["plan_sha256"]},
+        ))
+        self.assertFalse(result.is_error)
+        response = self.download(result)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.body, self.store.load_revision(self.document_id, 2)["bytes"])
+        self.path.write_bytes(response.body)
+        host, child = build_advanced_table_map(self.path)["tables"]
+        self.assertEqual(host["cells"][0]["text"], "바깥 셀만 교정")
+        self.assertEqual(child["cells"][0]["text"], "동일한 설명")
+        self.assertEqual([item["script"] for item in build_equation_map(self.path)["equations"]],
+                         ["x + y"])
 
     def test_late_batch_failure_creates_no_durable_revision(self):
         invalid_second = {

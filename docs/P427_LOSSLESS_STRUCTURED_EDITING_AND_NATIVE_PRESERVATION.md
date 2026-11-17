@@ -338,3 +338,27 @@ and set the dirty flag. Nonempty text in a squeezed cell may trigger the
 native transition from SQUEEZE to BREAK. Text spacing controls such as tabs
 remain part of the replacement text. When replacing the entire cell value,
 formatting in discarded text-only runs is outside this comparison.
+
+### Phrase corrections within a styled cell
+
+Use `apply_preserved_table_edit` with one operation of this form:
+
+```json
+{
+  "op": "replace_cell_phrase",
+  "table": "<table locator>",
+  "cell": "<cell locator>",
+  "paragraph_index": 0,
+  "old_text": "교정 전",
+  "new_text": "교정 완료"
+}
+```
+
+The paragraph index is zero-based within the cell. The nonempty old phrase
+must occur exactly once in that paragraph and fit within a single plain text
+node. An empty replacement deletes that phrase. The edit keeps each run and
+inline object and invalidates only the selected paragraph's layout cache.
+The transaction compares the full expected target cell XML with the reopened
+candidate before replacing the source. Multiple matches, phrases spanning
+nodes, mixed text controls in the selected paragraph, and cells that directly
+host a child table are refused. Cells within a nested table are supported.

@@ -21,9 +21,30 @@ _EQEDIT_PART = re.compile(r'"[^"]*"|[_^]\{|[{}]|[^\s"{}^_]+|[_^]')
 class _ArgumentBoundedParser(_LatexParser):
     """Use python-hwpx's EqEdit emission and intercept required math arguments."""
 
+    def __init__(self, tokens: list[str]) -> None:
+        super().__init__(tokens)
+        self._sequence_stop: frozenset[str] = frozenset()
+
+    def _sequence(self, *, depth: int, stop: frozenset[str]) -> list[str]:
+        outer_stop = self._sequence_stop
+        self._sequence_stop = stop
+        try:
+            return super()._sequence(depth=depth, stop=stop)
+        finally:
+            self._sequence_stop = outer_stop
+
+    def _environment(self, depth: int) -> str:
+        # A matrix cell has its own delimiters, even inside a root index.
+        outer_stop = self._sequence_stop
+        self._sequence_stop = frozenset()
+        try:
+            return super()._environment(depth)
+        finally:
+            self._sequence_stop = outer_stop
+
     def _group_or_atom(self, depth: int) -> str:
         token = self._peek()
-        if token is None or token in _ARGUMENT_BOUNDARIES:
+        if token is None or token in _ARGUMENT_BOUNDARIES or token in self._sequence_stop:
             raise UnsupportedLatexError("missing LaTeX argument")
         if depth >= MAX_GROUP_DEPTH:
             raise EquationConversionError("equation nesting depth exceeded")

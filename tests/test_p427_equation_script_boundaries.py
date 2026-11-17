@@ -4,6 +4,7 @@ from pathlib import Path
 
 from hwpx.equation import latex_to_eqedit as native_latex_to_eqedit
 from hwpx.equation.authoring import UnsupportedLatexError
+from hwpx.equation import EquationConversionError
 
 from hwpx_mcp.document.p210_equations import apply_equation_edits_atomic, build_equation_map
 from hwpx_mcp.document.p321_document_composer import compose_document_plan
@@ -84,6 +85,18 @@ class P427EquationScriptBoundaryTests(unittest.TestCase):
         for source in (r"\frac{12}{34}", r"\frac{}{x}", r"\sqrt[2]{}", r"x_{}^2"):
             with self.subTest(source=source):
                 self.assertEqual(latex_to_eqedit(source), native_latex_to_eqedit(source))
+
+    def test_root_index_end_cannot_be_consumed_as_a_required_argument(self):
+        with self.assertRaisesRegex(UnsupportedLatexError, "missing LaTeX argument"):
+            latex_to_eqedit(r"\sqrt[\frac{1}]{x}]y")
+        for source in (r"\sqrt[{\frac1]}]{x}", r"\sqrt[\begin{matrix}\frac1]\end{matrix}]{x}"):
+            with self.subTest(source=source):
+                self.assertEqual(latex_to_eqedit(source), native_latex_to_eqedit(source))
+
+    def test_unbraced_command_chains_respect_the_native_depth_limit(self):
+        self.assertEqual(latex_to_eqedit(r"\sqrt\sqrt x"), "sqrt {sqrt {x}}")
+        with self.assertRaisesRegex(EquationConversionError, "nesting depth exceeded"):
+            latex_to_eqedit(r"\sqrt " * 100 + "x")
 
     def test_duplicate_script_on_same_base_is_rejected(self):
         for source, kind in (

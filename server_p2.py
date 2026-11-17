@@ -66,6 +66,8 @@ from hwpx_mcp.document.p323_advanced_tables import (
 from hwpx_mcp.custody.p427_structured_edit_preservation import (
     apply_bounded_table_edit_with_preservation_atomic,
     apply_bounded_table_edits_with_preservation_atomic,
+    preserved_table_batch_plan_sha256,
+    preview_preserved_table_batch as preview_native_table_batch,
 )
 from hwpx_mcp.document.p324_story_layer import (
     story_layer_contract,
@@ -3481,23 +3483,26 @@ def apply_preserved_table_edit(
     The old phrase must occur once in the paragraph and fit in one plain
     text node. All edits are staged and checked before replacing the file.
     """
+    row = _load_preserved_table_revision(document_id, expected_revision)
     return _commit_preserved_table_edits(
-        document_id, expected_revision, lease_token,
+        document_id, row, lease_token,
         partial(apply_bounded_table_edit_with_preservation_atomic, operation=operation),
     )
 
 
-def _commit_preserved_table_edits(document_id, expected_revision, lease_token, edit_candidate):
+def _load_preserved_table_revision(document_id: str, expected_revision: int) -> dict:
     core._paths(document_id)  # Validate document identity without opening the cache.
-    store = core.DOCUMENT_STORE
-    row = store.load_current(document_id)
+    row = core.DOCUMENT_STORE.load_current(document_id)
     if row is None:
         raise FileNotFoundError("Unknown document_id")
-    owner = core._require_owner(row)
-    current_revision = row["revision"]
-    if current_revision != int(expected_revision):
+    core._require_owner(row)
+    if row["revision"] != int(expected_revision):
         raise ValueError("Stale revision")
+    return row
 
+
+def _commit_preserved_table_edits(document_id, row, lease_token, edit_candidate):
+    current_revision = row["revision"]
     metadata = dict(row["metadata"])
     ingress = metadata.get("source") == "existing-ingress"
     with tempfile.TemporaryDirectory(prefix="p427-preserved-edit-") as tmp:
@@ -3527,9 +3532,9 @@ def _commit_preserved_table_edits(document_id, expected_revision, lease_token, e
     revision = current_revision + 1
     metadata["revision"] = revision
     metadata["last_edit_at"] = core._utc_iso()
-    commit = store.put_revision(
+    commit = core.DOCUMENT_STORE.put_revision(
         document_id=document_id,
-        owner_subject=owner,
+        owner_subject=row["owner_subject"],
         revision=revision,
         expected_revision=current_revision,
         data=data,
@@ -6182,6 +6187,29 @@ def edit_preserved_table_and_deliver(
     )
 
 
+@core.mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, openWorldHint=False))
+def preview_preserved_table_batch(
+    document_id: str, expected_revision: int, operations: list[dict],
+) -> dict:
+    """Check a batch on a temporary HWPX and report the actual before/after changes."""
+    row = _load_preserved_table_revision(document_id, expected_revision)
+    revision = row["revision"]
+    plan_sha256 = preserved_table_batch_plan_sha256(document_id, revision, row["sha256"], operations)
+    with tempfile.TemporaryDirectory(prefix="p427-preview-source-") as tmp:
+        path = Path(tmp) / "source.hwpx"
+        path.write_bytes(row["bytes"])
+        preview = preview_native_table_batch(
+            path, operations, revision=revision,
+            candidate_validator=lambda candidate: core.validate_hwpx_package(
+                candidate, ingress=row["metadata"].get("source") == "existing-ingress",
+            ),
+        )
+    return {
+        "ok": True, "document_id": document_id, "revision": revision,
+        "plan_sha256": plan_sha256, "transaction": "PREVIEW_ONLY", **preview,
+    }
+
+
 @core.mcp.tool()
 def edit_preserved_table_batch_and_deliver(
     document_id: str,
@@ -6189,23 +6217,32 @@ def edit_preserved_table_batch_and_deliver(
     operations: list[dict],
     lease_token: str = "",
     link_ttl_seconds: int = 900,
+    expected_plan_sha256: str | None = None,
 ) -> CallToolResult:
     """Commit one to eight preserved table edits together and return their HWPX.
 
     Use the same operation objects as apply_preserved_table_edit. Each cell
     and each table's page-break setting may appear once in the batch. Any
     failed operation aborts the entire batch. Renew an expired or failed
-    download with deliver_document for the returned revision.
+    download with deliver_document for the returned revision. Supply the
+    preview plan_sha256 to check that the exact previewed inputs are applied.
     """
+    row = _load_preserved_table_revision(document_id, expected_revision)
+    plan_sha256 = preserved_table_batch_plan_sha256(document_id, row["revision"], row["sha256"], operations)
+    if expected_plan_sha256 is not None and expected_plan_sha256 != plan_sha256:
+        raise ValueError("P427_BATCH_PREVIEW_PLAN_MISMATCH")
     result = _commit_preserved_table_edits(
-        document_id, expected_revision, lease_token,
+        document_id, row, lease_token,
         partial(apply_bounded_table_edits_with_preservation_atomic, operations=operations),
     )
     return _delivery_after_commit(
         document_id, result["revision_after"], link_ttl_seconds,
         "edit_preserved_table_batch_and_deliver",
-        extra={field: result[field] for field in
+        extra={
+            "plan_sha256": plan_sha256,
+            **{field: result[field] for field in
                ("sha256", "preserved_edit", "preservation_grade", "commit_receipt")},
+        },
     )
 
 

@@ -167,6 +167,43 @@ class PreservedEditMcpAcceptanceTests(unittest.TestCase):
         self.assertEqual([row["script"] for row in build_equation_map(self.path)["equations"]],
                          ["a + b"])
 
+    def test_previewed_plan_matches_commit_and_rejects_edits_to_the_plan(self):
+        operation = self._operation()
+        preview = asyncio.run(api.core.mcp.call_tool("preview_preserved_table_batch", {
+            "document_id": self.document_id, "expected_revision": 1, "operations": [operation],
+        }))
+        self.assertFalse(preview.is_error)
+        pending = preview.structured_content
+        self.assertEqual(pending["transaction"], "PREVIEW_ONLY")
+        self.assertEqual(pending["changes"][0]["before"], "Editable target")
+        self.assertEqual(pending["changes"][0]["after"], operation["text"])
+        self.assert_original_revision()
+
+        plan = pending["plan_sha256"]
+        with self.assertRaisesRegex(ValueError, "PREVIEW_PLAN_MISMATCH"):
+            api.edit_preserved_table_batch_and_deliver(
+                self.document_id, 1, [{**operation, "text": "Different from preview"}],
+                expected_plan_sha256=plan,
+            )
+        self.assert_original_revision()
+
+        result = api.edit_preserved_table_batch_and_deliver(
+            self.document_id, 1, [operation], expected_plan_sha256=plan,
+        )
+        self.assertFalse(result.is_error)
+        self.assertEqual(result.structured_content["plan_sha256"], plan)
+        self.assertEqual(result.structured_content["revision"], 2)
+        with self.assertRaisesRegex(ValueError, "Stale revision"):
+            api.edit_preserved_table_batch_and_deliver(
+                self.document_id, 1, [operation], expected_plan_sha256=plan,
+            )
+
+    def test_foreign_principal_cannot_preview_table_batch(self):
+        with patch.object(api.core, "_caller_subject", return_value="foreign-subject"):
+            with self.assertRaisesRegex(PermissionError, "not owned"):
+                api.preview_preserved_table_batch(self.document_id, 1, [self._operation()])
+        self.assert_original_revision()
+
     def test_late_batch_failure_creates_no_durable_revision(self):
         invalid_second = {
             "op": "replace_cell_phrase", "table": self.table["locator"],

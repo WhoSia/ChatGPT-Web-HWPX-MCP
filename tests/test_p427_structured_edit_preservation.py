@@ -275,6 +275,48 @@ class NestedStructuredPreservationTests(unittest.TestCase):
         self.assertEqual(runs[" / 교정 완료"], "1")
         self.assertEqual(root.findtext(".//" + HP + "script"), "a + b")
 
+    def test_phrase_edit_in_host_paragraph_keeps_child_table_xml(self):
+        outer, inner = build_advanced_table_map(self.path)["tables"]
+        host = outer["cells"][0]
+
+        def child_xml():
+            with zipfile.ZipFile(self.path) as archive:
+                section = ET.fromstring(archive.read(outer["section_path"]))
+            return ET.canonicalize(ET.tostring(section.findall(".//" + HP + "tbl")[1],
+                                               encoding="unicode"))
+
+        before_child = child_xml()
+        result = self.edit({
+            "op": "replace_cell_phrase", "table": outer["locator"],
+            "cell": host["locator"], "paragraph_index": 0,
+            "old_text": "Outer host", "new_text": "상위 셀 설명",
+        })
+        edited_outer, edited_inner = build_advanced_table_map(self.path)["tables"]
+        self.assertEqual(edited_outer["cells"][0]["text"], "상위 셀 설명")
+        self.assertEqual(edited_inner["cells"], inner["cells"])
+        self.assertEqual(child_xml(), before_child)
+        self.assertEqual(result["nested_table_anchor_paragraphs_verified"], 1)
+        self.assertEqual(raw_nested_table_count(self.path), 1)
+
+    def test_phrase_edit_rejects_child_table_geometry_drift(self):
+        outer = build_advanced_table_map(self.path)["tables"][0]
+        original = self.path.read_bytes()
+
+        def change_child_size(outer_run):
+            child = outer_run.findall(".//" + HP + "tbl")[-1]
+            size = child.find(HP + "sz")
+            size.set("width", str(int(size.get("width")) + 1))
+
+        with self.assertRaisesRegex(ValueError, "P427_UNDECLARED_PHRASE_CELL_DRIFT"):
+            self.edit({
+                "op": "replace_cell_phrase", "table": outer["locator"],
+                "cell": outer["cells"][0]["locator"], "paragraph_index": 0,
+                "old_text": "Outer", "new_text": "Edited",
+            }, candidate_validator=lambda candidate: rewrite_table_anchor(
+                candidate, outer["section_path"], change_child_size,
+            ))
+        self.assertEqual(self.path.read_bytes(), original)
+
     def test_phrase_index_selects_second_paragraph_with_the_same_words(self):
         document = HwpxDocument.open(str(self.path))
         try:

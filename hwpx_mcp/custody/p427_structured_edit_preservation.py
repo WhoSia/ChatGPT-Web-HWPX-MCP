@@ -26,7 +26,7 @@ from hwpx_mcp.custody.p342_mutation_footprint import (
     enforce_preservation_grade,
 )
 from hwpx_mcp.document.p25_controls import TEXT_NESTED_SPECIALS
-from hwpx_mcp.document.p27_tables import _cell_text, _save_document
+from hwpx_mcp.document.p27_tables import _cell_text, _save_document, _section_path
 from hwpx_mcp.document.p427_cell_phrase import (
     replace_phrase_in_plain_node,
     validate_phrase_operation,
@@ -159,9 +159,8 @@ def _cell_phrase(path: Path, identity: tuple[int, int, int], operation: dict | N
     try:
         table = _collect_document_tables(document)[table_index].table
         cell = table.cell(row, col)
+        edited_anchor = None
         if operation is not None:
-            if next(cell.element.iter(HP + "tbl"), None) is not None:
-                raise ValueError("NESTED_TABLE_HOST_CELL_TEXT_EDIT_DEFERRED")
             paragraphs = cell.paragraphs
             index = operation["paragraph_index"]
             if index >= len(paragraphs):
@@ -171,12 +170,21 @@ def _cell_phrase(path: Path, identity: tuple[int, int, int], operation: dict | N
                 paragraph.element, operation["old_text"], operation["new_text"],
             )
             table.mark_dirty()
+            if paragraph.element.find(f"{HP}run/{HP}tbl") is not None:
+                section = table.paragraph.section
+                cell_index = next(number for number, node in enumerate(section.element.iter(HP + "tc"))
+                                  if node is cell.element)
+                paragraph_xml = ET.fromstring(etree.tostring(paragraph.element, with_tail=False))
+                edited_anchor = (
+                    _section_path(table), cell_index, index, _xml_outside_tables(paragraph_xml),
+                )
         element = ET.fromstring(etree.tostring(cell.element, with_tail=False))
-        signature = _xml_outside_tables(element)
+        # Phrase edits must preserve even the XML inside any child table.
+        signature = ET.canonicalize(ET.tostring(element, encoding="unicode"))
         text = _cell_text(cell)
         if operation is not None:
             _save_document(document, path, path)
-        return text, signature
+        return text, signature, edited_anchor
     finally:
         document.close()
 
@@ -298,7 +306,12 @@ def apply_bounded_table_edit_with_preservation_atomic(
         shutil.copy2(source, candidate)
         phrase_signature = None
         if operation["op"] == "replace_cell_phrase":
-            text, phrase_signature = _cell_phrase(candidate, edited_cell, operation)
+            text, phrase_signature, edited_anchor = _cell_phrase(candidate, edited_cell, operation)
+            if edited_anchor is not None:
+                untouched_nested_anchors = [
+                    edited_anchor if anchor[:3] == edited_anchor[:3] else anchor
+                    for anchor in untouched_nested_anchors
+                ]
             expected_cell = next(c for c in expected[target["table_index"]]["cells"]
                                  if c["locator"] == operation["cell"])
             expected_cell["text"] = text

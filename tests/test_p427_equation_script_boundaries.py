@@ -44,6 +44,16 @@ class P427EquationScriptBoundaryTests(unittest.TestCase):
             native_latex_to_eqedit(literal + " + p_{i}S"),
         )
 
+    def test_missing_script_argument_is_rejected(self):
+        for source in (r"x_", r"$x^$", r"x_^2", r"{x_}", r"\begin{matrix}x_&y\end{matrix}"):
+            with self.subTest(source=source):
+                with self.assertRaisesRegex(UnsupportedLatexError, "missing LaTeX argument"):
+                    latex_to_eqedit(source)
+
+        self.assertFalse(audit_equation_latex("x_")["supported"])
+        with self.assertRaisesRegex(ValueError, "LATEX_TO_EQEDIT_UNSUPPORTED"):
+            describe_equation("x^")
+
     def test_inspection_creation_and_replacement_agree_on_saved_script(self):
         implicit, explicit = SCRIPT_PAIRS[0]
         expected = native_latex_to_eqedit(explicit)
@@ -69,7 +79,7 @@ class P427EquationScriptBoundaryTests(unittest.TestCase):
             self.assertEqual(saved[-1]["locator"], locator)
 
             before = file.read_bytes()
-            bad_operation = dict(operation, latex=r"\frac{x}{y")
+            bad_operation = dict(operation, latex="x^")
             with self.assertRaises(UnsupportedLatexError):
                 apply_equation_edits_atomic(
                     file, [dict(operation, latex="y"), bad_operation],

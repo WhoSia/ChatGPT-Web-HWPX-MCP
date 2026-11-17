@@ -4,6 +4,7 @@ from __future__ import annotations
 import re
 
 from hwpx.equation import latex_to_eqedit as _native_latex_to_eqedit
+from hwpx.equation.authoring import UnsupportedLatexError
 
 
 _CONTROL_OR_SCRIPT = re.compile(r"\\([^\W\d_]+|.)|[_^]", re.DOTALL)
@@ -33,7 +34,9 @@ def latex_to_eqedit(latex: str) -> str:
                     literal_end = literal.end()
             continue
         argument = _NEXT_ATOM.match(latex, match.end())
-        if argument is None or argument.end() == len(latex):
+        if argument is None or argument[1] in "_^}&$":
+            raise UnsupportedLatexError(f"missing LaTeX argument after {match[0]}")
+        if argument.end() == len(latex):
             continue
         atom = argument[1]
         following = latex[argument.end()]

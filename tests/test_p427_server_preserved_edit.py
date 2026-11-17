@@ -1,17 +1,13 @@
-"""P4.27 R4: authenticated MCP-bound native preservation write path.
-
-Uses an in-process owned document and real saved HWPX. Only ownership and
-metadata persistence are substituted so that production validation and
-transaction logic are genuinely exercised without a network or database.
-"""
+"""P4.27 MCP tool acceptance with native files and a real PostgreSQL store."""
 from __future__ import annotations
 
 import hashlib
 import os
 import tempfile
+import time
 import unittest
 from pathlib import Path
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 
 from hwpx import HwpxDocument
 
@@ -41,17 +37,28 @@ class PreservedEditMcpAcceptanceTests(unittest.TestCase):
         table.set_cell_text(1, 1, "Final cell")
         doc.save_to_path(str(self.path))
         doc.close()
-        self.metadata = {"revision": 4, "source": "native"}
-        self.refresh = Mock()
-        self.real_owned_document = api._owned_document
-        self.auth = patch.object(
-            api, "_owned_document", return_value=(self.metadata, self.path),
+        self.owner = "p427-acceptance-owner"
+        self.document_id = api.core._new_document_id()
+        self.store = api.core.DOCUMENT_STORE
+        self.addCleanup(self.store.delete_document, self.document_id)
+        self.initial_bytes = self.path.read_bytes()
+        validation = api.core.validate_hwpx_package(self.path)
+        metadata = api.core._metadata(
+            self.document_id, filename="acceptance.hwpx", owner_subject=self.owner,
+            validation=validation, source="native",
         )
-        self.save = patch.object(api, "_refresh_metadata", self.refresh)
-        self.auth.start()
-        self.save.start()
-        self.addCleanup(self.auth.stop)
-        self.addCleanup(self.save.stop)
+        self.store.put_revision(
+            document_id=self.document_id, owner_subject=self.owner,
+            revision=1, expected_revision=0, data=self.initial_bytes,
+            metadata=metadata, expires_at_epoch=time.time() + 300,
+        )
+        caller = patch.object(api.core, "_caller_subject", return_value=self.owner)
+        caller.start()
+        self.addCleanup(caller.stop)
+        cache = patch.object(api.core, "_load_metadata",
+                             side_effect=AssertionError("preserved edit touched the shared cache"))
+        cache.start()
+        self.addCleanup(cache.stop)
         self.table = build_advanced_table_map(self.path)["tables"][0]
 
     def _operation(self):
@@ -64,17 +71,19 @@ class PreservedEditMcpAcceptanceTests(unittest.TestCase):
         }
 
     def digest(self):
-        return hashlib.sha256(self.path.read_bytes()).hexdigest()
+        row = self.store.load_current(self.document_id)
+        self.path.write_bytes(row["bytes"])
+        return hashlib.sha256(row["bytes"]).hexdigest()
 
     def test_real_mcp_entrypoint_commits_with_validation_and_receipts(self):
         before = self.digest()
         response = api.apply_preserved_table_edit(
-            "owned-user-document", 4, self._operation()
+            self.document_id, 1, self._operation()
         )
         self.assertTrue(response["ok"])
-        self.assertEqual(response["revision_before"], 4)
-        self.assertEqual(response["revision_after"], 5)
-        self.assertEqual(self.metadata["revision"], 5)
+        self.assertEqual(response["revision_before"], 1)
+        self.assertEqual(response["revision_after"], 2)
+        self.assertEqual(self.store.load_current(self.document_id)["revision"], 2)
         self.assertEqual(response["preservation_grade"], "TARGETED_PARTS_ONLY")
         self.assertEqual(response["sha256"], self.digest())
         self.assertNotEqual(before, self.digest())
@@ -88,7 +97,6 @@ class PreservedEditMcpAcceptanceTests(unittest.TestCase):
         self.assertEqual(response["preserved_edit"]["committed_sha256"], response["sha256"])
         self.assertEqual(response["preserved_edit"]["mutation_footprint"]["observed"]["changed_parts"],
                          [self.table["section_path"]])
-        self.refresh.assert_called_once()
         self.assertEqual(
             next(c for c in build_advanced_table_map(self.path)["tables"][0]["cells"]
                  if (c["row"], c["col"]) == (0, 1))["text"],
@@ -102,8 +110,8 @@ class PreservedEditMcpAcceptanceTests(unittest.TestCase):
             op="replace_cell_phrase", paragraph_index=0,
             old_text="Editable", new_text="Reviewed",
         )
-        response = api.apply_preserved_table_edit("owned-user-document", 4, operation)
-        self.assertEqual(response["revision_after"], 5)
+        response = api.apply_preserved_table_edit(self.document_id, 1, operation)
+        self.assertEqual(response["revision_after"], 2)
         self.assertEqual(response["preserved_edit"]["operation"], "replace_cell_phrase")
         self.assertEqual(response["preserved_edit"]["target_cell_inline_objects_verified"], 1)
         self.assertEqual(response["sha256"], self.digest())
@@ -112,59 +120,41 @@ class PreservedEditMcpAcceptanceTests(unittest.TestCase):
                               if cell["locator"] == operation["cell"]), "Reviewed target")
         self.assertEqual([item["script"] for item in build_equation_map(self.path)["equations"]],
                          ["a + b"])
-        self.refresh.assert_called_once()
 
-    def test_stale_revision_and_invalid_operation_dont_write_or_refresh(self):
-        original = self.digest()
+    def assert_original_revision(self):
+        row = self.store.load_current(self.document_id)
+        self.assertEqual(row["revision"], 1)
+        self.assertEqual(row["bytes"], self.initial_bytes)
+        self.assertIsNone(self.store.load_revision(self.document_id, 2))
+
+    def test_stale_revision_and_invalid_operation_leave_source_intact(self):
         with self.assertRaisesRegex(ValueError, "Stale revision"):
-            api.apply_preserved_table_edit("owned-user-document", 3, self._operation())
+            api.apply_preserved_table_edit(self.document_id, 0, self._operation())
         with self.assertRaisesRegex(ValueError, "R3_EDIT_OPERATION_NOT_ADMITTED"):
             api.apply_preserved_table_edit(
-                "owned-user-document", 4,
+                self.document_id, 1,
                 {"op": "delete_table", "table": self.table["locator"]},
             )
-        self.assertEqual(self.digest(), original)
-        self.assertEqual(self.metadata["revision"], 4)
-        self.refresh.assert_not_called()
-
-    def test_owner_gate_precedes_native_edit(self):
-        original = self.digest()
-        with patch.object(api, "_owned_document", side_effect=PermissionError("owner rejected")):
-            with self.assertRaisesRegex(PermissionError, "owner rejected"):
-                api.apply_preserved_table_edit("foreign-user-document", 4, self._operation())
-        self.assertEqual(self.digest(), original)
-        self.refresh.assert_not_called()
+        self.assert_original_revision()
 
     def test_real_owner_identity_check_blocks_foreign_caller(self):
-        original = self.digest()
-        alien_owned_metadata = {
-            "revision": 4, "source": "native",
-            "owner_subject": "authorized-document-owner",
-        }
-        with (
-            patch.object(api, "_owned_document", side_effect=self.real_owned_document),
-            patch.object(api.core, "_load_metadata", return_value=alien_owned_metadata),
-            patch.object(api.core, "_caller_subject", return_value="foreign-subject"),
-        ):
+        with patch.object(api.core, "_caller_subject", return_value="foreign-subject"):
             with self.assertRaisesRegex(PermissionError, "not owned"):
-                api.apply_preserved_table_edit(
-                    "any-owned-document", 4, self._operation(),
-                )
-        self.assertEqual(self.digest(), original)
-        self.assertEqual(self.metadata["revision"], 4)
-        self.refresh.assert_not_called()
+                api.apply_preserved_table_edit(self.document_id, 1, self._operation())
+        self.assert_original_revision()
 
-    def test_package_validator_failure_refuses_commit_and_revision_bump(self):
-        original = self.digest()
+    def test_package_validator_failure_refuses_durable_commit(self):
         with patch.object(api.core, "validate_hwpx_package",
                           side_effect=ValueError("TEST_PACKAGE_REJECTED")):
             with self.assertRaisesRegex(ValueError, "TEST_PACKAGE_REJECTED"):
-                api.apply_preserved_table_edit(
-                    "owned-user-document", 4, self._operation()
-                )
-        self.assertEqual(self.digest(), original)
-        self.assertEqual(self.metadata["revision"], 4)
-        self.refresh.assert_not_called()
+                api.apply_preserved_table_edit(self.document_id, 1, self._operation())
+        self.assert_original_revision()
+
+    def test_digest_collection_failure_refuses_durable_commit(self):
+        with patch.object(api, "build_document_map", side_effect=RuntimeError("TEST_MAP_FAILED")):
+            with self.assertRaisesRegex(RuntimeError, "TEST_MAP_FAILED"):
+                api.apply_preserved_table_edit(self.document_id, 1, self._operation())
+        self.assert_original_revision()
 
 
 if __name__ == "__main__":

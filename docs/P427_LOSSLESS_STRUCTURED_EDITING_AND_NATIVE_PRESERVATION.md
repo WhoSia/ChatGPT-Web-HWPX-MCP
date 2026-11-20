@@ -430,7 +430,11 @@ find the batch endpoint.
 
 The preview creates no document revision or download link. Set
 `layout_preview_pages` to `1`, `2`, or `3` to add a `layout_preview`
-observation of the first pages. The runtime needs `rhwp` on its PATH.
+observation. Set `layout_preview_start_page` to select the first page with
+one-based numbering. The renderer compares consecutive pages present in both
+documents and reports their total page counts. If the start page is absent
+from either version, the observation reports the missing pair. The runtime
+needs `rhwp` on its PATH.
 The default remains a structural preview, with no renderer invocation.
 
 The observation includes the two rendered page counts, coverage, and the

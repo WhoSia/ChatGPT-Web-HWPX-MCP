@@ -150,10 +150,12 @@ def _cell_index(table_payload: dict) -> dict[str, dict]:
 def _resolve_table(table_map: dict, locator: object) -> dict:
     if not isinstance(locator, str):
         raise ValueError("table locator must be a string")
-    table = _table_index(table_map).get(locator)
-    if table is None:
+    matches = [table for table in table_map["tables"] if table["locator"] == locator]
+    if not matches:
         raise ValueError(f"Unknown table locator: {locator}")
-    return table
+    if len(matches) != 1:
+        raise ValueError(f"Ambiguous table locator: {locator}")
+    return matches[0]
 
 
 def _resolve_cell(table_payload: dict, locator: object) -> dict:

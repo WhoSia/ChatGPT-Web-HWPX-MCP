@@ -14,6 +14,7 @@ from pathlib import Path
 from xml.etree import ElementTree as ET
 
 from hwpx import HwpxDocument
+from hwpx_mcp.document.p27_tables import apply_table_edits_atomic as apply_basic_table_edits
 from hwpx_mcp.document.p28_tables import apply_table_edits_atomic
 from hwpx_mcp.document.p323_advanced_tables import (
     apply_advanced_table_edits_atomic, build_advanced_table_map,
@@ -22,7 +23,7 @@ from hwpx_mcp.document.p323_advanced_tables import (
 HP = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
 
 
-def make_nested_fixture(path: Path) -> None:
+def make_nested_fixture(path: Path, *, duplicate_id: bool = False) -> None:
     doc = HwpxDocument.new()
     doc.add_paragraph("P4.27 nested table regression intro")
     outer = doc.add_table(rows=2, cols=2)
@@ -50,6 +51,9 @@ def make_nested_fixture(path: Path) -> None:
                 tables = root.findall(f".//{HP}tbl")
                 if len(tables) == 2:
                     outer_node, inner_node = tables
+                    if duplicate_id:
+                        outer_node.set("id", "421")
+                        inner_node.set("id", "421")
                     host_cell = outer_node.find(f".//{HP}tc")
                     if host_cell is None:
                         raise AssertionError("NESTED_FIXTURE_MISSING_CELL")
@@ -127,6 +131,26 @@ class ActualNestedTableTests(unittest.TestCase):
         self.assertEqual(updated_inner["cells"][0]["name"], "nested-field")
         self.assertEqual(updated_outer, outer)
         self.assertEqual(updated_following, following)
+
+    def test_rejects_edit_to_repeated_table_id_without_changing_original(self):
+        make_nested_fixture(self.path, duplicate_id=True)
+        outer, inner = build_advanced_table_map(self.path)["tables"]
+        self.assertEqual(outer["locator"], inner["locator"])
+        original = self.path.read_bytes()
+        target = {"table": outer["locator"], "cell": outer["cells"][0]["locator"]}
+        edit_cases = [
+            (apply_basic_table_edits, {"op": "set_cell_text", "text": "Wrong table edited"}),
+            (apply_table_edits_atomic, {"op": "set_cell_properties", "name": "wrong-field"}),
+            (apply_advanced_table_edits_atomic, {"op": "set_cell_vertical_alignment", "alignment": "TOP"}),
+        ]
+        for edit, operation in edit_cases:
+            with self.subTest(operation=operation["op"]):
+                with self.assertRaisesRegex(ValueError, "Ambiguous table locator"):
+                    edit(
+                        self.path, [{**target, **operation}],
+                        expected_revision=1, current_revision=1,
+                    )
+                self.assertEqual(self.path.read_bytes(), original)
 
     def test_edit_inner_table_native_metadata_preserves_outer_and_nesting(self):
         before = build_advanced_table_map(self.path)

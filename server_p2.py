@@ -69,6 +69,7 @@ from hwpx_mcp.custody.p427_structured_edit_preservation import (
     preserved_table_batch_plan_sha256,
     preview_preserved_table_batch as preview_native_table_batch,
 )
+from hwpx_mcp.render.p427_svg_layout_delta import MAX_LAYOUT_PREVIEW_PAGES
 from hwpx_mcp.document.p324_story_layer import (
     story_layer_contract,
     build_story_layer_map,
@@ -6190,8 +6191,16 @@ def edit_preserved_table_and_deliver(
 @core.mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, openWorldHint=False))
 def preview_preserved_table_batch(
     document_id: str, expected_revision: int, operations: list[dict],
+    layout_preview_pages: int = 0,
 ) -> CallToolResult:
-    """Check a batch on a temporary HWPX and report the actual before/after changes."""
+    """Check a batch on a temporary HWPX and report the actual before/after changes.
+
+    Set layout_preview_pages to 1–3 to also compare the first pages with
+    rhwp when installed. It reports page count, text baselines and horizontal
+    rule displacement. Renderer evidence is advisory and is not Hancom output.
+    """
+    if type(layout_preview_pages) is not int or not 0 <= layout_preview_pages <= MAX_LAYOUT_PREVIEW_PAGES:
+        raise ValueError("P427_LAYOUT_PREVIEW_PAGE_LIMIT_INVALID")
     row = _load_preserved_table_revision(document_id, expected_revision)
     revision = row["revision"]
     plan_sha256 = preserved_table_batch_plan_sha256(document_id, revision, row["sha256"], operations)
@@ -6200,6 +6209,7 @@ def preview_preserved_table_batch(
         path.write_bytes(row["bytes"])
         preview = preview_native_table_batch(
             path, operations, revision=revision,
+            layout_preview_pages=layout_preview_pages,
             candidate_validator=lambda candidate: core.validate_hwpx_package(
                 candidate, ingress=row["metadata"].get("source") == "existing-ingress",
             ),

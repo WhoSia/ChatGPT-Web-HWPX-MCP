@@ -21,6 +21,7 @@ on:
       - "hwpx_mcp/equations/latex_to_eqedit.py"
       - "hwpx_mcp/interfaces/p426_equation_experience.py"
       - "hwpx_mcp/rendering/p46_native_authoring.py"
+      - "hwpx_mcp/render/p427_svg_layout_delta.py"
       - "scripts/p423_wsl_hancom_pdf_bridge.py"
       - "tests/test_p423_piecewise_authoring.py"
       - "tests/test_p423_wsl_hancom_pdf_bridge.py"

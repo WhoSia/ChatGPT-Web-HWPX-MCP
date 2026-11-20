@@ -35,6 +35,7 @@ from hwpx_mcp.document.p323_advanced_tables import (
     apply_advanced_table_edits_atomic,
     build_advanced_table_map,
 )
+from hwpx_mcp.render.p427_svg_layout_delta import preview_rhwp_layout
 
 SCHEMA = "chatgpt-web-hwpx-mcp/p4.27/structured-edit-preservation/v1"
 ADMITTED = ("set_cell_text", "set_table_page_break", "replace_cell_phrase")
@@ -472,11 +473,13 @@ def preview_preserved_table_batch(
     *,
     revision: int,
     candidate_validator: Callable[[Path], dict | None] | None = None,
+    layout_preview_pages: int = 0,
 ) -> dict:
     """Measure changes using the actual checked editor on a disposable copy."""
     source = Path(path)
     _validate_batch_targets(operations)
     before = {table["locator"]: table for table in build_advanced_table_map(source)["tables"]}
+    layout = {}
     with tempfile.TemporaryDirectory(prefix="p427-table-preview-") as tmp:
         candidate = Path(tmp) / source.name
         shutil.copy2(source, candidate)
@@ -485,6 +488,10 @@ def preview_preserved_table_batch(
             candidate_validator=candidate_validator,
         )
         after = {table["locator"]: table for table in build_advanced_table_map(candidate)["tables"]}
+        if layout_preview_pages:
+            layout["layout_preview"] = preview_rhwp_layout(
+                source, candidate, max_pages=layout_preview_pages,
+            )
 
     changes = []
     for operation in operations:
@@ -514,4 +521,5 @@ def preview_preserved_table_batch(
         "changed_sections": receipt["mutation_footprint"]["observed"]["changed_parts"],
         "preservation_grade": receipt["preservation_enforcement"]["actual_grade"],
         "authority": receipt["authority"],
+        **layout,
     }

@@ -249,6 +249,24 @@ class PreservedEditMcpAcceptanceTests(unittest.TestCase):
                 self.document_id, 1, [operation], expected_plan_sha256=plan,
             )
 
+    def test_layout_preview_is_opt_in_and_does_not_change_plan_or_revision(self):
+        arguments = {"document_id": self.document_id, "expected_revision": 1,
+                     "operations": [self._operation()]}
+        with patch(
+            "hwpx_mcp.custody.p427_structured_edit_preservation.preview_rhwp_layout",
+            return_value={"status": "UNAVAILABLE", "reason": "RHWP_BINARY_NOT_INSTALLED"},
+        ) as render:
+            regular = asyncio.run(api.core.mcp.call_tool("preview_preserved_table_batch", arguments))
+            self.assertNotIn("layout_preview", regular.structured_content)
+            render.assert_not_called()
+            rendered = asyncio.run(api.core.mcp.call_tool(
+                "preview_preserved_table_batch", {**arguments, "layout_preview_pages": 1},
+            ))
+            render.assert_called_once()
+        self.assertEqual(rendered.structured_content["layout_preview"]["status"], "UNAVAILABLE")
+        self.assertEqual(rendered.structured_content["plan_sha256"], regular.structured_content["plan_sha256"])
+        self.assert_original_revision()
+
     def test_foreign_principal_cannot_preview_table_batch(self):
         with patch.object(api.core, "_caller_subject", return_value="foreign-subject"):
             with self.assertRaisesRegex(PermissionError, "not owned"):

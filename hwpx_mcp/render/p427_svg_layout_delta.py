@@ -4,9 +4,16 @@ from __future__ import annotations
 import hashlib
 import math
 from collections import Counter, defaultdict
+from pathlib import Path
+from tempfile import TemporaryDirectory
 from xml.etree import ElementTree as ET
 
+from hwpx_mcp.render.p426_rhwp_svg_preview import (
+    RhwpPreviewUnavailable, render_svg_manifest, rhwp_capability,
+)
+
 SVG = "{http://www.w3.org/2000/svg}"
+MAX_LAYOUT_PREVIEW_PAGES = 3
 
 
 def _coordinate(value: str | None) -> float | None:
@@ -73,3 +80,56 @@ def compare_rhwp_svg_layout(before: bytes, after: bytes) -> dict:
         },
         "layout_signal_observed": canvas_changed or old_bands != new_bands or bool(removed or added),
     }
+
+
+def preview_rhwp_layout(source: Path, candidate: Path, *, max_pages: int) -> dict:
+    """Compare the first requested pages without returning documents or SVG bytes."""
+    if type(max_pages) is not int or not 1 <= max_pages <= MAX_LAYOUT_PREVIEW_PAGES:
+        raise ValueError("P427_LAYOUT_PREVIEW_PAGE_LIMIT_INVALID")
+    summary = {
+        "status": "UNAVAILABLE",
+        "engine": "RHWP_SVG_PREVIEW",
+        "render_authority": "THIRD_PARTY_SVG_NOT_NATIVE_HANCOM",
+        "requested_pages": max_pages,
+        "pages": [],
+    }
+    if not rhwp_capability()["available"]:
+        return {**summary, "reason": "RHWP_BINARY_NOT_INSTALLED"}
+
+    page_counts: dict[str, int] = {}
+    with TemporaryDirectory(prefix="p427-layout-preview-") as tmp:
+        try:
+            for index in range(max_pages):
+                rendered = {}
+                for label, path in (("before", source), ("after", candidate)):
+                    output = Path(tmp) / f"{label}-{index}"
+                    output.mkdir()
+                    manifest = render_svg_manifest(
+                        path, output, profile="print", page_index=index, max_pages=1,
+                        timeout_seconds=5,
+                    )
+                    total = manifest["page_count"]
+                    pages = manifest["pages"]
+                    if (type(total) is not int or total <= index or len(pages) != 1
+                            or pages[0]["page"] != index or total != page_counts.get(label, total)):
+                        raise RuntimeError("RHWP_LAYOUT_PAGE_MANIFEST_INVALID")
+                    page_counts[label] = total
+                    rendered[label] = Path(pages[0]["path"]).read_bytes()
+                summary["pages"].append({
+                    "page": index + 1,
+                    **compare_rhwp_svg_layout(rendered["before"], rendered["after"]),
+                })
+                if index + 1 >= min(page_counts.values()):
+                    break
+        except RhwpPreviewUnavailable as error:
+            summary["reason"] = str(error)
+        except (OSError, ValueError, RuntimeError, ET.ParseError):
+            summary["reason"] = "RHWP_LAYOUT_OBSERVATION_FAILED"
+
+    if len(page_counts) == 2:
+        summary["page_count"] = page_counts
+        summary["page_count_changed"] = page_counts["before"] != page_counts["after"]
+        summary["all_pages_compared"] = len(summary["pages"]) == max(page_counts.values())
+    if summary["pages"]:
+        summary["status"] = "PARTIAL" if "reason" in summary else "COMPARED"
+    return summary

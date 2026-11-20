@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import unittest
+from pathlib import Path
+from unittest.mock import patch
 
-from hwpx_mcp.render.p427_svg_layout_delta import compare_rhwp_svg_layout
+from hwpx_mcp.render.p427_svg_layout_delta import compare_rhwp_svg_layout, preview_rhwp_layout
 
 
 def page(text: str, *, wrapped: bool = False, y: int = 45) -> bytes:
@@ -32,3 +34,26 @@ class SvgLayoutDeltaTests(unittest.TestCase):
             "old_positions_absent": 1, "new_positions_added": 1,
             "max_paired_vertical_delta_svg_units": 12,
         })
+
+    @patch("hwpx_mcp.render.p427_svg_layout_delta.rhwp_capability", return_value={"available": False})
+    def test_missing_renderer_reports_unavailable(self, _capability):
+        result = preview_rhwp_layout(Path("before.hwpx"), Path("after.hwpx"), max_pages=1)
+        self.assertEqual(result["status"], "UNAVAILABLE")
+        self.assertEqual(result["reason"], "RHWP_BINARY_NOT_INSTALLED")
+        self.assertEqual(result["pages"], [])
+
+    @patch("hwpx_mcp.render.p427_svg_layout_delta.rhwp_capability", return_value={"available": True})
+    @patch("hwpx_mcp.render.p427_svg_layout_delta.render_svg_manifest")
+    def test_compares_common_pages_and_retains_page_count_change(self, render, _capability):
+        def emit(path, output, *, page_index, **_options):
+            rendered = output / "observed.svg"
+            rendered.write_bytes(page(path.stem))
+            return {"page_count": 1 if path.stem == "before" else 2,
+                    "pages": [{"page": page_index, "path": str(rendered)}]}
+        render.side_effect = emit
+        result = preview_rhwp_layout(Path("before.hwpx"), Path("after.hwpx"), max_pages=3)
+        self.assertEqual(result["status"], "COMPARED")
+        self.assertTrue(result["page_count_changed"])
+        self.assertFalse(result["all_pages_compared"])
+        self.assertEqual([row["page"] for row in result["pages"]], [1])
+        self.assertEqual(render.call_count, 2)

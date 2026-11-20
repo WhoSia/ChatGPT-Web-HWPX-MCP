@@ -14,6 +14,7 @@ from pathlib import Path
 from xml.etree import ElementTree as ET
 
 from hwpx import HwpxDocument
+from hwpx_mcp.document.p28_tables import apply_table_edits_atomic
 from hwpx_mcp.document.p323_advanced_tables import (
     apply_advanced_table_edits_atomic, build_advanced_table_map,
 )
@@ -104,6 +105,28 @@ class ActualNestedTableTests(unittest.TestCase):
         self.assertEqual([table["table_index"] for table in table_map["tables"]], [0, 1])
         self.assertTrue(any(cell["text"] == "Inner unique anchor"
                             for cell in table_map["tables"][1]["cells"]))
+
+    def test_cell_metadata_uses_nested_order_with_a_later_top_level_table(self):
+        with HwpxDocument.open(str(self.path)) as document:
+            following = document.add_table(rows=1, cols=3)
+            following.set_cell_text(0, 2, "Following table")
+            document.save_to_path(str(self.path))
+
+        outer, inner, following = build_advanced_table_map(self.path)["tables"]
+        self.assertEqual(following["cells"][2]["text"], "Following table")
+        target = inner["cells"][0]
+        apply_table_edits_atomic(
+            self.path,
+            [{"op": "set_cell_properties", "table": inner["locator"],
+              "cell": target["locator"], "name": "nested-field"}],
+            expected_revision=1, current_revision=1,
+        )
+        updated_outer, updated_inner, updated_following = (
+            build_advanced_table_map(self.path)["tables"]
+        )
+        self.assertEqual(updated_inner["cells"][0]["name"], "nested-field")
+        self.assertEqual(updated_outer, outer)
+        self.assertEqual(updated_following, following)
 
     def test_edit_inner_table_native_metadata_preserves_outer_and_nesting(self):
         before = build_advanced_table_map(self.path)

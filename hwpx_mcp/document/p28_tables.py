@@ -9,6 +9,7 @@ from typing import Callable
 
 from hwpx import HwpxDocument
 from hwpx.table_patch import apply_table_ops
+from hwpx.tools.table_navigation import _collect_document_tables
 
 from hwpx_mcp.document.p27_tables import (
     _cell_index,
@@ -36,13 +37,13 @@ def build_table_map(path: Path) -> dict:
     base = build_p27_table_map(path)
     document = HwpxDocument.open(str(path))
     try:
-        refs = document.tables.all
+        refs = _collect_document_tables(document)
         by_index = {int(t["table_index"]): t for t in base["tables"]}
         advanced_seed: list[dict] = []
         for index, ref in enumerate(refs):
             payload = by_index[index]
             cell_lookup = {(c["row"], c["col"]): c for c in payload["cells"]}
-            for position in ref.iter_grid():
+            for position in ref.table.iter_grid():
                 if not position.is_anchor:
                     continue
                 row, col = position.anchor
@@ -158,7 +159,7 @@ def _advanced_cell_operation(candidate: Path, op: dict) -> dict:
     cell_payload = _resolve_cell(table_payload, op.get("cell"))
     document = HwpxDocument.open(str(candidate))
     try:
-        table = document.tables.all[int(table_payload["table_index"])]
+        table = _collect_document_tables(document)[int(table_payload["table_index"])].table
         cell = table.cell(int(cell_payload["row"]), int(cell_payload["col"]))
         name = op["op"]
 

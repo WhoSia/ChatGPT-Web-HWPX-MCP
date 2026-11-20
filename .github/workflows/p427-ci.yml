@@ -4,6 +4,7 @@ on:
   pull_request:
     branches:
       - development/p425-competitive-capability-convergence-20261110
+      - development/p427-lossless-structured-editing-20261111
     paths:
       - "server.py"
       - "server_p2.py"

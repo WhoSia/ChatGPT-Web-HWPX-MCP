@@ -519,6 +519,7 @@ def preview_preserved_table_batch(
 
     return {
         "changes": changes,
+        "candidate_sha256": receipt["committed_sha256"],
         "operation_count": receipt["operation_count"],
         "changed_sections": receipt["mutation_footprint"]["observed"]["changed_parts"],
         "preservation_grade": receipt["preservation_enforcement"]["actual_grade"],

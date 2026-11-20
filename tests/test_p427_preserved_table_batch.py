@@ -108,6 +108,14 @@ class PreservedTableBatchTests(unittest.TestCase):
         self.assertEqual(result["preservation_grade"], "TARGETED_PARTS_ONLY")
         self.assert_unchanged()
 
+    def test_preview_candidate_digest_matches_separately_saved_batch(self):
+        operations = [self.phrase, self.peer]
+        preview = preview_preserved_table_batch(self.path, operations, revision=2)
+        self.assert_unchanged()
+        receipt = self.batch(operations)
+        self.assertEqual(preview["candidate_sha256"], receipt["committed_sha256"])
+        self.assertEqual(preview["candidate_sha256"], hashlib.sha256(self.path.read_bytes()).hexdigest())
+
     def test_preview_bounds_cell_text_and_refuses_failed_operations(self):
         large = {**self.peer, "text": "값" * 500}
         change = preview_preserved_table_batch(self.path, [large], revision=2)["changes"][0]

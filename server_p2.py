@@ -3502,7 +3502,8 @@ def _load_preserved_table_revision(document_id: str, expected_revision: int) -> 
     return row
 
 
-def _commit_preserved_table_edits(document_id, row, lease_token, edit_candidate):
+def _commit_preserved_table_edits(document_id, row, lease_token, edit_candidate, *,
+                                  expected_candidate_sha256: str | None = None):
     current_revision = row["revision"]
     metadata = dict(row["metadata"])
     ingress = metadata.get("source") == "existing-ingress"
@@ -3530,6 +3531,8 @@ def _commit_preserved_table_edits(document_id, row, lease_token, edit_candidate)
     digest = hashlib.sha256(data).hexdigest()
     if digest != validation["sha256"] or digest != transaction["committed_sha256"]:
         raise ValueError("P427_COMMIT_CANDIDATE_HASH_MISMATCH")
+    if expected_candidate_sha256 is not None and digest != expected_candidate_sha256:
+        raise ValueError("P428_PREVIEW_CANDIDATE_MISMATCH")
     revision = current_revision + 1
     metadata["revision"] = revision
     metadata["last_edit_at"] = core._utc_iso()
@@ -6237,6 +6240,7 @@ def edit_preserved_table_batch_and_deliver(
     lease_token: str = "",
     link_ttl_seconds: int = 900,
     expected_plan_sha256: str | None = None,
+    expected_candidate_sha256: str | None = None,
 ) -> CallToolResult:
     """Commit one to eight preserved table edits together and return their HWPX.
 
@@ -6244,7 +6248,8 @@ def edit_preserved_table_batch_and_deliver(
     and each table's page-break setting may appear once in the batch. Any
     failed operation aborts the entire batch. Renew an expired or failed
     download with deliver_document for the returned revision. Supply the
-    preview plan_sha256 to check that the exact previewed inputs are applied.
+    preview plan_sha256 to check the previewed inputs. Supply candidate_sha256
+    as expected_candidate_sha256 to require byte identity before committing.
     """
     row = _load_preserved_table_revision(document_id, expected_revision)
     plan_sha256 = preserved_table_batch_plan_sha256(document_id, row["revision"], row["sha256"], operations)
@@ -6253,6 +6258,7 @@ def edit_preserved_table_batch_and_deliver(
     result = _commit_preserved_table_edits(
         document_id, row, lease_token,
         partial(apply_bounded_table_edits_with_preservation_atomic, operations=operations),
+        expected_candidate_sha256=expected_candidate_sha256,
     )
     return _delivery_after_commit(
         document_id, result["revision_after"], link_ttl_seconds,

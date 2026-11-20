@@ -238,11 +238,21 @@ class PreservedEditMcpAcceptanceTests(unittest.TestCase):
             )
         self.assert_original_revision()
 
+        with self.assertRaisesRegex(ValueError, "PREVIEW_CANDIDATE_MISMATCH"):
+            api.edit_preserved_table_batch_and_deliver(
+                self.document_id, 1, [operation], expected_plan_sha256=plan,
+                expected_candidate_sha256="0" * 64,
+            )
+        self.assert_original_revision()
+
         result = api.edit_preserved_table_batch_and_deliver(
             self.document_id, 1, [operation], expected_plan_sha256=plan,
+            expected_candidate_sha256=pending["candidate_sha256"],
         )
         self.assertFalse(result.is_error)
         self.assertEqual(result.structured_content["plan_sha256"], plan)
+        self.assertEqual(hashlib.sha256(self.download(result).body).hexdigest(),
+                         pending["candidate_sha256"])
         self.assertEqual(result.structured_content["revision"], 2)
         with self.assertRaisesRegex(ValueError, "Stale revision"):
             api.edit_preserved_table_batch_and_deliver(

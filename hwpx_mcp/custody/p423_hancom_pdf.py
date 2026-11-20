@@ -103,17 +103,27 @@ def export_native_hwp_pdf(
             if destination.exists():
                 destination.unlink()
             raise HancomPdfConversionError("HANCOM_PDF_CONVERSION_FAILED")
-        receipt = json.loads(receipt_path.read_text(encoding="utf-8-sig"))
-        if (
-            receipt.get("status") != "PDF_CREATED_UNREVIEWED"
-            or receipt.get("engine") != "HANCOM_HWP_EXE_COM"
-            or receipt.get("input_sha256") != before
-            or not destination.is_file()
-            or receipt.get("output_sha256") != _sha(destination)
-            or type(receipt.get("output_bytes")) is not int
-            or receipt["output_bytes"] != destination.stat().st_size
-            or _sha(source) != before
-        ):
+        # The worker is an external process: its receipt is untrusted until
+        # parsed, checked against the real bytes, and bound to unchanged input.
+        try:
+            receipt = json.loads(receipt_path.read_text(encoding="utf-8-sig"))
+            if not isinstance(receipt, dict):
+                raise ValueError("receipt must be an object")
+            valid = (
+                receipt.get("status") == "PDF_CREATED_UNREVIEWED"
+                and receipt.get("engine") == "HANCOM_HWP_EXE_COM"
+                and receipt.get("input_sha256") == before
+                and _sha(source) == before
+                and destination.is_file()
+                and receipt.get("output_sha256") == _sha(destination)
+                and type(receipt.get("output_bytes")) is int
+                and receipt["output_bytes"] == destination.stat().st_size
+                and destination.stat().st_size >= 64
+                and _has_pdf_magic(destination)
+            )
+        except (OSError, UnicodeError, ValueError, TypeError):
+            valid = False
+        if not valid:
             if destination.exists():
                 destination.unlink()
             raise HancomPdfConversionError("HANCOM_PDF_RECEIPT_MISMATCH")

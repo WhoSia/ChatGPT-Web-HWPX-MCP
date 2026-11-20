@@ -92,6 +92,8 @@ class NativeDownloadRoundtripTests(unittest.TestCase):
         self.assertEqual(resp.body, self.raw)
         self.assertIn("attachment; filename*=UTF-8''", resp.headers["content-disposition"])
         self.assertEqual(resp.media_type, MIME)
+        self.assertEqual(resp.headers["x-hwpx-revision"], str(receipt["revision"]))
+        self.assertEqual(resp.headers["etag"], '"' + receipt["sha256"] + '"')
         self.assertEqual(hashlib.sha256(resp.body).hexdigest(), receipt["sha256"])
 
     def test_reissued_download_preserves_document_revision_and_bytes(self):
@@ -106,6 +108,13 @@ class NativeDownloadRoundtripTests(unittest.TestCase):
         receipt = export_revision(self.core, DOC)
         response = self._download(receipt["download_url"].replace("rev=1", "rev=2"))
         self.assertNotEqual(response.status_code, 200)
+
+    def test_download_rejects_a_different_revision_even_with_identical_bytes(self):
+        receipt = export_revision(self.core, DOC)
+        self.core.DOCUMENT_STORE.load_revision = lambda doc, rev: {**self.row, "revision": 2}
+        response = self._download(receipt["download_url"])
+        self.assertEqual(response.status_code, 409)
+        self.assertNotIn("content-disposition", response.headers)
 
     def test_host_display_remains_unverified_even_if_http_download_passes(self):
         result = handoff(export_revision(self.core, DOC))

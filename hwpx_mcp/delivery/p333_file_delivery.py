@@ -107,6 +107,8 @@ async def download_revision(core, request):
     row = core.DOCUMENT_STORE.load_revision(document_id, revision)
     if row is None:
         return PlainTextResponse("Document revision unavailable", status_code=404)
+    if row["revision"] != revision:
+        return PlainTextResponse("Revision identity mismatch", status_code=409)
     raw = row["bytes"]
     if row["sha256"] != digest or hashlib.sha256(raw).hexdigest() != digest:
         return PlainTextResponse("Revision integrity mismatch", status_code=409)
@@ -115,4 +117,5 @@ async def download_revision(core, request):
         "Content-Disposition": f"attachment; filename*=UTF-8''{quote(filename)}",
         "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff",
         "Referrer-Policy": "no-referrer", "ETag": f'"{digest}"',
+        "X-HWPX-Revision": str(revision),
     })

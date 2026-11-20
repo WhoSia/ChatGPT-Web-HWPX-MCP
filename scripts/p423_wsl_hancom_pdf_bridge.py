@@ -29,7 +29,7 @@ def on_wsl() -> bool:
     if os.name != "posix":
         return False
     release = os.uname().release.lower()
-    return "microsoft" in release or "wsl" in release or bool(os.environ.get("WSL_DISTRO_NAME"))
+    return "microsoft" in release or "wsl" in release
 
 
 def _approved_windows_mount(path: Path) -> Path:
@@ -113,7 +113,12 @@ def export_wsl_native_pdf(source: Path, destination: Path, *, timeout_seconds: i
             staged_script.unlink(missing_ok=True)
     if not receipt.is_file():
         raise RuntimeError("HANCOM_RECEIPT_MISSING: Windows export did not produce a receipt")
-    parsed = json.loads(receipt.read_text(encoding="utf-8-sig"))
+    try:
+        parsed = json.loads(receipt.read_text(encoding="utf-8-sig"))
+    except (OSError, UnicodeError, ValueError) as exc:
+        raise RuntimeError("HANCOM_RECEIPT_MALFORMED") from exc
+    if not isinstance(parsed, dict):
+        raise RuntimeError("HANCOM_RECEIPT_MALFORMED")
     if result.returncode != 0 or parsed.get("status") != "PDF_CREATED_UNREVIEWED":
         raise RuntimeError("HANCOM_NATIVE_EXPORT_FAILED: inspect the local receipt")
     if not destination.is_file():

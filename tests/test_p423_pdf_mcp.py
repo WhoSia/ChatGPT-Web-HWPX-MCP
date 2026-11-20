@@ -79,12 +79,48 @@ class P423PdfMCPTests(unittest.TestCase):
         capability.return_value = {"available": True}
         def fake_export(source, destination):
             destination.write_bytes(b"%PDF-" + b"X" * MAX_INLINE_PDF_BYTES)
-            return {"status": "PDF_CREATED_UNREVIEWED", "pdf_sha256": "a" * 64}
+            return {"status": "PDF_CREATED_UNREVIEWED", "pdf_sha256": hashlib.sha256(destination.read_bytes()).hexdigest()}
         export.side_effect = fake_export
         response = self.tool("doc_1", 2)
         self.assertFalse(response["ok"])
         self.assertEqual(response["code"], "PDF_TOO_LARGE_FOR_INLINE_DELIVERY")
         self.assertNotIn("pdf_base64", response)
+
+    @patch("hwpx_mcp.interfaces.p423_pdf_mcp.native_pdf_capability")
+    @patch("hwpx_mcp.interfaces.p423_pdf_mcp.export_native_hwp_pdf")
+    def test_concurrent_revision_change_blocks_stale_pdf_handoff(self, export, capability):
+        capability.return_value = {"available": True}
+        payload = b"%PDF-1.7\\n" + b"native-simulated-test" * 8
+
+        def fake_export(source, destination):
+            destination.write_bytes(payload)
+            return {"pdf_sha256": hashlib.sha256(payload).hexdigest()}
+
+        export.side_effect = fake_export
+        calls = [0]
+
+        def changing_owner(doc):
+            calls[0] += 1
+            return {"revision": 2 if calls[0] == 1 else 3}, Path("/owned/reference.hwpx")
+
+        second = FakeCore()
+        register_p423_native_pdf_tools(second, owned_document=changing_owner)
+        with self.assertRaisesRegex(ValueError, "revision changed during native export"):
+            second.mcp.tools["export_p423_owned_hwp_as_native_pdf"]("doc_1", 2)
+        self.assertEqual(calls[0], 2)
+
+    @patch("hwpx_mcp.interfaces.p423_pdf_mcp.native_pdf_capability")
+    @patch("hwpx_mcp.interfaces.p423_pdf_mcp.export_native_hwp_pdf")
+    def test_worker_receipt_hash_mismatch_prevents_inline_delivery(self, export, capability):
+        capability.return_value = {"available": True}
+
+        def fake_export(source, destination):
+            destination.write_bytes(b"%PDF-1.7\\n" + b"native-simulated-test" * 8)
+            return {"pdf_sha256": "0" * 64}
+
+        export.side_effect = fake_export
+        with self.assertRaisesRegex(ValueError, "does not match worker receipt"):
+            self.tool("doc_1", 2)
 
     def test_invalid_revision_type_does_not_lookup_document(self):
         with self.assertRaisesRegex(ValueError, "expected_revision"):

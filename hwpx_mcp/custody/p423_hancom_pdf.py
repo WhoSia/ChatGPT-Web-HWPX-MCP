@@ -48,6 +48,12 @@ def _sha(path: Path) -> str:
     return digest.hexdigest()
 
 
+def _has_pdf_magic(path: Path) -> bool:
+    """Check PDF signature with a closed file handle, not a format verdict."""
+    with path.open("rb") as pdf:
+        return pdf.read(5) == b"%PDF-"
+
+
 def export_native_hwp_pdf(
     source: str | Path,
     destination: str | Path,
@@ -111,10 +117,6 @@ def export_native_hwp_pdf(
             if destination.exists():
                 destination.unlink()
             raise HancomPdfConversionError("HANCOM_PDF_RECEIPT_MISMATCH")
-        with destination.open("rb") as f:
-            if f.read(5) != b"%PDF-":
-                destination.unlink()
-                raise HancomPdfConversionError("HANCOM_PDF_HEADER_INVALID")
         receipt["source_path"] = None
         receipt["output_path"] = None
         receipt["pdf_sha256"] = receipt.pop("output_sha256")

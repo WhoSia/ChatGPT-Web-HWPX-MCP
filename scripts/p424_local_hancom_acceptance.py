@@ -37,6 +37,7 @@ def run_local_acceptance(
     *,
     baseline_pdf: Path | None = None,
     dpi: int = 96,
+    expected_source_sha256: str | None = None,
 ) -> dict:
     """Return a truthful receipt; do not open or overwrite any unrelated file."""
     source = Path(source).resolve(strict=True)
@@ -53,6 +54,8 @@ def run_local_acceptance(
     if baseline is not None and baseline.suffix.lower() != ".pdf":
         raise ValueError("baseline must be an existing PDF")
     before = _sha(source)
+    if expected_source_sha256 is not None and before != expected_source_sha256.lower():
+        raise ValueError("source HWPX SHA-256 differs from the expected download digest")
     native_receipt = export_wsl_native_pdf(source, native_pdf)
     if not native_pdf.is_file():
         raise RuntimeError("native conversion has not produced a PDF")
@@ -94,11 +97,12 @@ def main() -> int:
     parser.add_argument("--output-dir", required=True, type=Path)
     parser.add_argument("--baseline-pdf", type=Path)
     parser.add_argument("--dpi", type=int, default=96)
+    parser.add_argument("--expected-source-sha256", help="SHA-256 from the committed download receipt")
     args = parser.parse_args()
     try:
         report = run_local_acceptance(
             args.source, args.output_dir, baseline_pdf=args.baseline_pdf,
-            dpi=args.dpi,
+            dpi=args.dpi, expected_source_sha256=args.expected_source_sha256,
         )
     except (RuntimeError, OSError, ValueError, ImportError) as error:
         print(f"FAILED: {error}", file=sys.stderr)

@@ -31,7 +31,9 @@ class P424LocalHancomAcceptanceTests(unittest.TestCase):
                     "hancom_product_version": "TEST_ONLY",
                 }
             with patch("p424_local_hancom_acceptance.export_wsl_native_pdf", side_effect=convert):
-                result = run_local_acceptance(source, output)
+                result = run_local_acceptance(
+                    source, output, expected_source_sha256=hashlib.sha256(source.read_bytes()).hexdigest(),
+                )
             self.assertTrue(result["native_pdf_created"])
             self.assertFalse(result["production_approved"])
             self.assertEqual(result["visual_acceptance"], "REQUIRES_HUMAN_PAGE_REVIEW")
@@ -69,6 +71,17 @@ class P424LocalHancomAcceptanceTests(unittest.TestCase):
                 with self.assertRaisesRegex(RuntimeError, "HANCOM_FAILED"):
                     run_local_acceptance(source, output)
             self.assertFalse((output / "source.p424-acceptance.json").exists())
+
+    def test_wrong_download_digest_stops_before_opening_hancom(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "input.hwpx"
+            source.write_bytes(b"unexpected download")
+            with patch("p424_local_hancom_acceptance.export_wsl_native_pdf") as convert:
+                with self.assertRaisesRegex(ValueError, "expected download digest"):
+                    run_local_acceptance(source, root, expected_source_sha256="0" * 64)
+                convert.assert_not_called()
+            self.assertEqual(list(root.iterdir()), [source])
 
     def test_existing_result_is_never_overwritten(self):
         with tempfile.TemporaryDirectory() as directory:

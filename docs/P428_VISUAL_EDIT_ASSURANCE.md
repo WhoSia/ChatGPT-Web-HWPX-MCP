@@ -25,3 +25,9 @@ python scripts/p424_local_hancom_acceptance.py edited.hwpx \
 The command rejects a different file before invoking Hancom. Review the native PDF and check for a recovery prompt when opening the HWPX in Windows Hancom. Record the equation, merged cell, and adjacent table layout observations for the school-template case.
 
 The production P4.18 connection was exercised separately with a synthetic HWPX. Authenticated creation and signed export returned revision 1, and the HTTPS download returned 7,625 bytes with the same SHA-256 as creation and export. This verifies the published download route for the deployed release. P4.28 requires its own deployment and ChatGPT attachment interaction before hosted acceptance.
+
+## R3 · Review the school-template Hancom PDF
+
+The supplied four-page A4 PDF identifies Hwp 2024 13.0.0.3622 and Hancom PDF 1.3.0.550 in its metadata. Its SHA-256 is `b148fcdf9367cf917f78a9ea4ee8ef56262fc19bbc0c5f5f45641cb55922ec4d`.
+
+On the rendered first page, the equation `a+b` is visible beside the selection rationale, the merged-cell label `< 요건 >` fits on one line, and the next table remains on page 1 with its borders visible and no overlap with the preceding box. This is visual acceptance for the supplied post-edit PDF. The file does not capture whether reopening showed a recovery prompt, and no pre-edit Hancom PDF was supplied for a same-renderer position comparison. Hosted P4.28 delivery remains a separate acceptance item.

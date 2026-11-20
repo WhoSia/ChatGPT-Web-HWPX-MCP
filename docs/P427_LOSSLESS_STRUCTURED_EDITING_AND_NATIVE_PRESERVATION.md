@@ -428,8 +428,23 @@ find the batch endpoint.
    and is separate from the SHA-256 of the downloaded output. The apply call
    reruns validation and commits using the existing database CAS.
 
-The preview is a structural before/after inspection. It creates no
-document revision or download link. Page rendering is a separate workflow.
+The preview creates no document revision or download link. Set
+`layout_preview_pages` to `1`, `2`, or `3` to add a `layout_preview`
+observation of the first pages. The runtime needs `rhwp` on its PATH.
+The default remains a structural preview, with no renderer invocation.
+
+The observation includes the two rendered page counts, coverage, and the
+per-page SVG hashes, cell-text baseline counts, and horizontal-rule
+positions. Rules with the same horizontal span are paired by vertical order
+when their counts agree. The reported displacement is in SVG user units,
+independent of raster image resolution, and does not assign a table ID.
+Glyph-only changes can change an SVG digest without producing a tracked
+layout signal.
+
+If the renderer is absent or the call fails, the preview still returns
+the structural result and reports rendered evidence as unavailable or
+partial. The layout option does not change the plan hash or authorize a
+commit. The rhwp output does not certify native Hancom page fidelity.
 
 ## Functional comparison against the last P4.26 commit
 

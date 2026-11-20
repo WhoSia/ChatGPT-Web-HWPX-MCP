@@ -21,6 +21,8 @@ on:
       - ".github/workflows/p1-ci.yml"
       - "requirements.txt"
       - "requirements-dev.txt"
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -31,7 +33,7 @@ jobs:
     runs-on: ubuntu-latest
     services:
       postgres:
-        image: public.ecr.aws/docker/library/postgres:16
+        image: postgres:16
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
@@ -44,6 +46,8 @@ jobs:
       P414_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/hwpx_p414_test
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -52,7 +56,7 @@ jobs:
       - run: python -m compileall -q hwpx_mcp/operations/durable_health.py tests/test_durable_health.py server.py hwpx_mcp/evidence/p414_evidence_service.py hwpx_mcp/evidence/p414_evidence_store.py hwpx_mcp/interfaces/p414_mcp.py tests/test_p414_production_boundary.py tests/test_p414_evidence_service.py tests/test_p414_evidence_store.py tests/test_p414_docker_layer_budget.py scripts/verify_production_boundary.py scripts/p414_release_smoke.py scripts/p414_materialize_release_evidence.py scripts/p414_materialize_capture_job.py scripts/p414_sign_receipt.py
       - run: python -m pytest -q tests/test_durable_health.py tests/test_p414_production_boundary.py tests/test_p414_evidence_service.py tests/test_p414_evidence_store.py tests/test_p414_docker_layer_budget.py
       - run: python scripts/p414_release_smoke.py
-      - run: python scripts/p414_materialize_release_evidence.py --out /tmp/p414-release-evidence --exact-head ${{ github.sha }}
+      - run: python scripts/p414_materialize_release_evidence.py --out /tmp/p414-release-evidence --exact-head ${{ github.event.pull_request.head.sha || github.sha }}
       - uses: actions/upload-artifact@v4
         with:
           name: p414-release-evidence
@@ -62,7 +66,7 @@ jobs:
     runs-on: ubuntu-latest
     services:
       postgres:
-        image: public.ecr.aws/docker/library/postgres:16
+        image: postgres:16
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
@@ -80,8 +84,8 @@ jobs:
       P1_DOWNLOAD_SECRET: p414-ci-download-secret-not-production
       P1_OBJECT_DIR: /tmp/p414-lifecycle-objects
       MCP_URL: http://127.0.0.1:8000/mcp
-      P414_RELEASE_EXACT_HEAD: ${{ github.sha }}
-      RENDER_GIT_COMMIT: ${{ github.sha }}
+      P414_RELEASE_EXACT_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+      RENDER_GIT_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
       P414_ALLOW_TEST_RECEIPTS: "1"
       RUN_P2_WRITE_TEST: "1"
       PIP_DISABLE_PIP_VERSION_CHECK: "1"
@@ -96,6 +100,8 @@ jobs:
       P349_TS_RUNTIME: ${{ github.workspace }}/.tmp/p349-ts/scripts/p349_composition_cli.js
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -138,6 +144,14 @@ jobs:
     needs: [evidence-service, oauth-full-lifecycle]
     steps:
       - uses: actions/checkout@v4
-      - run: docker build --progress=plain -t hwpx-mcp-p414:${{ github.sha }} .
-      - run: docker run --rm --entrypoint python hwpx-mcp-p414:${{ github.sha }} scripts/p414_release_smoke.py
-      - run: docker run --rm --entrypoint python hwpx-mcp-p414:${{ github.sha }} scripts/p413_release_smoke.py
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      # Provenance/evidence smoke scripts read historical corpus fixtures.
+      # The clean production image intentionally excludes that broad corpus.
+      - run: docker build --progress=plain --target release-smoke-builder -t hwpx-mcp-p414-evidence:${{ github.event.pull_request.head.sha || github.sha }} .
+      - run: docker run --rm --entrypoint python hwpx-mcp-p414-evidence:${{ github.event.pull_request.head.sha || github.sha }} scripts/p414_release_smoke.py
+      - run: docker run --rm --entrypoint python hwpx-mcp-p414-evidence:${{ github.event.pull_request.head.sha || github.sha }} scripts/p413_release_smoke.py
+      - name: Build independent clean production image and check runtime bootstrap inputs
+        run: |
+          docker build --progress=plain --target production -t hwpx-mcp-p414:${{ github.event.pull_request.head.sha || github.sha }} .
+          docker run --rm --entrypoint python hwpx-mcp-p414:${{ github.event.pull_request.head.sha || github.sha }} -c 'from pathlib import Path; import hwpx_mcp.evidence.p414_evidence_service; p=Path("/app"); assert all((p/name).is_file() for name in ["corpus/p43-immutable-external-fixtures.json", "corpus/p44-federation-registry.json", "benchmarks/p44_release_seed.json"]); assert not (p/"corpus/p421_candidate_intake.json").exists()'

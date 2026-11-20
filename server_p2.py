@@ -6153,6 +6153,9 @@ def _delivery_after_commit(document_id: str, revision: int, link_ttl_seconds: in
                            extra: dict | None = None) -> CallToolResult:
     try:
         receipt = export_revision(core, document_id, link_ttl_seconds, revision)
+        if (receipt.get("document_id") != document_id or receipt.get("revision") != revision
+                or (extra and "sha256" in extra and receipt.get("sha256") != extra["sha256"])):
+            raise ValueError("P428_DELIVERY_RECEIPT_MISMATCH")
     except Exception as exc:
         # A failed handoff must not encourage replaying an already committed mutation.
         receipt = {"ok": False, "document_id": document_id, "revision": revision,

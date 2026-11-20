@@ -380,6 +380,25 @@ class PreservedEditMcpAcceptanceTests(unittest.TestCase):
         self.assertEqual(retry.structured_content["sha256"], receipt["sha256"])
         self.assertIsNone(self.store.load_revision(self.document_id, 3))
 
+    def test_mismatched_export_receipt_does_not_publish_a_download(self):
+        export_revision = api.export_revision
+
+        def mismatched_digest(*args):
+            return {**export_revision(*args), "sha256": "0" * 64}
+
+        with patch.object(api, "export_revision", side_effect=mismatched_digest):
+            result = api.edit_preserved_table_and_deliver(self.document_id, 1, self._operation())
+
+        self.assertTrue(result.is_error)
+        receipt = result.structured_content
+        self.assertEqual(receipt["delivery_status"], "RETRY_DELIVERY_ONLY")
+        self.assertEqual(receipt["revision"], 2)
+        self.assertNotIn("download_url", receipt)
+        self.assertFalse(any(item.type == "resource_link" for item in result.content))
+        retry = api.deliver_document(self.document_id, revision=2)
+        self.assertEqual(hashlib.sha256(self.download(retry).body).hexdigest(), receipt["sha256"])
+        self.assertIsNone(self.store.load_revision(self.document_id, 3))
+
     def assert_original_revision(self):
         row = self.store.load_current(self.document_id)
         self.assertEqual(row["revision"], 1)

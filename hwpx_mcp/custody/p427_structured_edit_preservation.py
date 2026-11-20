@@ -474,6 +474,7 @@ def preview_preserved_table_batch(
     revision: int,
     candidate_validator: Callable[[Path], dict | None] | None = None,
     layout_preview_pages: int = 0,
+    layout_preview_start_page: int = 1,
 ) -> dict:
     """Measure changes using the actual checked editor on a disposable copy."""
     source = Path(path)
@@ -491,6 +492,7 @@ def preview_preserved_table_batch(
         if layout_preview_pages:
             layout["layout_preview"] = preview_rhwp_layout(
                 source, candidate, max_pages=layout_preview_pages,
+                start_page=layout_preview_start_page,
             )
 
     changes = []

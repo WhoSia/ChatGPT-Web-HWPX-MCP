@@ -260,9 +260,11 @@ class PreservedEditMcpAcceptanceTests(unittest.TestCase):
             self.assertNotIn("layout_preview", regular.structured_content)
             render.assert_not_called()
             rendered = asyncio.run(api.core.mcp.call_tool(
-                "preview_preserved_table_batch", {**arguments, "layout_preview_pages": 1},
+                "preview_preserved_table_batch",
+                {**arguments, "layout_preview_pages": 1, "layout_preview_start_page": 3},
             ))
             render.assert_called_once()
+            self.assertEqual(render.call_args.kwargs, {"max_pages": 1, "start_page": 3})
         self.assertEqual(rendered.structured_content["layout_preview"]["status"], "UNAVAILABLE")
         self.assertEqual(rendered.structured_content["plan_sha256"], regular.structured_content["plan_sha256"])
         self.assert_original_revision()

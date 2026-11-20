@@ -6192,15 +6192,19 @@ def edit_preserved_table_and_deliver(
 def preview_preserved_table_batch(
     document_id: str, expected_revision: int, operations: list[dict],
     layout_preview_pages: int = 0,
+    layout_preview_start_page: int = 1,
 ) -> CallToolResult:
     """Check a batch on a temporary HWPX and report the actual before/after changes.
 
-    Set layout_preview_pages to 1–3 to also compare the first pages with
-    rhwp when installed. It reports page count, text baselines and horizontal
+    Set layout_preview_pages to 1–3 to compare pages with rhwp when installed.
+    layout_preview_start_page selects the first page using one-based numbering. It reports page count, text baselines and horizontal
     rule displacement. Renderer evidence is advisory and is not Hancom output.
     """
     if type(layout_preview_pages) is not int or not 0 <= layout_preview_pages <= MAX_LAYOUT_PREVIEW_PAGES:
         raise ValueError("P427_LAYOUT_PREVIEW_PAGE_LIMIT_INVALID")
+    if (type(layout_preview_start_page) is not int or layout_preview_start_page < 1
+            or (layout_preview_start_page != 1 and not layout_preview_pages)):
+        raise ValueError("P427_LAYOUT_PREVIEW_START_PAGE_INVALID")
     row = _load_preserved_table_revision(document_id, expected_revision)
     revision = row["revision"]
     plan_sha256 = preserved_table_batch_plan_sha256(document_id, revision, row["sha256"], operations)
@@ -6210,6 +6214,7 @@ def preview_preserved_table_batch(
         preview = preview_native_table_batch(
             path, operations, revision=revision,
             layout_preview_pages=layout_preview_pages,
+            layout_preview_start_page=layout_preview_start_page,
             candidate_validator=lambda candidate: core.validate_hwpx_package(
                 candidate, ingress=row["metadata"].get("source") == "existing-ingress",
             ),

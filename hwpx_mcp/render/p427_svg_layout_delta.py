@@ -82,15 +82,18 @@ def compare_rhwp_svg_layout(before: bytes, after: bytes) -> dict:
     }
 
 
-def preview_rhwp_layout(source: Path, candidate: Path, *, max_pages: int) -> dict:
-    """Compare the first requested pages without returning documents or SVG bytes."""
+def preview_rhwp_layout(source: Path, candidate: Path, *, max_pages: int, start_page: int = 1) -> dict:
+    """Compare the requested contiguous page range without returning documents or SVG bytes."""
     if type(max_pages) is not int or not 1 <= max_pages <= MAX_LAYOUT_PREVIEW_PAGES:
         raise ValueError("P427_LAYOUT_PREVIEW_PAGE_LIMIT_INVALID")
+    if type(start_page) is not int or start_page < 1:
+        raise ValueError("P427_LAYOUT_PREVIEW_START_PAGE_INVALID")
     summary = {
         "status": "UNAVAILABLE",
         "engine": "RHWP_SVG_PREVIEW",
         "render_authority": "THIRD_PARTY_SVG_NOT_NATIVE_HANCOM",
         "requested_pages": max_pages,
+        "start_page": start_page,
         "pages": [],
     }
     if not rhwp_capability()["available"]:
@@ -99,22 +102,44 @@ def preview_rhwp_layout(source: Path, candidate: Path, *, max_pages: int) -> dic
     page_counts: dict[str, int] = {}
     with TemporaryDirectory(prefix="p427-layout-preview-") as tmp:
         try:
-            for index in range(max_pages):
+            for index in range(start_page - 1, start_page - 1 + max_pages):
                 rendered = {}
                 for label, path in (("before", source), ("after", candidate)):
                     output = Path(tmp) / f"{label}-{index}"
                     output.mkdir()
-                    manifest = render_svg_manifest(
-                        path, output, profile="print", page_index=index, max_pages=1,
-                        timeout_seconds=5,
-                    )
+                    try:
+                        manifest = render_svg_manifest(
+                            path, output, profile="print", page_index=index,
+                            max_pages=1, timeout_seconds=5,
+                        )
+                    except RhwpPreviewUnavailable as error:
+                        if index == 0 or str(error) != "RHWP_RENDER_FAILED":
+                            raise
+                        # rhwp 0.8.7 exits without a manifest for missing pages.
+                        # Read its page count through page zero before classifying the failure.
+                        probe = Path(tmp) / f"{label}-page-count"
+                        probe.mkdir()
+                        first_page = render_svg_manifest(
+                            path, probe, profile="print", page_index=0,
+                            max_pages=1, timeout_seconds=5,
+                        )
+                        total = first_page["page_count"]
+                        if type(total) is not int or not 1 <= total <= index:
+                            raise
+                        manifest = {"page_count": total, "pages": []}
                     total = manifest["page_count"]
                     pages = manifest["pages"]
-                    if (type(total) is not int or total <= index or len(pages) != 1
-                            or pages[0]["page"] != index or total != page_counts.get(label, total)):
+                    if type(total) is not int or total < 1 or total != page_counts.get(label, total):
                         raise RuntimeError("RHWP_LAYOUT_PAGE_MANIFEST_INVALID")
                     page_counts[label] = total
+                    if index >= total and not pages:
+                        continue
+                    if len(pages) != 1 or pages[0]["page"] != index or index >= total:
+                        raise RuntimeError("RHWP_LAYOUT_PAGE_MANIFEST_INVALID")
                     rendered[label] = Path(pages[0]["path"]).read_bytes()
+                if len(rendered) < 2:
+                    summary["reason"] = "RHWP_LAYOUT_START_PAGE_OUTSIDE_COMMON_RANGE"
+                    break
                 summary["pages"].append({
                     "page": index + 1,
                     **compare_rhwp_svg_layout(rendered["before"], rendered["after"]),
@@ -129,7 +154,9 @@ def preview_rhwp_layout(source: Path, candidate: Path, *, max_pages: int) -> dic
     if len(page_counts) == 2:
         summary["page_count"] = page_counts
         summary["page_count_changed"] = page_counts["before"] != page_counts["after"]
-        summary["all_pages_compared"] = len(summary["pages"]) == max(page_counts.values())
+        summary["all_pages_compared"] = (
+            start_page == 1 and len(summary["pages"]) == max(page_counts.values())
+        )
     if summary["pages"]:
         summary["status"] = "PARTIAL" if "reason" in summary else "COMPARED"
     return summary

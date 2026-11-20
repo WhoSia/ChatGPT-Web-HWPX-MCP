@@ -375,7 +375,9 @@ class PreservedEditMcpAcceptanceTests(unittest.TestCase):
         self.assertEqual(receipt["delivery_status"], "RETRY_DELIVERY_ONLY")
         self.assertEqual(receipt["transaction"], "COMMITTED")
         self.assertEqual(receipt["revision"], 2)
-        retry = api.deliver_document(self.document_id, revision=2)
+        retry = asyncio.run(api.core.mcp.call_tool("deliver_document", {
+            "document_id": self.document_id, "revision": 2, "expected_sha256": receipt["sha256"],
+        }))
         self.assertFalse(retry.is_error)
         self.assertEqual(retry.structured_content["sha256"], receipt["sha256"])
         self.assertIsNone(self.store.load_revision(self.document_id, 3))

@@ -6139,14 +6139,17 @@ def get_document_delivery_contract() -> dict:
 
 
 @core.mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, openWorldHint=False))
-def deliver_document(document_id: str, revision: int | None = None, link_ttl_seconds: int = 900) -> CallToolResult:
+def deliver_document(document_id: str, revision: int | None = None, link_ttl_seconds: int = 900,
+                     expected_sha256: str | None = None) -> CallToolResult:
     """Return a downloadable .hwpx resource and clickable link after exact-byte validation.
 
     Use after any existing editing tool, or to renew an expired link without repeating edits.
+    To renew an exact committed file, supply its revision and expected_sha256.
     Present the returned file/link to the user. Do not claim host attachment display or
     Hancom rendering was verified merely because export succeeded.
     """
-    return handoff(export_revision(core, document_id, link_ttl_seconds, revision))
+    return handoff(export_revision(core, document_id, link_ttl_seconds, revision,
+                                   expected_sha256=expected_sha256))
 
 
 def _delivery_after_commit(document_id: str, revision: int, link_ttl_seconds: int, workflow: str,

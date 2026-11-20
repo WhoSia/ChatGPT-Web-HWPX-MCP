@@ -1,10 +1,17 @@
 name: P4.27 Lossless Native Editing Acceptance
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - "server_p2.py"
+      - "hwpx_mcp/delivery/p333_file_delivery.py"
+      - "tests/test_p426_delivery_roundtrip.py"
+      - "tests/test_p427_*.py"
+      - ".github/workflows/p427-ci.yml"
   pull_request:
     branches:
-      - development/p425-competitive-capability-convergence-20261110
-      - development/p427-lossless-structured-editing-20261111
+      - main
     paths:
       - "server.py"
       - "server_p2.py"

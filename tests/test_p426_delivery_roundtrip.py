@@ -15,6 +15,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from types import SimpleNamespace
 from urllib.parse import urlsplit
+from unittest.mock import patch
 
 from starlette.requests import Request
 
@@ -103,6 +104,26 @@ class NativeDownloadRoundtripTests(unittest.TestCase):
         self.assertEqual(first["sha256"], second["sha256"])
         self.assertEqual(first["revision"], second["revision"])
         self.assertEqual(self._download(second["download_url"]).body, self.raw)
+
+    def test_expired_link_renews_only_the_pinned_revision_and_digest(self):
+        now = int(time.time())
+        with patch("hwpx_mcp.delivery.p333_file_delivery.time.time", return_value=now):
+            first = export_revision(self.core, DOC, 60, revision=1)
+        self.core.DOCUMENT_STORE.load_current = lambda doc: {**self.row, "revision": 2}
+        with patch("hwpx_mcp.delivery.p333_file_delivery.time.time", return_value=now + 61):
+            self.assertEqual(self._download(first["download_url"]).status_code, 410)
+            with self.assertRaisesRegex(ValueError, "requires an explicit revision"):
+                export_revision(self.core, DOC, expected_sha256=first["sha256"])
+            with self.assertRaisesRegex(ValueError, "expected digest"):
+                export_revision(self.core, DOC, revision=1, expected_sha256="0" * 64)
+            renewed = export_revision(self.core, DOC, revision=1, expected_sha256=first["sha256"])
+            self.assertNotEqual(renewed["download_url"], first["download_url"])
+            self.assertEqual(self._download(renewed["download_url"]).body, self.raw)
+
+    def test_export_rejects_mismatched_explicit_revision(self):
+        self.core.DOCUMENT_STORE.load_revision = lambda doc, rev: {**self.row, "revision": 2}
+        with self.assertRaisesRegex(ValueError, "Revision identity mismatch"):
+            export_revision(self.core, DOC, revision=1, expected_sha256=self.row["sha256"])
 
     def test_corrupted_link_does_not_turn_into_attachment(self):
         receipt = export_revision(self.core, DOC)

@@ -40,7 +40,10 @@ def _signature(core, document_id: str, revision: int, digest: str, expiry: int) 
     return hmac.new(core._download_secret(), payload, hashlib.sha256).hexdigest()
 
 
-def export_revision(core, document_id: str, link_ttl_seconds: int = 900, revision: int | None = None) -> dict:
+def export_revision(core, document_id: str, link_ttl_seconds: int = 900,
+                    revision: int | None = None, *, expected_sha256: str | None = None) -> dict:
+    if expected_sha256 is not None and revision is None:
+        raise ValueError("An expected SHA-256 requires an explicit revision")
     core._paths(document_id)  # validate opaque identity before storage access
     subject = core._caller_subject()
     row = (core.DOCUMENT_STORE.load_current(document_id) if revision is None
@@ -49,10 +52,14 @@ def export_revision(core, document_id: str, link_ttl_seconds: int = 900, revisio
         raise FileNotFoundError("Document revision is no longer retained")
     if row["owner_subject"] != subject:
         raise PermissionError("Document is not owned by the authenticated principal")
+    if revision is not None and row["revision"] != int(revision):
+        raise ValueError("Revision identity mismatch")
     raw = row["bytes"]
     digest = hashlib.sha256(raw).hexdigest()
     if digest != row["sha256"]:
         raise ValueError("Revision integrity mismatch")
+    if expected_sha256 is not None and digest != expected_sha256.lower():
+        raise ValueError("Revision SHA-256 differs from the expected digest")
     # Validate private exact bytes, never the shared mutable execution cache.
     with tempfile.TemporaryDirectory() as tmp:
         path = Path(tmp) / "export.hwpx"

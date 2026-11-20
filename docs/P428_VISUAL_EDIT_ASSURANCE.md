@@ -35,3 +35,15 @@ On the rendered first page, the equation `a+b` is visible beside the selection r
 ## R4 · Check the download receipt against the commit
 
 The delivery response verifies the document ID, revision and committed digest before returning the link. A mismatch keeps the edit committed and returns the existing delivery-only recovery response.
+
+## R6 · Renew an expired link for the same bytes
+
+Pass `revision` and `expected_sha256` from the committed delivery receipt to
+`deliver_document`. The retained revision must match the requested revision
+and digest before the service issues a new link. Recovery does not require a
+new edit. The download exposes the revision in `X-HWPX-Revision` and the digest
+in `ETag`.
+
+The regression check expires an old link, advances the current revision,
+then verifies that the reissued link still returns the pinned revision bytes.
+The edit acceptance workflow follows `main` after branch consolidation.

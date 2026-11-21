@@ -1,0 +1,95 @@
+name: P4.29 isolated PostgreSQL rollback drill
+on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/p429-rollback-drill.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  rollback:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: hwpx_test
+          POSTGRES_PASSWORD: hwpx_test_password
+          POSTGRES_DB: hwpx_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U hwpx_test -d hwpx_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DRILL_DB: postgresql://hwpx_test:hwpx_test_password@127.0.0.1:5432/hwpx_test
+      OLD_SHA: f7517b33a4bdf9549bd2defcf3bc149b3c43ccae
+      NEW_SHA: 6be8d7e567fd0431b731e9623ed80758b9f65c80
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.OLD_SHA }}
+          path: old
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.NEW_SHA }}
+          path: new
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install storage dependencies
+        run: python -m pip install 'psycopg[binary]>=3.2,<4' 'cryptography>=45,<47'
+      - name: Exercise old, new and rolled-back code against the same disposable database
+        run: |
+          test "$(git -C old rev-parse HEAD)" = "$OLD_SHA"
+          test "$(git -C new rev-parse HEAD)" = "$NEW_SHA"
+          python - <<'PY'
+          import os
+          import subprocess
+          import sys
+
+          code = """
+          import hashlib, os, sys, time
+          import psycopg
+          from hwpx_mcp.storage.document_store import DurableDocumentStore
+
+          url = os.environ["DRILL_DB"]
+          key = "disposable-p429-rollback-test-key-00000000"
+          store = DurableDocumentStore(url, key)
+          doc = "doc_" + "a" * 24
+          phase = sys.argv[1]
+          if phase == "old-before":
+              store.put_revision(document_id=doc, owner_subject="test-owner", revision=1,
+                                 data=b"revision one", metadata={}, expires_at_epoch=time.time()+600)
+          elif phase == "new":
+              from hwpx_mcp.storage.p424_pdf_store import P424PdfStore
+              assert store.load_revision(doc, 1)["bytes"] == b"revision one"
+              P424PdfStore(url, key)
+              store.put_revision(document_id=doc, owner_subject="test-owner", revision=2,
+                                 data=b"revision two", metadata={}, expires_at_epoch=time.time()+600)
+              # Seed a synthetic dependent row to test the database cascade on rollback.
+              with psycopg.connect(url) as connection:
+                  connection.execute(
+                      "INSERT INTO hwpx_p424_native_pdf "
+                      "(evidence_id,document_id,revision,owner_subject,source_sha256,pdf_sha256,pdf_bytes,ciphertext) "
+                      "VALUES (%s,%s,2,%s,%s,%s,64,%s)",
+                      ("e"*64,doc,"test-owner",hashlib.sha256(b"revision two").hexdigest(),"f"*64,b"fixture"),
+                  )
+          else:
+              assert store.load_revision(doc, 1)["bytes"] == b"revision one"
+              current = store.load_current(doc)
+              assert current["revision"] == 2 and current["bytes"] == b"revision two"
+              assert current["sha256"] == hashlib.sha256(current["bytes"]).hexdigest()
+              assert store.delete_document(doc)
+              assert store.load_current(doc) is None
+              with psycopg.connect(url) as connection:
+                  assert connection.execute(
+                      "SELECT count(*) FROM hwpx_p424_native_pdf WHERE document_id=%s", (doc,)
+                  ).fetchone()[0] == 0
+          print(phase, "PASS")
+          """
+          for checkout, phase in (("old", "old-before"), ("new", "new"), ("old", "old-after")):
+              subprocess.run([sys.executable, "-c", code, phase], cwd=checkout, env=os.environ, check=True)
+          PY

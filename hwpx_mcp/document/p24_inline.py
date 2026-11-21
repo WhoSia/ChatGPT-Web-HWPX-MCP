@@ -524,6 +524,17 @@ def _validate_replace(paragraph: dict, operation: dict) -> dict:
     }
 
 
+def inline_range_rejection(paragraph: dict, start: int, end: int) -> str | None:
+    """Return the edit engine's rejection reason for replacing this range."""
+    try:
+        _validate_replace(paragraph, {
+            "target": paragraph["locator"], "start": start, "end": end, "text": "",
+        })
+    except ValueError as exc:
+        return str(exc)
+    return None
+
+
 def _normalize_operations(operations: list[dict], inline_map: dict) -> list[dict]:
     if not operations:
         raise ValueError("At least one inline edit operation is required")

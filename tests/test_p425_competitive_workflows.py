@@ -317,6 +317,11 @@ class CompetitorPatternToolsTests(unittest.TestCase):
             hit, = result["matches"]
             self.assertEqual(result["coordinate_space"], "inline_text")
             self.assertEqual((hit["offset"], hit["end_offset"]), (2, 8))
+            self.assertTrue(hit["inline_range_editable"])
+            crossing = self.mcp.tools["find_document_text"](
+                DOCUMENT_ID, "앞\nStraße", inline_coordinates=True)["matches"][0]
+            self.assertFalse(crossing["inline_range_editable"])
+            self.assertIn("special character atom", crossing["inline_range_rejection"])
             before_edit = build_inline_map(path)["inline_structure_sha256"]
             apply_inline_edits_atomic(path, [{
                 "op": "replace_inline_text", "target": hit["locator"],

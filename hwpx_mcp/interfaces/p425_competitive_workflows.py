@@ -574,7 +574,8 @@ def register_competitive_workflows(core):
         paragraph text by default. Set inline_coordinates to search the
         text indexed by apply_inline_edits, including its control markers.
         Use the returned revision and matched_text as expected_text when
-        editing. Inline edit validation still checks structural boundaries.
+        editing. Inline results report whether each range passes structural
+        replacement checks. The edit call still validates the replacement.
         """
         if not isinstance(query, str) or not query or len(query) > 256:
             raise ValueError("QUERY_MUST_BE_1_TO_256_CHARS")
@@ -582,7 +583,7 @@ def register_competitive_workflows(core):
             raise ValueError("MATCH_LIMIT_INVALID")
         _metadata, row = _owned(document_id)
         from hwpx_mcp.document.p2_document import build_document_map
-        from hwpx_mcp.document.p24_inline import build_inline_map
+        from hwpx_mcp.document.p24_inline import build_inline_map, inline_range_rejection
 
         map_document = build_inline_map if inline_coordinates else build_document_map
         text_key = "inline_text" if inline_coordinates else "text"
@@ -617,7 +618,7 @@ def register_competitive_workflows(core):
                     at, end = boundaries[at], boundaries[end]
                 found += 1
                 if len(matches) < max_matches:
-                    matches.append({
+                    match = {
                         "locator": para["locator"],
                         "section_index": para["section_index"],
                         "paragraph_index": para["paragraph_index"],
@@ -627,7 +628,13 @@ def register_competitive_workflows(core):
                         "matched_text": raw_text[at:end],
                         "text_sha256": para[f"{text_key}_sha256"],
                         "context": raw_text[max(0, at - 60):end + 60],
-                    })
+                    }
+                    if inline_coordinates:
+                        rejection = inline_range_rejection(para, at, end)
+                        match["inline_range_editable"] = rejection is None
+                        if rejection is not None:
+                            match["inline_range_rejection"] = rejection
+                    matches.append(match)
         return {
             "ok": True, "document_id": document_id,
             "revision": row["revision"], "query": query,

@@ -303,6 +303,25 @@ class CompetitorPatternToolsTests(unittest.TestCase):
                     DOCUMENT_ID, "검색", expected_revision=1)
             build.assert_not_called()
 
+    def test_search_continuation_reaches_last_hit_without_duplicates(self):
+        from hwpx import HwpxDocument
+
+        with HwpxDocument.new() as document:
+            document.add_paragraph("검색 " * 101)
+            self.store.row["bytes"] = document.to_bytes()
+        search = self.mcp.tools["find_document_text"]
+        first = search(DOCUMENT_ID, "검색", max_matches=100)
+        second = search(DOCUMENT_ID, "검색", expected_revision=first["revision"],
+                        match_offset=first["next_match_offset"])
+        self.assertEqual(first["total_matches"], 101)
+        self.assertEqual(first["next_match_offset"], 100)
+        self.assertEqual(second["matches"][0]["offset"], 300)
+        self.assertIsNone(second["next_match_offset"])
+        self.assertFalse(second["truncated"])
+        self.assertEqual(search(DOCUMENT_ID, "검색", match_offset=200)["matches"], [])
+        with self.assertRaisesRegex(ValueError, "MATCH_OFFSET_INVALID"):
+            search(DOCUMENT_ID, "검색", match_offset=-1)
+
     def test_casefold_search_reports_original_character_boundaries(self):
         raw = "Straße 표"
         sample = {"paragraphs": [{

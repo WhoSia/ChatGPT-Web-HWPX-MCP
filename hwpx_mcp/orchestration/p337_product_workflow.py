@@ -11,7 +11,6 @@ from pathlib import Path
 from typing import Any, Callable
 
 from hwpx_mcp.document.p24_inline import apply_inline_edits_atomic, build_inline_map
-from hwpx_mcp.document.p2_document import build_document_map
 
 
 SCHEMA = "chatgpt-web-hwpx-mcp/p3.37/product-workflow/v1"
@@ -334,8 +333,7 @@ def fill_template_atomic(
             current_revision=1,
             validator=validator,
         )
-        after_inline = build_inline_map(candidate)
-        after_document = build_document_map(candidate)
+        verified = transaction["after"]
         receipt = {
             "schema": "chatgpt-web-hwpx-mcp/p3.37/template-fill-receipt/v1",
             "plan_sha256": plan["plan_sha256"],
@@ -343,9 +341,9 @@ def fill_template_atomic(
             "placeholder_count": plan["placeholder_count"],
             "matches": plan["matches"],
             "inline_structure_sha256_before": plan["inline_structure_sha256_before"],
-            "inline_structure_sha256_after": after_inline["inline_structure_sha256"],
-            "semantic_sha256_after": after_document["semantic_sha256"],
-            "structure_sha256_after": after_document["structure_sha256"],
+            "inline_structure_sha256_after": verified["inline_structure_sha256"],
+            "semantic_sha256_after": verified["semantic_sha256"],
+            "structure_sha256_after": verified["structure_sha256"],
             "validation": transaction.get("validation"),
             "atomic_commit": True,
             "source_template_mutated": False,

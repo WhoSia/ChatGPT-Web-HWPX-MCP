@@ -398,7 +398,10 @@ def _public_scan(scan: dict) -> dict:
 
 
 def build_inline_map(path: Path) -> dict:
-    document_map = build_document_map(path)
+    return _inline_map_for_document(path, build_document_map(path))
+
+
+def _inline_map_for_document(path: Path, document_map: dict) -> dict:
     by_position = {
         (item["section"], int(item["paragraph_index"])): item
         for item in document_map["paragraphs"]
@@ -632,8 +635,7 @@ def _apply_one_replace(paragraph: ElementTree.Element, operation: dict) -> None:
             paragraph.remove(child)
 
 
-def _patch_inline_candidate(path: Path, normalized: list[dict]) -> None:
-    current_map = build_document_map(path)
+def _patch_inline_candidate(path: Path, normalized: list[dict], current_map: dict) -> None:
     locator_index = {item["locator"]: item for item in current_map["paragraphs"]}
     by_section: dict[str, list[dict]] = {}
     for op in normalized:
@@ -688,7 +690,7 @@ def apply_inline_edits_atomic(
         raise ValueError(f"Stale revision: expected {expected_revision}, current {current_revision}")
 
     before_document = build_document_map(path)
-    before_inline = build_inline_map(path)
+    before_inline = _inline_map_for_document(path, before_document)
     normalized = _normalize_operations(operations, before_inline)
 
     fd, tmp_name = tempfile.mkstemp(
@@ -699,9 +701,9 @@ def apply_inline_edits_atomic(
     candidate.write_bytes(path.read_bytes())
     validation = None
     try:
-        _patch_inline_candidate(candidate, normalized)
+        _patch_inline_candidate(candidate, normalized, before_document)
         after_document = build_document_map(candidate)
-        after_inline = build_inline_map(candidate)
+        after_inline = _inline_map_for_document(candidate, after_document)
 
         if before_document["structure_sha256"] != after_document["structure_sha256"]:
             raise ValueError("Inline text transaction changed paragraph structure; refusing commit")

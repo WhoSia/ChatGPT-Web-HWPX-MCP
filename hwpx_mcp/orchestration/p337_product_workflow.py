@@ -242,6 +242,8 @@ def plan_literal_placeholder_fill(
                 index = text.find(placeholder, start)
                 if index < 0:
                     break
+                if len(operations) == MAX_FILL_OPERATIONS:
+                    raise ValueError(f"template fill exceeds {MAX_FILL_OPERATIONS} operations")
                 operations.append({
                     "op": "replace_inline_text",
                     "target": paragraph["locator"],
@@ -262,8 +264,6 @@ def plan_literal_placeholder_fill(
         raise ValueError("template placeholders are not unique: " + ", ".join(ambiguous[:10]))
     if not operations:
         raise ValueError("template fill produced no editable matches")
-    if len(operations) > MAX_FILL_OPERATIONS:
-        raise ValueError(f"template fill exceeds {MAX_FILL_OPERATIONS} operations")
 
     by_target: dict[str, list[tuple[int, int, str]]] = {}
     for op in operations:

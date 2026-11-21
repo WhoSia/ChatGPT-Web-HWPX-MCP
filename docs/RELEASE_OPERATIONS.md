@@ -33,3 +33,16 @@ A pass in one lane cannot silently certify another. P4.21 preregistered native-r
 ## Sole-maintainer attribution and branch retirement
 
 Commit authorship and committer identity must both be `WhoSia`; Actions may test and build but never author commits. Prefer compare-and-swap fast-forward main updates over merge commits with `web-flow`/bot committer identity. Archive release results in PR discussion and canonical product authority. **Development and safety branches are removed only by the repository owner, manually, after successful production verification.**
+
+## P4.29 · Production Release Assurance & Consumer Acceptance
+
+Exact-Build Deployment, ChatGPT Attachment Verification & Rollback Readiness
+
+Run `python scripts/p429_check_live_build.py <health-url> <full-commit-sha>`
+to compare the healthy runtime with the intended source. A match establishes
+runtime identity only. Cross-check Render's LIVE deployment ID and commit
+before recording deployment evidence. For the ChatGPT acceptance run, retain
+the committed revision number and SHA-256, acquire the attachment through the
+ChatGPT interface, and hash the downloaded bytes. Use the previous LIVE
+deployment ID as the rollback reference and verify database compatibility
+before treating it as recoverable.

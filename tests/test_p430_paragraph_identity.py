@@ -26,3 +26,14 @@ class ParagraphIdentityTests(unittest.TestCase):
             self.assertEqual([p["text"] for p in after], ["edited", "cell", "last"])
             self.assertEqual(receipt["locator_rebinding"]["invalidated_revision_bound_locators"],
                              [p["locator"] for p in before[:2]])
+
+    def test_spine_order_precedes_numeric_fallback_for_unlisted_sections(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "ordered.hwpx"
+            with zipfile.ZipFile(path, "w") as archive:
+                for n in (0, 1, 10, 2):
+                    archive.writestr(f"Contents/section{n}.xml", f"<s><p><t>{n}</t></p></s>")
+                archive.writestr("Contents/content.hpf", """<package xmlns="urn:opf"><manifest>
+                    <item id="a" href="Contents/section1.xml"/><item id="b" href="section0.xml"/>
+                    </manifest><spine><itemref idref="a"/><itemref idref="b"/></spine></package>""")
+            self.assertEqual(build_document_map(path)["text"].splitlines(), ["1", "0", "2", "10"])

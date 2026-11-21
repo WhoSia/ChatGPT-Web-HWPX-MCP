@@ -74,7 +74,25 @@ def _section_names(archive: zipfile.ZipFile) -> list[str]:
     for name in archive.namelist():
         if name.startswith(SECTION_PREFIX) and name.lower().endswith(".xml"):
             names.append(name)
-    return sorted(names)
+    # A package can declare a reading order independent of section numbering.
+    ordered = []
+    if "Contents/content.hpf" in archive.namelist():
+        package = ElementTree.fromstring(archive.read("Contents/content.hpf"))
+        sections = set(names)
+        by_id = {}
+        for item in package.findall("{*}manifest/{*}item"):
+            href = item.get("href", "").removeprefix("./")
+            path = href if href.startswith("Contents/") else "Contents/" + href
+            if path in sections:
+                by_id[item.get("id")] = path
+        ordered = [by_id[ref.get("idref")] for ref in package.findall("{*}spine/{*}itemref")
+                   if ref.get("idref") in by_id]
+    # Older/minimal packages may omit the spine or some manifest entries.
+    def section_number(name: str):
+        suffix = name[len(SECTION_PREFIX):-4]
+        return (0, int(suffix), name) if suffix.isascii() and suffix.isdecimal() else (1, 0, name)
+
+    return list(dict.fromkeys([*ordered, *sorted(names, key=section_number)]))
 
 
 def build_document_map(path: Path) -> dict:

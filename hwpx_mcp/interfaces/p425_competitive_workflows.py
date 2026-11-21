@@ -143,10 +143,10 @@ def register_competitive_workflows(core):
              "document_id, values; optional require_each, require_unique"),
             ("fill_template_and_deliver", "fill template apply",
              "Fill HWPX placeholders and return the revised attachment.",
-             "document_id, values, expected_revision"),
+             "document_id, values, expected_revision; optional expected_plan_sha256"),
             ("replace_text_and_deliver", "replace batch find",
              "Replace multiple literal strings in one durable revision.",
-             "document_id, replacements, expected_revision"),
+             "document_id, replacements, expected_revision; optional expected_plan_sha256"),
             ("list_document_figures", "figure image graph chart list inspect",
              "Inspect native HWPX figure placement and object references.",
              "document_id; optional offset, limit"),
@@ -657,10 +657,11 @@ def register_competitive_workflows(core):
         expected_revision: int,
         require_each: bool = True,
         require_unique: bool = False,
+        expected_plan_sha256: str | None = None,
     ) -> dict:
         """Fill placeholders, save one durable HWPX revision, return its download.
 
-        No external file path required. The prior revision is retained.
+        Pass the preview plan_sha256 as expected_plan_sha256 to bind the edit. The prior revision is retained.
         If another editor commits first, P3.0 revision CAS rejects this edit.
         An unchanged existing HWPX can be exported again without repeating
         a mutation.
@@ -675,6 +676,7 @@ def register_competitive_workflows(core):
             receipt = fill_template_atomic(
                 source, output, values,
                 require_each=require_each, require_unique=require_unique,
+                expected_plan_sha256=expected_plan_sha256,
                 validator=lambda path: core.validate_hwpx_package(path, ingress=False),
             )
             changed = output.read_bytes()
@@ -728,6 +730,7 @@ def register_competitive_workflows(core):
         replacements: dict[str, str],
         expected_revision: int,
         require_each: bool = True,
+        expected_plan_sha256: str | None = None,
     ) -> dict:
         """Batch search/replace in HWPX, commit one revision and deliver.
 
@@ -739,4 +742,5 @@ def register_competitive_workflows(core):
             document_id=document_id, values=replacements,
             expected_revision=expected_revision,
             require_each=require_each, require_unique=False,
+            expected_plan_sha256=expected_plan_sha256,
         )

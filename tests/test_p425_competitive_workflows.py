@@ -248,6 +248,21 @@ class CompetitorPatternToolsTests(unittest.TestCase):
         self.assertEqual(self.store.writes[0]["data"], UPDATED)
         self.assertEqual(result.structured_content["download_url"], "https://example.test/signed.hwpx")
 
+    def test_reviewed_template_plan_rejects_changed_values_before_commit(self):
+        from hwpx import HwpxDocument
+
+        with HwpxDocument.new() as document:
+            document.add_paragraph("이름: {{NAME}}")
+            self.store.row["bytes"] = document.to_bytes()
+        preview = self.mcp.tools["preview_template_fill"](
+            DOCUMENT_ID, {"{{NAME}}": "홍길동"})
+        fill = self.mcp.tools["fill_template_and_deliver"]
+        with self.assertRaisesRegex(ValueError, "TEMPLATE_FILL_PLAN_CHANGED"):
+            fill(DOCUMENT_ID, {"{{NAME}}": "김길동"}, expected_revision=2,
+                 expected_plan_sha256=preview["plan_sha256"])
+        self.assertEqual(self.store.writes, [])
+        self.assertEqual(self.store.row["revision"], 2)
+
     def test_batch_replace_reuses_template_edit_commit(self):
         def fake_fill(source, output, values, **kwargs):
             self.assertEqual(values, {"old": "new", "{{DATE}}": "2026-11-10"})

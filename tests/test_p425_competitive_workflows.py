@@ -360,7 +360,7 @@ class CompetitorPatternToolsTests(unittest.TestCase):
         }
         with patch("hwpx_mcp.document.p2_document.build_document_map", return_value=example):
             result = self.mcp.tools["read_document_structure"](
-                DOCUMENT_ID, offset=1, limit=1)
+                DOCUMENT_ID, offset=1, limit=1, expected_revision=2)
         self.assertEqual(result["paragraphs"][0]["text"], "표 셀")
         self.assertIsNone(result["next_offset"])
         self.assertEqual(result["pagination"], "PARAGRAPH_OFFSET_NOT_NATIVE_PAGE_NUMBER")
@@ -377,6 +377,13 @@ class CompetitorPatternToolsTests(unittest.TestCase):
             result = self.mcp.tools["read_document_structure"](
                 DOCUMENT_ID, include_text=False)
         self.assertNotIn("text", result["paragraphs"][0])
+
+    def test_structure_reader_rejects_stale_offsets_before_parsing(self):
+        with patch("hwpx_mcp.document.p2_document.build_document_map") as build:
+            with self.assertRaisesRegex(ValueError, "DOCUMENT_REVISION_CONFLICT"):
+                self.mcp.tools["read_document_structure"](
+                    DOCUMENT_ID, offset=1, expected_revision=1)
+            build.assert_not_called()
 
     def test_read_bounds(self):
         for args in ({"offset": -1}, {"limit": 0}, {"limit": 1000}):

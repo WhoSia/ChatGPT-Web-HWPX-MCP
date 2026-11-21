@@ -134,7 +134,7 @@ def register_competitive_workflows(core):
              "rich_plan; optional filename"),
             ("read_document_structure", "read inspect outline paragraphs",
              "Read structured sections and nested paragraph text.",
-             "document_id; optional offset, limit, include_text"),
+             "document_id; optional offset, limit, include_text, expected_revision"),
             ("find_document_text", "search find text",
              "Search normal and table-cell text with exact locators.",
              "document_id, query; optional max_matches, case_sensitive"),
@@ -486,18 +486,24 @@ def register_competitive_workflows(core):
         offset: int = 0,
         limit: int = 50,
         include_text: bool = True,
+        expected_revision: int | None = None,
     ) -> dict:
         """Read ordered HWPX paragraphs, including text inside table cells.
 
         Returns section/paragraph coordinates for follow-up edits. Pages
         are not inferred from XML structure; a native renderer is required
-        for actual page layout.
+        for actual page layout. Pass the first response's revision in
+        subsequent reads to reject offsets from a superseded revision.
         """
         if type(offset) is not int or offset < 0:
             raise ValueError("OFFSET_INVALID")
         if type(limit) is not int or not 1 <= limit <= 100:
             raise ValueError("LIMIT_INVALID")
+        if expected_revision is not None and (type(expected_revision) is not int or expected_revision < 1):
+            raise ValueError("EXPECTED_REVISION_INVALID")
         _metadata, row = _owned(document_id)
+        if expected_revision is not None and row["revision"] != expected_revision:
+            raise ValueError("DOCUMENT_REVISION_CONFLICT: restart inspection at offset 0")
         from hwpx_mcp.document.p2_document import build_document_map
         with tempfile.TemporaryDirectory(prefix="p425-read-") as tmp:
             source = Path(tmp) / "owned.hwpx"
@@ -507,6 +513,7 @@ def register_competitive_workflows(core):
         return {
             "ok": True, "document_id": document_id,
             "revision": row["revision"],
+            "source_sha256": row["sha256"],
             "section_count": len(document["sections"]),
             "sections": document["sections"],
             "paragraph_count": document["paragraph_count"],

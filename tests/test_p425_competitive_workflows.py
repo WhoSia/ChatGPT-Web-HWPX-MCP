@@ -235,11 +235,15 @@ class CompetitorPatternToolsTests(unittest.TestCase):
                           "filename": "filled.hwpx", "mime_type": "application/hwp+zip",
                           "delivery_status": "READY_FOR_DOWNLOAD",
                           "download_expires_at": "2026-11-10T23:59:00Z", "bytes": 256},
-        ):
+        ) as export:
             result = self.mcp.tools["fill_template_and_deliver"](
                 DOCUMENT_ID, {"{{NAME}}": "홍길동"}, expected_revision=2)
         self.assertTrue(result.structured_content["ok"])
         self.assertEqual(result.structured_content["revision"], 3)
+        export.assert_called_once_with(
+            self.core, DOCUMENT_ID, link_ttl_seconds=900, revision=3,
+            expected_sha256=hashlib.sha256(UPDATED).hexdigest(),
+        )
         self.assertEqual(self.store.writes[0]["expected_revision"], 2)
         self.assertEqual(self.store.writes[0]["data"], UPDATED)
         self.assertEqual(result.structured_content["download_url"], "https://example.test/signed.hwpx")

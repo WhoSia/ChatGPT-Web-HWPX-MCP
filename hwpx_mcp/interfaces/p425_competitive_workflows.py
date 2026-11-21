@@ -699,7 +699,10 @@ def register_competitive_workflows(core):
         # operation never sees stale cached bytes after an edit.
         core._load_metadata(document_id)
         from hwpx_mcp.delivery.p333_file_delivery import export_revision
-        export = export_revision(core, document_id, link_ttl_seconds=900)
+        export = export_revision(
+            core, document_id, link_ttl_seconds=900,
+            revision=expected_revision + 1, expected_sha256=digest,
+        )
         from hwpx_mcp.delivery.p333_file_delivery import handoff
         attachment = handoff({
             **export,

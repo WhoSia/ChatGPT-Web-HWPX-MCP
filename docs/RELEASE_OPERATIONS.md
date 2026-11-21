@@ -52,3 +52,10 @@ After saving the attachment, use
 The receipt can contain just the committed `revision` and `sha256`. Keep
 the browser acquisition observation with the result. The command verifies
 bytes against the receipt and does not establish where the file was obtained.
+
+For deployment or rollback readback, pass `--render-deployment record.json`
+with the Render deployment record. The combined check requires the Render
+deployment to be LIVE and both commit SHAs to match the expected commit.
+A rollback readback uses the commit reserved before rollout. This verifies
+identity and health. Database compatibility and the rollback operation
+require their own evidence.

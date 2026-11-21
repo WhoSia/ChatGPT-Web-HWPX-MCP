@@ -6359,11 +6359,24 @@ def _product_create_impl(plan: dict, filename: str, request_id: str, design_mode
     )
 
 
+# Replace the text-only P4.25 registration. FastMCP keeps the first tool
+# registered under a name unless it is explicitly removed.
+core.mcp.remove_tool("create_and_deliver_document")
+
+
 @core.mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, openWorldHint=False))
-def create_and_deliver_document(plan: dict, filename: str = "document.hwpx", request_id: str = "",
-                                design_mode: str = "AUTO", explicit_tokens: dict | None = None,
-                                link_ttl_seconds: int = 900) -> CallToolResult:
-    """Primary P3.37 authoring path: compile, validate, durably commit and return one native .hwpx resource."""
+def create_and_deliver_document(plan: dict | None = None, filename: str = "document.hwpx",
+                                request_id: str = "", design_mode: str = "AUTO",
+                                explicit_tokens: dict | None = None, link_ttl_seconds: int = 900,
+                                text: str | None = None, title: str = "") -> CallToolResult:
+    """Create and deliver one HWPX from exactly one of plan or text."""
+    if (plan is None) == (text is None):
+        raise ValueError("Provide exactly one of plan or text")
+    if text is not None:
+        return core._p425_create_text_and_deliver(
+            text=text, title=title, filename=filename, request_id=request_id,
+            link_ttl_seconds=link_ttl_seconds,
+        )
     return _product_create_impl(
         plan, filename, request_id, design_mode, explicit_tokens, link_ttl_seconds,
         "P337_CREATE_VALIDATE_DELIVER",

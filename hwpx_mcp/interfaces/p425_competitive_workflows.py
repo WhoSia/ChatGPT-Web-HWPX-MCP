@@ -10,6 +10,7 @@ import hashlib
 import re
 from pathlib import Path
 import tempfile
+from mcp.types import CallToolResult
 
 from hwpx_mcp.orchestration.p337_product_workflow import (
     fill_template_atomic,
@@ -127,7 +128,7 @@ def register_competitive_workflows(core):
         workflows = [
             ("create_and_deliver_document", "create",
              "Create a simple HWPX and return a file attachment in one call.",
-             "text; optional title, filename, request_id"),
+             "plan or text; optional filename, request_id (title applies to text)"),
             ("create_rich_document_and_deliver", "create rich report",
              "Create a native multi-section HWPX with tables, equations and images.",
              "rich_plan; optional filename"),
@@ -253,7 +254,8 @@ def register_competitive_workflows(core):
         title: str = "",
         filename: str = "document.hwpx",
         request_id: str = "",
-    ) -> dict:
+        link_ttl_seconds: int = 900,
+    ) -> CallToolResult:
         """Create a real HWPX and provide its download in one MCP call.
 
         Uses the existing replay-safe create_document and P3.33 file
@@ -270,7 +272,7 @@ def register_competitive_workflows(core):
         from hwpx_mcp.delivery.p333_file_delivery import export_revision, handoff
         delivered = export_revision(
             core, document_id=created["document_id"],
-            link_ttl_seconds=900,
+            link_ttl_seconds=link_ttl_seconds,
         )
         attachment = handoff({
             **delivered,
@@ -280,6 +282,8 @@ def register_competitive_workflows(core):
             "native_pdf_created": False,
         })
         return attachment
+
+    core._p425_create_text_and_deliver = create_and_deliver_document
 
     @core.mcp.tool()
     def create_rich_document_and_deliver(

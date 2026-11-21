@@ -86,3 +86,28 @@ def test_product_edit_returns_quality_after_actual_text_mutation():
             assert diff["semantic_preservation"] == "NOT_CERTIFIED_FOR_USER_AUTHORED_EDITS"
             assert api.get_document_map(doc_id)["revision"] == 2
             assert "수정한 문장" in api.get_document_map(doc_id)["paragraphs"][-1]["text"]
+
+
+def test_registered_authoring_tool_accepts_plan_and_legacy_text():
+    import asyncio
+
+    public_tools = asyncio.run(core.mcp.list_tools())
+    tool = next(t for t in public_tools if t.name == "create_and_deliver_document")
+    assert {"plan", "text"} <= tool.input_schema["properties"].keys()
+    assert not {"plan", "text"} & set(tool.input_schema.get("required", []))
+    with (patch.object(api, "_product_create_impl", return_value="plan-result") as author,
+          patch.object(core, "_p425_create_text_and_deliver", return_value="text-result") as plain):
+        assert api.create_and_deliver_document(plan={}) == "plan-result"
+        assert api.create_and_deliver_document(text="한글", title="제목") == "text-result"
+        for inputs in ({}, {"plan": {}, "text": "한글"}):
+            try:
+                api.create_and_deliver_document(**inputs)
+            except ValueError as exc:
+                assert "exactly one" in str(exc)
+            else:
+                raise AssertionError("Ambiguous authoring input accepted")
+        author.assert_called_once()
+        plain.assert_called_once_with(
+            text="한글", title="제목", filename="document.hwpx",
+            request_id="", link_ttl_seconds=900,
+        )

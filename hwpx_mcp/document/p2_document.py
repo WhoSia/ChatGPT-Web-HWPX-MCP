@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections import Counter
 import copy
 import hashlib
 import json
@@ -59,8 +60,7 @@ def _set_intrinsic_id(node: ElementTree.Element, value: str) -> None:
     node.set("id", value)
 
 
-def _stable_locator(section_name: str, paragraph_index: int, node: ElementTree.Element) -> tuple[str, str]:
-    intrinsic = _paragraph_intrinsic_id(node)
+def _stable_locator(section_name: str, paragraph_index: int, intrinsic: str | None) -> tuple[str, str]:
     if intrinsic is not None:
         seed = f"{section_name}\0id\0{intrinsic}"
         stability = "intrinsic-id"
@@ -96,12 +96,13 @@ def build_document_map(path: Path) -> dict:
                 if _local(child.tag) == "p":
                     direct_indexes[id(child)] = direct_index
                     direct_index += 1
-            for node in root.iter():
-                if _local(node.tag) != "p":
-                    continue
+            nodes = _paragraph_nodes(root)
+            id_counts = Counter(_paragraph_intrinsic_id(node) for node in nodes)
+            for node in nodes:
                 text = _paragraph_text(node)
-                locator, stability = _stable_locator(section_name, para_index, node)
                 intrinsic_id = _paragraph_intrinsic_id(node)
+                unique_id = intrinsic_id if id_counts[intrinsic_id] == 1 else None
+                locator, stability = _stable_locator(section_name, para_index, unique_id)
                 parent = parents.get(node)
                 body_index = direct_indexes.get(id(node))
                 paragraph = {
@@ -270,7 +271,7 @@ def _move_relative(
 
 def _identity_key(item: dict) -> tuple[str, str] | None:
     intrinsic = item.get("intrinsic_id")
-    if intrinsic is None:
+    if intrinsic is None or item["address_stability"] != "intrinsic-id":
         return None
     return item["section"], str(intrinsic)
 

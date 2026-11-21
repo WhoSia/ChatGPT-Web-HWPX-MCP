@@ -1,0 +1,144 @@
+{
+  "repository": "https://github.com/airmang/python-hwpx",
+  "revision": "f437822402fab4829ad6398170d47f0d4982b91c",
+  "command": "PYTHONPATH=. python benchmarks/p430_large_edit.py SOURCE LITERAL_1 LITERAL_2",
+  "scope": "Linux, one fresh process per case, SDK call_tool, in-memory revision store, local signed HTTP handler. RSS covers the whole process including verification. Single-run timings. No renderer or production transport.",
+  "cases": [
+    {
+      "fixture": "tests/fixtures/m2_corpus/gov_donation_report_form.hwpx",
+      "literals": [
+        "잔여 포인트 현황",
+        "소요 시간 전체 평균"
+      ],
+      "result": {
+        "source_sha256": "8a32197efb532ee3c137af319003803deb8fa72c63513e095fcd172732dced4c",
+        "bytes": 1877815,
+        "paragraphs": 1856,
+        "edited": 2,
+        "seconds": {
+          "ingest_document": [
+            0.061
+          ],
+          "read_document_structure": [
+            0.048
+          ],
+          "find_document_text": [
+            0.091,
+            0.09
+          ],
+          "preview_template_fill": [
+            0.09
+          ],
+          "fill_template_and_deliver": [
+            0.546
+          ]
+        },
+        "compact_page_bytes": 2610,
+        "process_peak_rss_kib_linux": 123428
+      }
+    },
+    {
+      "fixture": "tests/fixtures/hwpxlib_corpus/error__20250808__2015년_12월_재난안전종합상황_분석_및_전망.hwpx",
+      "literals": [
+        "호루라기나 랜턴",
+        "정부서울청사 508호"
+      ],
+      "result": {
+        "source_sha256": "620dc2a7aeb2fc5a1699bfb01a2a060dc7f188f6ae126ac8fbd9a1e0e32df531",
+        "bytes": 7450934,
+        "paragraphs": 3916,
+        "edited": 2,
+        "seconds": {
+          "ingest_document": [
+            0.206
+          ],
+          "read_document_structure": [
+            0.167
+          ],
+          "find_document_text": [
+            0.339,
+            0.542
+          ],
+          "preview_template_fill": [
+            0.492
+          ],
+          "fill_template_and_deliver": [
+            2.298
+          ]
+        },
+        "compact_page_bytes": 2711,
+        "process_peak_rss_kib_linux": 190052
+      },
+      "original_sha256": "f72326c33e722d5f73c3283f4666b308a6a233860e22d6dcacb346e616be0e45",
+      "original_bytes": 7452328,
+      "original_ingress": "Rejected: HWPX mimetype must be stored without compression",
+      "preparation": "Recreate ZIP in original member order using original ZipInfo entries and member payloads, setting only mimetype.compress_type to ZIP_STORED before writestr."
+    },
+    {
+      "fixture": "tests/fixtures/exam/A_form.hwpx",
+      "literals": [
+        "원안지 마지막 장",
+        "자간 줄이기"
+      ],
+      "result": {
+        "source_sha256": "c11c90b48eb8b709cdeb91f5a2c7ecae1b89d0d1390dfc1db32865b902d0dd0f",
+        "bytes": 449139,
+        "paragraphs": 203,
+        "edited": 2,
+        "seconds": {
+          "ingest_document": [
+            0.064
+          ],
+          "read_document_structure": [
+            0.006
+          ],
+          "find_document_text": [
+            0.011,
+            0.011
+          ],
+          "preview_template_fill": [
+            0.011
+          ],
+          "fill_template_and_deliver": [
+            0.07
+          ]
+        },
+        "compact_page_bytes": 2979,
+        "process_peak_rss_kib_linux": 91232
+      }
+    },
+    {
+      "fixture": "tests/fixtures/m2_corpus/public_official_table.hwpx",
+      "literals": [
+        "량을 집중하겠다”고 밝혔다.",
+        "AI 윤리 및 신뢰성 확보"
+      ],
+      "result": {
+        "source_sha256": "95768dadad966b3ba7853bb3904e9cc8409be21d7e795afcef1ec17fd7c75622",
+        "bytes": 367634,
+        "paragraphs": 114,
+        "edited": 2,
+        "seconds": {
+          "ingest_document": [
+            0.062
+          ],
+          "read_document_structure": [
+            0.005
+          ],
+          "find_document_text": [
+            0.009,
+            0.009
+          ],
+          "preview_template_fill": [
+            0.009
+          ],
+          "fill_template_and_deliver": [
+            0.058
+          ]
+        },
+        "compact_page_bytes": 2857,
+        "process_peak_rss_kib_linux": 89456
+      }
+    }
+  ]
+}

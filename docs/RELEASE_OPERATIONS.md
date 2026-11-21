@@ -59,3 +59,12 @@ deployment to be LIVE and both commit SHAs to match the expected commit.
 A rollback readback uses the commit reserved before rollout. This verifies
 identity and health. Database compatibility and the rollback operation
 require their own evidence.
+
+The source comparison of deployed `f7517b33` and candidate `2a1eb31`
+found no changes in the existing document-store or OAuth-store files,
+Dockerfile, or Render manifest. The added native-PDF store is initialized
+on first use when PDF delivery is enabled. Its table and index are additive,
+and the foreign key cascades from document revisions. A staging rollback
+check should exercise attachment retrieval and revision deletion on an
+isolated database under both builds. Until that exercise is recorded, this
+source review does not certify database rollback.

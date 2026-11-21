@@ -137,7 +137,7 @@ def register_competitive_workflows(core):
              "document_id; optional offset, limit, include_text, expected_revision"),
             ("find_document_text", "search find text",
              "Search normal and table-cell text with exact locators.",
-             "document_id, query; optional max_matches, case_sensitive"),
+             "document_id, query; optional max_matches, case_sensitive, inline_coordinates"),
             ("preview_template_fill", "preview template fill",
              "Preview placeholder replacements without modifying the document.",
              "document_id, values; optional require_each, require_unique"),
@@ -566,11 +566,15 @@ def register_competitive_workflows(core):
         document_id: str, query: str,
         max_matches: int = 50,
         case_sensitive: bool = True,
+        inline_coordinates: bool = False,
     ) -> dict:
         """Search body and table-cell paragraphs in document order.
 
         Offsets are zero-based Python character indexes in the original
-        paragraph text. Use the returned revision when applying an edit.
+        paragraph text by default. Set inline_coordinates to search the
+        text indexed by apply_inline_edits, including its control markers.
+        Use the returned revision and matched_text as expected_text when
+        editing. Inline edit validation still checks structural boundaries.
         """
         if not isinstance(query, str) or not query or len(query) > 256:
             raise ValueError("QUERY_MUST_BE_1_TO_256_CHARS")
@@ -578,15 +582,19 @@ def register_competitive_workflows(core):
             raise ValueError("MATCH_LIMIT_INVALID")
         _metadata, row = _owned(document_id)
         from hwpx_mcp.document.p2_document import build_document_map
+        from hwpx_mcp.document.p24_inline import build_inline_map
+
+        map_document = build_inline_map if inline_coordinates else build_document_map
+        text_key = "inline_text" if inline_coordinates else "text"
         with tempfile.TemporaryDirectory(prefix="p425-search-") as tmp:
             source = Path(tmp) / "owned.hwpx"
             source.write_bytes(row["bytes"])
-            paragraphs = build_document_map(source)["paragraphs"]
+            paragraphs = map_document(source)["paragraphs"]
         matches = []
         found = 0
         target = query if case_sensitive else query.casefold()
         for para in paragraphs:
-            raw_text = para["text"]
+            raw_text = para[text_key]
             haystack = raw_text if case_sensitive else raw_text.casefold()
             boundaries = None
             if not case_sensitive and len(haystack) != len(raw_text):
@@ -617,7 +625,7 @@ def register_competitive_workflows(core):
                         "offset": at,
                         "end_offset": end,
                         "matched_text": raw_text[at:end],
-                        "text_sha256": para["text_sha256"],
+                        "text_sha256": para[f"{text_key}_sha256"],
                         "context": raw_text[max(0, at - 60):end + 60],
                     })
         return {
@@ -626,6 +634,7 @@ def register_competitive_workflows(core):
             "total_matches": found, "matches": matches,
             "truncated": found > len(matches),
             "includes_nested_paragraphs": True,
+            "coordinate_space": "inline_text" if inline_coordinates else "paragraph_text",
         }
 
     @core.mcp.tool()

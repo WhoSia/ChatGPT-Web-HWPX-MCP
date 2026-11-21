@@ -292,6 +292,41 @@ class CompetitorPatternToolsTests(unittest.TestCase):
             result = find(DOCUMENT_ID, "s", case_sensitive=False)
             self.assertEqual(result["total_matches"], 1)
 
+    def test_inline_search_offsets_apply_after_a_control(self):
+        from pathlib import Path
+        from tempfile import TemporaryDirectory
+
+        from hwpx import HwpxDocument
+        from hwpx_mcp.document.p24_inline import apply_inline_edits_atomic, build_inline_map
+        from hwpx_mcp.document.p26_controls import apply_control_edits_atomic
+
+        with TemporaryDirectory() as tmp:
+            path = Path(tmp) / "control.hwpx"
+            with HwpxDocument.new() as doc:
+                doc.add_paragraph("앞Straße")
+                path.write_bytes(doc.to_bytes())
+            before = next(p for p in build_inline_map(path)["paragraphs"]
+                          if p["inline_text"] == "앞Straße")
+            apply_control_edits_atomic(path, [{
+                "op": "insert_special_atom", "target": before["locator"],
+                "offset": 1, "kind": "lineBreak",
+            }], expected_revision=1, current_revision=1)
+            self.store.row["bytes"] = path.read_bytes()
+            result = self.mcp.tools["find_document_text"](
+                DOCUMENT_ID, "STRASSE", case_sensitive=False, inline_coordinates=True)
+            hit, = result["matches"]
+            self.assertEqual(result["coordinate_space"], "inline_text")
+            self.assertEqual((hit["offset"], hit["end_offset"]), (2, 8))
+            before_edit = build_inline_map(path)["inline_structure_sha256"]
+            apply_inline_edits_atomic(path, [{
+                "op": "replace_inline_text", "target": hit["locator"],
+                "start": hit["offset"], "end": hit["end_offset"],
+                "expected_text": hit["matched_text"], "text": "수정",
+            }], expected_revision=result["revision"], current_revision=2)
+            edited = build_inline_map(path)
+            self.assertIn("앞\n수정", [p["inline_text"] for p in edited["paragraphs"]])
+            self.assertEqual(edited["inline_structure_sha256"], before_edit)
+
     def test_list_native_figures_returns_object_metadata_only(self):
         example = {
             "pictures": [{

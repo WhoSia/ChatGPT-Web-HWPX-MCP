@@ -567,7 +567,11 @@ def register_competitive_workflows(core):
         max_matches: int = 50,
         case_sensitive: bool = True,
     ) -> dict:
-        """Search text across body and table-cell paragraphs in one call."""
+        """Search body and table-cell paragraphs in document order.
+
+        Offsets are zero-based Python character indexes in the original
+        paragraph text. Use the returned revision when applying an edit.
+        """
         if not isinstance(query, str) or not query or len(query) > 256:
             raise ValueError("QUERY_MUST_BE_1_TO_256_CHARS")
         if type(max_matches) is not int or not 1 <= max_matches <= 100:
@@ -584,11 +588,25 @@ def register_competitive_workflows(core):
         for para in paragraphs:
             raw_text = para["text"]
             haystack = raw_text if case_sensitive else raw_text.casefold()
+            boundaries = None
+            if not case_sensitive and len(haystack) != len(raw_text):
+                boundaries = {0: 0}
+                folded_end = 0
+                for original_end, char in enumerate(raw_text, start=1):
+                    folded_end += len(char.casefold())
+                    boundaries[folded_end] = original_end
             start = 0
             while True:
                 at = haystack.find(target, start)
                 if at < 0:
                     break
+                end = at + len(target)
+                if boundaries is not None and (at not in boundaries or end not in boundaries):
+                    start = at + 1
+                    continue
+                start = end
+                if boundaries is not None:
+                    at, end = boundaries[at], boundaries[end]
                 found += 1
                 if len(matches) < max_matches:
                     matches.append({
@@ -597,9 +615,11 @@ def register_competitive_workflows(core):
                         "paragraph_index": para["paragraph_index"],
                         "container": para["container"],
                         "offset": at,
-                        "context": raw_text[max(0, at - 60):at + len(query) + 60],
+                        "end_offset": end,
+                        "matched_text": raw_text[at:end],
+                        "text_sha256": para["text_sha256"],
+                        "context": raw_text[max(0, at - 60):end + 60],
                     })
-                start = at + len(target)
         return {
             "ok": True, "document_id": document_id,
             "revision": row["revision"], "query": query,

@@ -266,15 +266,31 @@ class CompetitorPatternToolsTests(unittest.TestCase):
     def test_find_text_in_body_and_table(self):
         sample = {"paragraphs": [
             {"locator": "p_body", "section_index": 0, "paragraph_index": 0,
-             "container": "section-body", "text": "자연어 검색"},
+             "container": "section-body", "text": "자연어 검색", "text_sha256": "a" * 64},
             {"locator": "p_cell", "section_index": 0, "paragraph_index": 1,
-             "container": "tc", "text": "표 안에서도 검색"},
+             "container": "tc", "text": "표 안에서도 검색", "text_sha256": "b" * 64},
         ]}
         with patch("hwpx_mcp.document.p2_document.build_document_map", return_value=sample):
             result = self.mcp.tools["find_document_text"](
                 DOCUMENT_ID, "검색")
         self.assertEqual(result["total_matches"], 2)
         self.assertEqual(result["matches"][1]["container"], "tc")
+
+    def test_casefold_search_reports_original_character_boundaries(self):
+        raw = "Straße 표"
+        sample = {"paragraphs": [{
+            "locator": "p_cell", "section_index": 0, "paragraph_index": 1,
+            "container": "tc", "text": raw, "text_sha256": "a" * 64,
+        }]}
+        find = self.mcp.tools["find_document_text"]
+        with patch("hwpx_mcp.document.p2_document.build_document_map", return_value=sample):
+            hit = find(DOCUMENT_ID, "STRASSE", case_sensitive=False)["matches"][0]
+            self.assertEqual((hit["offset"], hit["end_offset"], hit["matched_text"]),
+                             (0, 6, "Straße"))
+            hit = find(DOCUMENT_ID, "E 표", case_sensitive=False)["matches"][0]
+            self.assertEqual((hit["offset"], hit["end_offset"]), (5, 8))
+            result = find(DOCUMENT_ID, "s", case_sensitive=False)
+            self.assertEqual(result["total_matches"], 1)
 
     def test_list_native_figures_returns_object_metadata_only(self):
         example = {

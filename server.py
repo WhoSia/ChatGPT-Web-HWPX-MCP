@@ -88,7 +88,8 @@ DOC_TTL_SECONDS = max(
 )
 MAX_TEXT_CHARS = max(1000, min(int(os.environ.get("P1_MAX_TEXT_CHARS", "100000")), 500000))
 MAX_PACKAGE_BYTES = 8_000_000
-MAX_INGEST_BYTES = 2_000_000
+MAX_INGEST_BYTES = MAX_PACKAGE_BYTES
+MAX_HWP5_INGEST_BYTES = 2_000_000
 MAX_ZIP_ENTRIES = 512
 MAX_EXPANDED_BYTES = 32_000_000
 MAX_ENTRY_BYTES = 8_000_000
@@ -296,8 +297,6 @@ def validate_hwpx_package(path: Path, *, ingress: bool = False) -> dict:
     package_bytes = path.stat().st_size
     if package_bytes > MAX_PACKAGE_BYTES:
         raise ValueError(f"HWPX package exceeds {MAX_PACKAGE_BYTES} bytes")
-    if ingress and package_bytes > MAX_INGEST_BYTES:
-        raise ValueError(f"Existing-HWPX ingress exceeds {MAX_INGEST_BYTES} bytes")
 
     with zipfile.ZipFile(path, "r") as archive:
         infos = archive.infolist()
@@ -585,7 +584,7 @@ def create_document(
 
 @mcp.tool()
 def ingest_document(content_base64: str, filename: str = "existing.hwpx") -> dict:
-    """Admit one small existing HWPX after bounded package and XML validation."""
+    """Admit one existing HWPX after bounded package and XML validation."""
     owner_subject = _caller_subject()
     _cleanup_expired()
     if len(content_base64) > ((MAX_INGEST_BYTES + 2) // 3) * 4 + 16:
@@ -849,6 +848,7 @@ async def health(_request):
             "ingress": {
                 "enabled": True,
                 "max_bytes": MAX_INGEST_BYTES,
+                "hwp5_max_bytes": MAX_HWP5_INGEST_BYTES,
                 "transport": "base64-tool-argument",
             },
         },

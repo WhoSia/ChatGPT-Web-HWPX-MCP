@@ -1126,15 +1126,15 @@ def inspect_hwp5_document(
     max_text_chars: int = 100000,
 ) -> dict:
     """Read one bounded legacy HWP 5.x payload without converting or editing the original file."""
-    encoded_limit = ((core.MAX_INGEST_BYTES + 2) // 3) * 4 + 16
+    encoded_limit = ((core.MAX_HWP5_INGEST_BYTES + 2) // 3) * 4 + 16
     if len(content_base64) > encoded_limit:
         raise ValueError("Encoded HWP exceeds the bounded ingress limit")
     try:
         payload = base64.b64decode(content_base64, validate=True)
     except (binascii.Error, ValueError) as exc:
         raise ValueError("content_base64 is not valid base64") from exc
-    if len(payload) > core.MAX_INGEST_BYTES:
-        raise ValueError(f"HWP ingress exceeds {core.MAX_INGEST_BYTES} bytes")
+    if len(payload) > core.MAX_HWP5_INGEST_BYTES:
+        raise ValueError(f"HWP ingress exceeds {core.MAX_HWP5_INGEST_BYTES} bytes")
 
     result = parse_hwp5_bytes(
         payload,
@@ -1187,15 +1187,15 @@ def materialize_hwp5_text_derivative(
 ) -> dict:
     """Create an editable HWPX text derivative from one readable HWP 5.x source without mutating the source."""
     owner_subject = core._caller_subject()
-    encoded_limit = ((core.MAX_INGEST_BYTES + 2) // 3) * 4 + 16
+    encoded_limit = ((core.MAX_HWP5_INGEST_BYTES + 2) // 3) * 4 + 16
     if len(content_base64) > encoded_limit:
         raise ValueError("Encoded HWP exceeds the bounded ingress limit")
     try:
         payload = base64.b64decode(content_base64, validate=True)
     except (binascii.Error, ValueError) as exc:
         raise ValueError("content_base64 is not valid base64") from exc
-    if len(payload) > core.MAX_INGEST_BYTES:
-        raise ValueError(f"HWP ingress exceeds {core.MAX_INGEST_BYTES} bytes")
+    if len(payload) > core.MAX_HWP5_INGEST_BYTES:
+        raise ValueError(f"HWP ingress exceeds {core.MAX_HWP5_INGEST_BYTES} bytes")
 
     parsed = parse_hwp5_bytes(
         payload,
@@ -2419,15 +2419,15 @@ def materialize_hwp5_rich_derivative(
 
 
 def _decode_hwp5_payload(content_base64: str) -> bytes:
-    encoded_limit = ((core.MAX_INGEST_BYTES + 2) // 3) * 4 + 16
+    encoded_limit = ((core.MAX_HWP5_INGEST_BYTES + 2) // 3) * 4 + 16
     if len(content_base64) > encoded_limit:
         raise ValueError("Encoded HWP exceeds the bounded ingress limit")
     try:
         payload = base64.b64decode(content_base64, validate=True)
     except (binascii.Error, ValueError) as exc:
         raise ValueError("content_base64 is not valid base64") from exc
-    if len(payload) > core.MAX_INGEST_BYTES:
-        raise ValueError(f"HWP ingress exceeds {core.MAX_INGEST_BYTES} bytes")
+    if len(payload) > core.MAX_HWP5_INGEST_BYTES:
+        raise ValueError(f"HWP ingress exceeds {core.MAX_HWP5_INGEST_BYTES} bytes")
     return payload
 
 
@@ -6520,6 +6520,9 @@ def ingest_hangul_document(content_base64: str, filename: str = "document.hwpx",
         raise ValueError("content_base64 is not valid base64") from exc
     if len(payload) > core.MAX_INGEST_BYTES:
         raise ValueError(f"Hangul document ingress exceeds {core.MAX_INGEST_BYTES} bytes")
+
+    if not payload.startswith(b"PK") and len(payload) > core.MAX_HWP5_INGEST_BYTES:
+        raise ValueError(f"HWP ingress exceeds {core.MAX_HWP5_INGEST_BYTES} bytes")
 
     sniff = p337_sniff_hangul_payload(payload, filename)
     if sniff["actual_format"] == "HWPX":

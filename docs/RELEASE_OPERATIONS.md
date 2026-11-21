@@ -64,7 +64,15 @@ The source comparison of deployed `f7517b33` and candidate `2a1eb31`
 found no changes in the existing document-store or OAuth-store files,
 Dockerfile, or Render manifest. The added native-PDF store is initialized
 on first use when PDF delivery is enabled. Its table and index are additive,
-and the foreign key cascades from document revisions. A staging rollback
-check should exercise attachment retrieval and revision deletion on an
-isolated database under both builds. Until that exercise is recorded, this
-source review does not certify database rollback.
+and the foreign key cascades from document revisions. The
+[isolated PostgreSQL rollback drill](https://github.com/WhoSia/ChatGPT-Web-HWPX-MCP/actions/runs/44868373414)
+passed for `f7517b33` → `6be8d7e` → `f7517b33`. The restored code read both
+document revisions and deletion removed the synthetic dependent PDF row.
+This covers database compatibility for those builds. Record deployment
+rollback and ChatGPT attachment acquisition separately.
+
+On `BUILD_MISMATCH`, record the observed runtime SHA and stop candidate
+acceptance. Use Render to identify the current LIVE deployment and retain
+it as the rollback reference. Re-run the identity check with the candidate
+SHA and the candidate's LIVE deployment record before opening a new
+ChatGPT attachment acceptance run.

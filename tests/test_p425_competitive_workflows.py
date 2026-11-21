@@ -272,9 +272,17 @@ class CompetitorPatternToolsTests(unittest.TestCase):
         ]}
         with patch("hwpx_mcp.document.p2_document.build_document_map", return_value=sample):
             result = self.mcp.tools["find_document_text"](
-                DOCUMENT_ID, "검색")
+                DOCUMENT_ID, "검색", expected_revision=2)
+        self.assertEqual(result["source_sha256"], self.store.row["sha256"])
         self.assertEqual(result["total_matches"], 2)
         self.assertEqual(result["matches"][1]["container"], "tc")
+
+    def test_search_rejects_stale_revision_before_reading_text(self):
+        with patch("hwpx_mcp.document.p2_document.build_document_map") as build:
+            with self.assertRaisesRegex(ValueError, "DOCUMENT_REVISION_CONFLICT"):
+                self.mcp.tools["find_document_text"](
+                    DOCUMENT_ID, "검색", expected_revision=1)
+            build.assert_not_called()
 
     def test_casefold_search_reports_original_character_boundaries(self):
         raw = "Straße 표"

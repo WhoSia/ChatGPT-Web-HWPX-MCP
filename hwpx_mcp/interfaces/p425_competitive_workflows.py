@@ -137,7 +137,7 @@ def register_competitive_workflows(core):
              "document_id; optional offset, limit, include_text, expected_revision"),
             ("find_document_text", "search find text",
              "Search normal and table-cell text with exact locators.",
-             "document_id, query; optional max_matches, case_sensitive, inline_coordinates"),
+             "document_id, query; optional max_matches, case_sensitive, inline_coordinates, expected_revision"),
             ("preview_template_fill", "preview template fill",
              "Preview placeholder replacements without modifying the document.",
              "document_id, values; optional require_each, require_unique"),
@@ -567,6 +567,7 @@ def register_competitive_workflows(core):
         max_matches: int = 50,
         case_sensitive: bool = True,
         inline_coordinates: bool = False,
+        expected_revision: int | None = None,
     ) -> dict:
         """Search body and table-cell paragraphs in document order.
 
@@ -575,13 +576,18 @@ def register_competitive_workflows(core):
         text indexed by apply_inline_edits, including its control markers.
         Use the returned revision and matched_text as expected_text when
         editing. Inline results report whether each range passes structural
-        replacement checks. The edit call still validates the replacement.
+        replacement checks. Pass expected_revision to keep multiple searches
+        on the same document revision. The edit call validates the replacement.
         """
         if not isinstance(query, str) or not query or len(query) > 256:
             raise ValueError("QUERY_MUST_BE_1_TO_256_CHARS")
         if type(max_matches) is not int or not 1 <= max_matches <= 100:
             raise ValueError("MATCH_LIMIT_INVALID")
+        if expected_revision is not None and (type(expected_revision) is not int or expected_revision < 1):
+            raise ValueError("EXPECTED_REVISION_INVALID")
         _metadata, row = _owned(document_id)
+        if expected_revision is not None and row["revision"] != expected_revision:
+            raise ValueError("DOCUMENT_REVISION_CONFLICT: re-read the document before searching")
         from hwpx_mcp.document.p2_document import build_document_map
         from hwpx_mcp.document.p24_inline import build_inline_map, inline_range_rejection
 
@@ -637,7 +643,7 @@ def register_competitive_workflows(core):
                     matches.append(match)
         return {
             "ok": True, "document_id": document_id,
-            "revision": row["revision"], "query": query,
+            "revision": row["revision"], "source_sha256": row["sha256"], "query": query,
             "total_matches": found, "matches": matches,
             "truncated": found > len(matches),
             "includes_nested_paragraphs": True,

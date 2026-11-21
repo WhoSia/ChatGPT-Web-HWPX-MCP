@@ -113,6 +113,8 @@ class PreservedTableBatchTests(unittest.TestCase):
         preview = preview_preserved_table_batch(self.path, operations, revision=2)
         self.assert_unchanged()
         receipt = self.batch(operations)
+        self.assertEqual(preview["changes"], receipt["changes"])
+        self.assertEqual(preview["changed_sections"], receipt["changed_sections"])
         self.assertEqual(preview["candidate_sha256"], receipt["committed_sha256"])
         self.assertEqual(preview["candidate_sha256"], hashlib.sha256(self.path.read_bytes()).hexdigest())
 

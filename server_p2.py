@@ -6256,6 +6256,7 @@ def edit_preserved_table_batch_and_deliver(
     download with deliver_document for the returned revision. Supply the
     preview plan_sha256 to check the previewed inputs. Supply candidate_sha256
     as expected_candidate_sha256 to require byte identity before committing.
+    The preserved_edit receipt contains the observed changes and affected sections.
     """
     row = _load_preserved_table_revision(document_id, expected_revision)
     plan_sha256 = preserved_table_batch_plan_sha256(document_id, row["revision"], row["sha256"], operations)

@@ -396,6 +396,34 @@ def _validate_batch_targets(operations: list[dict]) -> None:
         targets.add(target)
 
 
+def _summarize_batch_changes(source: Path, candidate: Path, operations: list[dict]) -> list[dict]:
+    before = {table["locator"]: table for table in build_advanced_table_map(source)["tables"]}
+    after = {table["locator"]: table for table in build_advanced_table_map(candidate)["tables"]}
+    changes = []
+    for operation in operations:
+        locator = operation["table"]
+        original = before[locator]
+        edited = after[locator]
+        change = {"op": operation["op"], "table": locator, "section": edited["section_path"]}
+        if operation["op"] == "set_table_page_break":
+            change.update(before=original["page_break"], after=edited["page_break"])
+        else:
+            cell_locator = operation["cell"]
+            old_cell = next(cell for cell in original["cells"] if cell["locator"] == cell_locator)
+            new_cell = next(cell for cell in edited["cells"] if cell["locator"] == cell_locator)
+            old_text, new_text = old_cell["text"], new_cell["text"]
+            change.update(
+                cell=cell_locator, row=new_cell["row"], col=new_cell["col"],
+                before=old_text[:240], after=new_text[:240],
+                text_truncated=max(len(old_text), len(new_text)) > 240,
+            )
+            if operation["op"] == "replace_cell_phrase":
+                change["paragraph_index"] = operation["paragraph_index"]
+        changes.append(change)
+
+    return changes
+
+
 def apply_bounded_table_edits_with_preservation_atomic(
     path: Path,
     operations: list[dict],
@@ -437,11 +465,14 @@ def apply_bounded_table_edits_with_preservation_atomic(
         digest = certificate["after"]["package_sha256"]
         if digest != receipts[-1]["committed_sha256"]:
             raise ValueError("P427_BATCH_CANDIDATE_HASH_MISMATCH")
+        changes = _summarize_batch_changes(source, candidate, operations)
         os.replace(candidate, source)
     return {
         "schema": "chatgpt-web-hwpx-mcp/p4.27/preserved-table-batch/v1",
         "operation_count": len(receipts),
         "operation_receipts": receipts,
+        "changes": changes,
+        "changed_sections": certificate["observed"]["changed_parts"],
         "package_validation": receipts[-1]["package_validation"],
         "mutation_footprint": certificate,
         "preservation_enforcement": enforcement,
@@ -478,8 +509,6 @@ def preview_preserved_table_batch(
 ) -> dict:
     """Measure changes using the actual checked editor on a disposable copy."""
     source = Path(path)
-    _validate_batch_targets(operations)
-    before = {table["locator"]: table for table in build_advanced_table_map(source)["tables"]}
     layout = {}
     with tempfile.TemporaryDirectory(prefix="p427-table-preview-") as tmp:
         candidate = Path(tmp) / source.name
@@ -488,40 +517,17 @@ def preview_preserved_table_batch(
             candidate, operations, expected_revision=revision, current_revision=revision,
             candidate_validator=candidate_validator,
         )
-        after = {table["locator"]: table for table in build_advanced_table_map(candidate)["tables"]}
         if layout_preview_pages:
             layout["layout_preview"] = preview_rhwp_layout(
                 source, candidate, max_pages=layout_preview_pages,
                 start_page=layout_preview_start_page,
             )
 
-    changes = []
-    for operation in operations:
-        locator = operation["table"]
-        original = before[locator]
-        edited = after[locator]
-        change = {"op": operation["op"], "table": locator, "section": edited["section_path"]}
-        if operation["op"] == "set_table_page_break":
-            change.update(before=original["page_break"], after=edited["page_break"])
-        else:
-            cell_locator = operation["cell"]
-            old_cell = next(cell for cell in original["cells"] if cell["locator"] == cell_locator)
-            new_cell = next(cell for cell in edited["cells"] if cell["locator"] == cell_locator)
-            old_text, new_text = old_cell["text"], new_cell["text"]
-            change.update(
-                cell=cell_locator, row=new_cell["row"], col=new_cell["col"],
-                before=old_text[:240], after=new_text[:240],
-                text_truncated=max(len(old_text), len(new_text)) > 240,
-            )
-            if operation["op"] == "replace_cell_phrase":
-                change["paragraph_index"] = operation["paragraph_index"]
-        changes.append(change)
-
     return {
-        "changes": changes,
+        "changes": receipt["changes"],
         "candidate_sha256": receipt["committed_sha256"],
         "operation_count": receipt["operation_count"],
-        "changed_sections": receipt["mutation_footprint"]["observed"]["changed_parts"],
+        "changed_sections": receipt["changed_sections"],
         "preservation_grade": receipt["preservation_enforcement"]["actual_grade"],
         "authority": receipt["authority"],
         **layout,

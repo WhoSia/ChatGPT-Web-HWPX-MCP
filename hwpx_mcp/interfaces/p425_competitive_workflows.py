@@ -568,6 +568,7 @@ def register_competitive_workflows(core):
         case_sensitive: bool = True,
         inline_coordinates: bool = False,
         expected_revision: int | None = None,
+        match_offset: int = 0,
     ) -> dict:
         """Search body and table-cell paragraphs in document order.
 
@@ -577,12 +578,14 @@ def register_competitive_workflows(core):
         Use the returned revision and matched_text as expected_text when
         editing. Inline results report whether each range passes structural
         replacement checks. Pass expected_revision to keep multiple searches
-        on the same document revision. The edit call validates the replacement.
+        on the same document revision. Pass next_match_offset to fetch later hits. The edit call validates the replacement.
         """
         if not isinstance(query, str) or not query or len(query) > 256:
             raise ValueError("QUERY_MUST_BE_1_TO_256_CHARS")
         if type(max_matches) is not int or not 1 <= max_matches <= 100:
             raise ValueError("MATCH_LIMIT_INVALID")
+        if type(match_offset) is not int or match_offset < 0:
+            raise ValueError("MATCH_OFFSET_INVALID")
         if expected_revision is not None and (type(expected_revision) is not int or expected_revision < 1):
             raise ValueError("EXPECTED_REVISION_INVALID")
         _metadata, row = _owned(document_id)
@@ -623,7 +626,7 @@ def register_competitive_workflows(core):
                 if boundaries is not None:
                     at, end = boundaries[at], boundaries[end]
                 found += 1
-                if len(matches) < max_matches:
+                if found > match_offset and len(matches) < max_matches:
                     match = {
                         "locator": para["locator"],
                         "section_index": para["section_index"],
@@ -645,7 +648,8 @@ def register_competitive_workflows(core):
             "ok": True, "document_id": document_id,
             "revision": row["revision"], "source_sha256": row["sha256"], "query": query,
             "total_matches": found, "matches": matches,
-            "truncated": found > len(matches),
+            "truncated": found > match_offset + len(matches),
+            "next_match_offset": match_offset + max_matches if found > match_offset + max_matches else None,
             "includes_nested_paragraphs": True,
             "coordinate_space": "inline_text" if inline_coordinates else "paragraph_text",
         }

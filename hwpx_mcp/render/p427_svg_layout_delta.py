@@ -158,5 +158,11 @@ def preview_rhwp_layout(source: Path, candidate: Path, *, max_pages: int, start_
             start_page == 1 and len(summary["pages"]) == max(page_counts.values())
         )
     if summary["pages"]:
+        summary["svg_changed_pages"] = [
+            row["page"] for row in summary["pages"] if row["svg_changed"]
+        ]
+        summary["layout_signal_pages"] = [
+            row["page"] for row in summary["pages"] if row["layout_signal_observed"]
+        ]
         summary["status"] = "PARTIAL" if "reason" in summary else "COMPARED"
     return summary

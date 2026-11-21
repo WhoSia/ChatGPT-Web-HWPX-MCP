@@ -6206,8 +6206,10 @@ def preview_preserved_table_batch(
     """Check a batch on a temporary HWPX and report the actual before/after changes.
 
     Set layout_preview_pages to 1–3 to compare pages with rhwp when installed.
-    layout_preview_start_page selects the first page using one-based numbering. It reports page count, text baselines and horizontal
-    rule displacement. Renderer evidence is advisory and is not Hancom output.
+    layout_preview_start_page selects the first page using one-based numbering.
+    svg_changed_pages and layout_signal_pages cover only pages actually compared.
+    Layout measurements include page count, text baselines and horizontal rule displacement.
+    The evidence comes from the rhwp renderer and is advisory.
     """
     if type(layout_preview_pages) is not int or not 0 <= layout_preview_pages <= MAX_LAYOUT_PREVIEW_PAGES:
         raise ValueError("P427_LAYOUT_PREVIEW_PAGE_LIMIT_INVALID")

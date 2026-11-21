@@ -42,6 +42,7 @@ class SvgLayoutDeltaTests(unittest.TestCase):
         self.assertEqual(result["status"], "UNAVAILABLE")
         self.assertEqual(result["reason"], "RHWP_BINARY_NOT_INSTALLED")
         self.assertEqual(result["pages"], [])
+        self.assertNotIn("layout_signal_pages", result)
 
     @patch("hwpx_mcp.render.p427_svg_layout_delta.rhwp_capability", return_value={"available": True})
     @patch("hwpx_mcp.render.p427_svg_layout_delta.render_svg_manifest")
@@ -67,7 +68,7 @@ class SvgLayoutDeltaTests(unittest.TestCase):
             if page_index >= total:
                 raise RhwpPreviewUnavailable("RHWP_RENDER_FAILED")
             rendered = output / "observed.svg"
-            rendered.write_bytes(page(path.stem))
+            rendered.write_bytes(page(path.stem, wrapped=path.stem == "after" and page_index == 3))
             return {"page_count": total, "pages": [{"page": page_index, "path": str(rendered)}]}
 
         render.side_effect = emit
@@ -76,12 +77,15 @@ class SvgLayoutDeltaTests(unittest.TestCase):
         self.assertEqual([row["page"] for row in result["pages"]], [3, 4])
         self.assertEqual([call.kwargs["page_index"] for call in render.call_args_list], [2, 2, 3, 3])
         self.assertFalse(result["all_pages_compared"])
+        self.assertEqual(result["svg_changed_pages"], [3, 4])
+        self.assertEqual(result["layout_signal_pages"], [4])
 
         result = preview_rhwp_layout(before, after, start_page=5, max_pages=1)
         self.assertEqual(result["status"], "UNAVAILABLE")
         self.assertEqual(result["reason"], "RHWP_LAYOUT_START_PAGE_OUTSIDE_COMMON_RANGE")
         self.assertEqual(result["page_count"], {"before": 5, "after": 4})
         self.assertEqual(result["pages"], [])
+        self.assertNotIn("layout_signal_pages", result)
 
     def test_rejects_invalid_one_based_start_page(self):
         for value in (0, -1, True, 1.5):

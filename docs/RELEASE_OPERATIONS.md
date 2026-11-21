@@ -46,3 +46,9 @@ the committed revision number and SHA-256, acquire the attachment through the
 ChatGPT interface, and hash the downloaded bytes. Use the previous LIVE
 deployment ID as the rollback reference and verify database compatibility
 before treating it as recoverable.
+
+After saving the attachment, use
+`python scripts/p429_check_attachment.py downloaded.hwpx receipt.json`.
+The receipt can contain just the committed `revision` and `sha256`. Keep
+the browser acquisition observation with the result. The command verifies
+bytes against the receipt and does not establish where the file was obtained.

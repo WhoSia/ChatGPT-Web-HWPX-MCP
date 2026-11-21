@@ -30,19 +30,17 @@ def _paragraph_text(node: ElementTree.Element) -> str:
     folding their hp:t descendants into the outer paragraph duplicates and
     contaminates the outer text coordinate.
     """
-    chunks: list[str] = []
+    return "".join(elem.text or "" for elem in _owned_text_nodes(node))
 
-    def visit(parent: ElementTree.Element) -> None:
-        for child in list(parent):
-            local = _local(child.tag)
-            if local == "p":
-                continue
-            if local == "t" and child.text:
-                chunks.append(child.text)
-            visit(child)
 
-    visit(node)
-    return "".join(chunks)
+def _owned_text_nodes(parent: ElementTree.Element):
+    for child in parent:
+        local = _local(child.tag)
+        if local == "p":
+            continue
+        if local == "t":
+            yield child
+        yield from _owned_text_nodes(child)
 
 
 def _paragraph_intrinsic_id(node: ElementTree.Element) -> str | None:
@@ -159,7 +157,7 @@ def _paragraph_index_by_locator(document_map: dict) -> dict[str, dict]:
 
 def _replace_paragraph_text(node: ElementTree.Element, new_text: str) -> tuple[str, str]:
     before = _paragraph_text(node)
-    text_nodes = [elem for elem in node.iter() if _local(elem.tag) == "t"]
+    text_nodes = list(_owned_text_nodes(node))
     if not text_nodes:
         raise ValueError("Target paragraph has no editable text node")
     text_nodes[0].text = new_text

@@ -304,6 +304,7 @@ def fill_template_atomic(
     require_each: bool = True,
     require_unique: bool = False,
     validator: Callable[[Path], dict] | None = None,
+    expected_plan_sha256: str | None = None,
 ) -> dict:
     """Clone one HWPX template, fill exact placeholders atomically, and commit destination only on success."""
     template_path = Path(template_path)
@@ -324,6 +325,8 @@ def fill_template_atomic(
             require_each=require_each,
             require_unique=require_unique,
         )
+        if expected_plan_sha256 is not None and plan["plan_sha256"] != expected_plan_sha256:
+            raise ValueError("TEMPLATE_FILL_PLAN_CHANGED_REVIEW_PREVIEW")
         transaction = apply_inline_edits_atomic(
             candidate,
             plan["operations"],

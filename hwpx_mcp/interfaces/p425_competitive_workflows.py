@@ -487,13 +487,15 @@ def register_competitive_workflows(core):
         limit: int = 50,
         include_text: bool = True,
         expected_revision: int | None = None,
+        include_section_locators: bool = True,
     ) -> dict:
         """Read ordered HWPX paragraphs, including text inside table cells.
 
         Returns section/paragraph coordinates for follow-up edits. Pages
         are not inferred from XML structure; a native renderer is required
         for actual page layout. Pass the first response's revision in
-        subsequent reads to reject offsets from a superseded revision.
+        subsequent reads to reject offsets from a superseded revision. For large
+        files set include_section_locators=False to omit the full locator index.
         """
         if type(offset) is not int or offset < 0:
             raise ValueError("OFFSET_INVALID")
@@ -515,7 +517,10 @@ def register_competitive_workflows(core):
             "revision": row["revision"],
             "source_sha256": row["sha256"],
             "section_count": len(document["sections"]),
-            "sections": document["sections"],
+            "sections": document["sections"] if include_section_locators else [
+                {k: v for k, v in section.items() if k != "paragraph_locators"}
+                for section in document["sections"]
+            ],
             "paragraph_count": document["paragraph_count"],
             "offset": offset, "limit": limit,
             "next_offset": offset + limit if offset + limit < document["paragraph_count"] else None,

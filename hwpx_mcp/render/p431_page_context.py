@@ -9,7 +9,11 @@ def _compact(text: str) -> str:
     return "".join(text.split())
 
 
-def page_paragraph_candidates(svg: bytes, paragraphs: list[dict], limit: int = 20) -> dict:
+def page_paragraph_candidates(svg: bytes, paragraphs: list[dict], limit: int = 20, offset: int = 0) -> dict:
+    if type(offset) is not int or offset < 0:
+        raise ValueError("CANDIDATE_OFFSET_INVALID")
+    if type(limit) is not int or not 1 <= limit <= 20:
+        raise ValueError("CANDIDATE_LIMIT_INVALID")
     root = ElementTree.fromstring(svg)
     if _local(root.tag) != "svg":
         raise ValueError("PAGE_CONTEXT_REQUIRES_SVG")
@@ -32,7 +36,7 @@ def page_paragraph_candidates(svg: bytes, paragraphs: list[dict], limit: int = 2
         if len(text) < 8 or text not in rendered:
             continue
         total += 1
-        if len(matches) == limit:
+        if total <= offset or len(matches) == limit:
             continue
         matches.append({
             "locator": paragraph["locator"],
@@ -49,7 +53,8 @@ def page_paragraph_candidates(svg: bytes, paragraphs: list[dict], limit: int = 2
         "method": "WHITESPACE_NORMALIZED_FULL_PARAGRAPH_SUBSTRING",
         "candidate_count": total,
         "candidates": matches,
-        "truncated": total > len(matches),
+        "truncated": total > offset + len(matches),
+        "next_candidate_offset": offset + limit if total > offset + limit else None,
         "complete_page_mapping": False,
         "limitations": [
             "Repeated text can match multiple paragraphs or pages.",

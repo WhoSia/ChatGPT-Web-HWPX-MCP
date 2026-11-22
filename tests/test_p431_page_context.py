@@ -24,3 +24,14 @@ class PageContextTests(unittest.TestCase):
         result = page_paragraph_candidates(b"<svg><text>a paragraph</text></svg>", paragraphs)
         self.assertEqual(result["candidates"], [])
         self.assertEqual(page_paragraph_candidates(b"<svg><image/></svg>", paragraphs)["candidate_count"], 0)
+
+    def test_continuation_covers_every_matching_paragraph_once(self):
+        paragraphs = [paragraph(i, "repeated heading") for i in range(27)]
+        svg = b"<svg><text>repeated heading</text></svg>"
+        first = page_paragraph_candidates(svg, paragraphs)
+        second = page_paragraph_candidates(svg, paragraphs, offset=first["next_candidate_offset"])
+        self.assertEqual(len(first["candidates"]), 20)
+        self.assertEqual(len(second["candidates"]), 7)
+        self.assertIsNone(second["next_candidate_offset"])
+        self.assertFalse(second["truncated"])
+        self.assertEqual(len({p["locator"] for p in first["candidates"] + second["candidates"]}), 27)

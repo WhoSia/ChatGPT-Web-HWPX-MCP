@@ -42,8 +42,11 @@ def register_visual_preview(core):
         profile: str = "screen",
         expected_revision: int | None = None,
         include_paragraph_candidates: bool = False,
+        candidate_offset: int = 0,
     ) -> dict:
         """Render and return up to three SVG pages, only if rhwp is installed."""
+        if type(candidate_offset) is not int or candidate_offset < 0:
+            raise ValueError("CANDIDATE_OFFSET_INVALID")
         if type(max_pages) is not int or not 1 <= max_pages <= MAX_INLINE_SVG_PAGES:
             raise ValueError("PREVIEW_PAGE_LIMIT_INVALID")
         if type(start_page) is not int or start_page < 0:
@@ -102,7 +105,7 @@ def register_visual_preview(core):
                 }
                 if paragraphs is not None:
                     from hwpx_mcp.render.p431_page_context import page_paragraph_candidates
-                    page["paragraph_context"] = page_paragraph_candidates(data, paragraphs)
+                    page["paragraph_context"] = page_paragraph_candidates(data, paragraphs, offset=candidate_offset)
                 pages.append(page)
             if not pages:
                 return {"ok": False,

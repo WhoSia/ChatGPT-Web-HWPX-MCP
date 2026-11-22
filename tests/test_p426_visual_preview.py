@@ -79,6 +79,12 @@ class VisualPreviewToolTests(unittest.TestCase):
         self.assertFalse(result["native_pdf_created"])
         self.assertFalse(result["client_visual_display_verified"])
 
+    def test_stale_review_is_rejected_before_rendering(self):
+        with patch.object(visual, "render_svg_manifest") as render:
+            with self.assertRaisesRegex(ValueError, "REVISION_CONFLICT"):
+                self.mcp.tools["preview_document_svg_pages"](DOC, expected_revision=2)
+            render.assert_not_called()
+
     def test_foreign_document_cannot_be_previewed(self):
         self.row["owner_subject"] = "unrelated-owner"
         with self.assertRaises(FileNotFoundError):

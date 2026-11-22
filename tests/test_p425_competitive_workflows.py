@@ -322,6 +322,23 @@ class CompetitorPatternToolsTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "MATCH_OFFSET_INVALID"):
             search(DOCUMENT_ID, "검색", match_offset=-1)
 
+    def test_bounded_read_reports_original_length_without_changing_source(self):
+        from hwpx import HwpxDocument
+
+        with HwpxDocument.new() as document:
+            document.add_paragraph("긴 문단 " * 1000)
+            self.store.row["bytes"] = document.to_bytes()
+        before = self.store.row["bytes"]
+        result = self.mcp.tools["read_document_structure"](
+            DOCUMENT_ID, text_char_limit=80, include_section_locators=False)
+        paragraphs = result["paragraphs"]
+        self.assertTrue(any(p["text_truncated"] for p in paragraphs))
+        self.assertTrue(all(len(p["text"]) <= 80 for p in paragraphs))
+        self.assertTrue(all("paragraph_locators" not in s for s in result["sections"]))
+        self.assertEqual(self.store.row["bytes"], before)
+        with self.assertRaisesRegex(ValueError, "TEXT_CHAR_LIMIT_INVALID"):
+            self.mcp.tools["read_document_structure"](DOCUMENT_ID, text_char_limit=0)
+
     def test_casefold_search_reports_original_character_boundaries(self):
         raw = "Straße 표"
         sample = {"paragraphs": [{

@@ -1,0 +1,32 @@
+{
+  "source_sha256": "f72326c33e722d5f73c3283f4666b308a6a233860e22d6dcacb346e616be0e45",
+  "bytes": 7452328,
+  "ingress_normalization": {
+    "operation": "STORE_MIMETYPE_WITHOUT_COMPRESSION",
+    "submitted_sha256": "f72326c33e722d5f73c3283f4666b308a6a233860e22d6dcacb346e616be0e45",
+    "submitted_bytes": 7452328
+  },
+  "admitted_sha256": "620dc2a7aeb2fc5a1699bfb01a2a060dc7f188f6ae126ac8fbd9a1e0e32df531",
+  "paragraphs": 3916,
+  "edited": 2,
+  "seconds": {
+    "ingest_document": [
+      0.667
+    ],
+    "read_document_structure": [
+      0.158
+    ],
+    "find_document_text": [
+      0.296,
+      0.369
+    ],
+    "preview_template_fill": [
+      0.376
+    ],
+    "fill_template_and_deliver": [
+      2.111
+    ]
+  },
+  "compact_page_bytes": 2711,
+  "process_peak_rss_kib_linux": 191060
+}

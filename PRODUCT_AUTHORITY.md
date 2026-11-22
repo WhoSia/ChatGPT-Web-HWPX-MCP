@@ -98,10 +98,21 @@ The archive preserves each retired Markdown file verbatim with its Git blob SHA.
 Do not create new phase-specific `*_TEST_LEDGER.md` files in the repository root. Update this file only with compact current authority, boundary changes, and phase closure state. Put detailed phase evidence in CI artifacts, Git history, Notion, and the Project Drive archive.
 
 
-## P4.18 phase state
+## Historical P4.18 phase state
 
 | Phase | State | Authority |
 | --- | --- | --- |
 | P4.18-P1 — Unified End-User Document Task Facade, One-Call Create/Edit/Template/Deliver/Inspect Workflows, Verified Execution Composition, Native HWPX Handoff, Revision-Safe Delivery Recovery & Production Product Surface | **CLOSED** | Runtime/release authority `8e96c333d610d41fc8a1c0e1c2c9ed371158c83e`. P4.18 CI #7 SUCCESS, full lifecycle #1532 SUCCESS, production boundary #1517 SUCCESS. Render deploy `dep-db2uq3142hec7380cqgg` LIVE. Product `0.43.0-p4.18` exposes one primary typed task facade over verified create, edit-intent, template-fill, deliver and inspect capabilities while preserving revision guards, fail-closed routing, P4.17 execution receipts and native-authority separation. |
 
 P4.18-P1 product rule: normal users should not need to compose the legacy low-level MCP tool graph manually. The facade routes bounded typed tasks onto already verified lower-level capabilities and returns structured HWPX delivery handoffs.
+
+
+## Current development state — P4.31
+
+P4.31 — Page-Guided Document Editing: Large-Document Navigation, Targeted Visual Review & Revision-Safe Delivery.
+
+The GitHub branch inventory checked on 2026-11-23 contains only `main`. Continue development directly on `main` with WhoSia author and committer attribution. The implementation through `a5d8028` includes bounded paragraph reads, selected-locator reads, revision-bound SVG previews and paginated rendered-text paragraph candidates. The last recorded focused suite passed 45 tests. Rendered text matches are candidates with explicit ambiguity and incomplete coverage.
+
+The last Render service inspection reported `suspended` with `suspenders: [billing]`. Direct MCP create and read-only contract calls returned internal errors. Source integration does not establish production availability. Production recovery and actual page-render/edit/download validation remain pending.
+
+Detailed commit history, observations and development evidence are maintained in [Notion](https://app.notion.com/p/415ef561cf928186bc7eee97300d364d). Retired files are preserved in Drive before removal from active source.

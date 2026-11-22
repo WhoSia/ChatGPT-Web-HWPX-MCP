@@ -10,6 +10,7 @@ import os
 import re
 import secrets
 import time
+import tempfile
 import zipfile
 from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
@@ -294,6 +295,12 @@ def _safe_zip_name(name: str) -> bool:
 
 
 def validate_hwpx_package(path: Path, *, ingress: bool = False) -> dict:
+    return _validate_hwpx_package(path, ingress=ingress)
+
+
+def _validate_hwpx_package(
+    path: Path, *, ingress: bool, allow_compressed_mimetype: bool = False,
+) -> dict:
     package_bytes = path.stat().st_size
     if package_bytes > MAX_PACKAGE_BYTES:
         raise ValueError(f"HWPX package exceeds {MAX_PACKAGE_BYTES} bytes")
@@ -313,7 +320,10 @@ def validate_hwpx_package(path: Path, *, ingress: bool = False) -> dict:
             raise ValueError("Encrypted ZIP entries are not allowed")
         if infos[0].filename != "mimetype":
             raise ValueError("HWPX mimetype must be the first ZIP entry")
-        if infos[0].compress_type != zipfile.ZIP_STORED:
+        compressed_mimetype = infos[0].compress_type != zipfile.ZIP_STORED
+        if compressed_mimetype and not (
+            allow_compressed_mimetype and infos[0].compress_type == zipfile.ZIP_DEFLATED
+        ):
             raise ValueError("HWPX mimetype must be stored without compression")
 
         expanded = 0
@@ -359,6 +369,33 @@ def validate_hwpx_package(path: Path, *, ingress: bool = False) -> dict:
         "parsed_xml_entries": parsed_xml,
         "required_entries": sorted(REQUIRED_HWPX_ENTRIES),
         "ingress_profile": "bounded-existing-hwpx" if ingress else "generated-hwpx",
+    }
+
+
+def _validate_and_normalize_ingress(path: Path) -> tuple[dict, dict | None]:
+    with zipfile.ZipFile(path) as archive:
+        infos = archive.infolist()
+        normalize = bool(infos and infos[0].filename == "mimetype"
+                         and infos[0].compress_type == zipfile.ZIP_DEFLATED)
+    if not normalize:
+        return validate_hwpx_package(path, ingress=True), None
+
+    before = _validate_hwpx_package(path, ingress=True, allow_compressed_mimetype=True)
+    with tempfile.TemporaryDirectory(dir=path.parent) as directory:
+        candidate = Path(directory) / "normalized.hwpx"
+        with zipfile.ZipFile(path) as source, zipfile.ZipFile(candidate, "w") as target:
+            target.comment = source.comment
+            for entry in source.infolist():
+                payload = source.read(entry)
+                if entry.filename == "mimetype":
+                    entry.compress_type = zipfile.ZIP_STORED
+                target.writestr(entry, payload)
+        validation = validate_hwpx_package(candidate, ingress=True)
+        candidate.replace(path)
+    return validation, {
+        "operation": "STORE_MIMETYPE_WITHOUT_COMPRESSION",
+        "submitted_sha256": before["sha256"],
+        "submitted_bytes": before["bytes"],
     }
 
 
@@ -602,7 +639,7 @@ def ingest_document(content_base64: str, filename: str = "existing.hwpx") -> dic
     hwpx_path, _ = _paths(document_id)
     try:
         hwpx_path.write_bytes(payload)
-        validation = validate_hwpx_package(hwpx_path, ingress=True)
+        validation, normalization = _validate_and_normalize_ingress(hwpx_path)
         metadata = _metadata(
             document_id,
             filename=sanitize_filename(filename),
@@ -610,6 +647,8 @@ def ingest_document(content_base64: str, filename: str = "existing.hwpx") -> dic
             validation=validation,
             source="existing-ingress",
         )
+        if normalization is not None:
+            metadata["ingress_normalization"] = normalization
         _write_metadata(document_id, metadata)
     except Exception:
         _delete_document_files(document_id)

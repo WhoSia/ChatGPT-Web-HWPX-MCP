@@ -461,7 +461,10 @@ def register_competitive_workflows(core):
             expires_at_epoch=row["expires_at_epoch"],
         )
         core._load_metadata(document_id)
-        delivered = export_revision(core, document_id, link_ttl_seconds=900)
+        delivered = export_revision(
+            core, document_id, link_ttl_seconds=900, revision=expected_revision + 1,
+            expected_sha256=digest,
+        )
         result = handoff({
             **delivered, "ok": True,
             "operation_count": receipt["operation_count"],

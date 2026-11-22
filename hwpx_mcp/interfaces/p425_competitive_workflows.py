@@ -390,13 +390,18 @@ def register_competitive_workflows(core):
     @core.mcp.tool()
     def list_document_tables(
         document_id: str, offset: int = 0, limit: int = 10,
+        expected_revision: int | None = None,
     ) -> dict:
         """Read real HWPX table grids, merged-cell anchors and cell text."""
         if type(offset) is not int or offset < 0:
             raise ValueError("OFFSET_INVALID")
         if type(limit) is not int or not 1 <= limit <= 20:
             raise ValueError("LIMIT_INVALID")
+        if expected_revision is not None and (type(expected_revision) is not int or expected_revision < 1):
+            raise ValueError("EXPECTED_REVISION_INVALID")
         _metadata, row = _owned(document_id)
+        if expected_revision is not None and expected_revision != row["revision"]:
+            raise ValueError("DOCUMENT_REVISION_CONFLICT: restart table listing at offset 0")
         from hwpx_mcp.document.p27_tables import build_table_map
         with tempfile.TemporaryDirectory(prefix="p425-tables-") as tmp:
             path = Path(tmp) / "owned.hwpx"
@@ -405,7 +410,7 @@ def register_competitive_workflows(core):
         tables = mapped["tables"]
         return {
             "ok": True, "document_id": document_id,
-            "revision": row["revision"],
+            "revision": row["revision"], "source_sha256": row["sha256"],
             "table_count": len(tables),
             "tables": [{
                 "locator": table["locator"],

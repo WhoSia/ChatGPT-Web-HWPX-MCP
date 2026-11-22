@@ -64,7 +64,20 @@ async def exercise(core, source, literals, directory):
     assert len({p["locator"] for p in before}) == len(before)
     admitted = await call("ingest_document", filename="benchmark.hwpx",
                           content_base64=base64.b64encode(raw).decode("ascii"))
-    doc = payload(admitted)["document_id"]
+    admission = payload(admitted)
+    doc = admission["document_id"]
+    ingress_bytes = core.DOCUMENT_STORE.load_revision(doc, 1)["bytes"]
+    normalization = admission.get("ingress_normalization")
+    if normalization:
+        assert normalization["submitted_sha256"] == hashlib.sha256(raw).hexdigest()
+        assert hashlib.sha256(ingress_bytes).hexdigest() == admission["sha256"]
+        with zipfile.ZipFile(source) as original, zipfile.ZipFile(core._paths(doc)[0]) as normalized:
+            assert original.namelist() == normalized.namelist()
+            assert normalized.getinfo("mimetype").compress_type == zipfile.ZIP_STORED
+            for name in original.namelist():
+                assert original.read(name) == normalized.read(name)
+    else:
+        assert ingress_bytes == raw
     page = await call("read_document_structure", document_id=doc, expected_revision=1,
                       offset=max(len(before) - 10, 0), limit=10, include_section_locators=False)
     page_data = payload(page)
@@ -107,8 +120,10 @@ async def exercise(core, source, literals, directory):
         for name in original.namelist():
             if name not in sections:
                 assert original.read(name) == edited.read(name)
-    assert core.DOCUMENT_STORE.load_revision(doc, 1)["bytes"] == raw == source.read_bytes()
+    assert core.DOCUMENT_STORE.load_revision(doc, 1)["bytes"] == ingress_bytes
+    assert source.read_bytes() == raw
     return {"source_sha256": hashlib.sha256(raw).hexdigest(), "bytes": len(raw),
+            "ingress_normalization": normalization, "admitted_sha256": admission["sha256"],
             "paragraphs": len(before), "edited": len(targets), "seconds": timings,
             "compact_page_bytes": len(json.dumps(page_data, ensure_ascii=False).encode()),
             "process_peak_rss_kib_linux": resource.getrusage(resource.RUSAGE_SELF).ru_maxrss}

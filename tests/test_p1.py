@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import tempfile
 import unittest
 import zipfile
@@ -57,6 +58,29 @@ class P1HwpxTests(unittest.TestCase):
                     target.writestr(info, payload)
             with self.assertRaisesRegex(ValueError, "DTD/entity declarations"):
                 server.validate_hwpx_package(bad, ingress=True)
+
+    def test_intake_normalizes_only_a_valid_deflated_mimetype(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            good = Path(tmp) / "good.hwpx"
+            source = Path(tmp) / "deflated.hwpx"
+            server.materialize_hwpx(good, "preserve me", "intake")
+            with zipfile.ZipFile(good) as original, zipfile.ZipFile(source, "w") as target:
+                for entry in original.infolist():
+                    content = original.read(entry)
+                    if entry.filename == "mimetype":
+                        entry.compress_type = zipfile.ZIP_DEFLATED
+                    target.writestr(entry, content)
+            submitted = hashlib.sha256(source.read_bytes()).hexdigest()
+            with self.assertRaisesRegex(ValueError, "stored without compression"):
+                server.validate_hwpx_package(source)
+            validated, receipt = server._validate_and_normalize_ingress(source)
+            self.assertEqual(receipt["submitted_sha256"], submitted)
+            self.assertNotEqual(validated["sha256"], submitted)
+            self.assertTrue(server.validate_hwpx_package(source)["valid"])
+            with zipfile.ZipFile(good) as original, zipfile.ZipFile(source) as normalized:
+                self.assertEqual(original.namelist(), normalized.namelist())
+                for name in original.namelist():
+                    self.assertEqual(original.read(name), normalized.read(name))
 
     def test_document_id_shape(self) -> None:
         document_id = server._new_document_id()

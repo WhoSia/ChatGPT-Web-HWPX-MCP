@@ -134,6 +134,12 @@ def build_document_map(path: Path) -> dict:
                     ),
                     "intrinsic_id": intrinsic_id,
                     "address_stability": stability,
+                    "explicit_page_break": node.get("pageBreak") in {"1", "true"},
+                    "cached_line_count": sum(
+                        _local(line.tag) == "lineseg"
+                        for array in node if _local(array.tag).lower() == "linesegarray"
+                        for line in array
+                    ),
                     "text": text,
                     "text_sha256": hashlib.sha256(text.encode("utf-8")).hexdigest(),
                 }

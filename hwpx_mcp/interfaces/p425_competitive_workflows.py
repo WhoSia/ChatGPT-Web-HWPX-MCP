@@ -496,6 +496,7 @@ def register_competitive_workflows(core):
         include_text: bool = True,
         expected_revision: int | None = None,
         include_section_locators: bool = True,
+        text_char_limit: int | None = None,
     ) -> dict:
         """Read ordered HWPX paragraphs, including text inside table cells.
 
@@ -505,6 +506,8 @@ def register_competitive_workflows(core):
         subsequent reads to reject offsets from a superseded revision. For large
         files set include_section_locators=False to omit the full locator index.
         """
+        if text_char_limit is not None and (type(text_char_limit) is not int or not 1 <= text_char_limit <= 10000):
+            raise ValueError("TEXT_CHAR_LIMIT_INVALID")
         if type(offset) is not int or offset < 0:
             raise ValueError("OFFSET_INVALID")
         if type(limit) is not int or not 1 <= limit <= 100:
@@ -536,7 +539,14 @@ def register_competitive_workflows(core):
                 {key: item[key] for key in (
                     "locator", "section_index", "paragraph_index",
                     "container", "text_sha256"
-                )} | ({"text": item["text"]} if include_text else {})
+                )} | {
+                    "explicit_page_break": item.get("explicit_page_break", False),
+                    "cached_line_count": item.get("cached_line_count", 0),
+                } | ({
+                    "text": item["text"][:text_char_limit],
+                    "text_chars": len(item["text"]),
+                    "text_truncated": text_char_limit is not None and len(item["text"]) > text_char_limit,
+                } if include_text else {})
                 for item in page
             ],
             "semantic_sha256": document["semantic_sha256"],

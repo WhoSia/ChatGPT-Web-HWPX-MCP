@@ -53,6 +53,11 @@ def register_visual_preview(core):
             raise ValueError("PREVIEW_START_PAGE_INVALID")
         if expected_revision is not None and (type(expected_revision) is not int or expected_revision < 1):
             raise ValueError("EXPECTED_REVISION_INVALID")
+        if candidate_offset > 0:
+            if not include_paragraph_candidates:
+                raise ValueError("CANDIDATE_OFFSET_REQUIRES_PARAGRAPH_CANDIDATES")
+            if expected_revision is None:
+                raise ValueError("CANDIDATE_CONTINUATION_REQUIRES_EXPECTED_REVISION")
         owner = core._caller_subject()
         core._paths(document_id)
         row = core.DOCUMENT_STORE.load_current(document_id)

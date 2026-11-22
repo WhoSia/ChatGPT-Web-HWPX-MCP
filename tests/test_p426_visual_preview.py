@@ -85,6 +85,18 @@ class VisualPreviewToolTests(unittest.TestCase):
                 self.mcp.tools["preview_document_svg_pages"](DOC, expected_revision=2)
             render.assert_not_called()
 
+    def test_candidate_continuation_requires_a_revision_before_rendering(self):
+        preview = self.mcp.tools["preview_document_svg_pages"]
+        with patch.object(visual, "render_svg_manifest") as render:
+            with self.assertRaisesRegex(ValueError, "REQUIRES_EXPECTED_REVISION"):
+                preview(DOC, include_paragraph_candidates=True, candidate_offset=20)
+            with self.assertRaisesRegex(ValueError, "REQUIRES_PARAGRAPH_CANDIDATES"):
+                preview(DOC, candidate_offset=20, expected_revision=3)
+            with self.assertRaisesRegex(ValueError, "REVISION_CONFLICT"):
+                preview(DOC, include_paragraph_candidates=True,
+                        candidate_offset=20, expected_revision=2)
+            render.assert_not_called()
+
     def test_foreign_document_cannot_be_previewed(self):
         self.row["owner_subject"] = "unrelated-owner"
         with self.assertRaises(FileNotFoundError):

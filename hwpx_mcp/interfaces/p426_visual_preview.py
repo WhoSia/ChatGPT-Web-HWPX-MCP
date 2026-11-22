@@ -5,6 +5,7 @@ be installed in the server runtime for actual rendered SVG output.
 """
 from __future__ import annotations
 
+import hashlib
 import base64
 import tempfile
 from pathlib import Path
@@ -39,17 +40,23 @@ def register_visual_preview(core):
         max_pages: int = 1,
         start_page: int = 0,
         profile: str = "screen",
+        expected_revision: int | None = None,
     ) -> dict:
         """Render and return up to three SVG pages, only if rhwp is installed."""
         if type(max_pages) is not int or not 1 <= max_pages <= MAX_INLINE_SVG_PAGES:
             raise ValueError("PREVIEW_PAGE_LIMIT_INVALID")
         if type(start_page) is not int or start_page < 0:
             raise ValueError("PREVIEW_START_PAGE_INVALID")
+        if expected_revision is not None and (type(expected_revision) is not int or expected_revision < 1):
+            raise ValueError("EXPECTED_REVISION_INVALID")
         owner = core._caller_subject()
         core._paths(document_id)
         row = core.DOCUMENT_STORE.load_current(document_id)
         if row is None or row.get("owner_subject") != owner:
             raise FileNotFoundError("OWNED_DOCUMENT_NOT_AVAILABLE")
+        if expected_revision is not None and row["revision"] != expected_revision:
+            raise ValueError("DOCUMENT_REVISION_CONFLICT: refresh preview")
+        source_sha256 = hashlib.sha256(row["bytes"]).hexdigest()
         if not rhwp_capability()["available"]:
             return {
                 "ok": False, "status": "RENDERER_NOT_INSTALLED",
@@ -94,6 +101,8 @@ def register_visual_preview(core):
                         "native_pdf_created": False}
         return {
             "ok": True, "document_id": document_id, "revision": row["revision"],
+            "source_sha256": source_sha256,
+            "page_index_base": 0,
             "status": "SVG_PAGES_READY", "pages": pages,
             "partial": incomplete_reason is not None,
             "incomplete_reason": incomplete_reason,

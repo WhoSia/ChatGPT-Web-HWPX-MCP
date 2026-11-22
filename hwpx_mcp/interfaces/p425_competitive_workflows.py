@@ -497,6 +497,7 @@ def register_competitive_workflows(core):
         expected_revision: int | None = None,
         include_section_locators: bool = True,
         text_char_limit: int | None = None,
+        paragraph_locators: list[str] | None = None,
     ) -> dict:
         """Read ordered HWPX paragraphs, including text inside table cells.
 
@@ -506,6 +507,12 @@ def register_competitive_workflows(core):
         subsequent reads to reject offsets from a superseded revision. For large
         files set include_section_locators=False to omit the full locator index.
         """
+        if paragraph_locators is not None and (
+            not isinstance(paragraph_locators, list) or not 1 <= len(paragraph_locators) <= 20
+            or any(not isinstance(item, str) for item in paragraph_locators)
+            or len(set(paragraph_locators)) != len(paragraph_locators)
+        ):
+            raise ValueError("PARAGRAPH_LOCATORS_INVALID")
         if text_char_limit is not None and (type(text_char_limit) is not int or not 1 <= text_char_limit <= 10000):
             raise ValueError("TEXT_CHAR_LIMIT_INVALID")
         if type(offset) is not int or offset < 0:
@@ -522,7 +529,13 @@ def register_competitive_workflows(core):
             source = Path(tmp) / "owned.hwpx"
             source.write_bytes(row["bytes"])
             document = build_document_map(source)
-        page = document["paragraphs"][offset:offset + limit]
+        selected = document["paragraphs"]
+        if paragraph_locators is not None:
+            requested = set(paragraph_locators)
+            selected = [item for item in selected if item["locator"] in requested]
+            if len(selected) != len(requested):
+                raise ValueError("PARAGRAPH_LOCATOR_NOT_FOUND_REFRESH_REVISION")
+        page = selected[offset:offset + limit]
         return {
             "ok": True, "document_id": document_id,
             "revision": row["revision"],
@@ -533,8 +546,9 @@ def register_competitive_workflows(core):
                 for section in document["sections"]
             ],
             "paragraph_count": document["paragraph_count"],
+            "selected_paragraph_count": len(selected),
             "offset": offset, "limit": limit,
-            "next_offset": offset + limit if offset + limit < document["paragraph_count"] else None,
+            "next_offset": offset + limit if offset + limit < len(selected) else None,
             "paragraphs": [
                 {key: item[key] for key in (
                     "locator", "section_index", "paragraph_index",

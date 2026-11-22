@@ -27,7 +27,7 @@ def page_paragraph_candidates(svg: bytes, paragraphs: list[dict], limit: int = 2
     counts = Counter(_compact(p["text"]) for p in paragraphs)
     matches = []
     total = 0
-    for paragraph in paragraphs:
+    for paragraph_offset, paragraph in enumerate(paragraphs):
         text = _compact(paragraph["text"])
         if len(text) < 8 or text not in rendered:
             continue
@@ -36,6 +36,7 @@ def page_paragraph_candidates(svg: bytes, paragraphs: list[dict], limit: int = 2
             continue
         matches.append({
             "locator": paragraph["locator"],
+            "paragraph_offset": paragraph_offset,
             "section_index": paragraph["section_index"],
             "paragraph_index": paragraph["paragraph_index"],
             "container": paragraph["container"],

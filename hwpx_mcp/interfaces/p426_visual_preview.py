@@ -41,6 +41,7 @@ def register_visual_preview(core):
         start_page: int = 0,
         profile: str = "screen",
         expected_revision: int | None = None,
+        include_paragraph_candidates: bool = False,
     ) -> dict:
         """Render and return up to three SVG pages, only if rhwp is installed."""
         if type(max_pages) is not int or not 1 <= max_pages <= MAX_INLINE_SVG_PAGES:
@@ -67,6 +68,10 @@ def register_visual_preview(core):
             root = Path(tmp)
             source = root / "owned.hwpx"
             source.write_bytes(row["bytes"])
+            paragraphs = None
+            if include_paragraph_candidates:
+                from hwpx_mcp.document.p2_document import build_document_map
+                paragraphs = build_document_map(source)["paragraphs"]
             pages = []
             incomplete_reason = None
             for page_index in range(start_page, start_page + max_pages):
@@ -88,13 +93,17 @@ def register_visual_preview(core):
                 if len(data) > MAX_PAGE_SVG_BYTES:
                     incomplete_reason = "SVG_PAGE_TOO_LARGE"
                     break
-                pages.append({
+                page = {
                     "page": item["page"],
                     "svg_base64": base64.b64encode(data).decode("ascii"),
                     "sha256": item["sha256"], "bytes": item["bytes"],
                     "mime_type": "image/svg+xml",
                     "overflow_cell_lines": item["overflow_cell_lines"],
-                })
+                }
+                if paragraphs is not None:
+                    from hwpx_mcp.render.p431_page_context import page_paragraph_candidates
+                    page["paragraph_context"] = page_paragraph_candidates(data, paragraphs)
+                pages.append(page)
             if not pages:
                 return {"ok": False,
                         "status": incomplete_reason or "RHWP_NO_PAGES_RENDERED",

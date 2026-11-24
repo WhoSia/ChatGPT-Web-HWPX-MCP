@@ -50,6 +50,27 @@ class RhwpPreviewTests(unittest.TestCase):
             (self.output / "page-0.svg").read_bytes()).hexdigest())
         self.assertEqual(result["render_authority"], "THIRD_PARTY_SVG_NOT_NATIVE_HANCOM")
 
+    def test_requested_page_must_be_the_only_returned_page(self):
+        (self.root / "empty").mkdir()
+        def emit(args, **kwargs):
+            (self.root / "empty" / "sample.svg").write_text("<svg/>")
+            return proc
+        for numbers, requested, error in [
+            ([0], 39, "REQUESTED_PAGE_MISMATCH"), ([], 77, "REQUESTED_PAGE_MISMATCH"),
+            ([39, 40], 39, "REQUESTED_PAGE_MISMATCH"), ([True], 1, "PAGE_NUMBER_INVALID"),
+            ([2, 2], None, "PAGE_NUMBER_INVALID"),
+        ]:
+            manifest = {"format": "svg", "pages": [
+                {"page": number, "path": "sample.svg"} for number in numbers]}
+            proc = subprocess.CompletedProcess([], 0, stdout=json.dumps(manifest).encode())
+            with self.subTest(numbers=numbers, requested=requested), patch.object(
+                preview.shutil, "which", return_value="rhwp"
+            ), patch.object(preview.subprocess, "run", side_effect=emit):
+                with self.assertRaisesRegex(RuntimeError, error):
+                    preview.render_svg_manifest(self.source, self.output.parent / "empty",
+                                                page_index=requested)
+                (self.root / "empty" / "sample.svg").unlink()
+
     def test_non_empty_output_refused(self):
         (self.output / "existing.txt").write_text("do not replace")
         with self.assertRaisesRegex(ValueError, "OUTPUT_DIR_MUST_BE_EMPTY"):

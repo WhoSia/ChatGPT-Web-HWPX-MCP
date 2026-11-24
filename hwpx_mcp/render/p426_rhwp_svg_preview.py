@@ -82,10 +82,19 @@ def render_svg_manifest(
         raise RuntimeError("RHWP_MANIFEST_INVALID")
     if len(manifest["pages"]) > max_pages:
         raise ValueError("RHWP_TOO_MANY_PAGES_FOR_PREVIEW")
+    if page_index is not None and len(manifest["pages"]) != 1:
+        raise RuntimeError("RHWP_REQUESTED_PAGE_MISMATCH")
+    page_numbers = set()
     pages = []
     for page in manifest["pages"]:
         if not isinstance(page, dict):
             raise RuntimeError("RHWP_PAGE_INVALID")
+        number = page.get("page")
+        if type(number) is not int or number < 0 or number in page_numbers:
+            raise RuntimeError("RHWP_PAGE_NUMBER_INVALID")
+        if page_index is not None and number != page_index:
+            raise RuntimeError("RHWP_REQUESTED_PAGE_MISMATCH")
+        page_numbers.add(number)
         path = Path(page.get("path", ""))
         if not path.is_absolute():
             path = output_dir / path

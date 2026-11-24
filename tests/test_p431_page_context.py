@@ -35,3 +35,10 @@ class PageContextTests(unittest.TestCase):
         self.assertIsNone(second["next_candidate_offset"])
         self.assertFalse(second["truncated"])
         self.assertEqual(len({p["locator"] for p in first["candidates"] + second["candidates"]}), 27)
+
+    def test_nested_descriptions_and_hidden_groups_preserve_only_visible_tails(self):
+        svg = (b"<svg><g display='none'><text>hidden paragraph</text></g>"
+               b"<text>visible <title>hidden paragraph</title>paragraph</text></svg>")
+        rows = [paragraph(0, "hidden paragraph"), paragraph(1, "visible paragraph")]
+        result = page_paragraph_candidates(svg, rows)
+        self.assertEqual([item["locator"] for item in result["candidates"]], ["p_1"])

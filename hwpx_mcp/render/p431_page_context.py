@@ -17,17 +17,21 @@ def page_paragraph_candidates(svg: bytes, paragraphs: list[dict], limit: int = 2
     root = ElementTree.fromstring(svg)
     if _local(root.tag) != "svg":
         raise ValueError("PAGE_CONTEXT_REQUIRES_SVG")
-    # defs may contain reusable text that never appears on the page.
-    def visible_text(node):
-        if _local(node.tag) in {"defs", "metadata", "title", "desc"}:
+    def text_fragments(node, in_text=False):
+        tag = _local(node.tag)
+        if tag in {"defs", "metadata", "title", "desc", "symbol", "clipPath", "mask", "pattern"}:
             return
-        if _local(node.tag) == "text":
-            yield "".join(node.itertext())
+        if node.get("display", "").strip() == "none":
             return
+        in_text = in_text or tag == "text"
+        if in_text and node.text:
+            yield node.text
         for child in node:
-            yield from visible_text(child)
+            yield from text_fragments(child, in_text)
+            if in_text and child.tail:
+                yield child.tail
 
-    rendered = _compact("".join(visible_text(root)))
+    rendered = _compact("".join(text_fragments(root)))
     counts = Counter(_compact(p["text"]) for p in paragraphs)
     matches = []
     total = 0
